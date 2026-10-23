@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (macOS 15)
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build app (Debug)
+        run: |
+          set +e
+          xcodebuild \
+            -project KagiPeek.xcodeproj \
+            -scheme KagiPeek \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
+            build > "$RUNNER_TEMP/build.log" 2>&1
+          status=$?
+          tail -80 "$RUNNER_TEMP/build.log"
+          if [ $status -ne 0 ]; then
+            summary=$(grep -E "error:|error " "$RUNNER_TEMP/build.log" | head -8 | tr '\n' ' ' | cut -c1-900)
+            if [ -z "$summary" ]; then
+              summary=$(tail -20 "$RUNNER_TEMP/build.log" | tr '\n' ' ' | cut -c1-900)
+            fi
+            echo "::error title=xcodebuild failed::$summary"
+            exit $status
+          fi
+
+      # Debug-only CI would miss anything that only breaks under optimisation, whole-module
+      # builds or the Release-only hardening settings.
+      - name: Build app (Release)
+        run: |
+          xcodebuild \
+            -project KagiPeek.xcodeproj \
+            -scheme KagiPeek \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd-release" \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES \
+            build | tail -40
+
+      - name: Run unit tests
+        run: swift test
+
+      - name: Coverage (pure logic)
+        run: |
+          swift test --enable-code-coverage > /dev/null
+          BIN="$(swift build --show-bin-path)/KagiPeekPackageTests.xctest/Contents/MacOS/KagiPeekPackageTests"
+          PROFILE="$(swift build --show-bin-path)/codecov/default.profdata"
+          if [ ! -f "$BIN" ] || [ ! -f "$PROFILE" ]; then
+            echo "::warning title=coverage::coverage artefacts not found; skipping the report"
+            exit 0
+          fi
+          xcrun llvm-cov report "$BIN" -instr-profile "$PROFILE" \
+            -ignore-filename-regex 'Tests/' | tee "$RUNNER_TEMP/coverage.txt"
+          TOTAL=$(grep -E "^TOTAL" "$RUNNER_TEMP/coverage.txt" | awk '{print $NF}' | tr -d '%')
+          echo "Core/Pure line coverage: ${TOTAL}%"
+          # Advisory for now: the number is reported on every run, and the threshold is
+          # raised as the AppKit layers get test targets of their own.
+          if [ -n "$TOTAL" ] && [ "${TOTAL%.*}" -lt 70 ]; then
+            echo "::warning title=coverage::Core/Pure coverage dropped below 70% (${TOTAL}%)"
+          fi
