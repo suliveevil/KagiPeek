@@ -321,7 +321,7 @@ Release:
 ./scripts/build_release.sh   # build/KagiPeek-<version>.dmg
 ```
 
-Contributor setup, layering rules, the "a setting change touches five places" checklist, and the test policy are in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); the release steps are in [docs/RELEASING.md](docs/RELEASING.md). When something does not work, start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+Contributor setup, layering rules, the "a setting change touches five places" checklist, and the test policy are in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); the release steps are in [docs/RELEASING.md](docs/RELEASING.md). What shipped, and what to check when upgrading, is in [docs/RELEASES.md](docs/RELEASES.md). When something does not work, start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 The Homebrew cask template is [`Distribution/kagipeek.rb`](Distribution/kagipeek.rb). It must be copied into a tap before `brew install --cask kagipeek` works.
 
@@ -585,7 +585,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 - **安全输入优先。** 检测到安全输入（密码框、登录窗口）时自动隐藏面板。
 - **不上传。** 不会把任何快捷键、App 或使用数据发送出去；检查更新只读取公开的发布信息。
 
-完整清单（读什么、写什么、发什么、注入什么）见 [docs/PRIVACY.md](docs/PRIVACY.md)；授权见 [docs/PERMISSIONS.md](docs/PERMISSIONS.md)；实现见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。出问题先看 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)，参与开发看 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)。
+完整清单（读什么、写什么、发什么、注入什么）见 [docs/PRIVACY.md](docs/PRIVACY.md)；授权见 [docs/PERMISSIONS.md](docs/PERMISSIONS.md)；实现见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。发布内容与升级须知见 [docs/RELEASES.md](docs/RELEASES.md)；出问题先看 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)，参与开发看 [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)。
 
 ### 与 vim-which-key / emacs which-key 对照
 
