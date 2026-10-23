@@ -8,7 +8,6 @@ import Foundation
 /// translated into what it means for a list of statistics:
 ///
 /// * `smart` — recent and frequent first (the same decay the panel uses);
-/// * `review` — whatever has gone quiet first, which is what "review" is for;
 /// * `keyOrder` — the panel's chord order: modifiers as printed, then the key;
 /// * `alphabetical` — by command name;
 /// * `frequencyDesc` — most pressed first.
@@ -33,11 +32,6 @@ enum UsageOrdering {
                 if PanelOrdering.compare(left, right) { return true }
                 if PanelOrdering.compare(right, left) { return false }
                 return (lhs.title ?? "").localizedCaseInsensitiveCompare(rhs.title ?? "") == .orderedAscending
-            }
-        case .review:
-            return entries.sorted { lhs, rhs in
-                if lhs.lastUsed != rhs.lastUsed { return lhs.lastUsed < rhs.lastUsed }
-                return lhs.presses < rhs.presses
             }
         case .smart:
             return entries.sorted { lhs, rhs in
@@ -74,11 +68,6 @@ enum UsageOrdering {
                 let order = name(lhs.bundleID).localizedCaseInsensitiveCompare(name(rhs.bundleID))
                 if order != .orderedSame { return order == .orderedAscending }
                 return lhs.bundleID < rhs.bundleID
-            }
-        case .review:
-            return apps.sorted { lhs, rhs in
-                if lhs.lastUsed != rhs.lastUsed { return lhs.lastUsed < rhs.lastUsed }
-                return lhs.presses < rhs.presses
             }
         case .smart, .frequencyDesc:
             return apps.sorted { lhs, rhs in

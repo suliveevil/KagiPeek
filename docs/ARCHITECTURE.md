@@ -29,7 +29,7 @@ KagiPeek/
 │   │   ├── BindingItem.swift      # one shortcut/action row
 │   │   ├── PrefixResolver.swift   # prefix → child bindings, chord traversal
 │   │   ├── ChordComposition.swift # one pure decision: build a stroke, classify it, swallow?
-│   │   ├── Ranker.swift           # the five sort modes' shared maths (decayed usefulness)
+│   │   ├── Ranker.swift           # the four sort modes' shared maths (decayed usefulness)
 │   │   ├── UsageOrdering.swift    # sort order applied to search results and statistics
 │   │   ├── KeyFormatter.swift     # ⌘⇧C formatting, glyphs, localization
 │   │   ├── KeyMapper.swift        # virtual key codes ↔ characters
@@ -353,9 +353,8 @@ Three different questions, three different orders, and mixing them up was a real
 
 | Mode | Meaning for a statistics list |
 | --- | --- |
-| Smart review (default) | Decayed usefulness first, then raw press count. |
+| Smart order (default) | Decayed usefulness first, then raw press count. |
 | Most used first | Press count, then command name. |
-| Review | Least recently used first — what "review" is for. |
 | Key order | `PanelOrdering`, so the page and the panel agree on what "along the keyboard" means; apps fall back to name order. |
 | Alphabetical | Localized command name. |
 
@@ -637,7 +636,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - chord parsing and normalization
 - key mapping and special keys
 - prefix matching and chord traversal
-- the five sort modes, translated into both a usage list and a per-app list (`UsageOrdering`)
+- the four sort modes, translated into both a usage list and a per-app list (`UsageOrdering`)
 - key formatting and breadcrumbs
 - description cleanup and truncation
 - conflict detection (including duplicate suppression)

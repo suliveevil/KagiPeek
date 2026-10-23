@@ -5,27 +5,33 @@ struct UsageRecord: Codable, Hashable, Sendable {
     var lastUsed: Date
 }
 
-/// How the search results are ordered.
+/// How the statistics page orders its lists.
 ///
-/// There used to be a `contextFirst` case next to `smart`. It scored identically to
-/// `frequencyDesc` — the frontmost app's rows win in every mode anyway — so it was a menu
-/// item that changed nothing, and it is gone.
+/// Two cases have been removed from this enum, for two different reasons, and both are still
+/// decoded below because a settings file on disk may name them:
+///
+/// - `contextFirst` scored identically to `frequencyDesc` — the frontmost app's rows win in
+///   every mode anyway — so it was a menu item that changed nothing.
+/// - `review` ordered by "least recently used first". It was a second, weaker way to ask for
+///   the same thing `smart` already answers with decayed usefulness, and the whole review
+///   idea is gone rather than left as a sorting option nothing else in the app refers to.
 enum RankMode: String, Codable, CaseIterable, Hashable, Sendable {
-    /// Context first, then frequency, with a gentle boost for shortcuts you used to use.
+    /// Recent and frequent first, by decayed usefulness.
     case smart
     case frequencyDesc
-    case review
     case keyOrder
     case alphabetical
 
-    /// Decodes leniently: an old settings file may still say `contextFirst`, and a throwing
-    /// decode here would take the whole settings document with it.
+    /// Decodes leniently: a throwing decode here would take the whole settings document with
+    /// it, and an old file may still name a mode that no longer exists.
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        if raw == "contextFirst" {
-            self = .frequencyDesc
-        } else {
-            self = RankMode(rawValue: raw) ?? .smart
+        switch raw {
+        case "contextFirst": self = .frequencyDesc
+        // `review` has no successor: "least recently used" was the opposite of what the
+        // statistics page is for, so an old file falls back to the default.
+        case "review": self = .smart
+        default: self = RankMode(rawValue: raw) ?? .smart
         }
     }
 
@@ -33,7 +39,6 @@ enum RankMode: String, Codable, CaseIterable, Hashable, Sendable {
         switch self {
         case .smart: return .sortSmart
         case .frequencyDesc: return .sortFrequencyDesc
-        case .review: return .sortReview
         case .keyOrder: return .sortKeyOrder
         case .alphabetical: return .sortAlphabetical
         }

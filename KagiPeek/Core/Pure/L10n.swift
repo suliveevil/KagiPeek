@@ -60,7 +60,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     // Ranking
     case rankingTitle, rankingMode, rankingModeHint
     case statisticsTitle
-    case sortSmart, sortFrequencyDesc, sortReview, sortKeyOrder, sortAlphabetical
+    case sortSmart, sortFrequencyDesc, sortKeyOrder, sortAlphabetical
     case rankingUsageSummary, rankingReset, rankingHUD, rankingIncludeBuiltIn
     case rankingDefaults
 
@@ -378,9 +378,8 @@ enum L10n {
             "Decides the order of both lists on this page. The panel is always in key order; the search palette orders by match.",
             "决定本页两个列表的顺序。面板始终按按键顺序排列，搜索面板按匹配度排序。"
         ),
-        .sortSmart: ("Smart review", "智能复习"),
+        .sortSmart: ("Smart order", "智能排序"),
         .sortFrequencyDesc: ("Most used first", "高频优先"),
-        .sortReview: ("Review (least recently used)", "复习（最久未用优先）"),
         .sortKeyOrder: ("Key order", "按键顺序"),
         .sortAlphabetical: ("Alphabetical", "字母顺序"),
         .rankingUsageSummary: (

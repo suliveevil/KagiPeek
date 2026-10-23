@@ -63,16 +63,6 @@ final class UsageOrderingTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.title), ["F2", "G", "Copy"])
     }
 
-    /// 复核模式的意义是「该复习了」：越久没用越靠前，而不是越常用越靠前。
-    func testReviewSurfacesWhatHasGoneQuiet() {
-        let entries = [
-            entry("Frequent", cmdC, presses: 99, daysAgo: 0.5),
-            entry("Forgotten", cmdV, presses: 3, daysAgo: 40)
-        ]
-        let sorted = UsageOrdering.entries(entries, mode: .review)
-        XCTAssertEqual(sorted.map(\.title), ["Forgotten", "Frequent"])
-    }
-
     /// smart 用和面板一样的衰减：刚用过、用得多的排前面，历史总量不能压过近期活跃。
     func testSmartPrefersRecentAndFrequent() {
         let entries = [
@@ -126,17 +116,6 @@ final class UsageOrderingTests: XCTestCase {
         XCTAssertEqual(
             UsageOrdering.apps(apps, mode: .alphabetical, name: { names[$0] ?? $0 }).map(\.bundleID),
             ["com.apple.Safari", "com.apple.dt.Xcode"]
-        )
-    }
-
-    func testAppsReviewOrdersByLastUse() {
-        let apps = [
-            app("com.example.Recent", presses: 90, daysAgo: 0.2),
-            app("com.example.Quiet", presses: 2, daysAgo: 30)
-        ]
-        XCTAssertEqual(
-            UsageOrdering.apps(apps, mode: .review, name: { $0 }).map(\.bundleID),
-            ["com.example.Quiet", "com.example.Recent"]
         )
     }
 }

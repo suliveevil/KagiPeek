@@ -61,7 +61,7 @@ v1.2.0 rewrote the shortcut engine around live menu scanning. v2.0.0 made that e
 | **Combo lookup** | Type a combination into search — `cmd shift 4`, `⌘⇧4`, `opt cmd t` — and KagiPeek answers who owns it, or that it is free, instead of returning an empty list that reads as "not scanned". |
 | **Live shortcut test** | **Test this combo** on any conflict row watches one real keypress: two listen-only event taps detect whether another app swallowed the key, and above that layer the verdict falls back to what came to the front. Each result is tagged **confirmed / informative / inconclusive**, so a guess is never presented as a fact. While it listens, every panel behaviour is suspended, so KagiPeek can never be the thing that ate the key. |
 | **Disabled items** | Menu items that the app reports as disabled (`AXEnabled == false`) are greyed out, and can optionally be hidden. |
-| **Ranking** | Sort order decides the statistics page — both the per-app list and the rows inside an app. **Smart review** is the default (decayed usage frequency, so recently used shortcuts rise and stale ones fade), then Most used first, Review (least recently used), Key order, and Alphabetical. The panel is always in key order and the palette always in match order; neither follows this setting. |
+| **Ranking** | Sort order decides the statistics page — both the per-app list and the rows inside an app. **Smart order** is the default (decayed usage frequency, so recently used shortcuts rise and stale ones fade), then Most used first, Key order, and Alphabetical. The panel is always in key order and the palette always in match order; neither follows this setting. |
 | **Usage statistics** | Counts and last-used times per binding, **grouped by app** (system and built-in rows appear as *System / built-in*), each app a collapsible row. Stored in `~/Library/Application Support/KagiPeek/usage.json`, capped at 800 entries, resettable. No raw key events or text. |
 | **Search** | A global search palette (default ⌃⌥⌘F), also reachable by pressing `/` in the panel. Results arrive in cards by menu, with a banner when the query spells out a combination. Space-separated terms in any order, `+` as a separator, modifier aliases (com/cmd/cm/⌘, op/alt/⌥, …), full pinyin and pinyin initials for Chinese titles, and word initials for English titles; all terms must match. Return closes the palette and **triggers** the selected command in the app you scoped to — pressing the menu item when there is one, replaying the chord otherwise. The palette has no copy action; the panel does. |
 | **Multi-app scope** | The palette's app menu lists the frontmost app and every running regular app, and its header shows the scoped app's icon and name, so the list always says whose shortcuts these are. Choosing another app re-scans and re-ranks for it, and running a row activates that app first. The panel still follows the real frontmost app. |
@@ -210,7 +210,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 | Fixed panel width | 320–4000 pt | 720 |
 | Fixed panel height | 240–3000 pt | 620 |
 | Show "executed" HUD | On / Off | On |
-| Sort order | Smart review / Most used first / Review (least recently used) / Key order / Alphabetical | Smart review |
+| Sort order | Smart order / Most used first / Key order / Alphabetical | Smart order |
 | Built-in catalog when menus are unavailable | On / Off | On |
 | Include the Apple menu in scans | On / Off | Off |
 | Show a Dock icon as well | On / Off | Off |
@@ -260,7 +260,7 @@ KagiPeek borrows the interaction model, not the implementation.
 | Invocation | Hold modifiers, double-⌘, a global hotkey, or the panel/search switch hotkey | Leader key | Prefix key timeout |
 | Navigation | Persistent panel, complete shortcuts, progressive highlight, chord breadcrumb, ⌫ back, Esc close | Prefix menus | Prefix menus |
 | Display | Floating panel: over the focused window, beside it, or filling the screen | Popup window | Minibuffer or child frame |
-| Ranking | Key order in the panel; Smart review / Most used / Review / Key order / Alphabetical for search and statistics | Configured order | Configured order |
+| Ranking | Key order in the panel; Smart order / Most used / Key order / Alphabetical for the statistics page | Configured order | Configured order |
 | Configuration | Settings UI, no config file | Lua tables | Emacs variables |
 | Platform | macOS 14+ | Neovim | Emacs |
 
@@ -403,7 +403,7 @@ v1.2.0 重写了快捷键引擎：实时菜单扫描取代静态列表，面板�
 | **组合键查询** | 在搜索里直接输入组合键（`cmd shift 4`、`⌘⇧4`、`opt cmd t`），KagiPeek 回答它被谁占用、或者它是空的，而不是返回空列表让人以为没扫描。 |
 | **实时按键测试** | 冲突列表里每一行都可以“测试这个组合键”：按一次，看它到底被谁拿走——两个只读监听点判断是否有其他 App 吞掉了这个键，更高层则回退到“谁被激活”。每条结论标注**已确认 / 有信息量 / 无法判断**，绝不把猜测当成事实。 |
 | **不可用项** | 菜单项当前不可用（`AXEnabled == false`）时灰显，也可设置为隐藏。 |
-| **排序** | 排序方式决定统计页——按 App 的列表和 App 内部的行都是。默认**智能复习**（使用频率随时间衰减，常用条目靠前、陈旧条目自然下沉），还可选高频优先、复习（最久未用优先）、按键顺序、字母顺序。面板始终按按键顺序、搜索面板始终按匹配度，两者都不受这个设置影响。 |
+| **排序** | 排序方式决定统计页——按 App 的列表和 App 内部的行都是。默认**智能排序**（使用频率随时间衰减，常用条目靠前、陈旧条目自然下沉），还可选高频优先、按键顺序、字母顺序。面板始终按按键顺序、搜索面板始终按匹配度，两者都不受这个设置影响。 |
 | **使用统计** | 记录每条绑定的使用次数与最近使用时间，并**按 App 分组**（系统与内置条目显示为“系统 / 内置”），每个 App 一行可折叠。保存在 `~/Library/Application Support/KagiPeek/usage.json`，上限 800 条，可重置；不记录原始按键内容。 |
 | **搜索** | 全局搜索面板（默认 ⌃⌥⌘F），也可以在面板里按 `/` 进入。结果按菜单分卡片，查询本身写成一个组合键时上方会给出结论横幅。空格分词、顺序无关，`+` 也可作分隔符；支持修饰键别名（com/cmd/cm/⌘、op/alt/⌥……）、中文全拼与拼音首字母、英文单词首字母，所有词项必须同时命中。Return 关闭面板并在你选定的那个 App 里**执行**选中项：有菜单项就按菜单项，否则回放该组合键。搜索面板没有复制功能；面板有。 |
 | **多 App 范围** | 搜索面板顶部的 App 菜单列出前台 App 与所有正在运行的常规 App，标题处显示当前范围 App 的图标与名字，列表永远说清“这是谁家的快捷键”。换一个 App 会重新扫描并重新排序，执行时会先把那个 App 激活。浮层面板仍跟随真实前台 App。 |
@@ -549,7 +549,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 | 固定面板宽度 | 320–4000 pt | 720 |
 | 固定面板高度 | 240–3000 pt | 620 |
 | 执行后显示轻提示 | 开 / 关 | 开 |
-| 排序方式 | 智能复习 / 高频优先 / 复习（最久未用优先）/ 按键顺序 / 字母顺序 | 智能复习 |
+| 排序方式 | 智能排序 / 高频优先 / 按键顺序 / 字母顺序 | 智能排序 |
 | 菜单不可用时使用内置快捷键目录 | 开 / 关 | 开 |
 | 扫描时包含 Apple 菜单 | 开 / 关 | 关 |
 | 同时在 Dock 显示图标 | 开 / 关 | 关 |
@@ -598,7 +598,7 @@ KagiPeek 借鉴的是交互方式，不是实现。
 | 触发 | 按住修饰键 / 连按 ⌘ / 全局热键 / 切换面板搜索热键 | Leader 键 | 前缀键超时 |
 | 导航 | 持久面板、which-key 收窄、chord 面包屑、⌫ 返回、Esc 关闭 | 前缀菜单 | 前缀菜单 |
 | 显示 | 覆盖前台窗口、贴在其旁边或铺满屏幕的浮层 | 弹窗 | minibuffer 或 child frame |
-| 排序 | 面板按按键顺序、搜索按匹配度；统计页可选智能复习 / 高频优先 / 复习 / 按键 / 字母 | 配置顺序 | 配置顺序 |
+| 排序 | 面板按按键顺序、搜索按匹配度；统计页可选智能排序 / 高频优先 / 按键 / 字母 | 配置顺序 | 配置顺序 |
 | 配置 | 设置界面，无配置文件 | Lua 表 | Emacs 变量 |
 | 平台 | macOS 14+ | Neovim | Emacs |
 

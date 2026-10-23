@@ -232,13 +232,13 @@ KagiPeek does not remap application shortcuts. It reports what the app already d
 
 macOS system shortcuts are read-only here as well: KagiPeek reports collisions with them in the conflict list, but it cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
 
-## What is Smart review ordering?
+## What is Smart order?
 
 The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
 
 **It does not order the panel.** The panel is always in key order — ⌘ → ⌥ → ⌃ → ⇧, then the key — because it is a reference card, and "most used" would move a row every time you run one. The search palette is always in match order for the same reason.
 
-All five orders live in **Settings → Statistics → Sort order**: smart review, most used first, review (least recently used), key order, and alphabetical. They apply to both lists on that page — the per-app list and the rows inside an app.
+All four orders live in **Settings → Statistics → Sort order**: smart order, most used first, key order, and alphabetical. They apply to both lists on that page — the per-app list and the rows inside an app.
 
 ## Can I hide disabled menu items?
 
