@@ -7,7 +7,7 @@
 
 KagiPeek is a menu bar utility for macOS. It reads the frontmost app's menu bar through the Accessibility API and shows its shortcuts in a floating panel. The panel is **persistent**: it stays until you press Esc, toggle it off, or complete a shortcut. Holding modifiers to summon it narrows the list to that modifier level, which-key style; the hotkey and double-⌘ summon it with no prefix, showing every shortcut as a complete combination (⌘C). There is no per-app shortcut pack to install and no configuration file to maintain: if an app has a menu bar, KagiPeek can show its shortcuts, including chords, disabled items, and conflicts — and it can trigger any of them, including the commands that have no shortcut at all.
 
-v1.2.0 rewrote the shortcut engine around live menu scanning. v2.0.0 made that engine actionable: the panel became keyboard-driven and clickable, and conflicts began to include macOS system hotkeys. v2.1.0 made the panel persistent, added four placement modes, tokenized and pinyin-aware search, Hyper-key matching, per-app statistics in Application Support, guided permission onboarding, an About tab, and a panel/search switch hotkey. v2.2.0 organised the panel into two cards ordered by the shortcut itself, moved the "look at another app" job out of the browser window and into the search palette, split Settings into eight tabs — statistics and conflicts each answer a different question and got a page of their own — made a conflict name its **type** and a likely winner instead of a severity, cached the cross-app scan on disk behind a manual rescan, gave system hotkeys real names, and made triggering the command the primary goal: every menu row is run by pressing the menu item itself, so commands with no shortcut at all are reachable too.
+The shortcut engine was rewritten around live menu scanning. It then became actionable: the panel became keyboard-driven and clickable, and conflicts began to include macOS system hotkeys. The panel became persistent, with four placement modes, tokenized and pinyin-aware search, Hyper-key matching, per-app statistics in Application Support, guided permission onboarding, an About tab, and a panel/search switch hotkey. It is now organised into two cards ordered by the shortcut itself; the "look at another app" job moved out of the browser window and into the search palette; Settings split into eight tabs — statistics and conflicts each answer a different question and got a page of their own; a conflict names its **type** and a likely winner instead of a severity; the cross-app scan is cached on disk behind a manual rescan; system hotkeys have real names; and triggering the command became the primary goal: every menu row is run by pressing the menu item itself, so commands with no shortcut at all are reachable too.
 
 `macOS 14.0 Sonoma or later · menu bar agent · local by default · GPL-2.0`
 
@@ -67,7 +67,7 @@ v1.2.0 rewrote the shortcut engine around live menu scanning. v2.0.0 made that e
 | **Multi-app scope** | The palette's app menu lists the frontmost app and every running regular app, and its header shows the scoped app's icon and name, so the list always says whose shortcuts these are. Choosing another app re-scans and re-ranks for it, and running a row activates that app first. The panel still follows the real frontmost app. |
 | **Export Markdown** | The palette's export button saves the current matches (or the scoped app's whole sheet when the field is empty) through a save panel: grouped by menu, `Shortcut` / `Action` columns, unavailable items marked. |
 | **Excluded apps and ignored commands** | An app can be excluded from scanning altogether (a list you fill from a file picker, not a text field of bundle identifiers), and a command title can be ignored either globally or for one app — so "Reload Page" in Safari can be hidden without hiding Xcode's. |
-| **Panel placement** | Cover the front window (default), a fixed width/height, the whole visible screen, or beside the front window (the v1.x/v2.0 behavior, which also avoids the focused control). |
+| **Panel placement** | Cover the front window (default), a fixed width/height, the whole visible screen, or beside the front window (the older behavior, which also avoids the focused control). |
 | **Appearance and accessibility** | Dark translucent panel that honours Reduce Transparency and Increase Contrast. |
 | **English and 简体中文** | The interface follows the system language and can be overridden in Settings. |
 | **Permission onboarding** | Accessibility is required (menu reading and the global key tap). Input Monitoring is offered as a fallback when a system does not deliver key events with Accessibility alone. **Request Access** opens both the system prompt and the matching System Settings pane, and a draggable KagiPeek icon can be dropped into the permission list. Each grant is detected and explained separately; the panel hides while secure input is active. |
@@ -92,7 +92,7 @@ v1.2.0 rewrote the shortcut engine around live menu scanning. v2.0.0 made that e
 
 Notarized builds open normally. If you are running a local or otherwise non-notarized build, macOS may block the first launch: right-click the app and choose **Open**, or use **System Settings → Privacy & Security → Open Anyway**.
 
-> **Upgrading or replacing an existing copy?** macOS ties privacy grants to the app's code signature. If you replace KagiPeek with a build signed differently — a local or ad-hoc rebuild, or an install over a release signed by another identity — the old Accessibility grant is no longer valid: open **System Settings → Privacy & Security → Accessibility**, remove the stale KagiPeek entry if present, and enable the new app again. Without this step no panel will appear. A normal signed update (v2.0.0 → v2.1.0) keeps the bundle identifier and its grant.
+> **Upgrading or replacing an existing copy?** macOS ties privacy grants to the app's code signature. If you replace KagiPeek with a build signed differently — a local or ad-hoc rebuild, or an install over a release signed by another identity — the old Accessibility grant is no longer valid: open **System Settings → Privacy & Security → Accessibility**, remove the stale KagiPeek entry if present, and enable the new app again. Without this step no panel will appear. A normal signed update keeps the bundle identifier and its grant.
 
 ### Homebrew
 
@@ -115,7 +115,7 @@ Select the **KagiPeek** scheme and run. Xcode handles signing for local developm
 
 ```bash
 ./scripts/build_release.sh
-# produces build/KagiPeek-2.2.0.dmg
+# produces build/KagiPeek-<version>.dmg
 ```
 
 To build and replace `/Applications/KagiPeek.app` in one step:
@@ -238,7 +238,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 
 - **Shortcut handling is local.** KagiPeek has no accounts, no analytics, and no telemetry, and no data about you, your apps, or your shortcuts is sent anywhere. The single exception is the update check you trigger yourself: it fetches the public GitHub release document once and uploads nothing. The source is available under the GPL-2.0.
 - **Accessibility is used for menus and the key tap.** KagiPeek reads menu titles, key equivalents, and enabled state from the frontmost app, and uses a global key tap to see modifier and key state. It does not read documents, text fields, or window contents.
-- **Scans stay short-lived, and never leave the machine.** Menu data is cached in memory per app for 20 seconds, and since v2.2 also on disk — per app, for up to 10 minutes, in `~/Library/Application Support/KagiPeek/menu-cache/` — so re-opening the panel for the same app, or relaunching KagiPeek, skips the AX walk. The disk copy records only what a scan already read (menu titles, paths, key equivalents, enabled state); it is dropped when a scan-shaping setting changes, when it turns 10 minutes old, or when you press "Restore defaults". There is no live menu observer, and nothing is uploaded.
+- **Scans stay short-lived, and never leave the machine.** Menu data is cached in memory per app for 20 seconds, and on disk — per app, for up to 10 minutes, in `~/Library/Application Support/KagiPeek/menu-cache/` — so re-opening the panel for the same app, or relaunching KagiPeek, skips the AX walk. The disk copy records only what a scan already read (menu titles, paths, key equivalents, enabled state); it is dropped when a scan-shaping setting changes, when it turns 10 minutes old, or when you press "Restore defaults". There is no live menu observer, and nothing is uploaded.
 - **Two files hold user data; the rest is derived.** Settings and statistics are `settings.json` and `usage.json` in `~/Library/Application Support/KagiPeek/`, written atomically. A file that cannot be decoded is renamed `*.corrupt-<timestamp>.json` and kept rather than silently discarded. Next to them sit `conflicts-cache.json` (the last cross-app conflict scan, so opening the page does not rescan every app), `menu-cache/` (menu scans, valid for 10 minutes) and `logs/` + `crash/` (the diagnostic log, the last 30 action names, the crash reports) — all reproducible, all safe to delete, and the log can be switched off in **Settings → Diagnostics**.
 - **Keys are observed, not recorded.** The global key tap computes the current modifier/key state and detects the recorded hotkeys and the panel's own navigation keys. It passes events through to the front app except those keys, which it consumes so the app does not also receive them. KagiPeek never stores a stream of key presses or typed text.
 - **Exactly one chord is injected, and only on request.** When you press the run key, click a row, or press Return in the search palette, KagiPeek posts that row's chord once (`CGEvent`, HID event tap) into the front app and finishes. It does not replay what you type, it does not inject anything while you are just browsing the panel, and the copy key never injects at all. This is the one place where the app synthesises input, and it exists so a menu item can be run without reaching for the menu.
@@ -339,7 +339,7 @@ KagiPeek can only show shortcuts the app exposes in its menu bar. Shortcuts impl
 No. Shortcut handling is local, the key tap only passes events through (except KagiPeek's own hotkeys and the panel's navigation keys; a completed shortcut still reaches the app), and statistics contain only counts and timestamps grouped by app. Settings and statistics are two JSON files in Application Support. The one thing it does synthesise is the single chord you asked it to run — pressing the run key or clicking a row replays that row's shortcut into the front app once. The only network request is the update check you press yourself. See [Privacy](#privacy).
 
 **Why doesn't the panel close by itself?**
-The auto-hide delay was removed in v2.1.0. The panel is persistent and closes when you press Esc or toggle it off with the panel/switch hotkey. Switching apps or desktops closes it too, because its contents belong to the app it was opened over. Releasing modifiers just widens the list back.
+The auto-hide delay was removed. The panel is persistent and closes when you press Esc or toggle it off with the panel/switch hotkey. Switching apps or desktops closes it too, because its contents belong to the app it was opened over. Releasing modifiers just widens the list back.
 
 **Where is my data, and will reinstalling lose it?**
 In `~/Library/Application Support/KagiPeek/` as `settings.json` and `usage.json`. They are independent of the app bundle and the preference domain, so reinstalling or updating keeps them; only deleting the folder removes them. See [Privacy](#privacy) and [docs/FAQ.md](docs/FAQ.md).
@@ -354,7 +354,7 @@ Reading another app's menu bar and observing global keys are not possible inside
 Another binding — an app menu item, an enabled macOS system shortcut, or a third-party tool's config — uses the same key combination. macOS decides which one wins; KagiPeek only reports the conflict, names its type and the layer. Details are in **Settings → Conflicts**.
 
 **Do I need to grant permissions again after updating?**
-The v1.1 → v1.2 upgrade **always** required re-granting Accessibility, because the bundle identifier changed. v2.0.0 and v2.1.0 keep the same bundle identifier, so a signed update normally keeps its grant; ad-hoc local builds may still be treated as new after every rebuild. See [docs/FAQ.md](docs/FAQ.md#do-i-need-to-grant-permissions-again-after-an-update).
+The upgrade that changed the bundle identifier **always** required re-granting Accessibility. Builds since then keep the same identifier, so a signed update normally keeps its grant; ad-hoc local builds may still be treated as new after every rebuild. See [docs/FAQ.md](docs/FAQ.md#do-i-need-to-grant-permissions-again-after-an-update).
 
 ## License
 
@@ -362,9 +362,9 @@ GPL-2.0. See [LICENSE](LICENSE).
 
 ## Credits
 
-KagiPeek started as a project by [Voltline](https://github.com/Voltline/KagiPeek). This fork is maintained by [suliveevil](https://github.com/suliveevil). v1.2.0 rewrote the shortcut engine, v2.0.0 made it actionable, and v2.1.0 made the panel persistent; the interaction model is inspired by [vim-which-key](https://github.com/folke/which-key.nvim) and [emacs which-key](https://github.com/justbur/emacs-which-key).
+KagiPeek started as a project by [Voltline](https://github.com/Voltline/KagiPeek). This fork is maintained by [suliveevil](https://github.com/suliveevil). The shortcut engine was rewritten, then made actionable, and the panel became persistent; the interaction model is inspired by [vim-which-key](https://github.com/folke/which-key.nvim) and [emacs which-key](https://github.com/justbur/emacs-which-key).
 
-The v2.2.0 conflict-checking work — grading a clash, the event-stack layer model, third-party config scanning, the combo lookup and the live keypress test — takes its ideas from [HotkeyClash](https://github.com/Wunderlandmedia/HotkeyClash) by Wunderlandmedia, also GPL-2.0. The layer ranking and the head/tail event-tap technique are theirs; the code here is written for KagiPeek's own models.
+The conflict-checking work — naming the type of a clash, the event-stack layer model, third-party config scanning, the combo lookup and the live keypress test — takes its ideas from [HotkeyClash](https://github.com/Wunderlandmedia/HotkeyClash) by Wunderlandmedia, also GPL-2.0. The layer ranking and the head/tail event-tap technique are theirs; the code here is written for KagiPeek's own models.
 
 Five ideas come from [Menu-Bar-Search](https://github.com/BenziAhamed/Menu-Bar-Search): addressing a command by its position in the menu tree (`pathIndices` → `axPath`), weighting search hits by how close a matched menu level is to the command itself, caching scans on disk behind a control file that records the settings they were written under, resolving the app that owns the menu bar rather than merely the frontmost one, and reporting *why* a scan came back empty instead of showing an empty list. The `showAppleMenu` setting is its toggle, defaults off.
 ---
@@ -377,7 +377,7 @@ Five ideas come from [Menu-Bar-Search](https://github.com/BenziAhamed/Menu-Bar-S
 
 KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility）API 读取前台 App 的菜单栏，用浮层面板显示它的快捷键。面板是**持久**的：它会一直保持到你按 Esc、再次切换关闭或完成一条快捷键。按住修饰键唤出时，按住的修饰键会成为前缀，把列表收窄到那一层（which-key 行为）；用热键或连按 ⌘ 唤出时没有前缀，每行显示完整组合键（如 ⌘C）。不需要为每个 App 安装快捷键包，也不需要维护配置文件：只要 App 有菜单栏，KagiPeek 就能显示它的快捷键，包括多段组合键、不可用项和冲突。
 
-v1.2.0 重写了快捷键引擎：实时菜单扫描取代静态列表，面板新增多段组合键导航与搜索。v2.0.0 让这套引擎真正可用：面板可以用键盘驱动、也能点击执行，冲突检测纳入系统热键。v2.1.0 让面板变为持久面板，新增四种面板位置、分词与拼音搜索、Hyper 键匹配、按 App 统计的 Application Support 存储、授权引导、独立的“关于”标签页，以及切换面板/搜索的热键。v2.2.0 把面板整理为两张卡片、行按快捷键本身排序；把“看另一个 App”的职责从速查窗口搬进搜索面板（用 App 范围切换）；把设置拆成八个标签页（统计与冲突各回答一个问题，各自独立成页）；冲突不再只报严重度，而是给出**类型**和可能的胜负；跨 App 扫描结果落盘、只在需要时手动重扫；系统热键也有了真正的名字；同时把“执行命令”变成首要目标——菜单行一律按菜单项本身执行，因此没有任何快捷键的命令同样可以触发。
+快捷键引擎被重写：实时菜单扫描取代静态列表，面板新增多段组合键导航与搜索。这套引擎随后变得真正可用：面板可以用键盘驱动、也能点击执行，冲突检测纳入系统热键。面板变为持久面板，并新增四种面板位置、分词与拼音搜索、Hyper 键匹配、按 App 统计的 Application Support 存储、授权引导、独立的“关于”标签页，以及切换面板/搜索的热键。面板如今整理为两张卡片、行按快捷键本身排序；把“看另一个 App”的职责从速查窗口搬进搜索面板（用 App 范围切换）；把设置拆成八个标签页（统计与冲突各回答一个问题，各自独立成页）；冲突不再只报严重度，而是给出**类型**和可能的胜负；跨 App 扫描结果落盘、只在需要时手动重扫；系统热键也有了真正的名字；同时把“执行命令”变成首要目标——菜单行一律按菜单项本身执行，因此没有任何快捷键的命令同样可以触发。
 
 > 系统要求：macOS 14.0 Sonoma 或更高版本。仅支持 macOS，不提供 Windows 或 Linux 版本。
 
@@ -409,7 +409,7 @@ v1.2.0 重写了快捷键引擎：实时菜单扫描取代静态列表，面板�
 | **多 App 范围** | 搜索面板顶部的 App 菜单列出前台 App 与所有正在运行的常规 App，标题处显示当前范围 App 的图标与名字，列表永远说清“这是谁家的快捷键”。换一个 App 会重新扫描并重新排序，执行时会先把那个 App 激活。浮层面板仍跟随真实前台 App。 |
 | **导出 Markdown** | 搜索面板的导出按钮通过存储面板把当前结果（输入框为空时是所选 App 的整张表）写成 Markdown：按菜单分组，表格列为 Shortcut / Action，不可用项标注 unavailable。 |
 | **排除 App 与忽略命令** | 可以整体排除某个 App（列表通过文件选择器添加，不需要手输 bundle id），也可以忽略某个命令标题——全局忽略，或只对某个 App 忽略，于是 Safari 的“重新载入页面”可以隐藏而 Xcode 的不受影响。 |
-| **面板位置** | 覆盖前台窗口（默认）、固定长宽、铺满屏幕，或前台窗口旁边（v1.x/v2.0 的旧行为，仍会尽量避开当前焦点元素）。 |
+| **面板位置** | 覆盖前台窗口（默认）、固定长宽、铺满屏幕，或前台窗口旁边（旧版行为，仍会尽量避开当前焦点元素）。 |
 | **外观与辅助功能** | 深色玻璃浮层，遵循“降低透明度”和“增强对比度”辅助功能设置。 |
 | **中文 / English** | 界面跟随系统语言，也可在设置中覆盖。 |
 | **权限引导** | 辅助功能为必需项（读取菜单栏 + 创建全局按键监听）；输入监控是可选的兜底项，仅在系统无法通过辅助功能接收按键事件时需要。点“请求授权”会同时弹出系统授权提示并直接打开对应的系统设置页面，还可以把设置页里的 KagiPeek 图标直接拖进系统设置的列表。两项分开检测、分开说明；检测到安全输入时自动隐藏面板。 |
@@ -434,7 +434,7 @@ v1.2.0 重写了快捷键引擎：实时菜单扫描取代静态列表，面板�
 
 已公证的版本可以直接打开。本地构建或未公证的版本可能被 Gatekeeper 拦截：右键点击 App 选择“打开”，或在“系统设置 → 隐私与安全性”中选择“仍要打开”。
 
-> **覆盖安装或替换旧版本？** macOS 把隐私授权绑定到 App 的代码签名。如果用签名不同的构建替换 KagiPeek（本地或 ad-hoc 重新构建，或覆盖签名身份不同的版本），旧的辅助功能授权会失效：请打开**系统设置 → 隐私与安全性 → 辅助功能**，移除残留的 KagiPeek 条目（如果有），再重新勾选新的 App。不做这一步，面板不会出现。使用同一签名身份的正常升级（v2.0.0 → v2.1.0）Bundle ID 不变，授权会保留。
+> **覆盖安装或替换旧版本？** macOS 把隐私授权绑定到 App 的代码签名。如果用签名不同的构建替换 KagiPeek（本地或 ad-hoc 重新构建，或覆盖签名身份不同的版本），旧的辅助功能授权会失效：请打开**系统设置 → 隐私与安全性 → 辅助功能**，移除残留的 KagiPeek 条目（如果有），再重新勾选新的 App。不做这一步，面板不会出现。使用同一签名身份的正常升级 Bundle ID 不变，授权会保留。
 
 #### Homebrew
 
@@ -457,7 +457,7 @@ open KagiPeek.xcodeproj
 
 ```bash
 ./scripts/build_release.sh
-# 产物：build/KagiPeek-2.2.0.dmg
+# 产物：build/KagiPeek-<version>.dmg
 ```
 
 构建并覆盖安装到 `/Applications/KagiPeek.app`：
@@ -577,7 +577,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 
 - **快捷键处理全部本地完成。** 无账号、无分析、无遥测，也不会把你、你的 App 或快捷键数据发到任何地方；唯一例外是你手动触发的检查更新，它只读取一次公开的 GitHub 发布信息，不上传任何内容。源码以 GPL-2.0 开放。
 - **辅助功能用于菜单与按键监听。** 只读取前台 App 的菜单标题、快捷键和启用状态，并用全局事件 tap 获取修饰键与按键状态；不读取文档、文本框或窗口内容。
-- **扫描结果只在本机短暂停留。** 菜单数据按 App 在内存中缓存 20 秒；v2.2 起同时按 App 在磁盘上缓存最多 10 分钟（`~/Library/Application Support/KagiPeek/menu-cache/`），这样再次打开同一 App 的面板、或重启 KagiPeek 都不必重新遍历菜单栏。磁盘副本只记录扫描已经读到的内容（菜单标题、路径、快捷键、启用状态），在扫描相关设置变更、超过 10 分钟或点击“恢复默认设置”时被丢弃。没有实时监听菜单变化，也不会上传任何内容。
+- **扫描结果只在本机短暂停留。** 菜单数据按 App 在内存中缓存 20 秒，同时按 App 在磁盘上缓存最多 10 分钟（`~/Library/Application Support/KagiPeek/menu-cache/`），这样再次打开同一 App 的面板、或重启 KagiPeek 都不必重新遍历菜单栏。磁盘副本只记录扫描已经读到的内容（菜单标题、路径、快捷键、启用状态），在扫描相关设置变更、超过 10 分钟或点击“恢复默认设置”时被丢弃。没有实时监听菜单变化，也不会上传任何内容。
 - **只有两个文件是用户数据，其余都是可再生的。** 设置与统计保存为 `~/Library/Application Support/KagiPeek/settings.json` 与 `usage.json`，采用原子写；无法解码的文件会改名为 `*.corrupt-<时间戳>.json` 保留下来，而不是悄悄丢弃。同目录下还有 `conflicts-cache.json`（上一次跨 App 冲突扫描，避免每次打开冲突页都重扫）、`menu-cache/`（菜单扫描，10 分钟内有效）、以及 `logs/` + `crash/`（诊断日志、最近 30 条动作名、崩溃报告）——这些都可以重建、可以随时删除，日志也能在 **设置 → 诊断** 里关掉。
 - **观察按键，但不记录。** 全局按键 tap 只用于计算当前修饰键/按键状态并识别录制的热键；除 KagiPeek 自己的面板/搜索/切换热键、以及活动面板的导航键外，事件都原样放行，只有这些键会被吞掉，避免前台 App 也收到它们；完成一条快捷键的按键**不会**被吞掉。不保存按键流或输入文本。
 - **只注入你要求的那一条组合键。** 当你按执行键、点击某一行，或在搜索面板按 Return 时，KagiPeek 会把那一行的组合键注入前台 App 一次（`CGEvent`，HID event tap），然后结束。它不会回放你输入的内容，只是浏览面板时不会注入任何按键，复制键也完全不注入。这是本 App 唯一合成输入的地方，目的是让你不必去点菜单。
@@ -666,7 +666,7 @@ Homebrew cask 模板在 [`Distribution/kagipeek.rb`](Distribution/kagipeek.rb)�
 
 **会上传数据或记录我输入的内容吗？** 不会。快捷键处理全部本地完成，按键 tap 只把事件原样放行（KagiPeek 自己的热键与面板的导航键除外，完整快捷键仍会传给 App），统计只有按 App 分组的次数与时间；设置和统计是 Application Support 里的两个 JSON 文件；唯一联网是你手动触发的检查更新。
 
-**面板为什么不自动关闭？** v2.1.0 删除了自动关闭延时。面板是持久的，只在按下完整快捷键、按 Esc，或用面板/切换热键关闭时才消失；修饰键想什么时候松开都可以。
+**面板为什么不自动关闭？** 自动关闭延时已被删除。面板是持久的，只在按下完整快捷键、按 Esc，或用面板/切换热键关闭时才消失；修饰键想什么时候松开都可以。
 
 **我的数据在哪？重装会丢吗？** 在 `~/Library/Application Support/KagiPeek/` 下的 `settings.json` 与 `usage.json`。它们独立于 App 包和偏好域，重装或升级都不会丢，只有删除该目录才会清空。详见 [隐私](#隐私) 与 [docs/FAQ.md](docs/FAQ.md)。
 
@@ -676,7 +676,7 @@ Homebrew cask 模板在 [`Distribution/kagipeek.rb`](Distribution/kagipeek.rb)�
 
 **⚠︎ 是什么意思？** 同一组合键被另一条绑定（菜单项或已启用的系统热键）占用。实际由 macOS 决定谁生效，KagiPeek 只负责报告，并在冲突列表中标明来源。
 
-**更新后需要重新授权吗？** 从 v1.1 升级到 v1.2 时**必须**重新授权辅助功能，因为 Bundle ID 变了。v2.0.0 与 v2.1.0 的 Bundle ID 不变，签名版本正常升级通常不需要重新授权；ad-hoc 本地构建仍可能被 macOS 视为新 App，需要在辅助功能中移除旧条目、重新添加（如果也授权了输入监控，同样处理）。详见 [docs/FAQ.md](docs/FAQ.md)。
+**更新后需要重新授权吗？** 跨 Bundle ID 变更的那次升级**必须**重新授权辅助功能。此后 Bundle ID 不变，签名版本正常升级通常不需要重新授权；ad-hoc 本地构建仍可能被 macOS 视为新 App，需要在辅助功能中移除旧条目、重新添加（如果也授权了输入监控，同样处理）。详见 [docs/FAQ.md](docs/FAQ.md)。
 
 ## 许可证
 
@@ -684,8 +684,8 @@ GPL-2.0，见 [LICENSE](LICENSE)。
 
 ## 致谢
 
-KagiPeek 最初由 [Voltline](https://github.com/Voltline/KagiPeek) 发起，本仓库是 [suliveevil](https://github.com/suliveevil) 维护的 fork。v1.2.0 重写了快捷键引擎，v2.0.0 让它变得可操作，v2.1.0 让面板变为持久面板；交互方式受 [vim-which-key](https://github.com/folke/which-key.nvim) 与 [emacs which-key](https://github.com/justbur/emacs-which-key) 启发。
+KagiPeek 最初由 [Voltline](https://github.com/Voltline/KagiPeek) 发起，本仓库是 [suliveevil](https://github.com/suliveevil) 维护的 fork。快捷键引擎被重写、随后变得可操作，面板也变为持久面板；交互方式受 [vim-which-key](https://github.com/folke/which-key.nvim) 与 [emacs which-key](https://github.com/justbur/emacs-which-key) 启发。
 
-v2.2.0 的冲突检查——按类型而非严重度分类、事件栈分层模型、第三方配置文件扫描、组合键查询与实时按键测试——思路来自 [HotkeyClash](https://github.com/Wunderlandmedia/HotkeyClash)（Wunderlandmedia，同样 GPL-2.0）。分层模型与首/尾双事件 tap 的技巧来自该项目，代码是按 KagiPeek 自己的模型重写的。
+冲突检查——按类型而非严重度分类、事件栈分层模型、第三方配置文件扫描、组合键查询与实时按键测试——思路来自 [HotkeyClash](https://github.com/Wunderlandmedia/HotkeyClash)（Wunderlandmedia，同样 GPL-2.0）。分层模型与首/尾双事件 tap 的技巧来自该项目，代码是按 KagiPeek 自己的模型重写的。
 
 五项设计借鉴自 [Menu-Bar-Search](https://github.com/BenziAhamed/Menu-Bar-Search)：用命令在菜单树中的位置来定位它（`pathIndices` → `axPath`）、搜索命中按匹配到的菜单层级距命令的远近加权、扫描结果落盘缓存并用控制文件记录写入时的设置、解析“菜单栏归属的 App”而非仅仅前台 App、以及说明扫描为何返回空列表而不是显示一个空面板。`showAppleMenu` 开关亦来自该项目，默认关闭。
