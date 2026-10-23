@@ -42,9 +42,12 @@ enum SystemHotkeyReader {
             var title = (info["kHISymbolicHotKeyDescription"] as? String) ?? ""
             title = title.trimmingCharacters(in: .whitespacesAndNewlines)
             if title.isEmpty {
-                // Without a description the chord itself is the only honest label;
-                // repeating the group name on every row tells nobody anything.
-                title = KeyFormatter.render(chord, style: .symbols)
+                // macOS leaves `kHISymbolicHotKeyDescription` empty for every entry on every
+                // machine, so the name has to come from us. What we cannot name stays empty:
+                // `DescriptionCleaner` turns that into "—", which says "no name known" — the
+                // title column already had the chord next to it, and printing it twice is
+                // what made these rows look like they had lost their description.
+                title = SystemHotkeyNames.name(for: chord, language: language) ?? ""
             }
 
             items.append(BindingItem(

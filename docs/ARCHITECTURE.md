@@ -252,12 +252,14 @@ macOS registers its own system-wide shortcuts (Spotlight, Mission Control, scree
 | `kHISymbolicHotKeyCode` | Virtual key code of the shortcut |
 | `kHISymbolicHotKeyModifiers` | Carbon modifier mask (⌘, ⇧, ⌥, ⌃) |
 | `kHISymbolicHotKeyEnabled` | Disabled entries are skipped |
-| `kHISymbolicHotKeyDescription` | System-provided title, when one exists |
+| `kHISymbolicHotKeyDescription` | Documented as a title — **empty for every entry on every current Mac** (233 of 233 on the machine this was written on) |
 
 Rules:
 
 - Only **enabled** shortcuts are collected, and only those with a recognized modifier combination and key code.
-- Rows use `BindingSource.system`, carry no bundle identifier, and are grouped under the localized "System hotkeys" / "系统热键" title. A system description becomes the row title when available; the group title is the fallback.
+- Rows use `BindingSource.system`, carry no bundle identifier, and are grouped under the localized "System hotkeys" / "系统热键" title.
+- **Names come from `SystemHotkeyNames`, not from the system.** The description field is a documented constant that macOS never fills, so the reader looks the chord up in a table of the assignments a stock Mac ships with (⌘Space → Spotlight, ⇧⌘3 → Screenshot, ⌃↑ → Mission Control, ⌘M → Minimize, …) and answers in the interface language. A chord that is not in the table — because the user reassigned it, or because it is one of the ~55 entries macOS lists as enabled with no function behind it (⌃F4, ⌃↩, ⇧A, …) — gets the placeholder "—" rather than the chord repeated as its own title.
+- **The list is deliberately consulted, not trusted.** The Carbon table also contains stale slots; a chord being present means "macOS registered something here", which is exactly the claim the conflict list makes about it — no more.
 - They live in `ShortcutEngine.systemBindings` rather than in the app's catalog, so they never appear in the panel or the search results.
 - The list is read at startup, when the interface language changes (the group title is localized), and whenever the app is re-activated, so edits made in System Settings are picked up without a relaunch.
 - `ConflictDetector.conflicts(in:external:)` groups app entries, system entries and config-file entries by normalized chord. Identical titles are treated as duplicates; genuinely different bindings become a conflict. Every member — including the system row — is flagged ⚠︎ in the panel.

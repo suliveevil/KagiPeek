@@ -1256,7 +1256,9 @@ final class ShortcutEngine: ObservableObject {
                 id: hit.id,
                 keySegments: keySegments(for: hit),
                 title: DescriptionCleaner.truncate(hit.item.title, maxLength: settings.maxDescriptionLength),
-                note: menuPath(of: hit.item),
+                // The system card's header already names the section, so repeating it in
+                // every row's note column would be the same word 79 times.
+                note: entry.isSystem ? "" : menuPath(of: hit.item),
                 // Two sections, never interleaved: the app's rows keep the flat chord order
                 // under the app's name, the system's hotkeys under theirs. Each title is a
                 // card header, so the boundary is a shape rather than a line of text.
@@ -1867,6 +1869,12 @@ final class ShortcutEngine: ObservableObject {
 
     private func reloadSystemHotkeys() {
         systemBindings = SystemHotkeyReader.read(language: localization.language)
+        if isPreviewing {
+            // "Named" means the name table knew the chord; the rest render as an em dash, so
+            // counting non-empty titles would report 79 of 79 named and tell us nothing.
+            let named = systemBindings.filter { $0.title != DescriptionCleaner.placeholder }.count
+            Diag.info(.ui, "system hotkeys: \(systemBindings.count) read, \(named) named, first: \(systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
+        }
         searchCorpus = nil
         conflicts = ConflictDetector.conflicts(in: catalog.items, external: externalBindings)
         conflictIDs = Set(conflicts.flatMap { $0.items.map(\.id) })

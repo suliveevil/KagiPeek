@@ -6,6 +6,11 @@ import Foundation
 /// apps, duplicated whitespace, leading "+" markers. The panel has a fixed column width,
 /// so titles are also truncated here.
 enum DescriptionCleaner {
+    /// What a row shows when there is no name to show. A single em dash is the typographic
+    /// way of saying "nothing here", and it is visibly not a description — unlike repeating
+    /// the shortcut, which read as if the description had been lost.
+    static let placeholder = "—"
+
     private static let shortcutGlyphs = CharacterSet(charactersIn: "⌘⌥⌃⇧⌫⌦↩⇥⎋←→↑↓⇞⇟↖↘␣")
 
     static func clean(_ raw: String) -> String {
@@ -27,7 +32,7 @@ enum DescriptionCleaner {
             text.removeFirst()
             text = text.trimmingCharacters(in: .whitespaces)
         }
-        return text.isEmpty ? "—" : text
+        return text.isEmpty ? placeholder : text
     }
 
     static func truncate(_ text: String, maxLength: Int) -> String {
