@@ -29,13 +29,13 @@ The built-in catalog (about 100 system, text-editing, Finder, and screenshot sho
 
 ## Can I browse another app's shortcuts without switching to it?
 
-Yes. The main window's app selector lists the frontmost app plus every running regular app. Choose one and the window scans and lists that app's menu shortcuts; the search field and the selected sort order apply there too.
+Yes. The search palette's app menu lists the frontmost app plus every running regular app. Choose one and the palette scans and searches that app's menu shortcuts; its header then names that app, and Return runs the command inside it.
 
 The floating panel is deliberately separate: whichever app the window is browsing, the panel still follows the real frontmost app, because that is the app your keys will reach.
 
 ## How do I export a shortcut sheet?
 
-In the main window, click **Export Markdown** and choose a location. KagiPeek writes a Markdown file named after the browsed app, with one section per menu and a `Shortcut` / `Action` table per section. Unavailable items are marked `(unavailable)`, and the sheet reflects the currently browsed app and sort order.
+In the search palette, press the export button and choose a location. KagiPeek writes a Markdown file named after the app you are scoped to, with one section per menu and a `Shortcut` / `Action` table per section. Unavailable items are marked `(unavailable)`, and the sheet reflects the matches on screen — or the whole list when the field is empty.
 
 ## Why two permissions instead of one?
 
@@ -74,7 +74,7 @@ The app is also GPL-2.0 licensed. App Store distribution would impose additional
 
 ## How does search work?
 
-Press **⌃⌥⌘F** (default) to open the global search panel, or use the search field in the main window. It searches the current app's menu shortcuts and the built-in catalog over title, key combination, menu path, modifier names, and pinyin.
+Press **⌃⌥⌘F** (default) to open the search palette, or press `/` while the panel is open. It searches the scoped app's menu shortcuts (plus the system's hotkeys when no scope is chosen) over title, key combination, menu path, modifier names, and pinyin.
 
 - **Terms are unordered and all must match.** `com op x`, `op cm x`, and `cmd+opt+x` all find ⌘⌥X; `+` is just another separator.
 - **Modifier aliases** are understood: `com`/`cmd`/`command`/`cm`/`⌘`, `op`/`opt`/`option`/`alt`/`⌥`, `ct`/`ctl`/`ctrl`/`control`/`⌃`, `sh`/`sft`/`shift`/`⇧`.
@@ -88,7 +88,7 @@ Press **⌃⌥⌘F** (default) to open the global search panel, or use the searc
 
 ## What does the ⚠︎ next to a shortcut mean?
 
-Another binding claims the same key combination. KagiPeek lists every conflict in **Settings → Ranking → Conflicts**, including clashes with enabled macOS system shortcuts, which appear under **System hotkeys**.
+Another binding claims the same key combination. KagiPeek lists every conflict in **Settings → Conflicts**, with a type (menu order, blocked by macOS, blocked by a tool, two tools, one tool against itself) and a likely winner. Clashes with enabled macOS system shortcuts are included and marked as the system layer.
 
 The warning is informational. macOS decides which menu item actually receives the key equivalent; KagiPeek cannot change that. A conflict often means an app exposes the same shortcut twice in different menus, or that a global shortcut collides with an app menu shortcut. If the app's own behavior surprises you, the conflict list is the place to look.
 
@@ -132,7 +132,7 @@ Because KagiPeek only **observes** keys; it does not remap them or replay them. 
 
 Yes. When a recorded hotkey has **three or more modifiers**, KagiPeek accepts events that carry a **superset** of them. A Karabiner-Elements or BetterTouchTool Hyper key (usually ⌃⌥⇧⌘) therefore triggers a recorded ⌃⌥⌘ hotkey. Hotkeys with fewer than three modifiers are matched strictly, so a two-modifier shortcut is not widened.
 
-Record the hotkey as usual in **Settings → Triggers** — you do not need to configure anything extra for the extra modifier. The trade-off is intentional: a three-modifier hotkey can also fire when another tool adds a modifier.
+Record the hotkey as usual in **Settings → Trigger** — you do not need to configure anything extra for the extra modifier. The trade-off is intentional: a three-modifier hotkey can also fire when another tool adds a modifier.
 
 ## How do I use the panel with the keyboard?
 
@@ -157,11 +157,11 @@ Pressing the run key on a row that still has further steps opens the next level 
 
 ## Why did the panel copy instead of running the command?
 
-It should not: the run key replays the row. If a row copies, you either pressed the copy key (⌘↩) or recorded the two keys the other way round under **Settings → General → Row actions**. The footer always shows which key does what, so check it first — and note that the search palette is the one surface where Return always runs and there is no copy key at all.
+It should not: the run key runs the row. If a row copies, you either pressed the copy key (⌘↩) or recorded the two keys the other way round under **Settings → General → Row actions**. The footer always shows which key does what, so check it first — and note that the search palette is the one surface where Return always runs and there is no copy key at all.
 
 ## Why did nothing happen when I pressed the run key?
 
-Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the chord — running a row activates the app being browsed and posts the key 0.2 s later, so an app that is slow to come forward, or one that handles that shortcut itself in a custom view, may not react. **Settings → About → Export diagnostics…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
+Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the command — from the panel, KagiPeek presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the command runs, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → About → Export diagnostics…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
 
 ## Why does the panel disappear in some apps or fields?
 
@@ -177,10 +177,10 @@ In **`~/Library/Application Support/KagiPeek/`**, as two plain JSON files — no
   usage.json
 ```
 
-Both are written atomically. If a file cannot be decoded, KagiPeek renames it to `settings.corrupt-<timestamp>.json` (or `usage.corrupt-<timestamp>.json`) and starts from defaults, so the damaged file is kept rather than silently lost. **Settings → Ranking → Show data folder** opens the folder in Finder, and the About tab shows its path.
+Both are written atomically. If a file cannot be decoded, KagiPeek renames it to `settings.corrupt-<timestamp>.json` (or `usage.corrupt-<timestamp>.json`) and starts from defaults, so the damaged file is kept rather than silently lost. **Settings → Statistics → Show data folder** opens the folder in Finder, and the About tab shows its path.
 
-- **Reset statistics only:** **Reset statistics** in **Settings → Ranking**.
-- **Reset all settings:** **Restore defaults** in **Settings → Ranking**, or quit KagiPeek and delete `settings.json`.
+- **Reset statistics only:** **Reset statistics** in **Settings → Statistics**.
+- **Reset all settings:** **Restore defaults** in **Settings → Statistics**, or quit KagiPeek and delete `settings.json`.
 - **Remove everything:** quit KagiPeek and move the whole `~/Library/Application Support/KagiPeek` folder to the Trash.
 
 The first v2.1.0 launch migrates the old UserDefaults data (including the 1.x `com.Voltline.KagiPeek` domain) exactly once. The old defaults are left untouched afterwards; you can remove them with `defaults delete com.voltline.kagipeek` and `defaults delete com.Voltline.KagiPeek`.
@@ -193,7 +193,7 @@ The flip side: an old preferences-only cleanup command (`defaults delete`) no lo
 
 ## How do I switch between the panel and search?
 
-Press the **switch panel/search** hotkey — ⌃⌥⌘S by default, recordable in **Settings → Triggers**. It is a single toggle with three cases:
+Press the **switch panel/search** hotkey — ⌃⌥⌘S by default, recordable in **Settings → Trigger**. It is a single toggle with three cases:
 
 - search visible → show the panel;
 - panel visible → show search;
@@ -215,11 +215,11 @@ This is a macOS privacy protection, not a KagiPeek bug. See [PERMISSIONS.md](PER
 
 ## Why is there no Dock icon?
 
-KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock icon. Its main window opens at launch and can be reopened from the menu bar icon; ⌘, opens Settings.
+KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock icon and opens no window at launch. The menu bar icon opens the panel, the palette and Settings; ⌘, opens Settings from inside any of its windows.
 
 ## Can I change the triggers or the hotkeys?
 
-Yes. **Settings → Triggers** configures the trigger mode (hold modifiers, double-⌘, global hotkey, or off), the hold delay, and all three hotkeys. The defaults are:
+Yes. **Settings → Trigger** configures the trigger mode (hold modifiers, double-⌘, global hotkey, or off), the hold delay, and all three hotkeys. The defaults are:
 
 | Action | Default |
 | --- | --- |
@@ -234,9 +234,11 @@ macOS system shortcuts are read-only here as well: KagiPeek reports collisions w
 
 ## What is Smart review ordering?
 
-v2.0's default order. Rows are ordered by context first (the frontmost app's shortcuts before generic catalog rows), then by decayed usage frequency, and then with a small bonus for entries that were used before but not for more than 30 days. That nudge resurfaces shortcuts you have forgotten without letting them outrank frequent recent ones, and never-used rows stay behind used ones.
+The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
 
-Every previous order is still available in **Settings → Ranking → Sort order**: context then frequency, most used first, review (least recently used), key order, and alphabetical.
+**It does not order the panel.** The panel is always in key order — ⌘ → ⌥ → ⌃ → ⇧, then the key — because it is a reference card, and "most used" would move a row every time you run one. The search palette is always in match order for the same reason.
+
+All five orders live in **Settings → Statistics → Sort order**: smart review, most used first, review (least recently used), key order, and alphabetical. They apply to both lists on that page — the per-app list and the rows inside an app.
 
 ## Can I hide disabled menu items?
 

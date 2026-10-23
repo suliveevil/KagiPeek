@@ -184,10 +184,10 @@ raise(sig);
 
 | # | 目标 | 正则（示意） | 替换为 |
 |---|---|---|---|
-| 1 | URL 中的敏感 query 键 | `(?i)([?&](?:api[_-]?key|token|access[_-]?token|secret|password|passwd|signature|sig|client[_-]?secret|session[_-]?id|auth)=)[^&\s]*` | `$1<redacted>` |
+| 1 | URL 中的敏感 query 键 | `(?i)([?&](?:api[_-]?key\|token\|access[_-]?token\|secret\|password\|passwd\|signature\|sig\|client[_-]?secret\|session[_-]?id\|auth)=)[^&\s]*` | `$1<redacted>` |
 | 2 | URL 其余 query 值 | `(\?[^\s]*=)[^&\s]{8,}` 的值段 | `<redacted>`（保守：仅对含 `?` 的片段整体替换为 `?<query>`，见权衡） |
 | 3 | Bearer / Basic 凭据 | `(?i)(bearer\|basic)\s+[A-Za-z0-9._~+/=-]{8,}` | `$1 <redacted>` |
-| 4 | 裸 key=value 对 | `(?i)\b((?:api[_-]?key|token|secret|password|credential)[a-z0-9_]*\s*[:=]\s*)\S+` | `$1<redacted>` |
+| 4 | 裸 key=value 对 | `(?i)\b((?:api[_-]?key\|token\|secret\|password\|credential)[a-z0-9_]*\s*[:=]\s*)\S+` | `$1<redacted>` |
 | 5 | email | `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}` | `<email>` |
 | 6 | 长 hex（≥32） | `\b[0-9a-fA-F]{32,}\b` | `<hex>` |
 | 7 | 长 base64（≥40，含结尾 =） | `\b[A-Za-z0-9+/]{40,}={0,2}\b` | `<b64>` |

@@ -19,7 +19,7 @@ history. Secure input (password fields, login windows) is detected, and the pane
 
 Config files are opened **read-only** — BetterTouchTool's SQLite database with SQLite's
 read-only flag — are read at launch and when you ask for a rescan, and are never written,
-copied or uploaded. Turning **Settings → Ranking → Config file sources** off discards
+copied or uploaded. Turning **Settings → Conflicts → Config file sources** off discards
 everything found and opens none of them again.
 
 ## What it writes
@@ -33,15 +33,23 @@ Two JSON files in `~/Library/Application Support/KagiPeek/`:
 Both are written atomically, and a file that cannot be decoded is preserved as
 `*.corrupt-<timestamp>.json` rather than discarded. Search queries stay in memory.
 
-A third thing is written, and it is derived rather than personal data: `menu-cache/`, one
-cached menu scan per app identity (`menus-<identity>.json`) plus a small `control.json`
-recording the settings the entries were written under. It holds exactly what a scan already
-read — menu titles, menu paths, key equivalents, enabled state — so that re-opening the panel
-for the same app, or relaunching KagiPeek, does not have to walk the menu bar again. It is
-kept for at most 10 minutes, dropped when a scan-shaping setting changes or when you press
-"Restore defaults", and never leaves the machine. An entry that cannot be decoded is dropped
-instead of preserved, because unlike settings and statistics it can always be reproduced by
-scanning again.
+Everything else that is written is derived or diagnostic rather than personal data:
+
+- `conflicts-cache.json` — the last cross-app conflict scan, so opening the Conflicts tab does
+  not walk every app's menus again. Chord, title and owning layer per finding.
+- `menu-cache/` — one cached menu scan per app identity (`menus-<identity>.json`) plus a small
+  `control.json` recording the settings the entries were written under. It holds exactly what a
+  scan already read (menu titles, menu paths, key equivalents, enabled state), so re-opening the
+  panel for the same app, or relaunching KagiPeek, does not walk the menu bar again. Entries are
+  kept for at most 10 minutes and dropped when a scan-shaping setting changes or when you press
+  "Restore defaults". An entry that cannot be decoded is dropped instead of preserved, because
+  unlike settings and statistics it can be reproduced by scanning again.
+- `logs/` and `crash/` — the daily diagnostic log, the last 30 action *names* (never menu text,
+  typed characters or queries), and one JSON file per crash. They exist to explain a bug, logging
+  can be switched off under **Settings → Diagnostics**, and deleting the folder costs a rescan and
+  a history, nothing else.
+
+None of these ever leaves the machine.
 
 ## What it sends
 

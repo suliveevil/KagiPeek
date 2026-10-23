@@ -46,7 +46,7 @@ that reason; `ShortcutEngine` is large enough already.
 
 ## Adding or removing a setting
 
-A settings change touches **five** places. Missing one is how this project's documentation and
+A settings change touches **six** places. Missing one is how this project's documentation and
 tests drifted:
 
 1. `Core/Pure/AppSettingsModel.swift` — the property with its default, the `CodingKeys` case,
@@ -56,6 +56,7 @@ tests drifted:
 4. `README.md` — the configuration table (and the feature table if it is user-visible).
 5. `Tests/KagiPeekCoreTests` — a default-value assertion, and a decode test if the change can
    affect an existing `settings.json`.
+6. `CHANGELOG.md` — one line under `## [Unreleased]`, in the user's terms, not the type's.
 
 **Removing** a key needs no migration step: `init(from:)` only decodes known keys, so an old
 payload decodes and the key disappears on the next save. Bump

@@ -77,16 +77,18 @@ Log category: `input` (event tap installed / failed), `ui` (permission state).
 - **The scan failed.** Log category `scan` records the app identity, the item count and whether
   a menu bar was found. `no menu bar exposed and no fallback allowed` means
   **Settings → General → Use built-in catalog…** is off.
-- **KagiPeek was scanning itself.** Before v2.2.0, opening the search palette, the browser
-  window or Settings activated the app, and its own (empty) menu bar replaced the catalog. That
-  is fixed; if you see it on an older build, update.
+- **KagiPeek was scanning itself.** Before v2.2.0, opening the search palette or Settings
+  activated the app, and its own (empty) menu bar replaced the catalog. That is fixed; if you
+  see it on an older build, update.
 
 ## Pressing the run key does nothing
 
 1. **A disabled menu item is ignored.** The row is greyed out for a reason.
-2. **The app received nothing.** Running a row activates the app being browsed and posts the
-   chord 0.2 s later. An app that is slow to come forward, or that handles that shortcut in a
-   custom view rather than the menu bar, may not react. Log category `input` records
+2. **The app received nothing.** From the panel, KagiPeek presses the row's menu item through
+   Accessibility; the chord is only replayed when that press fails, so a shortcut handled in a
+   custom view (with no menu item behind it) cannot be run this way. From the palette, the
+   scoped app is activated first and the command runs after it comes forward, so an app that is
+   slow to activate may miss it. Log category `input` records
    `replaying … into <bundle id>` when a chord is posted and `no target app …; not injecting`
    when there was nobody to send it to.
 3. **The chord is incomplete.** A row that still has further steps descends a level instead of
@@ -101,7 +103,7 @@ app, the copy key (⌘↩ by default) only writes it to the clipboard. Change ei
 The search palette is different on purpose: Return always runs there and there is no copy
 action.
 
-## Chinese input does not work in the search field or the browser list
+## Chinese input does not work in the search field
 
 The window-level key monitors step back while an input method is composing, so ↑↓ moves the
 candidate window and Return commits the candidate. If ↑↓ still moves the list while a
@@ -141,7 +143,7 @@ The usual causes are a read-only or full volume, or a permission change on
 
 Another binding claims the same combination: an app menu item, or an enabled macOS system
 shortcut (Spotlight, Mission Control, …). macOS decides which one wins. KagiPeek only reports
-it; **Settings → Ranking → Conflicts** lists both sides.
+it; **Settings → Conflicts** lists both sides with a type and a likely winner.
 
 ## The menu bar icon is gone
 

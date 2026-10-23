@@ -33,7 +33,7 @@ Input Monitoring does not help with menu reading, and Accessibility alone cannot
 
 ## Granting permission
 
-1. Launch KagiPeek. The main window appears; if Accessibility is missing it shows a banner. **Settings → Permissions** lists both grants, their current status, and marks Accessibility as required.
+1. Launch KagiPeek. No window opens — the app appears in the menu bar, and the menu carries a **Permission guide** item while Accessibility is missing. **Settings → Permissions** lists both grants, their current status, and marks Accessibility as required.
 2. In KagiPeek, open **Settings → Permissions** and click **Request** next to **Accessibility**. KagiPeek shows the system authorization prompt **and** opens **System Settings → Privacy & Security → Accessibility** for you; switch KagiPeek on there.
    - If KagiPeek is not in the list, drag the KagiPeek icon shown in the Permissions tab straight into the list, or click **+**, choose **Applications → KagiPeek.app**, and switch it on.
 3. Try holding ⌘ in another app. If the panel appears, you are done.

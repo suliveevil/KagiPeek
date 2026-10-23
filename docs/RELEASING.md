@@ -59,8 +59,9 @@ downloadable release, use a Developer ID Application certificate instead
 
 7. **Install locally and smoke test.** `./scripts/install.sh` (it stages the bundle, verifies the
    signature, swaps atomically and keeps `KagiPeek.previous.app`). Then the short list:
-   trigger the panel, narrow it with ⌘, run a row, copy a row, open the browser window, run a
-   row from it, search and press Return, open Settings.
+   trigger the panel, narrow it with ⌘, run a row, copy a row, open the palette with `/`, switch
+   its app scope, export Markdown, search and press Return, open Settings and check the
+   Statistics and Conflicts tabs.
 
 ## Rollback
 

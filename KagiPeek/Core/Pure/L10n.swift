@@ -375,8 +375,8 @@ enum L10n {
         .statisticsTitle: ("Statistics", "统计"),
         .rankingMode: ("Sort order", "排序方式"),
         .rankingModeHint: (
-            "Decides the order of the panel's rows and of both lists on this page.",
-            "同时决定面板行的顺序和本页两个列表的顺序。"
+            "Decides the order of both lists on this page. The panel is always in key order; the search palette orders by match.",
+            "决定本页两个列表的顺序。面板始终按按键顺序排列，搜索面板按匹配度排序。"
         ),
         .sortSmart: ("Smart review", "智能复习"),
         .sortFrequencyDesc: ("Most used first", "高频优先"),

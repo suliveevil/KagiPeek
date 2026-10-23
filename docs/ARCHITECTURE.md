@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the v2.2.0 architecture. KagiPeek 2.1.0 builds on the v2.0.0 actionable panel — the v1.2.0 rewrite replaced the v1.1 static list with live Accessibility (AX) menu scanning, a chord resolver, a search index, and a set of small SwiftUI panels; v2.0 made the panel keyboard-driven and clickable; and v2.1.0 makes it **persistent**. The panel is persistent: it stays open until you press Esc or toggle it off. Holding modifiers to summon it seeds a prefix, so the list narrows which-key style; the hotkey and double-⌘ summon it with an empty prefix, where every row is a complete combination. v2.1.0 added four placement modes, tokenized/pinyin search, Hyper-key hotkey matching, JSON storage in Application Support with per-app statistics, guided permission onboarding, a dedicated About tab, and a panel/search switch hotkey. v2.2.0 gives the panel and the browser list one row contract with two recorded row keys, makes the title bar responsive, removes the two no-op "execute menu commands" switches, and isolates the app's own activation from the frontmost-app input. The panel is ordered by the shortcut itself — the menu path is a note on the row instead of a section heading — the title bar carries checkable ⌃ ⌥ ⇧ ⌘ chips that narrow the list, and a modifier held down is lit inside every surviving row's chord rather than stripped from it. The update check is still the only network code, and it runs only when you press the button.
+This document describes the v2.2.0 architecture. KagiPeek 2.1.0 builds on the v2.0.0 actionable panel — the v1.2.0 rewrite replaced the v1.1 static list with live Accessibility (AX) menu scanning, a chord resolver, a search index, and a set of small SwiftUI panels; v2.0 made the panel keyboard-driven and clickable; and v2.1.0 makes it **persistent**. The panel is persistent: it stays open until you press Esc or toggle it off. Holding modifiers to summon it seeds a prefix, so the list narrows which-key style; the hotkey and double-⌘ summon it with an empty prefix, where every row is a complete combination. v2.1.0 added four placement modes, tokenized/pinyin search, Hyper-key hotkey matching, JSON storage in Application Support with per-app statistics, guided permission onboarding, a dedicated About tab, and a panel/search switch hotkey. v2.2.0 removes the separate browser window — the search palette took over its two jobs, app scope and Markdown export — puts the panel's rows in two cards ordered by the shortcut itself, gives the rows one contract with two recorded row keys, makes the title bar responsive, drops the two no-op "execute menu commands" switches, splits Settings into eight tabs, and isolates the app's own activation from the frontmost-app input. The panel is ordered by the shortcut itself — the menu path is a note on the row instead of a section heading — the title bar carries checkable ⌃ ⌥ ⇧ ⌘ chips that narrow the list, and a modifier held down is lit inside every surviving row's chord rather than stripped from it. The update check is still the only network code, and it runs only when you press the button.
 
 The governing constraints are:
 
@@ -8,34 +8,40 @@ The governing constraints are:
 - **One manual network call.** The only outbound request is the update check you trigger yourself; there is no polling and no background traffic.
 - **The UI thread never waits on Accessibility.** AX calls can block for seconds in a hung app. Every scan runs off the main thread with a per-call timeout.
 - **Pure logic is testable.** Chord parsing, prefix matching, ranking, formatting, description cleanup, conflict detection, search (corpus, tokenizer, pinyin), hotkey matching, panel placement, usage statistics, Markdown export, and semantic versions live in a SwiftPM target with no AppKit dependency.
-- **Writes are deliberate and atomic.** Scans and search queries are transient. Only settings and statistics are written, as JSON files with atomic replacement; a corrupt file is preserved rather than overwritten.
+- **Writes are deliberate and atomic.** Search queries are transient. Settings and statistics are written as JSON files with atomic replacement, and a corrupt file is preserved rather than overwritten. What else touches the disk is derived or diagnostic and can be deleted: menu scans (10 minutes), the conflict cache, the daily log and the crash reports.
 - **Degrade, never fail.** No menu bar, no permission, or a slow app should still leave a usable fallback catalog and an explanatory UI.
+
+## Contents
+
+[Source layout](#source-layout) · [Runtime overview](#runtime-overview) · [Menu scanning](#menu-scanning-accessibility) · [Fallback catalog](#fallback-catalog) · [Data model](#data-model-and-indexing) · [System hotkeys and conflicts](#system-hotkeys-and-conflicts) · [Config file sources](#config-file-sources) · [Ordering](#ordering) · [Trigger pipeline](#trigger-pipeline) · [Panel content](#panel-content-and-highlighting) · [Panel interaction](#panel-interaction-and-execution) · [Search panel](#search-panel) · [Palette scope and export](#search-palette-app-scope-and-markdown-export) · [Settings window](#settings-window) · [Update check](#update-check) · [Presentation](#presentation) · [Permissions](#permissions) · [Persistence](#persistence) · [Testing and CI](#testing-and-ci) · [Release](#release) · [Known limitations](#known-limitations)
 
 ## Source layout
 
 ```
 KagiPeek/
 ├── App/
-│   ├── AppDelegate.swift          # lifecycle, single instance, diagnostics, login item
-│   └── KagiPeekApp.swift          # SwiftUI scenes, menu bar extra, main window
+│   ├── AppDelegate.swift          # lifecycle, single instance, diagnostics, login item, main menu
+│   └── Main.swift                 # AppKit entry point (no SwiftUI App/scene, so no window at launch)
 ├── Core/
 │   ├── Pure/                      # SwiftPM target KagiPeekCore (Foundation only)
 │   │   ├── KeyChord.swift         # keys, modifiers, normalization, parsing
 │   │   ├── RowKeys.swift          # key codes, Enter alias, RowKeyRouter
 │   │   ├── BindingItem.swift      # one shortcut/action row
 │   │   ├── PrefixResolver.swift   # prefix → child bindings, chord traversal
-│   │   ├── Ranker.swift           # context/frequency/key/review/alphabetical order
+│   │   ├── ChordComposition.swift # one pure decision: build a stroke, classify it, swallow?
+│   │   ├── Ranker.swift           # the five sort modes' shared maths (decayed usefulness)
+│   │   ├── UsageOrdering.swift    # sort order applied to search results and statistics
 │   │   ├── KeyFormatter.swift     # ⌘⇧C formatting, glyphs, localization
 │   │   ├── KeyMapper.swift        # virtual key codes ↔ characters
 │   │   ├── NavigationKey.swift    # arrows, ⌃F/⌃B/⌃N/⌃P, ; / ' paging
-│   │   ├── DescriptionCleaner.swift
+│   │   ├── DescriptionCleaner.swift # whitespace, trailing chord hints, the "—" placeholder
 │   │   ├── SearchIndex.swift      # SearchCorpus + Pinyin + tokenized scoring
-│   │   ├── ConflictDetector.swift # same chord claimed by multiple bindings
+│   │   ├── ConflictDetector.swift # same chord claimed by multiple bindings, typed findings
 │   │   ├── ShortcutLayer.swift    # driver → eventTap → system → global → menu
 │   │   ├── ConfigTool.swift       # the six config sources, their paths and layers
 │   │   ├── ConfigFileScanner.swift# one scan over every tool + shared file guards
 │   │   ├── KarabinerScanner.swift # karabiner.json complex modifications
-│   │   ├── SkhdScanner.swift      # skhdrc
+│   │   ├── SkhdScanner.swift       # skhdrc
 │   │   ├── KeyboardMaestroScanner.swift # macro library hot key triggers
 │   │   ├── HammerspoonScanner.swift # hs.hotkey.bind calls in init.lua
 │   │   ├── AlfredScanner.swift    # workflow hotkey triggers
@@ -44,55 +50,74 @@ KagiPeek/
 │   │   ├── LiveTestVerdict.swift  # what one real keypress proved
 │   │   ├── HotkeyMatcher.swift    # global hotkey matching, Hyper superset rule
 │   │   ├── PanelPlacement.swift   # cover / fixed / fill / beside the front window
+│   │   ├── PanelSections.swift    # app card + system card, and where the boundary is
 │   │   ├── PanelState.swift       # immutable panel snapshot (rows, groups, prefix)
 │   │   ├── PanelRowBuilder.swift  # one row/group builder for both rebuild paths
 │   │   ├── PanelHighlighter.swift # which rows belong to the shortcut in progress
 │   │   ├── PanelOrdering.swift    # the panel's chord order and modifier filter rule
 │   │   ├── PendingModifiers.swift # held (transient) vs latched (ticked) modifiers
 │   │   ├── ModifierTapTracker.swift # a press-and-release of a modifier becomes a tick
-│   │   ├── LatchedTicks.swift # tick/untick, and which one ⌫ undoes
-│   │   ├── ChordComposition.swift # one pure decision: build a stroke, classify it, swallow?
+│   │   ├── LatchedTicks.swift     # tick/untick, and which one ⌫ undoes
 │   │   ├── PanelKeyIntake.swift   # keys the panel consumes as itself, read by the tap too
 │   │   ├── PanelSelection.swift   # the only row is selected; a stale index is dropped
 │   │   ├── RowLayout.swift        # the row's three column widths, as arithmetic
 │   │   ├── PanelTheme.swift       # panel palettes
 │   │   ├── HeaderLayout.swift     # responsive title-bar thresholds
+│   │   ├── SystemHotkeyNames.swift# names for the system hotkeys macOS leaves unnamed
+│   │   ├── IgnoredCommands.swift  # a title ignored globally or for one app
+│   │   ├── MenuCachePolicy.swift  # when a cached menu scan is still valid
 │   │   ├── L10n.swift             # English / Simplified Chinese strings
 │   │   ├── AppSettingsModel.swift # settings values, defaults, normalization
 │   │   ├── SettingsPayload.swift  # schema envelope + versioned migration hook
 │   │   ├── UsageStatistics.swift  # pure usage model, 800-entry LRU, per-app rollup
+│   │   ├── UsageBreakdown.swift   # per-app press and shortcut counts
 │   │   ├── MarkdownExporter.swift # shortcut sheet rendered as Markdown
 │   │   ├── SemanticVersion.swift  # tag parsing/comparison for the update check
+│   │   ├── LogLevelFilter.swift   # diagnostic log levels
+│   │   ├── LogRotationPolicy.swift# when the daily log file is rotated
+│   │   ├── CrashLogFormatter.swift# crash report text
+│   │   ├── SentinelState.swift    # clean-exit sentinel, so a crash is not mistaken for a quit
+│   │   ├── Sanitizer.swift        # strips identifiers from exported diagnostics
 │   │   └── BuiltInCatalog.swift   # 100 fallback shortcuts
 │   ├── AX/
 │   │   ├── MenuScanner.swift      # AXMenuBar recursion, key equivalents, axPath
 │   │   ├── MenuTrigger.swift      # AXPress on a menu item (primary trigger)
+│   │   ├── MenuScanCache.swift    # menu-cache/ on disk + control.json fingerprint
 │   │   ├── CatalogLoader.swift    # background scan + per-app cache
 │   │   ├── AppContextService.swift# frontmost app (never itself), bundle id, icon
+│   │   ├── AppPermissions.swift   # grant checks
 │   │   ├── PermissionCenter.swift # Accessibility / Input Monitoring state
 │   │   ├── WindowGeometry.swift   # panel placement next to the focused window
-│   │   ├── SystemHotkeyReader.swift # Carbon system shortcuts (conflicts only)
+│   │   ├── SystemHotkeyReader.swift # Carbon system shortcuts + SystemHotkeyNames
 │   │   └── AppDirectory.swift     # running regular apps for the search scope
 │   ├── Input/
 │   │   ├── KeyboardMonitor.swift  # global CGEventTap, swallow rules, lazy decoding
 │   │   ├── ModifierFlags.swift    # NSEvent.ModifierFlags → ModifierSet
-│   │   └── ShortcutInjector.swift # replays one chord into the front app
+│   │   ├── ShortcutInjector.swift # replays one chord into the front app
+│   │   └── ShortcutTester.swift   # head/tail listen-only taps for "test this combo"
 │   ├── Storage/
 │   │   ├── DataDirectory.swift    # Application Support folder + JsonFileStore
-│   │   ├── SettingsStore.swift    # settings.json, single debounced writer
+│   │   ├── SettingsStore.swift    # settings.json, single debounced writer, preview session
 │   │   └── UsageStore.swift       # usage.json, debounced background writes
 │   ├── Services/
 │   │   ├── AppLog.swift           # os.Logger categories: scan/input/storage/ui
+│   │   ├── Diag.swift             # the in-app diagnostic log
+│   │   ├── FileLogStore.swift     # logs/kagipeek-<date>.log, rotation, redaction
+│   │   ├── ActionRecorder.swift   # last 30 action names, for a crash report
+│   │   ├── CrashReporter.swift    # signal handlers, crash/, clean-exit sentinel
+│   │   ├── DiagnosticsExporter.swift # one JSON/zip report for a bug report
+│   │   ├── ConflictCache.swift    # conflicts-cache.json, read at launch
 │   │   └── UpdateChecker.swift    # manual GitHub release check
 │   └── Engine/
 │       └── ShortcutEngine.swift   # binds scan → index → panel state
 ├── UI/
 │   ├── Surface/                   # one NSPanel hosting panel + search palette
+│   ├── Overlay/                   # panel and palette views, cards, rows, footer
 │   ├── HUD/                       # 0.75 s "executed" toast
 │   ├── Permissions/               # first-run permission guide
-│   ├── Settings/                  # eight tabs: general, trigger, appearance,
-│   │                              # ranking, permissions, about
-│   ├── MenuBar/                   # menu bar extra
+│   ├── Settings/                  # eight tabs: general, trigger, appearance, statistics,
+│   │                              # conflicts, permissions, diagnostics, about
+│   ├── MenuBar/                   # self-owned NSStatusItem and its menu
 │   └── Design/                    # Theme, Localization, Interaction, TextComposition
 └── Assets.xcassets/
 
@@ -235,7 +260,7 @@ The AX layer keeps the element reference needed for opt-in execution; `BindingIt
 2. Does this prefix itself have completions (so a chord should stay open)?
 3. Is the pressed key absent (so the panel closes and the HUD can show)?
 
-`ConflictDetector` groups bindings by normalized chord. Entries with the same title, group, and source are treated as duplicates rather than conflicts. A group with genuinely different bindings marks every affected row with ⚠︎ and feeds **Settings → Ranking → Conflicts**. Conflicts are informational: macOS, not KagiPeek, decides which menu item actually receives a key equivalent.
+`ConflictDetector` groups bindings by normalized chord. Entries with the same title, group, and source are treated as duplicates rather than conflicts. A group with genuinely different bindings marks every affected row with ⚠︎ and feeds **Settings → Conflicts**. Conflicts are informational: macOS, not KagiPeek, decides which menu item actually receives a key equivalent.
 
 `SearchCorpus` is built once per catalog and precomputes every haystack a query can hit: the lowercased title, its pinyin forms, its Latin word initials, the menu path, the rendered chord, the raw key tokens, and modifier words/symbols. `SearchIndex` remains a thin, backward-compatible entry point that builds a corpus per call.
 
@@ -260,7 +285,7 @@ Rules:
 - Rows use `BindingSource.system`, carry no bundle identifier, and are grouped under the localized "System hotkeys" / "系统热键" title.
 - **Names come from `SystemHotkeyNames`, not from the system.** The description field is a documented constant that macOS never fills, so the reader looks the chord up in a table of the assignments a stock Mac ships with (⌘Space → Spotlight, ⇧⌘3 → Screenshot, ⌃↑ → Mission Control, ⌘M → Minimize, …) and answers in the interface language. A chord that is not in the table — because the user reassigned it, or because it is one of the ~55 entries macOS lists as enabled with no function behind it (⌃F4, ⌃↩, ⇧A, …) — gets the placeholder "—" rather than the chord repeated as its own title.
 - **The list is deliberately consulted, not trusted.** The Carbon table also contains stale slots; a chord being present means "macOS registered something here", which is exactly the claim the conflict list makes about it — no more.
-- They live in `ShortcutEngine.systemBindings` rather than in the app's catalog, so they never appear in the panel or the search results.
+- They live in `ShortcutEngine.systemBindings` rather than in the app's catalog, so an app's own scan stays a clean picture of its menus. They appear in the panel as the second card (`PanelSections`) — a chord the system owns belongs next to the app's rows, where the question "why does nothing happen when I press this" is asked — and the unscoped palette searches them alongside the frontmost app's items (`searchItems`), because "who owns ⌘Space" is a searchable question too.
 - The list is read at startup, when the interface language changes (the group title is localized), and whenever the app is re-activated, so edits made in System Settings are picked up without a relaunch.
 - `ConflictDetector.conflicts(in:external:)` groups app entries, system entries and config-file entries by normalized chord. Identical titles are treated as duplicates; genuinely different bindings become a conflict. Every member — including the system row — is flagged ⚠︎ in the panel.
 - **Read-only.** KagiPeek never binds, changes, disables, or remaps a system shortcut; it only reports the collision. Reading the list needs no additional permission.
@@ -271,13 +296,17 @@ A flat list of "two things want ⌘⇧4" invites the next question — *so which
 
 **`ShortcutLayer`** places every binding on the macOS event stack: `driver` (Karabiner) → `eventTap` (skhd, BetterTouchTool, Keyboard Maestro) → `system` → `globalHotKey` (Hammerspoon, Alfred) → `otherGlobal` → `menuItem`. Lower wins. `ShortcutLayer.classify(_:)` reads the *tool*, not just the source: all six config scanners share `BindingSource.configFile`, so the source alone would rank a Karabiner rule next to a menu item.
 
-**`ConflictCategory`** sorts findings by consequence:
+**`ConflictCategory`** sorts findings by consequence, and names the two things that collide rather than a severity:
 
 | Category | Meaning |
 | --- | --- |
-| `.definite` | Two or more always-on sources claim the combo. They collide whatever is in front. |
-| `.shadowed` | One always-on source covers menu items of this app, so those menu items never fire. |
-| `.appOverlap` | Only menu items overlap. macOS matches them in menu order; nothing is broken. |
+| `.menuOrder` | Two menu items of the same app claim the chord. macOS matches in menu order; nothing is broken, but one of them is unreachable. |
+| `.systemShadow` | An enabled system shortcut covers this app's menu item, so the menu item never fires. |
+| `.toolShadow` | A third-party tool's rule covers a menu item or a system shortcut. |
+| `.systemVsSystem` | Two macOS shortcuts claim the same chord. |
+| `.systemVsTool` | A system shortcut and a tool's rule collide. |
+| `.toolVsTool` | Two tools claim the chord. |
+| `.toolSelfOverlap` | One tool binds the same chord twice. |
 
 **`LayerVerdict`** says who wins: `.winner` when one binding sits strictly lower, `.tied` when several share the lowest layer — registration order decides, and no config file records it, so it says so rather than guessing — and `.menuOrder` when every binding is a menu item of the frontmost app, where the stack has nothing to say.
 
@@ -306,37 +335,35 @@ Tools that rewrite the keyboard keep their shortcuts in a file, not in a menu ba
 
 Config bindings carry `configTool`, which feeds `ShortcutLayer` and keeps the id unique per owner. They are **not** added to the panel, the search results or the catalog: there is no menu item to press and no element to trigger, so a row would only be clickable-looking decoration. They feed conflict detection, the combo lookup and the settings list.
 
-Scanning is **on** by default, and **Settings → Ranking → Config file sources** can turn it off entirely, which forgets what was found and opens no file outside KagiPeek's own data folder afterwards. A scan runs at launch and on demand, deliberately *not* on every app switch: these files change when the user edits them, not when they change apps.
+Scanning is **on** by default, and **Settings → Conflicts → Config file sources** can turn it off entirely, which forgets what was found and opens no file outside KagiPeek's own data folder afterwards. A scan runs at launch and on demand, deliberately *not* on every app switch: these files change when the user edits them, not when they change apps.
 
 ### Combo lookup
 
 The conflict list only shows clashes, so a combo one thing owns alone used to come back empty, and an empty list reads as "not scanned" rather than "nobody else wants this". `ComboQuery` parses a query that spells out a combo (`cmd shift 4`, `⌘⇧4`, `opt cmd t`) — every token must be a modifier or a key, there must be exactly one key and at least one modifier, which is what keeps `cmd safari` a plain text search — and `ComboLookup` answers who owns it or that it is free, matched on the same chord key `ConflictDetector` groups by so the two can never disagree.
 
-## Ranking
+## Ordering
 
-The search palette orders rows with the ranker. The default mode is **Smart review**, and it is deliberate:
+Three different questions, three different orders, and mixing them up was a real bug once:
 
-1. **Context first** — bindings from the frontmost app rank above generic catalog rows. The context bonus (100,000) dwarfs every other term, so frequency can never lift a catalog row above an app row.
-2. **Decayed usage** — presses are weighted by an exponential decay with a roughly 60-day scale, so recent use counts most and old use fades gradually.
-3. **Stale-but-known nudge** — an entry used before but not for more than 30 days receives an age-based bonus (`min(age, 365) × 0.8`). This resurfaces shortcuts you have forgotten without outranking frequent recent ones, and it never lifts a never-used row above a used one.
-4. **Key order** — stable tie-break: key, then chord, then localized title, then id.
+- **The panel is in key order** (`PanelOrdering`), always. It is a reference card: fewer strokes first, then the modifier set by significance (⌘, ⌥, ⌃, ⇧), then the key, with a function key sorting as the word it is named after (`f`, `f1`, `f2`, … `g`) and a command with no shortcut after every chord. `sortMode` does not touch it.
+- **The search palette is in match order** — `SearchCorpus` scores, described under *Search panel*. Selecting a sort order there would mean discarding the ranking that answers the query.
+- **The statistics page is in the chosen order** (`RankMode` + `UsageOrdering`), for both the per-app list and the rows inside an app. `sortMode` used to be read by the panel (through the old `Ranker.rank`) and by nothing on the statistics page that displayed the picker; both were wrong, and the page now honours the setting it shows.
 
-Alternative modes in Settings:
+`Ranker` itself keeps only the shared maths: `decayedUsefulness` weights a press count by an exponential decay with a roughly 60-day scale, so recent use counts most and old use fades gradually. It is what `smart` means, in the statistics list and nowhere else.
 
-| Mode | Order |
+| Mode | Meaning for a statistics list |
 | --- | --- |
-| Smart review | Default: context → decayed frequency → stale nudge → keys |
-| Context → frequency → keys | The v1.2.0 default, without the stale nudge |
-| Frequency | Most used first, regardless of context |
-| Review (auto-recall) | Least recently used first, so forgotten shortcuts resurface |
-| Keys | Modifier mask, then key code |
-| Alphabetical | Localized title |
+| Smart review (default) | Decayed usefulness first, then raw press count. |
+| Most used first | Press count, then command name. |
+| Review | Least recently used first — what "review" is for. |
+| Key order | `PanelOrdering`, so the page and the panel agree on what "along the keyboard" means; apps fall back to name order. |
+| Alphabetical | Localized command name. |
 
-Disabled rows sort below enabled ones in every mode.
+Disabled rows keep their place in the order — the comparator looks at the chord, not at `AXEnabled` — they are only drawn greyed out, and hidden entirely when **Show unavailable items** is off.
 
-**The floating panel does not use the ranker.** It is a reference card ordered by the shortcut itself (`PanelOrdering`): the order the chord is printed in — fewer strokes first, then the modifier set (⌃, ⌥, ⇧, ⌘), then the key — so ⌘C, ⌘V and ⌘X sit together whichever menu they came from. The menu path travels with the row as a small note between the title and the chord instead of a section heading that would cut the ⌘ block in half; favourites still float above everything when **Pin favourites to top** is on. While modifiers are held, the rows that can be reached from them keep the same order among themselves, which is what makes the narrowed list re-sort as more modifiers go down.
+While modifiers are held, the rows that can be reached from them keep the same order among themselves, which is what makes the narrowed list re-sort as more modifiers go down. Favourites float above everything when **Pin favourites to top** is on. The menu path travels with the row as a small note between the title and the chord instead of a section heading, which is why ordering can no longer cut the ⌘ block in half.
 
-`UsageStore` records a count and a last-used timestamp keyed by `bundleID|chord`, so the same shortcut in two apps is tracked separately and a localized title change does not lose history. System and built-in rows use `*|chord` and are reported as **System / built-in** / **系统 / 内置**. `UsageStatistics.summariesByApp()` rolls the records up into `AppUsageSummary` values (bundle id, press count, distinct shortcut count, last used), sorted by presses, which is what **Settings → Ranking → Statistics** renders. Frequency is exponentially decayed (a roughly 60-day scale), so recently used shortcuts rise and stale ones fade instead of dominating forever. The model keeps a running `totalPresses` and caps records at 800, pruning the least recently used entries. It never stores raw key events, typed text, or window contents. Resetting statistics clears the records; settings are unaffected. Persistence is described under [Persistence](#persistence).
+`UsageStore` records a count and a last-used timestamp keyed by `bundleID|chord`, so the same shortcut in two apps is tracked separately and a localized title change does not lose history. System and built-in rows use `*|chord` and are reported as **System / built-in** / **系统 / 内置**. `UsageStatistics.summariesByApp()` rolls the records up into `AppUsageSummary` values (bundle id, press count, distinct shortcut count, last used); `UsageOrdering.apps` orders them by the chosen mode (it falls back to the app name where a mode needs a chord), which is what the **Statistics** tab renders. Frequency is exponentially decayed (a roughly 60-day scale), so recently used shortcuts rise and stale ones fade instead of dominating forever. The model keeps a running `totalPresses` and caps records at 800, pruning the least recently used entries. It never stores raw key events, typed text, or window contents. Resetting statistics clears the records; settings are unaffected. Persistence is described under [Persistence](#persistence).
 
 ## Trigger pipeline
 
@@ -441,7 +468,7 @@ Because every panel is persistent, it is usable without the shortcut that opened
 | Run key (`settings.runRowKey`, ↩ by default) | Run the selected row |
 | Copy key (`settings.copyRowKey`, ⌘↩ by default) | Copy the selected row's chord |
 | Esc | Close the panel |
-| ⌫ | Undo one title-bar tick, then pop one chord level, then close the panel |
+| ⌫ | Undo the most recently ticked modifier, then pop one chord level. With nothing left to undo the key is let through — it never closes the panel |
 | Click | Same as the run key |
 | Click a modifier chip | Tick it: narrows the list and composes a stroke |
 | `/` | Swap the panel for the search palette (and back, from the palette while its field is empty) |
@@ -451,7 +478,7 @@ Because every panel is persistent, it is usable without the shortcut that opened
 
 - **The navigation keys are captured only while the panel is active, with no modifier held.** `updateCapturedKeys` registers the arrows with an empty modifier set, plus whatever the two row keys are recorded to (`HotkeySpec.capturedIdentifiers`; Return and the keypad Enter are one key in both directions), and `KeyboardMonitor` swallows those key-downs so the front app never sees them. The set is cleared when the panel is dismissed. A modifier-plus-key combination that is not a row key (⌥⌘Esc, …) is not in the set, so it stays an ordinary shortcut.
 - **The row contract is two recorded keys, one surface (the search palette is a run-only second surface).** `RowAction` (`.execute` / `.copy`) is applied by `performPanelRow`: `.execute` sends the row through `activate(rowID:)` — a group row descends one level, a disabled row is ignored, everything else records usage, closes the surface and triggers the command — while `.copy` writes the rendered chord to the pasteboard and shows the "Copied" toast without closing anything (a row with no shortcut has nothing to copy and says so instead of clearing the pasteboard). `RowKeyRouter.action(for:modifiers:run:copy:)` is the single implementation of that rule, shared by the panel and the palette's list; run is matched before copy, so recording both to the same chord degrades to the primary action instead of leaving one unreachable. The footer hints render the two recorded chords, so remapping cannot leave a lying hint.
-- **Triggering the command is the primary goal, so every run surface presses the menu item first.** `MenuTrigger.press(_:)` performs `AXPress` on the `AXUIElement` the scan retained for the row. That is the only way to reach a command with no keyboard shortcut, and for the ones that do have one it is exactly what clicking the menu would do — the app's own validation and current state apply, and a chord that was decoded wrong never gets replayed. Replaying the chord through `ShortcutInjector` is the fallback, used when the press fails (a stale element after the menu changed, an app that refuses the action) or when the row has no element at all (system hotkeys, fallback-catalog entries). The element does not have to belong to the frontmost app, so the panel can trigger without stealing focus; the browser and the search palette, which do take the keyboard, hand it back to the browsed app afterwards.
+- **Triggering the command is the primary goal, so every run surface presses the menu item first.** `MenuTrigger.press(_:)` performs `AXPress` on the `AXUIElement` the scan retained for the row. That is the only way to reach a command with no keyboard shortcut, and for the ones that do have one it is exactly what clicking the menu would do — the app's own validation and current state apply, and a chord that was decoded wrong never gets replayed. Replaying the chord through `ShortcutInjector` is the fallback, used when the press fails (a stale element after the menu changed, an app that refuses the action) or when the row has no element at all (system hotkeys, fallback-catalog entries). The element does not have to belong to the frontmost app, so the panel can trigger without stealing focus; the search palette, which does take the keyboard, hands it back to the app it is scoped to afterwards.
 - **Recording is stricter for global hotkeys than for row keys.** A global hotkey must carry ⌘/⌥/⌃ or typing would fire it; a row key is only read while the panel owns the keyboard, so a bare Return is fine. Bare characters and the panel's navigation keys (Esc, arrows) are refused either way — a bare letter would break chord entry and filtering.
 - Selection, key highlighting, and completion are separate visual states, as described above; a completed shortcut is not executed by KagiPeek, so the front app still receives it. Running a row is the explicit exception: it closes the surface and triggers the command — pressing the menu item when there is one, replaying the chord otherwise.
 
@@ -459,7 +486,7 @@ Selection is index-based over `flatRowIDs` so grouped two- or three-column layou
 
 ## Search panel
 
-Search is a separate, global panel (default ⌃⌥⌘F) and a search field in the main window. It searches the current app's live menu bindings plus the built-in catalog, using one `SearchCorpus` per catalog (rebuilt when the catalog or key style changes).
+Search is a separate, global panel (default ⌃⌥⌘F), reachable from its hotkey or by pressing `/` in the panel. It searches the scoped app's live menu bindings plus the system's hotkeys (unscoped) or that one app's bindings (scoped), using one `SearchCorpus` per scope identity — rebuilt when the scope, the catalog, the key style or the language changes, which is why the scope id is part of the corpus key.
 
 - **Tokenized, unordered matching.** The query is lowercased, `+` is treated as a separator, and the rest is split on whitespace. Every term must match — `com op x`, `op cm x`, and `cmd+opt+x` are equivalent. There is no phrase requirement and no order requirement.
 - **Modifier aliases.** `com`/`cmd`/`command`/`⌘`, `op`/`opt`/`option`/`alt`/`⌥`, `ct`/`ctl`/`ctrl`/`control`/`⌃`, `sh`/`sft`/`shift`/`⇧`. A recognized alias scores high when the chord actually has that modifier.
@@ -467,7 +494,7 @@ Search is a separate, global panel (default ⌃⌥⌘F) and a search field in th
 - **Chinese pinyin.** `Pinyin.forms(of:)` converts a Chinese title with `.mandarinToLatin`, then adds full pinyin (`jianqie`), spaced syllables (`jian qie`), and initials (`jq`). Typing `jq` or `jian qie` finds 剪切 without switching input methods.
 - **English initials.** Multi-word titles also contribute their Latin word initials, so `fs` finds Find Similar.
 - ↑/↓ moves the selection; Return acts on it.
-- **The palette runs, it does not copy.** `confirmSearchSelection()` → `activateSearchResult(_:)` hides the palette, reactivates the app that was in front, records usage and triggers the command: pressing the menu item when the row has one, otherwise posting the chord through `ShortcutInjector` after 0.18 s. Return here is always Return: the recorded row keys belong to the panel, which is why the palette footer reads `↵ run` instead of rendering `settings.runRowKey`.
+- **The palette runs, it does not copy.** `confirmSearchSelection()` → `activateSearchResult(_:)` hides the palette, activates the app the palette is scoped to, records usage and triggers the command: pressing the menu item when the row has one, otherwise posting the chord through `ShortcutInjector`. Return here is always Return: the recorded row keys belong to the panel, which is why the palette footer reads `↵ run` instead of rendering `settings.runRowKey`.
 - **There is no copy path in this surface.** `RowAction` is applied by the panel only. To copy a chord without running it, use the copy key there.
 - Running a search result can trigger destructive actions (Delete, Empty Trash, Quit) immediately, which is why the first match is selected but nothing runs until you press Return.
 - **The panel and search are mutually exclusive.** `showSearch()` dismisses the panel first, and the switch hotkey (⌃⌥⌘S by default) moves from search to panel, from panel to search, or opens the panel when neither is visible.
@@ -505,18 +532,22 @@ no file I/O, which is why it is unit tested without AppKit.
 
 ## Settings window
 
-`SettingsView` is one SwiftUI window with six tabs (`SettingsTab`): **General**, **Trigger**, **Appearance**, **Ranking**, **Permissions**, **About**.
+`SettingsView` is one SwiftUI window with eight tabs (`SettingsTab`): **General**, **Trigger**, **Appearance**, **Statistics**, **Conflicts**, **Permissions**, **Diagnostics**, **About**. Statistics and conflicts used to share one "Ranking" page, which made each of them hard to find and the page long enough that the numbers at the top were never seen.
 
 | Tab | Contents |
 | --- | --- |
-| General | Interface language, launch at login, executed HUD, built-in catalog, **row actions** (the two recorded row keys), excluded bundle identifiers, ignored command titles |
+| General | Interface language, launch at login, executed HUD, built-in catalog, *Include the Apple menu*, *Show Dock icon*, **row actions** (the two recorded row keys), **excluded apps** (a selectable list filled from an `NSOpenPanel`, not a text field of bundle identifiers), ignored commands (one disclosure group per scope) |
 | Trigger | Trigger mode, hold delay, double-tap window, and the three recordable hotkeys (panel, search, switch) |
-| Appearance | Key style, columns, rows per page, description length, disabled items, key position, panel theme, favourite pinning, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected |
-| Ranking | Sort order, per-app **Statistics** (press count and shortcut count per app, *Show data folder*, *Reset statistics*), the conflict list, and *Restore defaults* |
+| Appearance | Key style, panel theme, key position, columns, rows per page, description length, disabled items, favourite pinning and filtering, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected |
+| Statistics | Sort order, per-app statistics (press count and shortcut count per app, one collapsible section per app, *Show data folder*, *Reset statistics*), *Restore defaults* |
+| Conflicts | Config file sources (what was read, counts, rescan), type filter, related-app filter, scan timestamp, manual rescan, paged findings with **Test this combo** |
 | Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt + opening the matching System Settings pane), and a draggable KagiPeek icon |
-| About | Icon, version and build number, system version, manual update check, data folder (open button), repository and license, diagnostics |
+| Diagnostics | Logging on/off, verbose logging, log folder, **Export diagnostics…** |
+| About | Icon, version and build number, system version, manual update check, data folder (open button), repository and license, diagnostics export |
 
-The ranking tab's statistics section is fed by `UsageStore.summariesByApp()`: one row per bundle identifier with the total presses and the number of distinct shortcuts, plus **System / built-in** for `*`. **Show data folder** opens `~/Library/Application Support/KagiPeek` in Finder.
+The statistics tab is fed by `UsageStore.summariesByApp()`: one row per bundle identifier with the total presses and the number of distinct shortcuts, plus **System / built-in** for `*`, ordered by `UsageOrdering.apps` and expanded per app through `usageEntries(for:)` (which puts `sortMode` in its cache signature so changing the picker cannot serve the previous list). **Show data folder** opens `~/Library/Application Support/KagiPeek` in Finder.
+
+The conflicts tab reads `ConflictCache` at launch and only scans when you press **Rescan** (or when nothing has been cached yet): the scan walks every running app's menus, and doing that on each visit is the "it hangs when I open the page" complaint. Findings are rendered in pages of 40 because a `Form` builds every row it is handed.
 
 The permissions tab's icon is a real drag source (`NSItemProvider` / file URL): dropping it into the Accessibility or Input Monitoring list in System Settings adds the running app, which is handy when the list has no entry yet. **Request Access** calls the system prompt and then opens the corresponding pane, instead of only doing one of the two.
 
@@ -532,7 +563,7 @@ The About tab of **Settings** offers a manual release check, and it is the only 
 
 ## Presentation
 
-- `OverlayPanelController` and `SearchPanelController` own non-activating `NSPanel`s hosting SwiftUI views, so keystrokes continue to reach the frontmost app.
+- `SurfacePanelController` owns one non-activating `NSPanel` that hosts both the panel and the search palette (one surface at a time), so keystrokes continue to reach the frontmost app until the palette needs the field.
 - `WindowGeometry` reads the frontmost window and focused-element frames (AX, 0.2 s timeout) and converts them to Cocoa coordinates. `OverlayPanelController` then resolves **`PanelPlacement`** (a pure enum with four cases) against the screen that contains the front window, falling back to the screen under the pointer:
 
   | Placement | Size | Position |
@@ -543,10 +574,10 @@ The About tab of **Settings** offers a manual release check, and it is the only 
   | Beside the front window (v2.0 behaviour) | The panel's natural size | Beside the window, flipping sides as needed, and avoiding the focused element; top-right fallback when there is no window |
 
   Placement is recalculated each time the panel is shown or resized, so moving the window and reopening the panel picks up the new frame.
-- **The panel is sized for the widest list of the session, not for the page on screen.** Pressing a modifier narrows the list by definition, so a window sized from the current page changed height on every press and again on release — on screen that read as the panel jumping. `PanelState.rowBudget` / `headingBudget` carry how many rows and headings the un-narrowed list shows (nothing composed, paginated, with one heading reserved for the system section), and `OverlayMetrics` sizes from the larger of that budget and the rows actually drawn, so the frame holds while the list moves inside it and can never clip a row. The budget is recomputed when the catalog, the chips, the favourites-only toggle, the ignored titles or the page size change — never per keystroke. The same rule covers the inline filter, whose budget is the list before the query.
+- **The panel is sized for the widest list of the session, not for the page on screen.** Pressing a modifier narrows the list by definition, so a window sized from the current page changed height on every press and again on release — on screen that read as the panel jumping. `PanelState.rowBudget` / `headingBudget` carry how many rows and headings the un-narrowed list shows (nothing composed, paginated, with one heading reserved for the system section), and `OverlayMetrics` sizes from the larger of that budget and the rows actually drawn, so the frame holds while the list moves inside it and can never clip a row. The budget is recomputed when the catalog, the chips, the favourites-only toggle, the ignored titles or the page size change — never per keystroke. An inline filter used to have a budget of its own; the filter is gone, and with it the question of what "the list before the query" means.
 - `Theme` uses a dark translucent material, honours **Reduce Transparency** (opaque background) and **Increase Contrast** (stronger borders and text), and keeps keycaps legible in both.
 - `HUDPanelController` renders the short "executed" toast; it can be disabled in Settings.
-- The app is an `LSUIElement` agent: no Dock icon, no app switcher window. Its main window opens at launch and can be reopened from the menu bar item; ⌘, opens Settings.
+- The app is an `LSUIElement` agent: no Dock icon, no app switcher entry, and no window at launch. `Main.swift` builds the app as plain AppKit rather than a SwiftUI `App` with scenes, because a `Settings` scene opened an empty window on launch and a `MenuBarExtra` made the status item impossible to own. `showDockIcon` switches the activation policy to `.regular` and `applicationShouldHandleReopen` then opens Settings; ⌘, opens Settings at any time.
 - Interface language follows the system and can be overridden in Settings. `L10n`, `KeyFormatter`, and `BuiltInCatalog` provide English and Simplified Chinese strings; live menu titles come from the scanned app and are already localized by that app.
 
 ## Permissions
@@ -566,11 +597,14 @@ Settings and statistics live in `~/Library/Application Support/KagiPeek/` as pla
 
 ```text
 ~/Library/Application Support/KagiPeek/
-  settings.json   { schemaVersion: Int, settings: AppSettingsSnapshot }
-  usage.json      { schemaVersion: Int, statistics: UsageStatistics, favorites: [String]? }
+  settings.json                  # { schemaVersion, settings } — user data
+  usage.json                     # { schemaVersion, statistics, favorites } — user data
+  conflicts-cache.json           # the last cross-app conflict scan, read at launch
   menu-cache/
-    control.json                    # schema + settings fingerprint every entry was written under
-    menus-<identity>.json           # one cached menu scan per app identity
+    control.json                 # schema + settings fingerprint every entry was written under
+    menus-<identity>.json        # one cached menu scan per app identity
+  logs/                          # kagipeek-<date>.log, last-actions.json, session.active
+  crash/                         # crash reports, one JSON file each
 ```
 
 `DataDirectory` resolves the folder (`FileManager.applicationSupportDirectory` + `KagiPeek`) and creates it on demand. `JsonFileStore` is the small shared store both stores use:
@@ -578,10 +612,10 @@ Settings and statistics live in `~/Library/Application Support/KagiPeek/` as pla
 - **Atomic writes.** The payload is encoded with `JSONEncoder` and written with `.atomic`, so a crash mid-write cannot leave a truncated file.
 - **Corrupt files are preserved, not discarded.** If `JSONDecoder` fails, the file is renamed to `<name>.corrupt-<unix timestamp>.json` (for example `settings.corrupt-1761112345.json`) and kept beside the original; the app continues with defaults. A later save writes a fresh file, and the corrupt copy remains for inspection.
 - **Migration happens once and in priority order.** `settings.json` first; if it is absent, the v2.0 `UserDefaults` payload under `settings.v2`; if that is absent, the handful of 1.x keys read from the legacy `com.Voltline.KagiPeek` domain (`settings.overlayHoldDelaySeconds`, `settings.keyDisplayStyle`, `settings.overlayColumnCount`, `settings.maxDisplayCount`, `settings.launchAtLoginEnabled`). Usage migrates the same way from `usage.v2`. The first write after loading creates the JSON files; after that, `UserDefaults` is not read again.
-- **Only these two files hold user data.** Search queries and raw key events stay in memory.
+- **Only two of these files hold user data.** Everything else is derived or diagnostic: `conflicts-cache.json` and `menu-cache/` are reproducible by scanning again, and `logs/` + `crash/` exist to explain a bug — `ActionRecorder` keeps the last 30 action *names* (never menu text, typed characters or queries), logging can be switched off under **Settings → Diagnostics**, and deleting the folder costs a rescan and a history, nothing else. Search queries and raw key events stay in memory either way.
 - **The menu cache is derived data.** Unlike settings and statistics, every entry can be reproduced by scanning the app again, so an unreadable entry is dropped instead of preserved next to it, and a failed write costs a rescan and nothing more. It is local-only and never leaves the machine.
 
-`AppSettingsModel` owns defaults, ranges, and validation in pure Swift, so settings can be tested without AppKit. v2.0.0 made `sortMode` default to `.smart`. v2.1.0 added `panelPlacement` (default `.coverWindow`), `fixedPanelWidth` (720, clamped 320–4000), `fixedPanelHeight` (620, clamped 240–3000), and `switchHotkey` (⌃⌥⌘S), and **removed `autoHideDelay`**. v2.2.0 added the two recorded row keys (`runRowKey`, `copyRowKey`) and `keepBrowserOpenAfterRun`, and removed `allowPanelExecute` and `allowSearchExecute`, which had stopped controlling anything.
+`AppSettingsModel` owns defaults, ranges, and validation in pure Swift, so settings can be tested without AppKit. v2.0.0 made `sortMode` default to `.smart`. v2.1.0 added `panelPlacement` (default `.coverWindow`), `fixedPanelWidth` (720, clamped 320–4000), `fixedPanelHeight` (620, clamped 240–3000), and `switchHotkey` (⌃⌥⌘S), and **removed `autoHideDelay`**. v2.2.0 added the two recorded row keys (`runRowKey`, `copyRowKey`), `excludedBundleIDs`, `ignoredCommands`, `showAppleMenu`, `showDockIcon` and the diagnostics switches, and removed `allowPanelExecute` and `allowSearchExecute`, which had stopped controlling anything, plus `keepBrowserOpenAfterRun` and the `contextFirst` sort mode, which lost their subjects when the browser window and the redundant mode went.
 
 **Removing a key needs no migration step.** `AppSettingsSnapshot` only implements `init(from:)`, and every field there is `decodeIfPresent` with the default as fallback, so an older payload decodes, the unknown key is ignored by `CodingKeys`, and the next save drops it. `SettingsPayload`/`SettingsMigrator` exist so that the *version* is read and not only written: `isOutdated(_:)` reports that a file came from an older build, and a future incompatible change has one place to add its step. The invariant that keeps "no migration step" honest — decode an old payload, re-encode without the removed key — has a unit test. `usage.json` carries its own version now: sharing the settings constant meant a settings migration would silently claim the statistics file had changed too.
 
@@ -594,7 +628,7 @@ UsageStatistics
     UsageRecord: { count: Int, lastUsed: Date }
 ```
 
-The 800-record cap is enforced with a least-recently-used prune after every recorded press. `summariesByApp()` aggregates the same records into `AppUsageSummary` (bundle id, presses, distinct shortcuts, last used) for **Settings → Ranking**. A decode failure falls back to empty statistics rather than crashing. Resetting clears `totalPresses` and all records.
+The 800-record cap is enforced with a least-recently-used prune after every recorded press. `summariesByApp()` aggregates the same records into `AppUsageSummary` (bundle id, presses, distinct shortcuts, last used) for **Settings → Statistics**. A decode failure falls back to empty statistics rather than crashing. Resetting clears `totalPresses` and all records.
 
 ## Testing and CI
 
@@ -603,7 +637,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - chord parsing and normalization
 - key mapping and special keys
 - prefix matching and chord traversal
-- ranking modes
+- the five sort modes, translated into both a usage list and a per-app list (`UsageOrdering`)
 - key formatting and breadcrumbs
 - description cleanup and truncation
 - conflict detection (including duplicate suppression)
@@ -611,7 +645,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - localization completeness (both languages, matching format placeholders)
 - built-in catalog integrity (size, unique chords, both titles)
 - usage statistics (recording, 800-entry LRU cap, encode/decode, reset)
-- smart review ordering (stale-but-used entries outrank never-used ones, context still wins)
+- decayed usefulness (`Ranker`): a recent press outranks an old one at equal count, and a count of zero scores zero
 - `SemanticVersion` parsing (`v` prefix, pre-release suffix) and comparison
 - `MarkdownExporter` grouped table rendering, including the unavailable marker
 - system-hotkey conflicts against app bindings, with external entries
@@ -636,6 +670,9 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - `OverlayMetrics` sizing is stable: narrowing the list keeps the session's height, a budget smaller than the rows on screen cannot clip them, an empty budget falls back to the rows drawn, and a heading reserved by the widest list stays reserved
 - `MenuCachePolicy`: the fingerprint tracks the scan-shaping setting, an entry expires exactly at the age cap, a future timestamp is refused, and a mismatched or missing control file invalidates the whole cache
 - `BindingItem` survives a JSON round trip (`id`, `usageKey`, `chord` with its alternates, and the empty chord), which is what a cache restore depends on
+- `SystemHotkeyNames`: known chords get a name in either language, a reassigned chord and a multi-step sequence get none, and the table has no duplicate chord
+- the nameless-row contract: an empty title cleans to `DescriptionCleaner.placeholder`, which is what a system hotkey macOS cannot name shows
+- `IgnoredCommands`: normalizing drops duplicates within a scope, the same title in two scopes stays two rules, and the legacy flat title list migrates to global rules
 
 AppKit/AX/UI behaviour is not unit tested: the Xcode project has a single app target and no test target, so `Core/AX`, `Core/Engine`, `Core/Input`, `Core/Storage` and `UI` (about 6,400 lines) have nowhere to run assertions. The response so far has been to move what *can* be pure into `Core/Pure` — `RowKeyRouter`, `PanelRowBuilder`, `HeaderLayout`, `PanelState`, `PanelSections`, `UsageOrdering` — and test it there.
 
