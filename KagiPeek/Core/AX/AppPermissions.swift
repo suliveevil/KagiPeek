@@ -107,6 +107,8 @@ final class AppPermissions: ObservableObject {
     /// Called whenever any permission changes (including while the window is open).
     var onChange: (() -> Void)?
 
+    private var systemChangeObserver: (any NSObjectProtocol)?
+
     var all: [AppPermission] { [accessibility, inputMonitoring] }
     var required: [AppPermission] { all.filter(\.isRequired) }
 
@@ -122,7 +124,7 @@ final class AppPermissions: ObservableObject {
                 .permissionAccessibilityDetail3
             ],
             isRequired: true,
-            settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"),
+            settingsURL: PermissionCenter.accessibilitySettingsURL,
             check: { previewDenied ? false : AXIsProcessTrusted() },
             requestPrompt: {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -140,7 +142,7 @@ final class AppPermissions: ObservableObject {
                 .permissionInputMonitoringDetail2
             ],
             isRequired: false,
-            settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"),
+            settingsURL: PermissionCenter.inputMonitoringSettingsURL,
             check: { previewDenied ? false : CGPreflightListenEventAccess() },
             requestPrompt: { CGRequestListenEventAccess() }
         )
@@ -166,6 +168,30 @@ final class AppPermissions: ObservableObject {
         for permission in all {
             permission.stopPolling()
         }
+    }
+
+    /// The system posts this undocumented distributed notification when an app's Accessibility
+    /// trust is toggled, which is the only way to notice a revocation while KagiPeek keeps
+    /// running: the 3-second polls stop once a grant is detected. `refreshAll()` is cheap and
+    /// idempotent, so a stray posting costs nothing. The polls and the activation/wake
+    /// refreshes stay as fallbacks for the day the name stops being posted — and for Input
+    /// Monitoring, which has no equivalent notification.
+    func startObservingSystemChanges() {
+        guard systemChangeObserver == nil else { return }
+        systemChangeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("com.apple.accessibility.api"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshAll() }
+        }
+    }
+
+    func stopObservingSystemChanges() {
+        if let systemChangeObserver {
+            DistributedNotificationCenter.default().removeObserver(systemChangeObserver)
+        }
+        systemChangeObserver = nil
     }
 
     func refreshAll() {

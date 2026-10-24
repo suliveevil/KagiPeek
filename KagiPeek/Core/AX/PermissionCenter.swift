@@ -1,7 +1,7 @@
-import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
 import CoreGraphics
+import Foundation
 
 /// The two TCC permissions this app touches.
 ///
@@ -9,40 +9,26 @@ import CoreGraphics
 /// Input Monitoring is an optional fallback for setups where the tap still receives
 /// nothing after Accessibility has been granted.
 enum PermissionCenter {
+    /// The only place the deep links are spelled out. The anchors are the System Settings
+    /// (macOS 13+) identifiers — the pre-Ventura `com.apple.preference.security` spellings
+    /// are unreliable on the OS versions this app supports.
+    static let accessibilitySettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
+    )
+    static let inputMonitoringSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ListenEvent"
+    )
+
     static var hasAccessibility: Bool {
         AXIsProcessTrusted()
-    }
-
-    @discardableResult
-    static func requestAccessibility() -> Bool {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        return AXIsProcessTrustedWithOptions(options)
     }
 
     static var hasInputMonitoring: Bool {
         CGPreflightListenEventAccess()
     }
 
-    @discardableResult
-    static func requestInputMonitoring() -> Bool {
-        CGRequestListenEventAccess()
-    }
-
     /// True while the system is in secure keyboard entry (password fields, login window, …).
     static var isSecureInputEnabled: Bool {
         IsSecureEventInputEnabled()
-    }
-
-    static func openAccessibilitySettings() {
-        open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-    }
-
-    static func openInputMonitoringSettings() {
-        open("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
-    }
-
-    private static func open(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        NSWorkspace.shared.open(url)
     }
 }

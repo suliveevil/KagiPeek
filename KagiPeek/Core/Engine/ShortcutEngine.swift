@@ -157,6 +157,7 @@ final class ShortcutEngine: ObservableObject {
         }
 
         permissions.startPolling()
+        permissions.startObservingSystemChanges()
         refreshPermissions()
         applyHotkeySwallowing()
         appDirectory.start()
@@ -182,6 +183,7 @@ final class ShortcutEngine: ObservableObject {
         appContext.stop()
         appDirectory.stop()
         permissions.stopPolling()
+        permissions.stopObservingSystemChanges()
         state.isListening = false
         dismissEverything()
     }
@@ -556,6 +558,11 @@ final class ShortcutEngine: ObservableObject {
 
         if PermissionCenter.isSecureInputEnabled {
             logSecureInputOnce()
+            // Only when the panel was actually up: the user just saw it vanish. A toast while
+            // they type a password elsewhere would point at the password field.
+            if state.phase == .active {
+                hud.showNotice(text: localization.text(.permissionSecureInput))
+            }
             dismissPanel()
             return
         }

@@ -40,6 +40,8 @@ Input Monitoring does not help with menu reading, and Accessibility alone cannot
 4. If no panel appears, quit KagiPeek. Click **Request** next to **Input Monitoring** (it likewise opens the matching pane), switch KagiPeek on there, then reopen KagiPeek.
 5. Check **Settings → Permissions** in KagiPeek to confirm the current state.
 
+KagiPeek also notices when the toggle is switched **off** while it is running: the panel and shortcuts stop immediately and the **Permission guide** menu item comes back — no relaunch needed.
+
 The macOS authorization dialog is shown by the system, not by KagiPeek. KagiPeek never asks for an administrator password and does not install a privileged helper.
 
 The Permissions tab's icon is a real drag source. Dropping it on the Accessibility or Input Monitoring list adds the running app even when the list is empty; this is often faster than using **+**, and it is the same app macOS will later remember. The icon only adds the entry — you still have to toggle it on.
@@ -77,7 +79,7 @@ Resetting permissions only forgets that you approved KagiPeek. It does not delet
 
 ## Secure input
 
-Some apps — password fields, login windows, and certain terminals — turn on macOS **secure event input**. While it is active, macOS deliberately hides key events from event taps and from other apps. KagiPeek detects secure input and hides its panel immediately. This is intentional and is one of the reasons KagiPeek never records raw keystrokes.
+Some apps — password fields, login windows, and certain terminals — turn on macOS **secure event input**. While it is active, macOS deliberately hides key events from event taps and from other apps. KagiPeek detects secure input and hides its panel immediately; if the panel was open, a brief on-screen notice explains why it vanished. This is intentional and is one of the reasons KagiPeek never records raw keystrokes.
 
 KagiPeek does post events in exactly one situation: when you run a row (the run key, a click, or Return in the search palette), it replays that row's single chord into the front app and stops. Nothing is posted while you browse the panel, and the copy key never posts anything.
 
@@ -125,5 +127,5 @@ A notarized release reports `source=Notarized Developer ID`. An ad-hoc build rep
 | Permission toggle is on, but KagiPeek says it is missing | Remove KagiPeek with **−** in that pane, add the current app again, and relaunch. Replacing the app changes its signature. |
 | KagiPeek does not appear in the Accessibility list | Launch the app first, then open the pane; drag the icon from **Settings → Permissions** into the list, or add `/Applications/KagiPeek.app` with **+**. |
 | Menu shortcuts work, but holding keys does nothing | Grant Input Monitoring (optional fallback), quit, and reopen KagiPeek. |
-| Panel disappears in password fields | Secure input is active; this is intentional. |
+| Panel disappears in password fields | Secure input is active; a brief notice explains it. This is intentional. |
 | Permission resets after every rebuild | Ad-hoc signing changes the app identity. Use a Developer ID build for stable grants, or re-add the build each time. |

@@ -45,8 +45,18 @@ final class HUDPanelController {
     }
 
     func show(chord: String, title: String) {
+        present("\(chord)   \(title) ✓", after: 0.75)
+    }
+
+    /// Same toast, without the chord/✓ framing: standalone explanations such as why the
+    /// panel just vanished under secure input, which read better a beat longer.
+    func showNotice(text: String) {
+        present(text, after: 1.2)
+    }
+
+    private func present(_ text: String, after delay: TimeInterval) {
         hideWorkItem?.cancel()
-        label.stringValue = "\(chord)   \(title) ✓"
+        label.stringValue = text
         panel.setContentSize(NSSize(width: max(180, label.intrinsicContentSize.width + 34), height: 44))
         position()
         panel.alphaValue = 0
@@ -66,7 +76,7 @@ final class HUDPanelController {
             })
         }
         hideWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func position() {
