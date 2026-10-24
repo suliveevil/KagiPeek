@@ -26,9 +26,21 @@ enum Theme {
         NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     }
 
-    static var borderOpacity: Double {
-        increaseContrast ? 0.42 : 0.16
-    }
+    /// Semantic accents drawn on top of a palette. System colors so they track the
+    /// system appearance; each use site keeps its own opacity, tuned to its context.
+    /// (Previously these were bare `.yellow`/`.orange` literals scattered across views,
+    /// which a palette change could never reach.)
+    static let favoriteStar = Color.yellow
+    static let warning = Color.orange
+
+    /// Accent-emphasis ladder for state the accent color already carries: the completed
+    /// flash is strongest, a pressed row sits under it, the selection gutter is quietest.
+    static let completedRowEmphasis: Double = 0.38
+    static let pressedRowEmphasis: Double = 0.28
+    static let selectedGutterEmphasis: Double = 0.18
+    static let tickedChipStroke: Double = 0.55
+    static let tickedChipFillLight: Double = 0.16
+    static let tickedChipFillDark: Double = 0.26
 
     /// Materials do not survive `cacheDisplay`, so screenshot previews use a flat colour.
     @ViewBuilder

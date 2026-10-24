@@ -134,7 +134,7 @@ private struct OverlayHeaderView: View {
                 Button(action: engine.toggleFavoritesFilter) {
                     Image(systemName: state.showsFavoritesOnly ? "star.fill" : "star")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(state.showsFavoritesOnly ? Color.yellow : palette.secondaryText)
+                        .foregroundStyle(state.showsFavoritesOnly ? Theme.favoriteStar : palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover))
                 .help(localization.text(.panelFavoritesFilter))
@@ -154,7 +154,7 @@ private struct OverlayHeaderView: View {
             if state.panel.hasConflicts {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 12))
-                    .foregroundStyle(.orange.opacity(0.9))
+                    .foregroundStyle(Theme.warning.opacity(0.9))
                     .help(localization.text(.overlayConflictHint))
             }
 
@@ -204,11 +204,11 @@ private struct OverlayHeaderView: View {
                 .frame(width: 20, height: 20)
                 .background(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(ticked ? Color.accentColor.opacity(palette.isLight ? 0.16 : 0.26) : .clear)
+                        .fill(ticked ? Color.accentColor.opacity(palette.isLight ? Theme.tickedChipFillLight : Theme.tickedChipFillDark) : .clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(ticked ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
+                        .stroke(ticked ? Color.accentColor.opacity(Theme.tickedChipStroke) : .clear, lineWidth: 1)
                         .decorative()
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
@@ -524,8 +524,8 @@ private struct OverlayPanelContentView: View {
         let isSelected = row.index >= 0 && state.panel.selectionIndex == row.index
         let isHovered = hoveredRowID == row.id
         let fill: Color = {
-            if row.isCompleted { return Color.accentColor.opacity(0.38) }
-            if pressedRowID == row.id { return Color.accentColor.opacity(0.28) }
+            if row.isCompleted { return Color.accentColor.opacity(Theme.completedRowEmphasis) }
+            if pressedRowID == row.id { return Color.accentColor.opacity(Theme.pressedRowEmphasis) }
             if isSelected { return palette.selection }
             if isHovered { return palette.hover }
             return .clear
@@ -603,7 +603,7 @@ private struct OverlayPanelContentView: View {
         let lit = hoveredStarID == row.id
         return Image(systemName: row.isFavorite ? "star.fill" : "star")
             .font(.system(size: 9.5))
-            .foregroundStyle(row.isFavorite ? Color.yellow : palette.tertiaryText)
+            .foregroundStyle(row.isFavorite ? Theme.favoriteStar : palette.tertiaryText)
             .scaleEffect(lit ? 1.2 : 1)
             .frame(width: 14, height: 14)
             .contentShape(Rectangle())
@@ -670,7 +670,7 @@ private struct OverlayPanelContentView: View {
         HStack(spacing: RowLayout.gutterSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 9))
-                .foregroundStyle(.orange.opacity(0.85))
+                .foregroundStyle(Theme.warning.opacity(0.85))
                 .frame(width: 12)
                 .opacity(row.hasConflict ? 1 : 0)
                 .accessibilityHidden(!row.hasConflict)
@@ -1029,7 +1029,7 @@ private struct SearchResultRow: View {
         .frame(minHeight: 36)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+                .fill(isSelected ? Color.accentColor.opacity(Theme.selectedGutterEmphasis) : Color.clear)
         )
         // Same gutter marker as the panel rows: the title must not slide when the selection
         // follows the pointer or the arrow keys.
