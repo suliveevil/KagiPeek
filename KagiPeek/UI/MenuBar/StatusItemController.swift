@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// Owns the menu bar item explicitly.
 ///

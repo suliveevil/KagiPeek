@@ -11,11 +11,9 @@ import os
 /// `MenuScanner`, persistence in the stores and drawing in SwiftUI.
 @MainActor
 final class ShortcutEngine: ObservableObject {
-    enum Phase {
-        case idle
-        case armed
-        case active
-    }
+    /// The panel session phase, defined in pure code so `KeyEventRouter` can read it
+    /// without importing the engine.
+    typealias Phase = EnginePhase
 
     enum HotkeyTarget: Hashable {
         case panel
@@ -34,8 +32,9 @@ final class ShortcutEngine: ObservableObject {
         /// which are reachable, so a cached order computed without it would be stale.
         var latchedModifiers: ModifierSet
         var scannedAt: Date
-        var showsFavoritesOnly: Bool
-        var pinFavoritesToTop: Bool
+        /// The favorites rules as one value, so any of the three booleans changing (the
+        /// star toggle or either settings) invalidates the cached order together.
+        var favorites: FavoritesPolicy
         var includeDisabled: Bool
         /// A signature, not a count: editing a rule without changing how many exist must
         /// still invalidate the cached order.
@@ -95,9 +94,8 @@ final class ShortcutEngine: ObservableObject {
     ///
     /// Looking at another app is the palette's job now: it is where
     /// people actually type, so the scope lives here now.
-    @Published private(set) var searchScopeAppID: String?
-    @Published private(set) var searchScopeName = ""
-    @Published private(set) var searchScopeItems: [BindingItem] = []
+    /// The scope's identity and items live in `search` (pure state); the icon is AppKit
+    /// and has to stay engine-side.
     @Published private(set) var searchScopeIcon: NSImage?
     /// The scoped app's catalog, elements included, so a click can press its menu item instead
     /// of only replaying the chord — the press is what reaches commands with no shortcut.
@@ -108,7 +106,7 @@ final class ShortcutEngine: ObservableObject {
     /// Title and icon the palette shows: the scoped app when one is chosen, otherwise the app
     /// that is in front. "Search Shortcuts" was a label where the answer belonged.
     var searchPaletteTitle: String {
-        if !searchScopeName.isEmpty { return searchScopeName }
+        if !search.scopeName.isEmpty { return search.scopeName }
         if !appName.isEmpty { return appName }
         return appContext.frontmost?.name ?? localization.text(.appName)
     }
@@ -117,17 +115,17 @@ final class ShortcutEngine: ObservableObject {
         searchScopeIcon ?? appIcon
     }
 
-    /// The direct answer to a query that spells out a combo, or nil for a plain text search.
-    @Published private(set) var comboAnswer: ComboLookup.Answer?
     @Published private(set) var liveTestState: ShortcutTester.State = .idle
     @Published private(set) var runningApps: [AppEntry] = []
 
-    @Published var searchQuery = "" {
-        didSet { refreshSearch() }
+    /// The palette's whole state as one snapshot (see `SearchSnapshot`). Only the query
+    /// drives a re-search; the engine writes results/selection/visibility itself, and a
+    /// re-search from those writes would loop.
+    @Published var search = SearchSnapshot() {
+        didSet {
+            if oldValue.query != search.query { refreshSearch() }
+        }
     }
-    @Published private(set) var searchResults: [BindingItem] = []
-    @Published private(set) var searchSelection = 0
-    @Published private(set) var isSearchVisible = false
     @Published private(set) var showsFavoritesOnly = false
 
     // MARK: - Collaborators
@@ -178,15 +176,14 @@ final class ShortcutEngine: ObservableObject {
     /// Joined statistics, per app bucket. Rebuilt when the scans or the counters move.
     private var usageBreakdownCache: [String: (signature: String, entries: [UsageEntry])] = [:]
     private var previousModifiers: ModifierSet = []
-    private var lastCommandDownAt: Date?
+    /// The "press ⌘ twice to pin" gesture, as a pure state machine (see `CommandDoubleTap`).
+    private var doubleTapCommand = CommandDoubleTap()
+    /// Karabiner-style hyper (⌃⌥⇧⌘) used as a single "Escape" key, as a pure state machine
+    /// (see `HyperEscape`).
+    private var hyperEscape = HyperEscape()
     /// Throttle for the secure-input line: the check runs on every modifier press, and one
     /// line every few seconds is enough to explain a session in which nothing worked.
     private var lastSecureInputLog: Date?
-    /// Karabiner-style hyper (⌃⌥⇧⌘) used as a single "Escape" key:
-    /// remember when it went down and whether another key was pressed meanwhile.
-    private static let hyperModifiers: ModifierSet = [.control, .option, .shift, .command]
-    private var hyperArmedAt: Date?
-    private var hyperUsedKey = false
     /// Press-and-release of a modifier, remembered so it can become a sticky tick: ⌥ ⌘ C
     /// instead of holding ⌥⌘ and pressing C. See `ModifierTapTracker`.
     private var modifierTap = ModifierTapTracker()
@@ -665,44 +662,33 @@ final class ShortcutEngine: ObservableObject {
             return
         }
 
-        if settings.triggerMode == .doubleTapCommand {
-            if modifiers == [.command], previous.isEmpty {
-                lastCommandDownAt = event.happenedAt
-            } else if modifiers.isEmpty,
-                      previous == [.command],
-                      let started = lastCommandDownAt,
-                      event.happenedAt.timeIntervalSince(started) <= settings.doubleTapWindow {
-                lastCommandDownAt = nil
-                togglePinnedPanel()
-                return
-            } else if !modifiers.isEmpty {
-                lastCommandDownAt = nil
-            }
+        if settings.triggerMode == .doubleTapCommand,
+           doubleTapCommand.process(
+               modifiers: modifiers,
+               previous: previous,
+               now: event.happenedAt,
+               window: settings.doubleTapWindow
+           ) {
+            togglePinnedPanel()
+            return
         }
 
         switch phase {
         case .active:
             // A lone hyper press (⌃⌥⇧⌘) is the user's "Escape" key: do not narrow the
             // panel to a prefix no menu could match; close it on a clean release instead.
-            if modifiers == Self.hyperModifiers {
-                if hyperArmedAt == nil {
-                    hyperArmedAt = event.happenedAt
-                    hyperUsedKey = false
-                }
+            // The gesture is a pure state machine (`HyperEscape`), tested on its own.
+            switch hyperEscape.process(modifiers: modifiers, now: event.happenedAt) {
+            case .arm:
                 modifierTap.reset()
                 panel.heldModifiers = modifiers
                 rebuildPanel()
                 return
-            }
-            if let armedAt = hyperArmedAt {
-                let elapsed = event.happenedAt.timeIntervalSince(armedAt)
-                let wasUsed = hyperUsedKey
-                hyperArmedAt = nil
-                hyperUsedKey = false
-                if modifiers.isEmpty, elapsed < 1.0, !wasUsed {
-                    dismissPanel()
-                    return
-                }
+            case .releaseDismiss:
+                dismissPanel()
+                return
+            case .clear, .none:
+                break
             }
 
             // Modifiers held while the panel is open narrow it, which-key style (the core
@@ -773,149 +759,115 @@ final class ShortcutEngine: ObservableObject {
             logSecureInputOnce()
             return
         }
-        if handleHotkey(event) { return }
 
-        switch phase {
-        case .idle:
-            return
-        case .armed:
+        // The decision is made in pure code (`KeyEventRouter`), exactly as the walk used to
+        // run: hotkeys first (they answer in any phase), then the phase, then the panel's
+        // own keys, then chord composition. This method only executes side effects.
+        let action = KeyEventRouter.route(
+            keyCode: event.keyCode,
+            key: event.key,
+            modifiers: event.modifiers,
+            isRepeat: event.isRepeat,
+            phase: phase,
+            settings: settings,
+            panel: panel,
+            prefix: prefix,
+            pending: pending,
+            items: catalog.items
+        )
+
+        // A key the panel consumed while a hyper is armed marks the hyper as used, so a
+        // clean release no longer counts as Escape. The guard mirrors the old inline code:
+        // only a key with a token, while the panel is active, and not Escape itself.
+        if phase == .active, event.key != nil, action != .dismiss, hyperEscape.armedAt != nil {
+            hyperEscape.noteKeyUsed()
+        }
+        // A key pressed while a modifier is down means the modifier was part of a shortcut,
+        // not a tap to be ticked.
+        if phase == .active {
+            modifierTap.noteKeyPress()
+        }
+
+        switch action {
+        case .hotkey(let choice):
+            switch choice {
+            case .panel: togglePinnedPanel()
+            case .search: toggleSearch()
+            case .switcher: toggleShortcutSurface()
+            }
+        case .none:
+            break
+        case .cancelArm:
             cancelArm()
             phase = .idle
             prefix = .empty
-        case .active:
-            // A key pressed while a modifier is down means the modifier was part of a
-            // shortcut, not a tap to be ticked.
-            modifierTap.noteKeyPress()
-            // Escape is matched on the key code and before the `guard`: it must work even
-            // when the tap decoded no character for it, which is exactly what a virtual
-            // keyboard does when Caps Lock is remapped to Esc.
-            if event.keyCode == KeyCode.escape {
-                dismissPanel()
-                return
+        case .dismiss:
+            dismissPanel()
+        case .showSearch:
+            showSearchFromPanel()
+        case .moveSelection(let delta):
+            moveSelection(delta)
+        case .page(let step):
+            if step > 0 { nextPage() } else { previousPage() }
+        case .performRow(let rowAction):
+            performSelectedPanelRow(action: rowAction)
+        case .undoLatched:
+            // The router answers from `latchedOrder`, so this usually pops; the fallback
+            // keeps the old behaviour if the tick vanished in between.
+            if popLatched() {
+                refreshAfterLatchedChange()
+            } else if !prefix.isEmpty {
+                goUpOneLevel()
             }
-            guard let key = event.key else { return }
-            if hyperArmedAt != nil {
-                hyperUsedKey = true
-            }
-
-            // Everything from here to the composition below is the panel consuming a key as
-            // *itself*: `/`, Escape, navigation, paging and the row keys. `PanelKeyIntake`
-            // lists the same set for the event tap, which has to decide what to swallow
-            // before any of this runs — with a ticked modifier those keys arrive carrying
-            // nothing, and `⌥;` being a real binding would otherwise let the tap eat a `;`
-            // that only ever pages the list. Keep the two in step.
-            //
-            // `/` is the panel's one text entry: it swaps the list for the search palette,
-            // which is where typing belongs. The palette is opened with the query it was
-            // last left with, so a round trip does not cost the user their search.
-            if event.keyCode == KeyCode.slash, event.modifiers.isEmpty {
-                showSearchFromPanel()
-                return
-            }
-
-            // While the list is narrowed the user is holding modifiers, so every event carries
-            // them. They are not part of the key the user meant — they are the filter — so
-            // they are stripped before the key is identified. Without this, ↓ does not move
-            // the selection and ⌃N is not a navigation key while ⌘ is down.
-            let pressed = event.modifiers.subtracting(panel.heldModifiers)
-
-            if let direction = NavigationKey.direction(keyCode: event.keyCode, modifiers: pressed) {
-                switch direction {
-                case .up: moveSelection(-1)
-                case .down: moveSelection(1)
-                case .left: previousPage()
-                case .right: nextPage()
-                }
-                return
-            }
-
-            if let step = NavigationKey.pageStep(keyCode: event.keyCode, modifiers: pressed) {
-                if step > 0 { nextPage() } else { previousPage() }
-                return
-            }
-
-            // A held key repeats: moving through the list with ↓ is useful, running the same
-            // shortcut ten times in a row is not.
-            if let action = RowKeyRouter.action(
-                for: event.keyCode,
-                modifiers: event.modifiers,
-                held: panel.heldModifiers,
-                run: settings.runRowKey,
-                copy: settings.copyRowKey
-            ) {
-                if !event.isRepeat { performSelectedPanelRow(action: action) }
-                return
-            }
-
-            if event.modifiers.isEmpty {
-                // ⌫ undoes a tick before it pops a level: the tick is the newer, more visible
-                // thing the user did, so it is the first thing to be undone.
-                if key == .backspace {
-                    if popLatched() { refreshAfterLatchedChange(); return }
-                    if !prefix.isEmpty { goUpOneLevel(); return }
-                }
-            }
-
-            guard !event.isRepeat else { return }
-            let resolution = ChordComposition.resolve(
-                prefix: prefix,
-                physical: event.modifiers,
-                pending: pending,
-                key: key,
-                in: catalog.items
+        case .goUpLevel:
+            goUpOneLevel()
+        case .passThrough(let item, let probe):
+            // Nothing was assembled: the physical event already *is* the shortcut, so the
+            // front app performs it. Flash the row and let the key through.
+            Diag.debug(.inject, """
+                passthrough: chord=\(KeyFormatter.render(probe, style: .symbols)) \
+                reason=uncomposed title=\(Sanitizer.clamp(item.title))
+                """)
+            complete(item, probe: probe)
+        case .replayComposed(let item, let probe):
+            // The tap swallowed this key, so the panel owes the app the shortcut: replay
+            // the assembled chord — ⌥⌘C, not C — the same way clicking a row does.
+            usageStore.record(usageKey: item.usageKey)
+            dismissPanel()
+            AppLog.input.info(
+                "replaying composed \(KeyFormatter.render(probe, style: .symbols), privacy: .public) into the front app"
             )
-            switch resolution.outcome {
-            case .complete(let item):
-                guard resolution.composed else {
-                    // Nothing was assembled: the physical event already *is* the shortcut, so
-                    // the front app performs it. Flash the row and let the key through.
-                    Diag.debug(.inject, """
-                        passthrough: chord=\(KeyFormatter.render(resolution.probe, style: .symbols)) \
-                        reason=uncomposed title=\(Sanitizer.clamp(item.title))
-                        """)
-                    complete(item, probe: resolution.probe)
-                    return
-                }
-                // The tap swallowed this key, so the panel owes the app the shortcut: replay
-                // the assembled chord — ⌥⌘C, not C — the same way clicking a row does.
-                usageStore.record(usageKey: item.usageKey)
-                dismissPanel()
-                AppLog.input.info(
-                    "replaying composed \(KeyFormatter.render(resolution.probe, style: .symbols), privacy: .public) into the front app"
+            if settings.showExecutedHUD {
+                hud.show(
+                    chord: KeyFormatter.render(probe, style: settings.keyStyle),
+                    title: item.title
                 )
-                if settings.showExecutedHUD {
-                    hud.show(
-                        chord: KeyFormatter.render(resolution.displayChord, style: settings.keyStyle),
-                        title: item.title
-                    )
-                }
-                DispatchQueue.main.async {
-                    ShortcutInjector.post(resolution.probe, delay: 0.12)
-                }
-            case .descend:
-                prefix = resolution.probe
-                // The ticked modifiers have been folded into this stroke; keeping them would
-                // apply them a second time to the next one.
-                panel.latchedModifiers = []
-                panel.latchedOrder = []
-                panel.pageIndex = 0
-                panel.selectionIndex = -1
-                rebuildPanel()
-                updateKeyCapture()
-            case .noMatch:
-                // Keep the panel open, and keep the ticks: the user is mid-sequence and has
-                // not made a mistake yet. A bare key with no match is not swallowed, so the
-                // app receives it and nothing is lost.
-                Diag.debug(.tap, """
-                    nomatch: prefix=\(KeyFormatter.render(prefix, style: .symbols)) \
-                    key=\(key) latched=\(panel.latchedModifiers.rawValue)
-                    """)
-                panel.heldModifiers = event.modifiers
-                rebuildPanel()
             }
+            DispatchQueue.main.async {
+                ShortcutInjector.post(probe, delay: 0.12)
+            }
+        case .descend(let probe):
+            prefix = probe
+            // The ticked modifiers have been folded into this stroke; keeping them would
+            // apply them a second time to the next one.
+            panel.latchedModifiers = []
+            panel.latchedOrder = []
+            panel.pageIndex = 0
+            panel.selectionIndex = -1
+            rebuildPanel()
+            updateKeyCapture()
+        case .noMatch(let heldModifiers):
+            // Keep the panel open, and keep the ticks: the user is mid-sequence and has
+            // not made a mistake yet. A bare key with no match is not swallowed, so the
+            // app receives it and nothing is lost.
+            Diag.debug(.tap, """
+                nomatch: prefix=\(KeyFormatter.render(prefix, style: .symbols)) \
+                key=\(event.key?.raw ?? "-") latched=\(panel.latchedModifiers.rawValue)
+                """)
+            panel.heldModifiers = heldModifiers
+            rebuildPanel()
         }
     }
-
     /// Karabiner's "hyper tap → Escape" rule usually emits Escape on key-up, so the tap
     /// consumes Esc releases as well and closes the panel from either direction.
     private func handleKeyUp(_ event: KeyEvent) {
@@ -925,39 +877,6 @@ final class ShortcutEngine: ObservableObject {
         }
     }
 
-    /// Global hotkeys are matched by virtual key code, so they work even when the tap did not
-    /// decode a character for the event (`KeyEvent.key` is nil while nothing is reading keys).
-    private func handleHotkey(_ event: KeyEvent) -> Bool {
-        let key = event.key
-        if HotkeyMatcher.matches(
-            keyCode: event.keyCode,
-            modifiers: event.modifiers,
-            key: key,
-            spec: settings.panelHotkey
-        ) {
-            togglePinnedPanel()
-            return true
-        }
-        if HotkeyMatcher.matches(
-            keyCode: event.keyCode,
-            modifiers: event.modifiers,
-            key: key,
-            spec: settings.searchHotkey
-        ) {
-            toggleSearch()
-            return true
-        }
-        if HotkeyMatcher.matches(
-            keyCode: event.keyCode,
-            modifiers: event.modifiers,
-            key: key,
-            spec: settings.switchHotkey
-        ) {
-            toggleShortcutSurface()
-            return true
-        }
-        return false
-    }
 
     /// Whether the tap must consume this key because the panel supplied part of the chord.
     ///
@@ -1052,7 +971,7 @@ final class ShortcutEngine: ObservableObject {
     /// held is lit up in the row, not removed from it.
     func activatePanel(seedPrefix: Bool = false) {
         guard !isFrontAppExcluded else { return }
-        isSearchVisible = false
+        search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
         phase = .active
         let seed = (previousModifiers == [.shift]) ? ModifierSet() : previousModifiers
@@ -1062,8 +981,7 @@ final class ShortcutEngine: ObservableObject {
         panel.pageIndex = 0
         panel.selectionIndex = -1
         panel.completedRowID = nil
-        hyperArmedAt = nil
-        hyperUsedKey = false
+        hyperEscape = HyperEscape()
         // A modifier held down to summon the panel is the trigger, not a tap: letting go of
         // it must not tick anything.
         modifierTap.reset()
@@ -1082,8 +1000,7 @@ final class ShortcutEngine: ObservableObject {
         cancelArm()
         phase = .idle
         prefix = .empty
-        hyperArmedAt = nil
-        hyperUsedKey = false
+        hyperEscape = HyperEscape()
         modifierTap.reset()
         panel = .hidden
         updateKeyCapture()
@@ -1117,7 +1034,7 @@ final class ShortcutEngine: ObservableObject {
         guard !isPreviewing else { return }
         // Nothing is showing any more: not the panel (it may have been reopened in the
         // meantime), and not the search palette, which has its own pointer to worry about.
-        guard !panel.isVisible, !isSearchVisible else { return }
+        guard !panel.isVisible, !search.isVisible else { return }
         guard let current = Self.cursorPoint() else { return }
         let moved = hypot(current.x - origin.x, current.y - origin.y)
         guard moved > 2 else { return }
@@ -1135,7 +1052,7 @@ final class ShortcutEngine: ObservableObject {
 
     private func dismissEverything() {
         dismissPanel()
-        isSearchVisible = false
+        search.isVisible = false
         surface.close()
     }
 
@@ -1198,10 +1115,21 @@ final class ShortcutEngine: ObservableObject {
     /// Modifiers only ever remove rows, so sizing the window from the page on screen made
     /// it shrink on every press and grow again on release — the panel visibly jumping. The
     /// frame is now computed from this budget and holds while the list moves inside it.
+    /// The favorites rules that feed ranking, row budgeting and search, as one value — see
+    /// `FavoritesPolicy`. The cache keys hold it whole, so a rule change cannot leave a
+    /// stale order or budget behind.
+    private var favoritesPolicy: FavoritesPolicy {
+        FavoritesPolicy(
+            showsFavoritesOnly: showsFavoritesOnly,
+            pinToTop: settings.pinFavoritesToTop,
+            canBeFiltered: settings.favoritesCanBeFiltered
+        )
+    }
+
     private func unnarrowedBudget() -> (rows: Int, headings: Int) {
         let key = RowBudgetKey(
             scannedAt: catalog.scannedAt,
-            showsFavoritesOnly: showsFavoritesOnly,
+            showsFavoritesOnly: favoritesPolicy.showsFavoritesOnly,
             includeDisabled: settings.showDisabledItems,
             ignoredSignature: ignoredSignature,
             systemCount: systemBindings.count,
@@ -1215,9 +1143,7 @@ final class ShortcutEngine: ObservableObject {
             in: catalog.items,
             includeDisabled: settings.showDisabledItems
         ).filter { !isIgnored($0.item) }
-        if showsFavoritesOnly {
-            hits = hits.filter { usageStore.isFavorite($0.item.usageKey) }
-        }
+        hits = favoritesPolicy.favoritesOnly(hits) { usageStore.isFavorite($0.item.usageKey) }
         let total = hits.count
         let pageSize = key.pageSize
         // Both sections flow through the same pages, so the widest page is a full page of
@@ -1332,8 +1258,7 @@ final class ShortcutEngine: ObservableObject {
             heldModifiers: panel.heldModifiers,
             latchedModifiers: panel.latchedModifiers,
             scannedAt: catalog.scannedAt,
-            showsFavoritesOnly: showsFavoritesOnly,
-            pinFavoritesToTop: settings.pinFavoritesToTop,
+            favorites: favoritesPolicy,
             includeDisabled: settings.showDisabledItems,
             ignoredSignature: ignoredSignature
         )
@@ -1353,14 +1278,8 @@ final class ShortcutEngine: ObservableObject {
         var sorted = hits.sorted {
             PanelOrdering.areInIncreasingOrder($0.item, $1.item, emphasizing: emphasized)
         }
-        if showsFavoritesOnly {
-            sorted = sorted.filter { usageStore.isFavorite($0.item.usageKey) }
-        }
-        if settings.pinFavoritesToTop {
-            let favorites = sorted.filter { usageStore.isFavorite($0.item.usageKey) }
-            let rest = sorted.filter { !usageStore.isFavorite($0.item.usageKey) }
-            sorted = favorites + rest
-        }
+        sorted = favoritesPolicy.favoritesOnly(sorted) { usageStore.isFavorite($0.item.usageKey) }
+        sorted = favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.item.usageKey) }
         orderedHitsCache = (cacheKey, sorted)
         return sorted
     }
@@ -1375,15 +1294,9 @@ final class ShortcutEngine: ObservableObject {
         guard prefix == .empty, !systemBindings.isEmpty else {
             return PanelSections.combine(app: appHits, system: [])
         }
-        let items = showsFavoritesOnly
-            ? systemBindings.filter { usageStore.isFavorite($0.usageKey) }
-            : systemBindings
+        let items = favoritesPolicy.favoritesOnly(systemBindings) { usageStore.isFavorite($0.usageKey) }
         var sorted = PanelOrdering.sorted(items, emphasizing: pending.effective)
-        if settings.pinFavoritesToTop {
-            let favorites = sorted.filter { usageStore.isFavorite($0.usageKey) }
-            let rest = sorted.filter { !usageStore.isFavorite($0.usageKey) }
-            sorted = favorites + rest
-        }
+        sorted = favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.usageKey) }
         return PanelSections.combine(app: appHits, system: PanelSections.hits(for: sorted))
     }
 
@@ -1515,7 +1428,7 @@ final class ShortcutEngine: ObservableObject {
     /// from the disk cache carries no elements, so its rows are resolved on demand by
     /// re-walking the menu path.
     private func element(forRowID rowID: String) -> AXUIElement? {
-        if searchScopeAppID != nil {
+        if search.scopeAppID != nil {
             if let element = searchScopeCatalog.elements[rowID] { return element }
             if let resolved = resolveCachedElement(in: &searchScopeCatalog, rowID: rowID) {
                 return resolved
@@ -2217,8 +2130,8 @@ final class ShortcutEngine: ObservableObject {
     /// same search, so the query, the scope and the selection survive it — losing typed text
     /// to a view switch would make the switch not worth using.
     func showSearchFromPanel() {
-        guard panel.isVisible, !isSearchVisible else { return }
-        Diag.info(.ui, "panel: `/` opens the search palette (query kept: \(searchQuery.isEmpty ? "no" : "yes"))")
+        guard panel.isVisible, !search.isVisible else { return }
+        Diag.info(.ui, "panel: `/` opens the search palette (query kept: \(search.query.isEmpty ? "no" : "yes"))")
         openSearch(keepingQuery: true)
     }
 
@@ -2228,9 +2141,9 @@ final class ShortcutEngine: ObservableObject {
     /// search field that refuses to accept a slash is a worse bug than a missing shortcut.
     /// This is the other half of the toggle, for when focus is elsewhere in the window.
     func returnToPanelFromSearch() {
-        guard isSearchVisible else { return }
+        guard search.isVisible else { return }
         Diag.info(.ui, "search: `/` returns to the shortcut panel")
-        isSearchVisible = false
+        search.isVisible = false
         surface.closeSearch()
         activatePanel()
     }
@@ -2238,7 +2151,7 @@ final class ShortcutEngine: ObservableObject {
     private func openSearch(keepingQuery: Bool) {
         dismissPanel()
         if !keepingQuery {
-            searchQuery = ""
+            search.query = ""
             // Always open on the frontmost app: a scope left over from the last session
             // would answer a question the user is not asking.
             selectSearchScope(nil)
@@ -2248,20 +2161,20 @@ final class ShortcutEngine: ObservableObject {
             // can no longer be run; fall back to the frontmost app, keeping the query.
             selectSearchScope(nil)
         }
-        searchSelection = 0
+        search.selection = 0
         searchFocusToken += 1
         refreshSearch()
-        isSearchVisible = true
+        search.isVisible = true
         surface.presentSearch()
     }
 
     func hideSearch() {
-        isSearchVisible = false
+        search.isVisible = false
         surface.closeSearch()
     }
 
     func toggleSearch() {
-        if isSearchVisible {
+        if search.isVisible {
             hideSearch()
         } else {
             showSearch()
@@ -2269,21 +2182,21 @@ final class ShortcutEngine: ObservableObject {
     }
 
     func selectSearchResult(_ index: Int) {
-        guard searchResults.indices.contains(index) else { return }
-        searchSelection = index
+        guard search.results.indices.contains(index) else { return }
+        search.selection = index
     }
 
     func moveSearchSelection(_ delta: Int) {
-        guard !searchResults.isEmpty else { return }
-        let next = searchSelection + delta
-        searchSelection = min(max(0, next), searchResults.count - 1)
+        guard !search.results.isEmpty else { return }
+        let next = search.selection + delta
+        search.selection = min(max(0, next), search.results.count - 1)
     }
 
     /// Click in the search palette: close it, return to the previous app and replay the
     /// shortcut there.
     func activateSearchResult(_ index: Int) {
-        guard searchResults.indices.contains(index) else { return }
-        let item = searchResults[index]
+        guard search.results.indices.contains(index) else { return }
+        let item = search.results[index]
         // With a scope, the app to run in is the one being searched — it is usually *not* in
         // front, because the palette took the keyboard from whatever was.
         let scoped = searchScopeProcessID.flatMap { NSRunningApplication(processIdentifier: $0) }
@@ -2336,22 +2249,22 @@ final class ShortcutEngine: ObservableObject {
     /// Return in the search palette behaves exactly like a click: close it, return to
     /// the front app and replay the shortcut there.
     func confirmSearchSelection() {
-        guard searchResults.indices.contains(searchSelection) else { return }
-        activateSearchResult(searchSelection)
+        guard search.results.indices.contains(search.selection) else { return }
+        activateSearchResult(search.selection)
     }
 
     /// Rows the palette searches: the scoped app's commands, or the frontmost app's plus the
     /// system's own hotkeys.
     private var searchItems: [BindingItem] {
-        searchScopeAppID == nil ? catalog.items + systemBindings : searchScopeItems
+        search.scopeAppID == nil ? catalog.items + systemBindings : search.scopeItems
     }
 
     /// Points the palette at another app, or back at the frontmost one with nil.
     func selectSearchScope(_ appID: String?) {
-        guard appID != searchScopeAppID else { return }
-        searchScopeAppID = appID
-        searchScopeName = ""
-        searchScopeItems = []
+        guard appID != search.scopeAppID else { return }
+        search.scopeAppID = appID
+        search.scopeName = ""
+        search.scopeItems = []
         searchScopeIcon = nil
         searchScopeProcessID = nil
         searchScopeCatalog = .empty
@@ -2360,7 +2273,7 @@ final class ShortcutEngine: ObservableObject {
             refreshSearch()
             return
         }
-        searchScopeName = app.name
+        search.scopeName = app.name
         searchScopeIcon = app.icon
         searchScopeProcessID = app.pid
         refreshSearch()
@@ -2372,8 +2285,8 @@ final class ShortcutEngine: ObservableObject {
             showAppleMenu: settings.showAppleMenu,
             force: false
         ) { [weak self] snapshot in
-            guard let self, self.searchScopeAppID == appID else { return }
-            self.searchScopeItems = snapshot.items
+            guard let self, self.search.scopeAppID == appID else { return }
+            self.search.scopeItems = snapshot.items
             self.searchScopeCatalog = snapshot
             self.searchCorpus = nil
             self.refreshSearch()
@@ -2383,10 +2296,10 @@ final class ShortcutEngine: ObservableObject {
     /// Markdown for what the palette is showing: the matches when there is a query, the
     /// scope's whole list when there is not.
     func makeSearchMarkdown() -> String {
-        let title = searchScopeName.isEmpty ? appName : searchScopeName
-        let items = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let title = search.scopeName.isEmpty ? appName : search.scopeName
+        let items = search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? searchItems
-            : searchResults
+            : search.results
         return MarkdownExporter.render(
             appName: title,
             items: items,
@@ -2403,7 +2316,7 @@ final class ShortcutEngine: ObservableObject {
         // the cache identity, so a scope switch (or its catalog arriving a moment later)
         // cannot be answered from the previous app's documents.
         let corpusKey = [
-            searchScopeAppID ?? "-",
+            search.scopeAppID ?? "-",
             String(catalog.scannedAt.timeIntervalSince1970),
             String(searchScopeCatalog.scannedAt.timeIntervalSince1970),
             String(searchItems.count),
@@ -2417,31 +2330,27 @@ final class ShortcutEngine: ObservableObject {
         // A query that spells out a combo gets a direct answer about who owns it, even when
         // the answer is "one thing, so no conflict" — which is exactly the case the conflict
         // list stays silent about.
-        comboAnswer = ComboLookup.answer(forQuery: searchQuery, in: searchItems + externalBindings)
+        search.comboAnswer = ComboLookup.answer(forQuery: search.query, in: searchItems + externalBindings)
         // An empty field means "show this app's list", not "show the first 60 of it".
-        let isEmptyQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        var results = (searchCorpus?.search(searchQuery, limit: isEmptyQuery ? 400 : 60) ?? [])
+        let isEmptyQuery = search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        var results = (searchCorpus?.search(search.query, limit: isEmptyQuery ? 400 : 60) ?? [])
             .filter { !isIgnored($0) }
-        if !settings.favoritesCanBeFiltered,
-           !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !favoritesPolicy.canBeFiltered,
+           !search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let existing = Set(results.map(\.id))
             let favorites = searchItems.filter {
                 usageStore.isFavorite($0.usageKey) && !isIgnored($0) && !existing.contains($0.id)
             }
             results.append(contentsOf: favorites)
         }
-        if settings.pinFavoritesToTop {
-            let favorites = results.filter { usageStore.isFavorite($0.usageKey) }
-            let rest = results.filter { !usageStore.isFavorite($0.usageKey) }
-            results = favorites + rest
-        }
-        searchResults = results
+        results = favoritesPolicy.pinningFavoritesFirst(results) { usageStore.isFavorite($0.usageKey) }
+        search.results = results
         // The first match is always selected.
-        searchSelection = 0
+        search.selection = 0
         if isPreviewing {
             // A screenshot cannot show which app's list it is showing; this line can.
             Diag.info(.ui, """
-                search: scope=\(searchScopeAppID ?? "frontmost") items=\(searchItems.count) \
+                search: scope=\(search.scopeAppID ?? "frontmost") items=\(searchItems.count) \
                 results=\(results.count) first=\(Sanitizer.clamp(results.first?.title ?? "-"))
                 """)
         }
@@ -2528,7 +2437,7 @@ final class ShortcutEngine: ObservableObject {
 
     /// One shortcut that swaps between the panel and the search palette.
     func toggleShortcutSurface() {
-        if isSearchVisible {
+        if search.isVisible {
             hideSearch()
             activatePanel()
         } else if panel.isVisible, phase == .active {
@@ -2778,20 +2687,20 @@ final class ShortcutEngine: ObservableObject {
             // palette with the query it was left with, `/` again comes back, and a second
             // `/` lands on the same search rather than an empty one.
             activatePanel()
-            searchQuery = "copy"
+            search.query = "copy"
             refreshSearch()
-            let firstCount = searchResults.count
+            let firstCount = search.results.count
             showSearchFromPanel()
             Diag.info(.ui, """
-                toggle: panel->search visible=\(isSearchVisible) query=\(Sanitizer.clamp(searchQuery)) \
-                results=\(searchResults.count)
+                toggle: panel->search visible=\(search.isVisible) query=\(Sanitizer.clamp(search.query)) \
+                results=\(search.results.count)
                 """)
             returnToPanelFromSearch()
-            Diag.info(.ui, "toggle: search->panel visible=\(panel.isVisible) searchVisible=\(isSearchVisible)")
+            Diag.info(.ui, "toggle: search->panel visible=\(panel.isVisible) searchVisible=\(search.isVisible)")
             showSearchFromPanel()
             Diag.info(.ui, """
-                toggle: reopened query=\(Sanitizer.clamp(searchQuery)) \
-                results=\(searchResults.count) first=\(Sanitizer.clamp(searchResults.first?.title ?? "-")) \
+                toggle: reopened query=\(Sanitizer.clamp(search.query)) \
+                results=\(search.results.count) first=\(Sanitizer.clamp(search.results.first?.title ?? "-")) \
                 before=\(firstCount)
                 """)
             // The palette must recognise its own field, or `/` would bounce straight back.
@@ -2806,10 +2715,10 @@ final class ShortcutEngine: ObservableObject {
             if let app = runningApps.first(where: { $0.bundleID != Bundle.main.bundleIdentifier }) {
                 selectSearchScope(app.id)
             }
-            searchQuery = ""
+            search.query = ""
         case "search":
             showSearch()
-            searchQuery = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_QUERY"] ?? "copy"
+            search.query = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_QUERY"] ?? "copy"
         default:
             activatePanel()
         }

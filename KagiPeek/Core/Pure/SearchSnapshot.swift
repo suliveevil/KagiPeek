@@ -1,0 +1,27 @@
+import Foundation
+
+/// Everything the search palette shows or reasons about, as one value.
+///
+/// The engine used to publish the query, the results, the selection, the visibility, the
+/// direct combo answer and the scope as independent `@Published` fields; a view that wanted
+/// "one search" had to keep six bindings in step, and a scope change updated four of them.
+/// One snapshot means every change replaces the whole value and the palette reads a single
+/// source of truth.
+///
+/// What deliberately stays engine-side: the scope's *icon* (`NSImage` is AppKit) and the
+/// scoped app's live catalog / process (AX handles and a click target do not belong in pure
+/// state).
+struct SearchSnapshot {
+    var query = ""
+    var results: [BindingItem] = []
+    var selection = 0
+    var isVisible = false
+    /// The direct answer to a query that spells out a combo, or nil for a plain text search.
+    var comboAnswer: ComboLookup.Answer? = nil
+    /// The app the palette looks at, or nil for the frontmost one.
+    var scopeAppID: String? = nil
+    var scopeName = ""
+    var scopeItems: [BindingItem] = []
+
+    var isEmpty: Bool { results.isEmpty }
+}

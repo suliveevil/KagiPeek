@@ -213,7 +213,7 @@ final class SurfacePanelController {
                 // ⌘/ is never taken: that is macOS's Help shortcut.
                 if event.keyCode == KeyCode.slash,
                    ModifierSet.from(flags: event.modifierFlags).isEmpty,
-                   self.engine.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                   self.engine.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     self.engine.returnToPanelFromSearch()
                     handled = true
                     return

@@ -20,7 +20,7 @@ struct OverlayView: View {
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
     private var palette: PanelPalette { settings.panelTheme.palette }
-    private var isSearch: Bool { engine.isSearchVisible }
+    private var isSearch: Bool { engine.search.isVisible }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,7 +52,7 @@ struct OverlayView: View {
         .onChange(of: engine.searchFocusToken) { _, _ in
             if isSearch { searchFocused = true }
         }
-        .onChange(of: engine.isSearchVisible) { _, visible in
+        .onChange(of: engine.search.isVisible) { _, visible in
             if visible {
                 DispatchQueue.main.async { searchFocused = true }
             } else {
@@ -148,7 +148,7 @@ struct OverlayView: View {
             }
 
             if layout.showsCount {
-                Text(isSearch ? "\(engine.searchResults.count)" : "\(engine.panel.totalCount)")
+                Text(isSearch ? "\(engine.search.results.count)" : "\(engine.panel.totalCount)")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(palette.tertiaryText)
                     .monospacedDigit()
@@ -249,7 +249,7 @@ struct OverlayView: View {
     @ViewBuilder
     private var subtitle: some View {
         if isSearch {
-            Text(localization.text(engine.searchScopeAppID == nil ? .searchSubtitle : .searchSubtitleScoped))
+            Text(localization.text(engine.search.scopeAppID == nil ? .searchSubtitle : .searchSubtitleScoped))
                 .font(.system(size: 11))
                 .foregroundStyle(palette.secondaryText)
                 .lineLimit(1)
@@ -298,9 +298,9 @@ struct OverlayView: View {
             HStack(spacing: 4) {
                 Image(systemName: "macwindow.on.rectangle")
                     .font(.system(size: 11))
-                Text(engine.searchScopeName.isEmpty
+                Text(engine.search.scopeName.isEmpty
                      ? localization.text(.frontmostApp)
-                     : engine.searchScopeName)
+                     : engine.search.scopeName)
                     .font(.system(size: 11.5, weight: .medium))
                     .lineLimit(1)
             }
@@ -315,7 +315,7 @@ struct OverlayView: View {
 
     private func exportSearchMarkdown() {
         let panel = NSSavePanel()
-        let title = engine.searchScopeName.isEmpty ? engine.appName : engine.searchScopeName
+        let title = engine.search.scopeName.isEmpty ? engine.appName : engine.search.scopeName
         panel.nameFieldStringValue = "\(title).md"
         panel.canCreateDirectories = true
         if let markdownType = UTType(filenameExtension: "md") {
@@ -335,16 +335,16 @@ struct OverlayView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(palette.secondaryText)
-            TextField(localization.text(.searchPlaceholder), text: $engine.searchQuery)
+            TextField(localization.text(.searchPlaceholder), text: $engine.search.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
                 .onSubmit {
                     engine.confirmSearchSelection()
                 }
-            if !engine.searchQuery.isEmpty {
+            if !engine.search.query.isEmpty {
                 Button {
-                    engine.searchQuery = ""
+                    engine.search.query = ""
                     searchFocused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -710,11 +710,11 @@ struct OverlayView: View {
             // A query that spells out a combo gets its own answer above the list. Without
             // it, a combo only one thing owns comes back as an empty list, which reads as
             // "not scanned" rather than "nobody else wants this".
-            if let answer = engine.comboAnswer {
+            if let answer = engine.search.comboAnswer {
                 ComboLookupBanner(answer: answer, palette: palette)
             }
             Group {
-                if engine.searchResults.isEmpty {
+                if engine.search.results.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 22))
@@ -727,8 +727,8 @@ struct OverlayView: View {
                 } else {
                     SearchResultList(
                         sections: searchSections,
-                        selection: engine.searchSelection,
-                        query: engine.searchQuery,
+                        selection: engine.search.selection,
+                        query: engine.search.query,
                         style: settings.keyStyle,
                         keyPosition: settings.keyPosition,
                         palette: palette,
@@ -743,7 +743,7 @@ struct OverlayView: View {
     private var searchSections: [SearchSection] {
         var order: [String] = []
         var rows: [String: [(Int, BindingItem)]] = [:]
-        for (index, item) in engine.searchResults.enumerated() {
+        for (index, item) in engine.search.results.enumerated() {
             let key = item.displayGroup
             if rows[key] == nil { order.append(key) }
             rows[key, default: []].append((index, item))
@@ -764,9 +764,9 @@ struct OverlayView: View {
     private func footerContent(layout: HeaderLayout) -> some View {
         HStack(spacing: 8) {
             if isSearch {
-                Text(engine.searchResults.count == 1
+                Text(engine.search.results.count == 1
                      ? localization.text(.searchResultCountOne)
-                     : localization.format(.searchResultCount, engine.searchResults.count))
+                     : localization.format(.searchResultCount, engine.search.results.count))
                     .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(palette.tertiaryText)
             } else if engine.panel.pageCount > 1 {

@@ -79,8 +79,9 @@ jobs:
             -ignore-filename-regex 'Tests/' | tee "$RUNNER_TEMP/coverage.txt"
           TOTAL=$(grep -E "^TOTAL" "$RUNNER_TEMP/coverage.txt" | awk '{print $NF}' | tr -d '%')
           echo "Core/Pure line coverage: ${TOTAL}%"
-          # Advisory for now: the number is reported on every run, and the threshold is
-          # raised as the AppKit layers get test targets of their own.
+          # Hard gate since the v2.3.0 refactor: pure code is the only target with a test
+          # runner, so a drop below the floor must fail the job, not just warn.
           if [ -n "$TOTAL" ] && [ "${TOTAL%.*}" -lt 70 ]; then
-            echo "::warning title=coverage::Core/Pure coverage dropped below 70% (${TOTAL}%)"
+            echo "::error title=coverage::Core/Pure coverage dropped below 70% (${TOTAL}%)"
+            exit 1
           fi
