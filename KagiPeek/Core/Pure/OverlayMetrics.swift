@@ -23,14 +23,22 @@ enum OverlayMetrics {
     /// Vertical padding (10×2) + header (56 + 6) + footer (34) + 2pt of slack.
     static let chromeHeight: CGFloat = 20 + 62 + 34 + 2
 
-    /// Cheat-sheet density: one column per ~300pt of panel width, capped at four.
+    /// Gap between adjacent grid columns, kept in sync with `RowLayout.columnSpacing`.
+    static let columnSpacing: CGFloat = 18
+
+    /// Cheat-sheet density: one column per grid stride, capped at four. The stride includes
+    /// the inter-column gap so the count and the natural width use the same arithmetic.
     static func columns(forWidth width: CGFloat) -> Int {
-        max(1, min(4, Int((width - padding * 2) / 300)))
+        let content = width - padding * 2 + columnSpacing
+        let stride = columnWidth + columnSpacing
+        return max(1, min(4, Int(content / stride)))
     }
 
     static func size(for state: PanelState, settings: AppSettingsSnapshot) -> CGSize {
         let columns = max(1, min(settings.columnCount, 4))
-        let width = CGFloat(columns) * columnWidth + padding * 2
+        let width = CGFloat(columns) * columnWidth
+            + CGFloat(max(0, columns - 1)) * columnSpacing
+            + padding * 2
         return size(for: state, settings: settings, width: width)
     }
 
