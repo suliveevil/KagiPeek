@@ -247,12 +247,40 @@ nonisolated struct KeyChord: Hashable, Codable, Sendable {
     var isModifierOnly: Bool { steps.count == 1 && steps[0].isModifierOnly }
 
     /// Stable identity used for caches and session comparison.
+    ///
+    /// Normal keys keep the historical `mods:key/mods:key` spelling so existing usage files
+    /// keep joining. A key containing a reserved character (`/`, `:`, `-`) is written with
+    /// the `v2|` prefix and percent-encoded, which makes the identity reversible without
+    /// breaking old records.
     var cacheKey: String {
-        steps.map { step in
+        let requiresEscaping = steps.contains { step in
+            guard let raw = step.key?.raw else { return false }
+            return raw.unicodeScalars.contains { scalar in
+                !scalar.isASCII || !CharacterSet.alphanumerics.contains(scalar)
+            }
+        }
+        let pieces = steps.map { step in
             let mods = String(step.modifiers.rawValue)
-            let key = step.key?.raw ?? "-"
+            let key = step.key.map { requiresEscaping ? Self.percentEncode($0.raw) : $0.raw } ?? "-"
             return "\(mods):\(key)"
-        }.joined(separator: "/")
+        }
+        let joined = pieces.joined(separator: "/")
+        return requiresEscaping ? "v2|\(joined)" : joined
+    }
+
+    private static func percentEncode(_ value: String) -> String {
+        value.utf8.map { byte in
+            switch byte {
+            case 48...57, 65...90, 97...122:
+                return String(UnicodeScalar(byte))
+            default:
+                return String(format: "%%%02X", byte)
+            }
+        }.joined()
+    }
+
+    private static func percentDecode(_ value: String) -> String? {
+        value.removingPercentEncoding
     }
 
     /// Appends a key press to this prefix.
@@ -270,15 +298,29 @@ nonisolated struct KeyChord: Hashable, Codable, Sendable {
     /// its menu path (`path:…`), which has no keystroke to show.
     static func from(cacheKey: String) -> KeyChord? {
         guard !cacheKey.isEmpty, !cacheKey.hasPrefix("path:") else { return nil }
+        let isVersioned = cacheKey.hasPrefix("v2|")
+        let payload = isVersioned ? String(cacheKey.dropFirst(3)) : cacheKey
         var steps: [KeyStep] = []
-        for piece in cacheKey.split(separator: "/") {
+        for piece in payload.split(separator: "/") {
             let parts = piece.split(separator: ":", maxSplits: 1)
-            guard parts.count == 2,
-                  let modifiers = Int(parts[0]),
-                  parts[1] != "-" else { return nil }
+            guard parts.count == 2, let modifiers = Int(parts[0]) else { return nil }
+            let encodedKey = String(parts[1])
+            if encodedKey == "-" {
+                // Legacy modifier-only identities are not shortcuts, so they remain rejected.
+                guard isVersioned else { return nil }
+                steps.append(KeyStep(modifiers: ModifierSet(rawValue: modifiers), key: nil))
+                continue
+            }
+            let key: String
+            if isVersioned {
+                guard let decoded = percentDecode(encodedKey) else { return nil }
+                key = decoded
+            } else {
+                key = encodedKey
+            }
             steps.append(KeyStep(
                 modifiers: ModifierSet(rawValue: modifiers),
-                key: KeyToken(String(parts[1]))
+                key: KeyToken(key)
             ))
         }
         return steps.isEmpty ? nil : KeyChord(steps)

@@ -22,6 +22,23 @@ final class CommandDoubleTapTests: XCTestCase {
         XCTAssertTrue(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.25), window: 0.3))
     }
 
+    /// A real key press between the two taps means the user typed ⌘C, not a gesture.
+    func testTypedKeyCancelsTheCandidate() {
+        var gesture = CommandDoubleTap()
+        _ = gesture.process(modifiers: [.command], previous: [], now: t0, window: 0.3)
+        gesture.cancel()
+        XCTAssertFalse(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.1), window: 0.3))
+    }
+
+    /// The second tap must release inside the window too, not merely start inside it.
+    func testSlowSecondReleaseDoesNotComplete() {
+        var gesture = CommandDoubleTap()
+        _ = gesture.process(modifiers: [.command], previous: [], now: t0, window: 0.3)
+        _ = gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.1), window: 0.3)
+        _ = gesture.process(modifiers: [.command], previous: [], now: t0.addingTimeInterval(0.2), window: 0.3)
+        XCTAssertFalse(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.6), window: 0.3))
+    }
+
     func testReleaseBeyondWindowDoesNotComplete() {
         var gesture = CommandDoubleTap()
         _ = gesture.process(modifiers: [.command], previous: [], now: t0, window: 0.3)
