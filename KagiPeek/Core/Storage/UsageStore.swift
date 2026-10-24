@@ -72,9 +72,10 @@ final class UsageStore: ObservableObject {
         schedulePersist()
     }
 
+    /// Clears press counts only. Favourites are user-authored pins, not statistics, and a
+    /// button labelled "Reset statistics" must not silently unpin them.
     func reset() {
         statistics.reset()
-        favorites = []
         schedulePersist()
     }
 

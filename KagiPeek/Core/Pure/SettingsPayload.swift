@@ -22,6 +22,17 @@ enum SettingsMigrator {
         payload.schemaVersion < currentVersion
     }
 
+    /// A file from a newer build may contain fields this build cannot decode. It is shown
+    /// from the decoded subset, but every automatic write is refused so the original file
+    /// survives a downgrade.
+    static func canAutomaticallyRewrite(schemaVersion: Int) -> Bool {
+        schemaVersion <= currentVersion
+    }
+
+    static func isFuture(_ payload: SettingsPayload) -> Bool {
+        !canAutomaticallyRewrite(schemaVersion: payload.schemaVersion)
+    }
+
     /// Upgrade hook. Steps for a future incompatible change go here, in order, keyed by the
     /// version they bring the payload up to.
     static func migrate(_ payload: SettingsPayload) -> AppSettingsSnapshot {

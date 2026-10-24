@@ -28,6 +28,10 @@ final class SettingsStore: ObservableObject {
     private let fileStore = JsonFileStore(fileName: "settings.json")
     private var isLoading = false
     private var pendingWrite: DispatchWorkItem?
+    /// Version of the file this process loaded. A future version switches the store to
+    /// read-only so a downgrade cannot silently discard fields it does not understand.
+    private var loadedSchemaVersion = AppSettingsSnapshot.currentSchemaVersion
+    private var loggedFutureWriteRefusal = false
     /// Set while the screenshot harness runs. It overwrites layout settings so a screenshot
     /// does not depend on the machine that took it — and those overrides must never reach the
     /// user's file, which they quietly did: a preview run left the app in English.
@@ -43,10 +47,16 @@ final class SettingsStore: ObservableObject {
         isLoading = true
 
         if let payload = fileStore.load(SettingsPayload.self) {
+            loadedSchemaVersion = payload.schemaVersion
             if SettingsMigrator.isOutdated(payload) {
                 AppLog.storage.notice("""
                     settings.json is schema \(payload.schemaVersion), upgrading to \
                     \(SettingsMigrator.currentVersion)
+                    """)
+            } else if SettingsMigrator.isFuture(payload) {
+                AppLog.storage.error("""
+                    settings.json is schema \(payload.schemaVersion), newer than \
+                    \(SettingsMigrator.currentVersion); running read-only
                     """)
             }
             settings = SettingsMigrator.migrate(payload)
@@ -67,6 +77,11 @@ final class SettingsStore: ObservableObject {
     func resetToDefaults() {
         settings = AppSettingsSnapshot()
         launchAtLoginMessage = nil
+        // Resetting the flag alone would leave the login item registered behind a UI that
+        // says it is off. Only touch the system when it is actually enabled.
+        if #available(macOS 13.0, *), SMAppService.mainApp.status == .enabled {
+            applyLaunchAtLogin(false)
+        }
     }
 
     // MARK: - Preview harness
@@ -135,6 +150,15 @@ final class SettingsStore: ObservableObject {
 
     private func writeNow() {
         guard !isPreviewSession else { return }
+        guard SettingsMigrator.canAutomaticallyRewrite(schemaVersion: loadedSchemaVersion) else {
+            if !loggedFutureWriteRefusal {
+                loggedFutureWriteRefusal = true
+                AppLog.storage.error("""
+                    refusing to overwrite settings.json from newer schema \(loadedSchemaVersion)
+                    """)
+            }
+            return
+        }
         fileStore.save(SettingsPayload(
             schemaVersion: AppSettingsSnapshot.currentSchemaVersion,
             settings: settings
