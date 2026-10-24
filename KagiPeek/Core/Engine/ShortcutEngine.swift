@@ -1747,7 +1747,7 @@ final class ShortcutEngine: ObservableObject {
         let now = Date()
         guard now.timeIntervalSince(lastCrossAppPublish) >= 1 else { return }
         lastCrossAppPublish = now
-        state.crossAppConflicts = state.conflicts
+        state.crossAppConflicts = conflicts
     }
 
     /// Conflict detection over one app's catalog, off the main thread.
