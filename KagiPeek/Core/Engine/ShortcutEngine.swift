@@ -77,13 +77,6 @@ final class ShortcutEngine: ObservableObject {
 
     var frontmostProcessIdentifier: pid_t { appContext.frontmost?.pid ?? 0 }
 
-    /// What the user is composing: the physically held modifiers plus the ones ticked in the
-    /// title bar. Derived, never stored — `panel` already holds each half, and a third copy
-    /// would be one more thing that has to be kept in step.
-    private var pending: PendingModifiers {
-        PendingModifiers(held: state.panel.heldModifiers, latched: state.panel.latchedModifiers)
-    }
-
     // MARK: - Lifecycle
 
     init(settingsStore: SettingsStore, usageStore: UsageStore) {
@@ -589,7 +582,7 @@ final class ShortcutEngine: ObservableObject {
             // *not* cleared here — pressing a physical modifier while a sequence is being
             // composed is the normal case, not a reason to abandon it.
             if state.prefix.isEmpty || state.prefix.isModifierOnly {
-                let effective = pending.effective
+                let effective = state.pending.effective
                 state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
             }
             state.panel.pageIndex = 0
@@ -642,7 +635,7 @@ final class ShortcutEngine: ObservableObject {
             settings: state.settings,
             panel: state.panel,
             prefix: state.prefix,
-            pending: pending,
+            pending: state.pending,
             items: state.catalog.items
         )
 
@@ -780,7 +773,7 @@ final class ShortcutEngine: ObservableObject {
         let resolution = ChordComposition.resolve(
             prefix: state.prefix,
             physical: event.modifiers,
-            pending: pending,
+            pending: state.pending,
             key: key,
             in: state.catalog.items
         )
@@ -1144,7 +1137,7 @@ final class ShortcutEngine: ObservableObject {
         // came from: ⌘C, ⌘V and ⌘X belong together. The modifiers being composed decide which
         // block comes first, so pressing ⌘ — or ticking it — answers the question without
         // hiding the answer for every other modifier.
-        let emphasized = pending.effective
+        let emphasized = state.pending.effective
         var sorted = hits.sorted {
             PanelOrdering.areInIncreasingOrder($0.item, $1.item, emphasizing: emphasized)
         }
@@ -1165,7 +1158,7 @@ final class ShortcutEngine: ObservableObject {
             return PanelSections.combine(app: appHits, system: [])
         }
         let items = favoritesPolicy.favoritesOnly(state.systemBindings) { usageStore.isFavorite($0.usageKey) }
-        var sorted = PanelOrdering.sorted(items, emphasizing: pending.effective)
+        var sorted = PanelOrdering.sorted(items, emphasizing: state.pending.effective)
         sorted = favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.usageKey) }
         return PanelSections.combine(app: appHits, system: PanelSections.hits(for: sorted))
     }
@@ -1179,7 +1172,7 @@ final class ShortcutEngine: ObservableObject {
         PanelHighlighter.highlightedIDs(
             items: pageHits.map(\.item),
             prefix: state.prefix,
-            heldModifiers: pending.effective
+            heldModifiers: state.pending.effective
         )
     }
 
@@ -1264,7 +1257,7 @@ final class ShortcutEngine: ObservableObject {
     /// Re-seeds the prefix and redraws after the ticked set changed.
     private func refreshAfterLatchedChange() {
         if state.prefix.isEmpty || state.prefix.isModifierOnly {
-            let effective = pending.effective
+            let effective = state.pending.effective
             state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
         }
         state.orderedHitsCache = nil
@@ -1670,7 +1663,7 @@ final class ShortcutEngine: ObservableObject {
         if state.conflictOwner != .all, !conflictOwnerOptions.contains(state.conflictOwner) {
             state.conflictOwner = .all
         }
-        if let category = state.conflictCategory, !conflictTypeOptions.contains(where: { $0.category == category }) {
+        if let category = state.conflictCategory, !state.conflictTypeOptions.contains(where: { $0.category == category }) {
             state.conflictCategory = nil
         }
     }
@@ -1873,30 +1866,6 @@ final class ShortcutEngine: ObservableObject {
         state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
         resetOwnerFilterIfGone()
         AppLog.scan.info("config scan: \(result.totalCount) shortcuts")
-    }
-
-    /// Conflicts the list currently shows, after both filters: kind and owner.
-    ///
-    /// The list is cross-app: `conflicts` is the frontmost app's own set and stays what the
-    /// panel and the row badges use, while the Conflicts page answers "which app is this
-    /// about" — a question you ask precisely when you are not in that app.
-    var visibleConflicts: [BindingConflict] {
-        let filter = ConflictFilter(category: state.conflictCategory, owner: state.conflictOwner)
-        return state.crossAppConflicts.filter { filter.matches($0) }
-    }
-
-    /// Kinds that actually appear in the current findings, worst first, with counts.
-    ///
-    /// Built from the findings rather than from every possible kind: a menu listing all
-    /// seven would be mostly empty answers.
-    var conflictTypeOptions: [ConflictTypeOption] {
-        var counts: [ConflictCategory: Int] = [:]
-        for conflict in state.crossAppConflicts {
-            counts[conflict.category, default: 0] += 1
-        }
-        return counts
-            .map { ConflictTypeOption(category: $0.key, count: $0.value) }
-            .sorted { $0.category > $1.category }
     }
 
     /// Owners that actually appear in the current conflicts, for the filter picker.
@@ -2316,10 +2285,6 @@ final class ShortcutEngine: ObservableObject {
         } else {
             activatePanel()
         }
-    }
-
-    func togglePinnedSearch() {
-        toggleSearch()
     }
 
     func resetUsage() {

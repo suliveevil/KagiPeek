@@ -161,7 +161,7 @@ final class ConflictDetectorTests: XCTestCase {
     }
 }
 
-final class SearchIndexTests: XCTestCase {
+final class SearchCorpusMatchTests: XCTestCase {
     private let items = [
         BindingItem(chord: .combo([.command], KeyToken("p")), title: "Print", group: ["File"], source: .menu),
         BindingItem(chord: .combo([.command], KeyToken("s")), title: "Save", group: ["File"], source: .menu),
@@ -169,22 +169,22 @@ final class SearchIndexTests: XCTestCase {
     ]
 
     func testPrefixMatchFirst() {
-        let results = SearchIndex.search("pri", in: items, style: .symbols)
+        let results = SearchCorpus(items: items, style: .symbols).search("pri")
         XCTAssertEqual(results.first?.title, "Print")
     }
 
     func testSubsequenceMatch() {
-        let results = SearchIndex.search("scsh", in: items, style: .symbols)
+        let results = SearchCorpus(items: items, style: .symbols).search("scsh")
         XCTAssertEqual(results.first?.title, "Screenshot")
     }
 
     func testShortcutTextMatch() {
-        let results = SearchIndex.search("⇧⌘3", in: items, style: .symbols)
+        let results = SearchCorpus(items: items, style: .symbols).search("⇧⌘3")
         XCTAssertEqual(results.first?.title, "Screenshot")
     }
 
     func testNoMatch() {
-        XCTAssertTrue(SearchIndex.search("zzzz", in: items, style: .symbols).isEmpty)
+        XCTAssertTrue(SearchCorpus(items: items, style: .symbols).search("zzzz").isEmpty)
     }
 }
 
@@ -590,30 +590,30 @@ final class SearchCorpusTests: XCTestCase {
             item([.command, .option], "x", "Special"),
             item([.command], "x", "Cut")
         ]
-        XCTAssertEqual(SearchIndex.search("com op x", in: items, style: .symbols).first?.title, "Special")
-        XCTAssertEqual(SearchIndex.search("op cm x", in: items, style: .symbols).first?.title, "Special")
-        XCTAssertEqual(SearchIndex.search("x op cmd", in: items, style: .symbols).first?.title, "Special")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("com op x").first?.title, "Special")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("op cm x").first?.title, "Special")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("x op cmd").first?.title, "Special")
     }
 
     func testPinyinInitialsAndSyllables() {
         let items = [item([.command], "x", "剪切", group: ["编辑"])]
-        XCTAssertEqual(SearchIndex.search("jq", in: items, style: .symbols).first?.title, "剪切")
-        XCTAssertEqual(SearchIndex.search("jian qie", in: items, style: .symbols).first?.title, "剪切")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("jq").first?.title, "剪切")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("jian qie").first?.title, "剪切")
     }
 
     func testLatinInitials() {
         let items = [item([.command], "f", "Find Similar", group: ["Edit"])]
-        XCTAssertEqual(SearchIndex.search("fs", in: items, style: .symbols).first?.title, "Find Similar")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("fs").first?.title, "Find Similar")
     }
 
     func testMultipleTokensMustAllMatch() {
         let items = [item([.command], "x", "Cut")]
-        XCTAssertTrue(SearchIndex.search("cmd zzz", in: items, style: .symbols).isEmpty)
+        XCTAssertTrue(SearchCorpus(items: items, style: .symbols).search("cmd zzz").isEmpty)
     }
 
     func testPlusSeparator() {
         let items = [item([.command, .shift], "3", "Screenshot", group: ["System"])]
-        XCTAssertEqual(SearchIndex.search("cmd+shift+3", in: items, style: .symbols).first?.title, "Screenshot")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("cmd+shift+3").first?.title, "Screenshot")
     }
 }
 
@@ -629,7 +629,7 @@ final class MenuPathWeightTests: XCTestCase {
             item("Show Sidebar", group: ["View"]),
             item("View Source", group: ["Window"])
         ]
-        XCTAssertEqual(SearchIndex.search("view", in: items, style: .symbols).first?.title, "View Source")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("view").first?.title, "View Source")
     }
 
     /// 同一个词出现在不同深度：近祖先（直接父菜单）压过远祖先（顶层菜单）。
@@ -640,7 +640,7 @@ final class MenuPathWeightTests: XCTestCase {
             // Format › View › Font —— "view" 是近祖先，权重不减
             item("Font", group: ["Format", "View"])
         ]
-        XCTAssertEqual(SearchIndex.search("view", in: items, style: .symbols).first?.title, "Font")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("view").first?.title, "Font")
     }
 
     /// 深层路径里，顶层菜单名永远压不过命令自己的标题（回归：旧实现把整条路径拼成
@@ -652,13 +652,13 @@ final class MenuPathWeightTests: XCTestCase {
         ]
         // "view" 精确命中 "View" 的标题（2000+90），而对 "Zoom" 只是 level 2 的祖先
         // （2000/4）。标题必须赢。
-        XCTAssertEqual(SearchIndex.search("view", in: items, style: .symbols).first?.title, "View")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("view").first?.title, "View")
     }
 
     /// 单层路径行为不变：按菜单名搜仍然能命中其下命令。
     func testSingleLevelPathStillMatches() {
         let items = [item("Close", group: ["File"])]
-        XCTAssertEqual(SearchIndex.search("file", in: items, style: .symbols).first?.title, "Close")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("file").first?.title, "Close")
     }
 
     /// 菜单名精确命中也压不过标题的前缀命中：叶子永远最高，最近的祖先也只有一半权重。
@@ -667,7 +667,7 @@ final class MenuPathWeightTests: XCTestCase {
             item("Show Sidebar", group: ["View"]),   // "view" 精确命中菜单名：1000
             item("View Source", group: ["Window"])   // "view" 前缀命中标题：1590
         ]
-        XCTAssertEqual(SearchIndex.search("view", in: items, style: .symbols).first?.title, "View Source")
+        XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("view").first?.title, "View Source")
     }
 
 }

@@ -188,17 +188,9 @@ enum L10n {
         return language == .chinese ? entry.zh : entry.en
     }
 
-    static func string(_ key: L10nKey, preference: AppLanguage) -> String {
-        string(key, language: resolvedLanguage(preference))
-    }
-
     /// Format helper; falls back to the format string when arguments do not fit.
     static func format(_ key: L10nKey, language: AppLanguage, _ arguments: CVarArg...) -> String {
         String(format: string(key, language: language), arguments: arguments)
-    }
-
-    static func hasTranslation(_ key: L10nKey) -> Bool {
-        table[key] != nil
     }
 
     static let availableLanguages: [AppLanguage] = [.system, .english, .chinese]

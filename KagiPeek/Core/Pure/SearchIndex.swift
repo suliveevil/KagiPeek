@@ -169,18 +169,6 @@ struct SearchCorpus {
     }
 }
 
-/// Backwards-compatible entry point (builds a corpus per call).
-enum SearchIndex {
-    static func search(
-        _ query: String,
-        in items: [BindingItem],
-        style: KeyFormatter.Style,
-        limit: Int = 60
-    ) -> [BindingItem] {
-        SearchCorpus(items: items, style: style).search(query, limit: limit)
-    }
-}
-
 /// Chinese → pinyin forms used by the search corpus.
 enum Pinyin {
     static func forms(of text: String) -> [String] {

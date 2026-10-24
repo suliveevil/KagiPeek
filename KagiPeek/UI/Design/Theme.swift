@@ -5,18 +5,14 @@ enum Theme {
     static let cornerRadius: CGFloat = 16
     // The numbers the panel window is sized with live in `OverlayMetrics` (pure, testable);
     // the view reads the same ones, so a resize rule can be asserted rather than eyeballed.
-    static let columnWidth: CGFloat = OverlayMetrics.columnWidth
     static let rowHeight: CGFloat = OverlayMetrics.rowHeight
     /// Row padding and the row's trailing slot come from `RowLayout` so the pure layout and
     /// the view cannot write two different numbers for the same thing.
     static let rowHorizontalPadding: CGFloat = RowLayout.horizontalPadding
     static let rowGutterWidth: CGFloat = RowLayout.gutterWidth
     static let rowColumnGap: CGFloat = RowLayout.columnGap
-    static let headerHeight: CGFloat = 62
-    static let footerHeight: CGFloat = 34
     static let groupHeaderHeight: CGFloat = OverlayMetrics.groupHeaderHeight
     static let padding: CGFloat = OverlayMetrics.padding
-    static let maxPanelHeight: CGFloat = OverlayMetrics.maxPanelHeight
 
     /// Used by the screenshot helper: materials cannot be captured with `cacheDisplay`,
     /// so preview builds draw a solid backdrop instead.
@@ -48,7 +44,6 @@ enum Theme {
 /// Colours for one panel theme.
 struct PanelPalette {
     let isLight: Bool
-    let backgroundTint: Color
     let backgroundSolid: Color
     let text: Color
     let secondaryText: Color
@@ -67,7 +62,6 @@ extension PanelTheme {
         case .graphite:
             return PanelPalette(
                 isLight: false,
-                backgroundTint: .black.opacity(0.45),
                 backgroundSolid: Color(white: 0.10),
                 text: .white.opacity(0.92),
                 secondaryText: .white.opacity(0.62),
@@ -82,7 +76,6 @@ extension PanelTheme {
         case .midnight:
             return PanelPalette(
                 isLight: false,
-                backgroundTint: Color(red: 0.02, green: 0.05, blue: 0.12).opacity(0.84),
                 backgroundSolid: Color(red: 0.03, green: 0.06, blue: 0.13),
                 text: .white.opacity(0.94),
                 secondaryText: Color(red: 0.64, green: 0.74, blue: 0.90),
@@ -97,7 +90,6 @@ extension PanelTheme {
         case .paper:
             return PanelPalette(
                 isLight: true,
-                backgroundTint: Color.white.opacity(0.90),
                 backgroundSolid: Color(white: 0.98),
                 text: Color.black.opacity(0.88),
                 secondaryText: Color.black.opacity(0.58),
