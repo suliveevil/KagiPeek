@@ -7,17 +7,15 @@ import UniformTypeIdentifiers
 /// and the footer; only the content below the bar swaps. The panel's filter uses the
 /// event tap (the panel never takes focus), while the search palette focuses a real
 /// text field because its window is allowed to become key.
+///
+/// The surface is deliberately a shell. The four areas below (`OverlayHeaderView`,
+/// `OverlayPanelContentView`, `OverlaySearchContentView`, `OverlayFooterView`) each
+/// subscribe to their own slice of `EngineState`, so a rebuild in one area — a
+/// selection move, a countdown tick, a search result change — invalidates only the
+/// views that read it, not the whole tree.
 struct OverlayView: View {
-    @EnvironmentObject private var engine: ShortcutEngine
     @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
-    @EnvironmentObject private var localization: Localization
-    @State private var hoveredRowID: String?
-    /// The row currently being clicked, held for one frame so a press is visible even when
-    /// the action closes the panel straight away.
-    @State private var pressedRowID: String?
-    @State private var hoveredStarID: String?
-    @FocusState private var searchFocused: Bool
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
     private var palette: PanelPalette { settings.panelTheme.palette }
@@ -25,16 +23,16 @@ struct OverlayView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            OverlayHeaderView()
             Rectangle()
                 .fill(palette.rule)
                 .frame(height: 1)
             if isSearch {
-                searchContent
+                OverlaySearchContentView()
             } else {
-                panelContent
+                OverlayPanelContentView()
             }
-            footer
+            OverlayFooterView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(palette.backgroundSolid)
@@ -45,6 +43,34 @@ struct OverlayView: View {
                 .decorative()
         )
         .environment(\.colorScheme, palette.isLight ? .light : .dark)
+    }
+}
+
+// MARK: - Title bar
+
+/// The shared title bar: App identity, the search field (when the palette is up), the
+/// modifier chips and favorites toggle (when the panel is up), the scan/conflict
+/// indicators and the count, plus the close button. Reads only the header's slice of
+/// state (`search.*`, `appName`/`appIcon`, `panel.isScanning`/`hasConflicts`/
+/// `latchedModifiers`/`heldModifiers`/`appName`/`prefixLabels`, `showsFavoritesOnly`,
+/// `runningApps`), so a row-selection or results change elsewhere does not redraw it.
+private struct OverlayHeaderView: View {
+    @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var localization: Localization
+    @FocusState private var searchFocused: Bool
+
+    private var settings: AppSettingsSnapshot { settingsStore.settings }
+    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var isSearch: Bool { state.search.isVisible }
+
+    var body: some View {
+        GeometryReader { proxy in
+            headerContent(layout: HeaderLayout(width: proxy.size.width))
+                .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(height: 54)
         .onAppear {
             if isSearch {
                 DispatchQueue.main.async { searchFocused = true }
@@ -60,22 +86,6 @@ struct OverlayView: View {
                 searchFocused = false
             }
         }
-        .onChange(of: state.panel.appName) { _, _ in
-            // A stale hover would paint a row for the previous app, which the pointer has
-            // never been over.
-            hoveredRowID = nil
-            hoveredStarID = nil
-        }
-    }
-
-    // MARK: - Title bar
-
-    private var header: some View {
-        GeometryReader { proxy in
-            headerContent(layout: HeaderLayout(width: proxy.size.width))
-                .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .frame(height: 54)
     }
 
     private func headerContent(layout: HeaderLayout) -> some View {
@@ -373,11 +383,41 @@ struct OverlayView: View {
     private func dismissCurrentSurface() {
         if isSearch { engine.hideSearch() } else { engine.dismissPanel() }
     }
+}
 
-    // MARK: - Panel content
+// MARK: - Panel content
+
+/// The shortcut list: the scanning/empty states and the row grid. Owns the row-level
+/// interaction state (hover, press flash, hovered star) and reads only the panel slice
+/// of state (`panel.*` groups/selection/scan flags) plus `scanState` and
+/// `showsFavoritesOnly` — so typing in the search palette or a countdown elsewhere does
+/// not rebuild the rows.
+private struct OverlayPanelContentView: View {
+    @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var localization: Localization
+    @State private var hoveredRowID: String?
+    /// The row currently being clicked, held for one frame so a press is visible even when
+    /// the action closes the panel straight away.
+    @State private var pressedRowID: String?
+    @State private var hoveredStarID: String?
+
+    private var settings: AppSettingsSnapshot { settingsStore.settings }
+    private var palette: PanelPalette { settings.panelTheme.palette }
+
+    var body: some View {
+        content
+            .onChange(of: state.panel.appName) { _, _ in
+                // A stale hover would paint a row for the previous app, which the pointer has
+                // never been over.
+                hoveredRowID = nil
+                hoveredStarID = nil
+            }
+    }
 
     @ViewBuilder
-    private var panelContent: some View {
+    private var content: some View {
         if state.panel.isScanning {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small).tint(palette.secondaryText)
@@ -703,10 +743,23 @@ struct OverlayView: View {
         if row.isCompleted { return palette.text }
         return palette.key
     }
+}
 
-    // MARK: - Search content
+// MARK: - Search content
 
-    private var searchContent: some View {
+/// The palette body: the combo answer banner and the results (or the empty state). Reads
+/// only the search slice of state (`search.comboAnswer/results/selection/query`), so a
+/// panel rebuild or a scan-progress change does not re-render the results.
+private struct OverlaySearchContentView: View {
+    @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var localization: Localization
+
+    private var settings: AppSettingsSnapshot { settingsStore.settings }
+    private var palette: PanelPalette { settings.panelTheme.palette }
+
+    var body: some View {
         VStack(spacing: 0) {
             // A query that spells out a combo gets its own answer above the list. Without
             // it, a combo only one thing owns comes back as an empty list, which reads as
@@ -751,10 +804,24 @@ struct OverlayView: View {
         }
         return order.map { SearchSection(id: $0, title: $0, rows: rows[$0] ?? []) }
     }
+}
 
-    // MARK: - Footer
+// MARK: - Footer
 
-    private var footer: some View {
+/// The footer: search count, panel paging, and the action hint. Reads `search.*`, the
+/// panel's page fields and the remappable run/copy keys, so unrelated state changes do
+/// not redraw it.
+private struct OverlayFooterView: View {
+    @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var localization: Localization
+
+    private var settings: AppSettingsSnapshot { settingsStore.settings }
+    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var isSearch: Bool { state.search.isVisible }
+
+    var body: some View {
         GeometryReader { proxy in
             footerContent(layout: HeaderLayout(width: proxy.size.width))
                 .frame(width: proxy.size.width, height: proxy.size.height)

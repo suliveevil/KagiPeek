@@ -429,6 +429,27 @@ The live test's orchestration used to be private inside `ShortcutTester` (AppKit
 - **`Core/Pure/ShortcutTestSession.swift`** is a pure event machine: `begin(chord:permissionGranted:)`, `abortTapsUnavailable()`, `tick(remaining:)`, `keyAtHead(...)`, `keyAtTail(...)`, `appActivated(...)`, `settle()` and `verdict(for:items:ownerNameForBundleID:)`. It owns the `ShortcutTestState` enum (idle / unavailable(reason) / listening(secondsRemaining) / finished(observation)) and the timing constants (`listenWindow`, `settleNanoseconds`, `tailPairingNanoseconds`), so the head/tail pairing window and the activation attribution are pinned by unit tests without a keyboard.
 - **`ShortcutTester` keeps the AppKit half only**: the head/tail event taps, `NSWorkspace` frontmost-app reads, the activation observer, the countdown/settle `Task`s and `PermissionCenter`. Every decision is a delegation to the session machine; `ShortcutTester.State` is now a `typealias` to `ShortcutTestState`, so the engine's `liveTestState` typing is unchanged.
 
+### OverlayView sliced by state (development, P2-2)
+
+The surface used to be one ~1000-line `OverlayView` whose `body` read most of `EngineState`
+directly, so any published change — a selection move, a scan-progress update, a search
+result — invalidated and recomputed the whole tree. The P2-2 step splits it into four
+sub-views, each subscribing to its own slice of state through `@EnvironmentObject`:
+
+- **`OverlayHeaderView`** — the shared title bar: app identity, search field, scope menu,
+  modifier chips, favorites toggle, scan/conflict indicators, count, close. Owns the search
+  field's `@FocusState` and the focus-on-token/visibility logic.
+- **`OverlayPanelContentView`** — the shortcut list (scanning/empty states, row grid) plus
+  the row-level interaction state (`hoveredRowID`, `pressedRowID`, `hoveredStarID`). Reads
+  `panel.*` and `scanState`; the hover reset on an app-name change lives here too.
+- **`OverlaySearchContentView`** — the combo banner and the results/empty state, reading
+  `search.comboAnswer/results/selection/query`.
+- **`OverlayFooterView`** — count, paging, and the action hint.
+
+`OverlayView` stays a thin shell (frame, background, corner radius, and the
+panel↔palette switch), so a change inside one area no longer redraws the others. Behaviour
+and appearance are unchanged; the Debug app build and the 416 tests pass.
+
 ### Concurrency boundaries
 
 - The event tap is attached to the main run loop's `.commonModes` (see [Trigger pipeline](#trigger-pipeline)): callbacks arrive on the main thread, and `KeyEventRouter` + `ChordComposition` must stay fast enough to run there. No blocking work is done in the tap path.
