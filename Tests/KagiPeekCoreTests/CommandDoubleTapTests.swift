@@ -6,11 +6,20 @@ import XCTest
 final class CommandDoubleTapTests: XCTestCase {
     private let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
-    /// The windowing rule: the release must land inside the window of the press.
-    func testReleaseWithinWindowCompletesTheTap() {
+    /// One quick press-and-release is only the first half of the gesture.
+    func testSingleTapWithinWindowDoesNotComplete() {
         var gesture = CommandDoubleTap()
         XCTAssertFalse(gesture.process(modifiers: [.command], previous: [], now: t0, window: 0.3))
-        XCTAssertTrue(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.1), window: 0.3))
+        XCTAssertFalse(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.1), window: 0.3))
+    }
+
+    /// Two complete taps inside the window are the gesture that toggles pinning.
+    func testDoubleTapWithinWindowCompletes() {
+        var gesture = CommandDoubleTap()
+        XCTAssertFalse(gesture.process(modifiers: [.command], previous: [], now: t0, window: 0.3))
+        XCTAssertFalse(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.1), window: 0.3))
+        XCTAssertFalse(gesture.process(modifiers: [.command], previous: [], now: t0.addingTimeInterval(0.2), window: 0.3))
+        XCTAssertTrue(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(0.25), window: 0.3))
     }
 
     func testReleaseBeyondWindowDoesNotComplete() {
@@ -33,9 +42,11 @@ final class CommandDoubleTapTests: XCTestCase {
         _ = gesture.process(modifiers: [.command], previous: [], now: t0, window: 0.3)
         // ⌘ is released beyond the window; the candidate is dropped.
         _ = gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(1.0), window: 0.3)
-        // ⌘ down again and up within the window is a *fresh* pair and still answers.
+        // A fresh pair is only one tap; a second pair is needed to complete the gesture.
         _ = gesture.process(modifiers: [.command], previous: [], now: t0.addingTimeInterval(2.0), window: 0.3)
-        XCTAssertTrue(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(2.1), window: 0.3))
+        XCTAssertFalse(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(2.1), window: 0.3))
+        _ = gesture.process(modifiers: [.command], previous: [], now: t0.addingTimeInterval(2.2), window: 0.3)
+        XCTAssertTrue(gesture.process(modifiers: [], previous: [.command], now: t0.addingTimeInterval(2.3), window: 0.3))
     }
 
     /// Modifier-only streams (⌘⌥, ⇧…) are not candidate presses.

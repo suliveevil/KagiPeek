@@ -90,6 +90,24 @@ final class UsageBreakdownTests: XCTestCase {
         XCTAssertEqual(KeyChord.from(cacheKey: multi.cacheKey), multi)
     }
 
+    func testSlashKeyInMultiStepChordRoundTripsThroughItsCacheKey() {
+        let chord = KeyChord.combo([.command], KeyToken("/"))
+            .appending(modifiers: [.option], key: KeyToken("c"))
+        XCTAssertEqual(KeyChord.from(cacheKey: chord.cacheKey), chord)
+    }
+
+    func testHyphenKeyRoundTripsWithoutCollidingWithModifierOnlyIdentity() {
+        let chord = KeyChord.combo([.command], KeyToken("-"))
+        let modifiersOnly = KeyChord.modifiers([.command])
+        XCTAssertNotEqual(chord.cacheKey, modifiersOnly.cacheKey)
+        XCTAssertEqual(KeyChord.from(cacheKey: chord.cacheKey), chord)
+    }
+
+    func testLegacyCacheKeysRemainReadable() {
+        XCTAssertEqual(KeyChord.from(cacheKey: "8:c"), copy)
+        XCTAssertNil(KeyChord.from(cacheKey: "8:-"))
+    }
+
     func testPathKeysAreNotChords() {
         XCTAssertNil(KeyChord.from(cacheKey: "path:0,1,3"))
         XCTAssertNil(KeyChord.from(cacheKey: ""))
