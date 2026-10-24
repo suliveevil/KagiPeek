@@ -52,6 +52,9 @@ struct SearchCorpus {
             .map(String.init)
     }
 
+    /// Whole-word alias match, including glyphs and the short forms people type into
+    /// search ("com", "sft"). Deliberately not shared with the config scanners: their
+    /// grammars differ (substrings, hyper/meh, key-descriptor semantics).
     static func modifierAlias(_ token: String) -> ModifierSet? {
         switch token {
         case "cmd", "command", "cm", "com", "⌘": return .command
@@ -63,6 +66,22 @@ struct SearchCorpus {
     }
 
     // MARK: - Scoring
+
+    /// Scoring weights. Named because the ranking is a contract: a title match must
+    /// outrank a menu-path match, and an exact key token must outrank a fuzzy one —
+    /// the tests pin the ordering, these names say what each number is for.
+    private enum Score {
+        static let modifierAlias = 600
+        static let keyToken = 550
+        static let titleBonus = 90
+        static let exactHaystack = 2_000
+        static let prefixHaystack = 1_500
+        static let substringBase = 1_200
+        static let substringOffsetCap = 200
+        static let subsequenceBase = 600
+        static let subsequenceGapPenalty = 4
+        static let subsequenceFloor = 50
+    }
 
     static func score(tokens: [String], document: Document) -> Int? {
         var total = 0
@@ -77,14 +96,14 @@ struct SearchCorpus {
         var best: Int?
 
         if let modifier = modifierAlias(token), document.modifiers.contains(modifier) {
-            best = 600
+            best = Score.modifierAlias
         }
         if document.keyTokens.contains(token) {
-            best = max(best ?? 0, 550)
+            best = max(best ?? 0, Score.keyToken)
         }
         for haystack in document.titleHaystacks {
             if let value = fuzzy(token: token, in: haystack) {
-                best = max(best ?? 0, value + 90)
+                best = max(best ?? 0, value + Score.titleBonus)
             }
         }
         // The menu path still counts, but a match in it never outranks a match in the
@@ -107,11 +126,11 @@ struct SearchCorpus {
 
     static func fuzzy(token: String, in haystack: String) -> Int? {
         guard !haystack.isEmpty, !token.isEmpty else { return nil }
-        if haystack == token { return 2_000 }
-        if haystack.hasPrefix(token) { return 1_500 }
+        if haystack == token { return Score.exactHaystack }
+        if haystack.hasPrefix(token) { return Score.prefixHaystack }
         if let range = haystack.range(of: token) {
             let offset = haystack.distance(from: haystack.startIndex, to: range.lowerBound)
-            return 1_200 - min(offset, 200)
+            return Score.substringBase - min(offset, Score.substringOffsetCap)
         }
         var gaps = 0
         var cursor = haystack.startIndex
@@ -120,7 +139,7 @@ struct SearchCorpus {
             gaps += haystack.distance(from: cursor, to: found)
             cursor = haystack.index(after: found)
         }
-        return max(50, 600 - gaps * 4)
+        return max(Score.subsequenceFloor, Score.subsequenceBase - gaps * Score.subsequenceGapPenalty)
     }
 
     // MARK: - Documents
