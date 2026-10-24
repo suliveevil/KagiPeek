@@ -422,6 +422,13 @@ The decision half of the engine has been moving into `Core/Pure`, where the XCTe
 - **UI wiring.** `OverlayView`, `SettingsView` and `ConflictRowView` gain `@EnvironmentObject private var state: EngineState` and read `state.panel` / bind `$state.search.query`; the hosting controllers (`SurfacePanelController`, `SettingsWindowController`) inject `.environmentObject(engine.state)`, so the `engine` environment object remains for collaborators only.
 - **Types shared between engine and state moved to file scope**: `HotkeyTarget` is now a file-level enum, and the cache keys `OrderedHitsKey`/`RowBudgetKey` live at the bottom of `EngineState.swift` (they no longer nest inside the engine). `EngineState` is part of the AppKit target, not the SwiftPM `KagiPeekCore` target, so the pure layer stays AppKit-free.
 
+### Live shortcut test as a pure session machine (development, P1-3)
+
+The live test's orchestration used to be private inside `ShortcutTester` (AppKit): the nested `State` enum, the pending-press/early-tail fields, the pairing windows and the observation construction were all untestable next to the `CGEvent` taps. The P1-3 step splits that the same way the engine split:
+
+- **`Core/Pure/ShortcutTestSession.swift`** is a pure event machine: `begin(chord:permissionGranted:)`, `abortTapsUnavailable()`, `tick(remaining:)`, `keyAtHead(...)`, `keyAtTail(...)`, `appActivated(...)`, `settle()` and `verdict(for:items:ownerNameForBundleID:)`. It owns the `ShortcutTestState` enum (idle / unavailable(reason) / listening(secondsRemaining) / finished(observation)) and the timing constants (`listenWindow`, `settleNanoseconds`, `tailPairingNanoseconds`), so the head/tail pairing window and the activation attribution are pinned by unit tests without a keyboard.
+- **`ShortcutTester` keeps the AppKit half only**: the head/tail event taps, `NSWorkspace` frontmost-app reads, the activation observer, the countdown/settle `Task`s and `PermissionCenter`. Every decision is a delegation to the session machine; `ShortcutTester.State` is now a `typealias` to `ShortcutTestState`, so the engine's `liveTestState` typing is unchanged.
+
 ### Concurrency boundaries
 
 - The event tap is attached to the main run loop's `.commonModes` (see [Trigger pipeline](#trigger-pipeline)): callbacks arrive on the main thread, and `KeyEventRouter` + `ChordComposition` must stay fast enough to run there. No blocking work is done in the tap path.
