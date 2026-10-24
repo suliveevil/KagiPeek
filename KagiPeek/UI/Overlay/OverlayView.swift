@@ -325,14 +325,8 @@ private struct OverlayHeaderView: View {
     }
 
     private func exportSearchMarkdown() {
-        let panel = NSSavePanel()
         let title = state.search.scopeName.isEmpty ? state.appName : state.search.scopeName
-        panel.nameFieldStringValue = "\(title).md"
-        panel.canCreateDirectories = true
-        if let markdownType = UTType(filenameExtension: "md") {
-            panel.allowedContentTypes = [markdownType]
-        }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = ExportPanel.run(defaultName: "\(title).md", pathExtension: "md") else { return }
         do {
             try engine.makeSearchMarkdown().write(to: url, atomically: true, encoding: .utf8)
             engine.showHUD(chord: "✓", title: localization.text(.exportMarkdown))

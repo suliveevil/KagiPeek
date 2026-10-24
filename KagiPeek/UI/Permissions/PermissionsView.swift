@@ -128,7 +128,7 @@ private struct PermissionCardView: View {
 
                 if permission.id == .accessibility {
                     HStack(spacing: 8) {
-                        DragAppIcon()
+                        DragAppIcon(side: 30)
                         Text(localization.text(.permissionDragHint))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -148,18 +148,5 @@ private struct PermissionCardView: View {
                 .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
                 .decorative()
         )
-    }
-}
-
-/// Real drag source: drop the app into the Accessibility list in System Settings.
-private struct DragAppIcon: View {
-    var body: some View {
-        Image(nsImage: NSApp.applicationIconImage)
-            .resizable()
-            .frame(width: 30, height: 30)
-            .onDrag {
-                NSItemProvider(contentsOf: Bundle.main.bundleURL) ?? NSItemProvider()
-            }
-            .help("Drag into System Settings")
     }
 }

@@ -241,10 +241,7 @@ struct SettingsView: View {
     }
 
     private func appIcon(for bundleID: String) -> NSImage? {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
-            return nil
-        }
-        return NSWorkspace.shared.icon(forFile: url.path)
+        AppArtworkCache.icon(for: bundleID)
     }
 
     // MARK: - Ignored commands
@@ -652,14 +649,20 @@ struct SettingsView: View {
         .onAppear { engine.prepareCrossAppConflicts() }
     }
 
+    /// `DateFormatter` construction is expensive enough that building one per body
+    /// evaluation shows up in the Conflicts tab's scroll, so the tab reuses one.
+    private static let scanTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     private var scanTimestampText: String {
         guard let scannedAt = state.crossAppScannedAt else {
             return localization.text(.conflictNeverScanned)
         }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return localization.format(.conflictScannedAtFormat, formatter.string(from: scannedAt))
+        return localization.format(.conflictScannedAtFormat, Self.scanTimestampFormatter.string(from: scannedAt))
     }
 
     private func typeFilterLabel(_ option: ConflictTypeOption) -> String {
@@ -851,13 +854,7 @@ struct SettingsView: View {
     /// slow network volume, and a save panel that has already closed must not freeze the
     /// window while the archive is built.
     private func exportLogArchive() {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = DiagnosticsExporter.defaultFileName()
-        panel.canCreateDirectories = true
-        if let zipType = UTType(filenameExtension: "zip") {
-            panel.allowedContentTypes = [zipType]
-        }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = ExportPanel.run(defaultName: DiagnosticsExporter.defaultFileName(), pathExtension: "zip") else { return }
         let snapshot = settings
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -952,13 +949,7 @@ struct SettingsView: View {
     /// user can attach to a bug report.
     private func exportDiagnostics() {
         guard let data = engine.diagnosticsReport() else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "kagipeek-diagnostics.json"
-        panel.canCreateDirectories = true
-        if let jsonType = UTType(filenameExtension: "json") {
-            panel.allowedContentTypes = [jsonType]
-        }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
         do {
             try data.write(to: url, options: [.atomic])
         } catch {
@@ -968,12 +959,7 @@ struct SettingsView: View {
 
     private func appDisplayName(for bundleID: String) -> String {
         if bundleID == "*" { return localization.text(.statsGenericApp) }
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
-           let bundle = Bundle(url: url),
-           let name = bundle.infoDictionary?["CFBundleName"] as? String {
-            return name
-        }
-        return bundleID
+        return AppArtworkCache.displayName(for: bundleID) ?? bundleID
     }
 
     // MARK: - Helpers
@@ -1168,15 +1154,34 @@ private struct IgnoreCommandSheet: View {
     }
 }
 
-/// The app icon is a real drag source: drop it into the Accessibility list in System Settings.
-private struct DragAppIcon: View {
-    var body: some View {
-        Image(nsImage: NSApp.applicationIconImage)
-            .resizable()
-            .frame(width: 40, height: 40)
-            .onDrag {
-                NSItemProvider(contentsOf: Bundle.main.bundleURL) ?? NSItemProvider()
-            }
-            .help("Drag into System Settings")
+/// `NSWorkspace` and `Bundle` lookups are disk hits, and the settings lists call them per
+/// row and per render. A bundle identifier's icon and display name do not change while the
+/// app runs, so the answers are memoised for the process lifetime (negatives included).
+@MainActor
+private enum AppArtworkCache {
+    private static var icons: [String: NSImage?] = [:]
+    private static var names: [String: String?] = [:]
+
+    static func icon(for bundleID: String) -> NSImage? {
+        if let cached = icons[bundleID], let cached { return cached }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            icons[bundleID] = NSImage?.none
+            return nil
+        }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        icons[bundleID] = .some(icon)
+        return icon
+    }
+
+    static func displayName(for bundleID: String) -> String? {
+        if let cached = names[bundleID] { return cached }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+              let bundle = Bundle(url: url),
+              let name = bundle.infoDictionary?["CFBundleName"] as? String else {
+            names[bundleID] = .some(nil)
+            return nil
+        }
+        names[bundleID] = .some(name)
+        return name
     }
 }

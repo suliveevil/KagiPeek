@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Click affordances shared by the panel chrome and the panel rows.
 ///
@@ -55,6 +56,43 @@ struct IconButtonStyle: ButtonStyle {
             guard isEnabled else { return 0.35 }
             return configuration.isPressed ? 0.7 : 1
         }
+    }
+}
+
+// MARK: - Shared components
+
+/// The app icon as a real drag source: drop it into the Accessibility or Input Monitoring
+/// list in System Settings. Two surfaces show it at different sizes, so the side is a
+/// parameter rather than two components that can drift.
+struct DragAppIcon: View {
+    var side: CGFloat = 40
+
+    var body: some View {
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .frame(width: side, height: side)
+            .onDrag {
+                NSItemProvider(contentsOf: Bundle.main.bundleURL) ?? NSItemProvider()
+            }
+            .help("Drag into System Settings")
+    }
+}
+
+// MARK: - Export plumbing
+
+/// The one save-panel configuration the export surfaces share: a default name, folder
+/// creation, and a single allowed type. Returns nil when the user cancelled.
+@MainActor
+enum ExportPanel {
+    static func run(defaultName: String, pathExtension: String) -> URL? {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = defaultName
+        panel.canCreateDirectories = true
+        if let type = UTType(filenameExtension: pathExtension) {
+            panel.allowedContentTypes = [type]
+        }
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
     }
 }
 
