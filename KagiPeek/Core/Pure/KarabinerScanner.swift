@@ -102,10 +102,6 @@ nonisolated enum KarabinerScanner {
         "open_bracket": "[", "close_bracket": "]", "backslash": "\\",
         "semicolon": ";", "quote": "'", "comma": ",", "period": ".", "slash": "/",
         "left_arrow": "left", "right_arrow": "right", "down_arrow": "down", "up_arrow": "up",
-        "page_up": "pageup", "page_down": "pagedown", "home": "home", "end": "end",
-        "f1": "f1", "f2": "f2", "f3": "f3", "f4": "f4", "f5": "f5",
-        "f6": "f6", "f7": "f7", "f8": "f8", "f9": "f9", "f10": "f10",
-        "f11": "f11", "f12": "f12", "f13": "f13", "f14": "f14", "f15": "f15",
-        "f16": "f16", "f17": "f17", "f18": "f18", "f19": "f19", "f20": "f20"
-    ]
+        "page_up": "pageup", "page_down": "pagedown", "home": "home", "end": "end"
+    ].merging(ConfigFileScanner.functionKeyNames) { current, _ in current }
 }

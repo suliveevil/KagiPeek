@@ -111,7 +111,9 @@ nonisolated enum HammerspoonScanner {
     /// more than one modifier ("cmd-alt"), so this matches on substrings.
     ///
     /// `fn` is left out on purpose: it is not one of the four modifiers conflicts are
-    /// grouped by, and Hammerspoon cannot register it as one anyway.
+    /// grouped by, and Hammerspoon cannot register it as one anyway. Deliberately
+    /// substring-based and glyph-aware — Hammerspoon packs modifiers into one token
+    /// ("cmd-alt") — not the whole-word table the search palette uses.
     static func modifierSet(fromToken token: String) -> ModifierSet {
         let lowered = token.lowercased()
         var modifiers: ModifierSet = []
@@ -140,15 +142,11 @@ nonisolated enum HammerspoonScanner {
         "space": "space", "tab": "tab", "delete": "delete", "forwarddelete": "fdelete",
         "home": "home", "end": "end", "pageup": "pageup", "pagedown": "pagedown",
         "help": "help", "left": "left", "right": "right", "up": "up", "down": "down",
-        "f1": "f1", "f2": "f2", "f3": "f3", "f4": "f4", "f5": "f5",
-        "f6": "f6", "f7": "f7", "f8": "f8", "f9": "f9", "f10": "f10",
-        "f11": "f11", "f12": "f12", "f13": "f13", "f14": "f14", "f15": "f15",
-        "f16": "f16", "f17": "f17", "f18": "f18", "f19": "f19", "f20": "f20",
         "pad.": "kp.", "pad*": "kp*", "pad+": "kp+", "pad/": "kp/", "pad-": "kp-",
         "pad=": "kp=", "padclear": "kpclear", "padenter": "enter",
         "pad0": "kp0", "pad1": "kp1", "pad2": "kp2", "pad3": "kp3", "pad4": "kp4",
         "pad5": "kp5", "pad6": "kp6", "pad7": "kp7", "pad8": "kp8", "pad9": "kp9"
-    ]
+    ].merging(ConfigFileScanner.functionKeyNames) { current, _ in current }
 
     // MARK: - Lua source helpers
 

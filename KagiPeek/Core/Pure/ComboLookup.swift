@@ -40,6 +40,10 @@ nonisolated enum ComboQuery {
 
     // MARK: - Words
 
+    /// Whole-word match, no glyphs: a combo query spells modifiers out ("cmd shift 4").
+    /// Deliberately not shared with `SearchCorpus.modifierAlias` (which also accepts glyphs
+    /// and the short forms people type into search) or the config scanners (whose grammars
+    /// differ per tool) — three different questions, three different tables.
     static func modifier(forWord word: String) -> ModifierSet? {
         switch word {
         case "cmd", "command": return .command

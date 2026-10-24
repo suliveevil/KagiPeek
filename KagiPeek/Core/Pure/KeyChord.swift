@@ -220,6 +220,9 @@ nonisolated struct KeyChord: Hashable, Codable, Sendable {
     }
 
     /// Parses `"cmd+shift+3"` / `"opt+left"` style descriptors (used by the built-in catalog).
+    ///
+    /// Deliberately not `SearchCorpus.modifierAlias`: a non-modifier component here is a
+    /// KEY, not an unmatched term, and the alias sets differ (no `com`/`sft` shorthands).
     init(descriptor: String) {
         var modifiers: ModifierSet = []
         var tokens: [KeyToken] = []

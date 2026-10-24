@@ -55,6 +55,8 @@ nonisolated enum SkhdScanner {
     // MARK: - Pieces
 
     /// `hyper` and `meh` are skhd's own shorthands for three and four modifiers at once.
+    /// Deliberately skhd's grammar ("+"-separated tokens with shorthands), not shared with
+    /// the other alias tables — their inputs spell modifiers differently.
     static func modifiers(from text: String) -> ModifierSet {
         var modifiers: ModifierSet = []
         for token in text.split(separator: "+").map({ $0.trimmingCharacters(in: .whitespaces).lowercased() }) {
@@ -81,10 +83,6 @@ nonisolated enum SkhdScanner {
     private static let namedKeyMap: [String: KeyToken] = [
         "return": "return", "escape": "esc", "delete": "delete", "tab": "tab",
         "space": "space", "left": "left", "right": "right", "down": "down", "up": "up",
-        "pageup": "pageup", "pagedown": "pagedown", "home": "home", "end": "end",
-        "f1": "f1", "f2": "f2", "f3": "f3", "f4": "f4", "f5": "f5",
-        "f6": "f6", "f7": "f7", "f8": "f8", "f9": "f9", "f10": "f10",
-        "f11": "f11", "f12": "f12", "f13": "f13", "f14": "f14", "f15": "f15",
-        "f16": "f16", "f17": "f17", "f18": "f18", "f19": "f19", "f20": "f20"
-    ]
+        "pageup": "pageup", "pagedown": "pagedown", "home": "home", "end": "end"
+    ].merging(ConfigFileScanner.functionKeyNames) { current, _ in current }
 }

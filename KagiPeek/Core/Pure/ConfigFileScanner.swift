@@ -38,6 +38,15 @@ enum ConfigFileScanner {
     /// or a symlink to something enormous must not become an unbounded allocation.
     static let maxConfigBytes = 50 * 1024 * 1024
 
+    /// The function-key row, spelled the same in every tool's grammar. One table so three
+    /// scanners cannot drift into three different spellings of "f13".
+    static let functionKeyNames: [String: KeyToken] = [
+        "f1": "f1", "f2": "f2", "f3": "f3", "f4": "f4", "f5": "f5",
+        "f6": "f6", "f7": "f7", "f8": "f8", "f9": "f9", "f10": "f10",
+        "f11": "f11", "f12": "f12", "f13": "f13", "f14": "f14", "f15": "f15",
+        "f16": "f16", "f17": "f17", "f18": "f18", "f19": "f19", "f20": "f20"
+    ]
+
     // MARK: - Scanning
 
     static func scan(
