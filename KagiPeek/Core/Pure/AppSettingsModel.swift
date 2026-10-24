@@ -152,27 +152,32 @@ struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let fallback = AppSettingsSnapshot()
-        triggerMode = try container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) ?? fallback.triggerMode
-        holdDelay = try container.decodeIfPresent(Double.self, forKey: .holdDelay) ?? fallback.holdDelay
-        doubleTapWindow = try container.decodeIfPresent(Double.self, forKey: .doubleTapWindow) ?? fallback.doubleTapWindow
-        panelHotkey = try container.decodeIfPresent(HotkeySpec.self, forKey: .panelHotkey) ?? fallback.panelHotkey
-        searchHotkey = try container.decodeIfPresent(HotkeySpec.self, forKey: .searchHotkey) ?? fallback.searchHotkey
-        switchHotkey = try container.decodeIfPresent(HotkeySpec.self, forKey: .switchHotkey) ?? fallback.switchHotkey
-        showExecutedHUD = try container.decodeIfPresent(Bool.self, forKey: .showExecutedHUD) ?? fallback.showExecutedHUD
-        keyStyle = try container.decodeIfPresent(KeyFormatter.Style.self, forKey: .keyStyle) ?? fallback.keyStyle
-        columnCount = try container.decodeIfPresent(Int.self, forKey: .columnCount) ?? fallback.columnCount
-        maxItemsPerPage = try container.decodeIfPresent(Int.self, forKey: .maxItemsPerPage) ?? fallback.maxItemsPerPage
-        maxDescriptionLength = try container.decodeIfPresent(Int.self, forKey: .maxDescriptionLength) ?? fallback.maxDescriptionLength
-        showDisabledItems = try container.decodeIfPresent(Bool.self, forKey: .showDisabledItems) ?? fallback.showDisabledItems
-        includeBuiltInCatalog = try container.decodeIfPresent(Bool.self, forKey: .includeBuiltInCatalog) ?? fallback.includeBuiltInCatalog
-        showAppleMenu = try container.decodeIfPresent(Bool.self, forKey: .showAppleMenu) ?? fallback.showAppleMenu
-        panelPlacement = try container.decodeIfPresent(PanelPlacement.self, forKey: .panelPlacement) ?? fallback.panelPlacement
-        fixedPanelWidth = try container.decodeIfPresent(Double.self, forKey: .fixedPanelWidth) ?? fallback.fixedPanelWidth
-        fixedPanelHeight = try container.decodeIfPresent(Double.self, forKey: .fixedPanelHeight) ?? fallback.fixedPanelHeight
-        sortMode = try container.decodeIfPresent(RankMode.self, forKey: .sortMode) ?? fallback.sortMode
-        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? fallback.language
-        excludedBundleIDs = try container.decodeIfPresent([String].self, forKey: .excludedBundleIDs) ?? fallback.excludedBundleIDs
-        launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? fallback.launchAtLogin
+        // One line per field: a missing key keeps the default, so an older payload always
+        // decodes and the next save drops the keys this build no longer has.
+        func decode<T: Decodable>(_ key: CodingKeys, _ fallback: T) throws -> T {
+            try container.decodeIfPresent(T.self, forKey: key) ?? fallback
+        }
+        triggerMode = try decode(.triggerMode, fallback.triggerMode)
+        holdDelay = try decode(.holdDelay, fallback.holdDelay)
+        doubleTapWindow = try decode(.doubleTapWindow, fallback.doubleTapWindow)
+        panelHotkey = try decode(.panelHotkey, fallback.panelHotkey)
+        searchHotkey = try decode(.searchHotkey, fallback.searchHotkey)
+        switchHotkey = try decode(.switchHotkey, fallback.switchHotkey)
+        showExecutedHUD = try decode(.showExecutedHUD, fallback.showExecutedHUD)
+        keyStyle = try decode(.keyStyle, fallback.keyStyle)
+        columnCount = try decode(.columnCount, fallback.columnCount)
+        maxItemsPerPage = try decode(.maxItemsPerPage, fallback.maxItemsPerPage)
+        maxDescriptionLength = try decode(.maxDescriptionLength, fallback.maxDescriptionLength)
+        showDisabledItems = try decode(.showDisabledItems, fallback.showDisabledItems)
+        includeBuiltInCatalog = try decode(.includeBuiltInCatalog, fallback.includeBuiltInCatalog)
+        showAppleMenu = try decode(.showAppleMenu, fallback.showAppleMenu)
+        panelPlacement = try decode(.panelPlacement, fallback.panelPlacement)
+        fixedPanelWidth = try decode(.fixedPanelWidth, fallback.fixedPanelWidth)
+        fixedPanelHeight = try decode(.fixedPanelHeight, fallback.fixedPanelHeight)
+        sortMode = try decode(.sortMode, fallback.sortMode)
+        language = try decode(.language, fallback.language)
+        excludedBundleIDs = try decode(.excludedBundleIDs, fallback.excludedBundleIDs)
+        launchAtLogin = try decode(.launchAtLogin, fallback.launchAtLogin)
         if let stored = try container.decodeIfPresent([IgnoredCommand].self, forKey: .ignoredCommands) {
             ignoredCommands = stored
         } else if let legacy = try? decoder.container(keyedBy: LegacyKeys.self)
@@ -182,28 +187,44 @@ struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         } else {
             ignoredCommands = fallback.ignoredCommands
         }
-        panelTheme = try container.decodeIfPresent(PanelTheme.self, forKey: .panelTheme) ?? fallback.panelTheme
-        keyPosition = try container.decodeIfPresent(KeyPosition.self, forKey: .keyPosition) ?? fallback.keyPosition
-        pinFavoritesToTop = try container.decodeIfPresent(Bool.self, forKey: .pinFavoritesToTop) ?? fallback.pinFavoritesToTop
-        favoritesCanBeFiltered = try container.decodeIfPresent(Bool.self, forKey: .favoritesCanBeFiltered) ?? fallback.favoritesCanBeFiltered
-        runRowKey = try container.decodeIfPresent(HotkeySpec.self, forKey: .runRowKey) ?? fallback.runRowKey
-        copyRowKey = try container.decodeIfPresent(HotkeySpec.self, forKey: .copyRowKey) ?? fallback.copyRowKey
-        scanConfigFiles = try container.decodeIfPresent(Bool.self, forKey: .scanConfigFiles) ?? fallback.scanConfigFiles
-        diagnosticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .diagnosticsEnabled) ?? fallback.diagnosticsEnabled
-        verboseDiagnostics = try container.decodeIfPresent(Bool.self, forKey: .verboseDiagnostics) ?? fallback.verboseDiagnostics
-        showDockIcon = try container.decodeIfPresent(Bool.self, forKey: .showDockIcon) ?? fallback.showDockIcon
+        panelTheme = try decode(.panelTheme, fallback.panelTheme)
+        keyPosition = try decode(.keyPosition, fallback.keyPosition)
+        pinFavoritesToTop = try decode(.pinFavoritesToTop, fallback.pinFavoritesToTop)
+        favoritesCanBeFiltered = try decode(.favoritesCanBeFiltered, fallback.favoritesCanBeFiltered)
+        runRowKey = try decode(.runRowKey, fallback.runRowKey)
+        copyRowKey = try decode(.copyRowKey, fallback.copyRowKey)
+        scanConfigFiles = try decode(.scanConfigFiles, fallback.scanConfigFiles)
+        diagnosticsEnabled = try decode(.diagnosticsEnabled, fallback.diagnosticsEnabled)
+        verboseDiagnostics = try decode(.verboseDiagnostics, fallback.verboseDiagnostics)
+        showDockIcon = try decode(.showDockIcon, fallback.showDockIcon)
+    }
+
+    /// Persisted values are clamped back into these bounds. They are the same ranges the
+    /// settings UI offers, so normalization can never disagree with the picker that set them.
+    private enum Bounds {
+        static let holdDelay: ClosedRange<Double> = 0.1...1.5
+        static let doubleTapWindow: ClosedRange<Double> = 0.15...0.8
+        static let fixedPanelWidth: ClosedRange<Double> = 320...4000
+        static let fixedPanelHeight: ClosedRange<Double> = 240...3000
+        static let columnCount: ClosedRange<Int> = 1...3
+        static let maxItemsPerPage: ClosedRange<Int> = 6...60
+        static let maxDescriptionLength: ClosedRange<Int> = 8...80
+    }
+
+    private func clamp<T: Comparable>(_ value: T, to range: ClosedRange<T>) -> T {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 
     /// Keeps persisted values inside sane bounds.
     func normalized() -> AppSettingsSnapshot {
         var copy = self
-        copy.holdDelay = min(max(copy.holdDelay, 0.1), 1.5)
-        copy.doubleTapWindow = min(max(copy.doubleTapWindow, 0.15), 0.8)
-        copy.fixedPanelWidth = min(max(copy.fixedPanelWidth, 320), 4000)
-        copy.fixedPanelHeight = min(max(copy.fixedPanelHeight, 240), 3000)
-        copy.columnCount = min(max(copy.columnCount, 1), 3)
-        copy.maxItemsPerPage = min(max(copy.maxItemsPerPage, 6), 60)
-        copy.maxDescriptionLength = min(max(copy.maxDescriptionLength, 8), 80)
+        copy.holdDelay = clamp(copy.holdDelay, to: Bounds.holdDelay)
+        copy.doubleTapWindow = clamp(copy.doubleTapWindow, to: Bounds.doubleTapWindow)
+        copy.fixedPanelWidth = clamp(copy.fixedPanelWidth, to: Bounds.fixedPanelWidth)
+        copy.fixedPanelHeight = clamp(copy.fixedPanelHeight, to: Bounds.fixedPanelHeight)
+        copy.columnCount = clamp(copy.columnCount, to: Bounds.columnCount)
+        copy.maxItemsPerPage = clamp(copy.maxItemsPerPage, to: Bounds.maxItemsPerPage)
+        copy.maxDescriptionLength = clamp(copy.maxDescriptionLength, to: Bounds.maxDescriptionLength)
         copy.excludedBundleIDs = copy.excludedBundleIDs
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
