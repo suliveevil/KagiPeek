@@ -69,19 +69,28 @@ jobs:
       - name: Coverage (pure logic)
         run: |
           swift test --enable-code-coverage > /dev/null
-          BIN="$(swift build --show-bin-path)/KagiPeekPackageTests.xctest/Contents/MacOS/KagiPeekPackageTests"
-          PROFILE="$(swift build --show-bin-path)/codecov/default.profdata"
-          if [ ! -f "$BIN" ] || [ ! -f "$PROFILE" ]; then
-            echo "::warning title=coverage::coverage artefacts not found; skipping the report"
-            exit 0
+          BIN_PATH="$(swift build --show-bin-path)"
+          BUNDLE="$(find "$BIN_PATH" -maxdepth 1 -name '*.xctest' -print -quit)"
+          PROFILE="$BIN_PATH/codecov/default.profdata"
+          if [ -z "$BUNDLE" ] || [ ! -f "$PROFILE" ]; then
+            echo "::error title=coverage::coverage artefacts not found"
+            exit 1
+          fi
+          BIN="$BUNDLE/Contents/MacOS/$(basename "$BUNDLE" .xctest)"
+          if [ ! -x "$BIN" ]; then
+            echo "::error title=coverage::test binary not found in $BUNDLE"
+            exit 1
           fi
           xcrun llvm-cov report "$BIN" -instr-profile "$PROFILE" \
             -ignore-filename-regex 'Tests/' | tee "$RUNNER_TEMP/coverage.txt"
-          TOTAL=$(grep -E "^TOTAL" "$RUNNER_TEMP/coverage.txt" | awk '{print $NF}' | tr -d '%')
+          # JSON keeps the lines field stable when llvm-cov adds/removes table columns.
+          TOTAL=$(xcrun llvm-cov export "$BIN" -instr-profile "$PROFILE" \
+            -ignore-filename-regex 'Tests/' \
+            | python3 -c 'import json, sys; print("{:.2f}".format(json.load(sys.stdin)["data"][0]["totals"]["lines"]["percent"]))')
           echo "Core/Pure line coverage: ${TOTAL}%"
           # Hard gate since the v2.3.0 refactor: pure code is the only target with a test
           # runner, so a drop below the floor must fail the job, not just warn.
-          if [ -n "$TOTAL" ] && [ "${TOTAL%.*}" -lt 70 ]; then
+          if ! python3 -c 'import sys; sys.exit(0 if float(sys.argv[1]) >= 70 else 1)' "$TOTAL"; then
             echo "::error title=coverage::Core/Pure coverage dropped below 70% (${TOTAL}%)"
             exit 1
           fi
