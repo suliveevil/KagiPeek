@@ -210,7 +210,7 @@ final class KeyboardMonitor {
         case .flagsChanged:
             emit(KeyEvent(
                 kind: .flagsChanged,
-                modifiers: Self.modifiers(from: event.flags),
+                modifiers: ModifierSet.from(cgEventFlags: event.flags),
                 key: nil,
                 keyCode: 0,
                 isRepeat: false,
@@ -220,7 +220,7 @@ final class KeyboardMonitor {
 
         case .keyDown:
             let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
-            let modifiers = Self.modifiers(from: event.flags)
+            let modifiers = ModifierSet.from(cgEventFlags: event.flags)
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             let unicode = needsCharacters ? Self.unicodeString(from: event) : nil
             let keyEvent = KeyEvent(
@@ -242,7 +242,7 @@ final class KeyboardMonitor {
 
         case .keyUp:
             let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
-            let modifiers = Self.modifiers(from: event.flags)
+            let modifiers = ModifierSet.from(cgEventFlags: event.flags)
             let unicode = needsCharacters ? Self.unicodeString(from: event) : nil
             let keyEvent = KeyEvent(
                 kind: .keyUp,
@@ -364,15 +364,6 @@ final class KeyboardMonitor {
     }
 
     // MARK: - Decoding
-
-    static func modifiers(from flags: CGEventFlags) -> ModifierSet {
-        var modifiers: ModifierSet = []
-        if flags.contains(.maskControl) { modifiers.insert(.control) }
-        if flags.contains(.maskAlternate) { modifiers.insert(.option) }
-        if flags.contains(.maskShift) { modifiers.insert(.shift) }
-        if flags.contains(.maskCommand) { modifiers.insert(.command) }
-        return modifiers
-    }
 
     static func unicodeString(from event: CGEvent) -> String? {
         var length = 0

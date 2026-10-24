@@ -294,7 +294,7 @@ private nonisolated func handleTapEvent(
     guard type == .keyDown, event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return passthrough }
 
     let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
-    let modifiers = KeyboardMonitor.modifiers(from: event.flags)
+    let modifiers = ModifierSet.from(cgEventFlags: event.flags)
     guard let token = KeyMapper.token(forKeyCode: keyCode) else { return passthrough }
     let chord = KeyChord.combo(modifiers, token)
 

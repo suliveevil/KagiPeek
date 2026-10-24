@@ -28,7 +28,7 @@ enum ShortcutInjector {
             post(steps: steps, index: index + 1)
             return
         }
-        postKey(keyCode: keyCode, flags: cgFlags(step.modifiers))
+        postKey(keyCode: keyCode, flags: ModifierSet.cgEventFlags(for: step.modifiers))
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             post(steps: steps, index: index + 1)
         }
@@ -46,14 +46,5 @@ enum ShortcutInjector {
         up.flags = flags
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
-    }
-
-    private static func cgFlags(_ modifiers: ModifierSet) -> CGEventFlags {
-        var flags: CGEventFlags = []
-        if modifiers.contains(.control) { flags.insert(.maskControl) }
-        if modifiers.contains(.option) { flags.insert(.maskAlternate) }
-        if modifiers.contains(.shift) { flags.insert(.maskShift) }
-        if modifiers.contains(.command) { flags.insert(.maskCommand) }
-        return flags
     }
 }
