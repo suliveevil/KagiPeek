@@ -154,7 +154,7 @@ final class SettingsStore: ObservableObject {
             if !loggedFutureWriteRefusal {
                 loggedFutureWriteRefusal = true
                 AppLog.storage.error("""
-                    refusing to overwrite settings.json from newer schema \(loadedSchemaVersion)
+                    refusing to overwrite settings.json from newer schema \(self.loadedSchemaVersion)
                     """)
             }
             return

@@ -23,6 +23,8 @@ struct SettingsView: View {
     @State private var expandedUsageApps: Set<String> = []
     /// How many findings the Conflicts page draws. Raised by the "show more" button.
     @State private var findingPageSize = SettingsView.findingPageStep
+    @State private var confirmResetUsage = false
+    @State private var confirmRestoreDefaults = false
     private static let findingPageStep = 40
     /// Lets the preview harness open a specific tab (e.g. `KAGIPEEK_PREVIEW=settings-ranking`).
     init(initialTab: SettingsTab = .general) {
@@ -484,16 +486,38 @@ struct SettingsView: View {
                     NSWorkspace.shared.open(usageStore.dataFolderURL)
                 }
                 Button(localization.text(.rankingReset)) {
-                    engine.resetUsage()
+                    confirmResetUsage = true
                 }
                 .disabled(usageStore.totalPresses == 0)
+                .confirmationDialog(
+                    localization.text(.rankingResetConfirmTitle),
+                    isPresented: $confirmResetUsage,
+                    titleVisibility: .visible
+                ) {
+                    Button(localization.text(.rankingReset), role: .destructive) {
+                        engine.resetUsage()
+                    }
+                    Button(localization.text(.ignoredCancel), role: .cancel) {}
+                } message: {
+                    Text(localization.text(.rankingResetConfirmMessage))
+                }
             }
 
-            Button(localization.text(.rankingDefaults)) {
-                store.resetToDefaults()
-                // A reset is a clean slate: cached scans were written under the old
-                // settings, and their fingerprints are the only thing saying so.
-                engine.invalidateScanCaches()
+            Button(localization.text(.rankingDefaults), role: .destructive) {
+                confirmRestoreDefaults = true
+            }
+            .confirmationDialog(
+                localization.text(.rankingDefaultsConfirmTitle),
+                isPresented: $confirmRestoreDefaults,
+                titleVisibility: .visible
+            ) {
+                Button(localization.text(.rankingDefaults), role: .destructive) {
+                    store.resetToDefaults()
+                    engine.invalidateScanCaches()
+                }
+                Button(localization.text(.ignoredCancel), role: .cancel) {}
+            } message: {
+                Text(localization.text(.rankingDefaultsConfirmMessage))
             }
         }
         .formStyle(.grouped)
@@ -604,6 +628,12 @@ struct SettingsView: View {
                         Text(scanTimestampText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let issue = conflictScanIssueText {
+                            Text("·").font(.caption).foregroundStyle(.secondary)
+                            Text(issue)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
                     }
                     Spacer()
                     Button(localization.text(.conflictRescan)) {
@@ -614,10 +644,8 @@ struct SettingsView: View {
                 }
 
                 if state.visibleConflicts.isEmpty {
-                    Text(localization.text(
-                        state.conflicts.isEmpty ? .conflictNone : .conflictTypeEmpty
-                    ))
-                    .foregroundStyle(.secondary)
+                    Text(conflictEmptyMessage)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text(localization.format(.conflictFoundFormat, state.visibleConflicts.count))
                         .font(.footnote)
@@ -663,6 +691,31 @@ struct SettingsView: View {
             return localization.text(.conflictNeverScanned)
         }
         return localization.format(.conflictScannedAtFormat, Self.scanTimestampFormatter.string(from: scannedAt))
+    }
+
+    private var conflictScanIssueText: String? {
+        switch state.crossAppScanState {
+        case .failed:
+            return localization.text(.conflictScanFailed)
+        case .partial(let failed):
+            return localization.format(.conflictScanPartialFormat, failed)
+        default:
+            return nil
+        }
+    }
+
+    private var conflictEmptyMessage: String {
+        if state.isScanningCrossApp || state.crossAppScanState == .scanning {
+            return localization.text(.conflictScanning)
+        }
+        if let issue = conflictScanIssueText { return issue }
+        if !state.crossAppConflicts.isEmpty {
+            return localization.text(.conflictTypeEmpty)
+        }
+        if state.crossAppScannedAt == nil {
+            return localization.text(.conflictNeverScanned)
+        }
+        return localization.text(.conflictNone)
     }
 
     private func typeFilterLabel(_ option: ConflictTypeOption) -> String {

@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import os
 
 struct CatalogSnapshot {
@@ -28,9 +29,23 @@ struct CatalogSnapshot {
 /// the app exposes no usable menu bar, and caches the result per app: in memory for the
 /// length of a sitting, on disk across launches.
 final class CatalogLoader {
+    private struct CacheKey: Hashable {
+        let identity: String
+        /// A relaunched app keeps its bundle id but gets new AX elements and a new pid.
+        let pid: pid_t
+        let includeBuiltIn: Bool
+        let language: String
+        let showAppleMenu: Bool
+    }
+
     private let queue = DispatchQueue(label: "com.voltline.kagipeek.catalog", qos: .userInitiated)
-    private var cache: [String: CatalogSnapshot] = [:]
+    private var cache: [CacheKey: CatalogSnapshot] = [:]
     private let timeToLive: TimeInterval = 20
+    private let hasAccessibility: () -> Bool
+
+    init(hasAccessibility: @escaping () -> Bool = { AXIsProcessTrusted() }) {
+        self.hasAccessibility = hasAccessibility
+    }
 
     /// Drops the in-memory snapshots. Called when apps launch or terminate: a conservative
     /// refresh of the app in front, without touching the disk cache — one app starting up
@@ -72,8 +87,18 @@ final class CatalogLoader {
 
         queue.async {
             let fingerprint = MenuCachePolicy.fingerprint(showAppleMenu: showAppleMenu)
-            if !force,
-               let cached = self.cache[identity],
+            let cacheKey = CacheKey(
+                identity: identity,
+                pid: pid,
+                includeBuiltIn: includeBuiltIn,
+                language: L10n.resolvedLanguage(language).rawValue,
+                showAppleMenu: showAppleMenu
+            )
+            // A cached menu is only a shortcut around reading menus. Without Accessibility
+            // there is no grant to read under, so the cache must not bypass the degraded path.
+            let mayUseCache = self.hasAccessibility()
+            if !force, mayUseCache,
+               let cached = self.cache[cacheKey],
                Date().timeIntervalSince(cached.scannedAt) < self.timeToLive {
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated { completion(cached) }
@@ -85,7 +110,7 @@ final class CatalogLoader {
             // Before paying it, ask the disk cache: the same rows, restored in
             // milliseconds, as long as the control file and the entry itself agree they
             // are still current (see MenuCachePolicy).
-            if !force {
+            if !force, mayUseCache {
                 let restoreStarted = Date()
                 switch MenuScanCache.load(identity: identity, fingerprint: fingerprint) {
                 case .success(let entry):
@@ -97,7 +122,7 @@ final class CatalogLoader {
                     snapshot.appIdentity = identity
                     snapshot.appPID = pid
                     snapshot.state = .ok
-                    self.cache[identity] = snapshot
+                    self.cache[cacheKey] = snapshot
                     AppLog.scan.debug("restored \(identity, privacy: .public) from the menu cache")
                     DispatchQueue.main.async {
                         MainActor.assumeIsolated { completion(snapshot) }
@@ -136,7 +161,7 @@ final class CatalogLoader {
                 snapshot.items = []
             }
 
-            self.cache[identity] = snapshot
+            self.cache[cacheKey] = snapshot
             if self.cache.count > 24 {
                 let oldest = self.cache.sorted { $0.value.scannedAt < $1.value.scannedAt }
                 for entry in oldest.prefix(self.cache.count - 24) {

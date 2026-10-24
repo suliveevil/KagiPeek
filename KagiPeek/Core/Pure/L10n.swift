@@ -88,6 +88,9 @@ enum L10nKey: String, CaseIterable, Sendable {
     case overlayBuiltInBadge
     case scanPermissionDenied, scanFallbackHint
     case overlayConflictBadge, overlayConflictHint, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelIdleHint
+    case searchScopeLoading, searchBuiltInNotice, conflictScanFailed, conflictScanPartialFormat
+    case rankingResetConfirmTitle, rankingResetConfirmMessage
+    case rankingDefaultsConfirmTitle, rankingDefaultsConfirmMessage
 
     // HUD
     case hudExecuted
@@ -384,7 +387,7 @@ enum L10n {
             "Use built-in catalog when menus are unavailable",
             "菜单不可用时使用内置快捷键目录"
         ),
-        .rankingDefaults: ("Restore defaults", "恢复默认设置"),
+        .rankingDefaults: ("Restore all settings…", "恢复全部设置…"),
 
         .generalTitle: ("General", "通用"),
         .generalLaunchAtLogin: ("Launch at login", "开机自启动"),
@@ -739,6 +742,15 @@ enum L10n {
         .updateNone: ("You're up to date", "已是最新版本"),
         .updateFailed: ("Could not check for updates", "检查更新失败"),
         .updateOpen: ("Open release page", "打开发布页"),
+
+        .searchScopeLoading: ("Loading this app's shortcuts…", "正在加载这个 App 的快捷键…"),
+        .searchBuiltInNotice: ("Built-in shortcuts · menus unavailable", "内置快捷键 · 菜单不可用"),
+        .conflictScanFailed: ("Conflict scan failed — results are incomplete", "冲突扫描失败——结果不完整"),
+        .conflictScanPartialFormat: ("%d app(s) could not be scanned — results are incomplete", "%d 个 App 未能扫描——结果不完整"),
+        .rankingResetConfirmTitle: ("Reset statistics?", "重置统计？"),
+        .rankingResetConfirmMessage: ("Press counts will be cleared. Pinned shortcuts are kept.", "将清除触发次数，已收藏的快捷键会保留。"),
+        .rankingDefaultsConfirmTitle: ("Restore all settings?", "恢复全部设置？"),
+        .rankingDefaultsConfirmMessage: ("Hotkeys, excluded apps, ignored commands, appearance, diagnostics and the launch-at-login item will return to their defaults.", "快捷键、排除的 App、忽略命令、外观、诊断和开机启动都会恢复默认值。"),
 
         .errorEventTap: (
             "Could not create the keyboard event tap.",

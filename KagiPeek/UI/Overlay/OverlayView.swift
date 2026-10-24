@@ -391,6 +391,7 @@ private struct OverlayPanelContentView: View {
     @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
+    @EnvironmentObject private var usageStore: UsageStore
     @State private var hoveredRowID: String?
     /// The row currently being clicked, held for one frame so a press is visible even when
     /// the action closes the panel straight away.
@@ -426,7 +427,9 @@ private struct OverlayPanelContentView: View {
             // the scan state says which one it was (Menu-Bar-Search's initState).
             let emptyKey: L10nKey = state.scanState == .permissionDenied
                 ? .scanPermissionDenied
-                : (state.panel.showsFavoritesOnly ? .panelNoFavorites : .overlayNoCandidates)
+                : (state.panel.showsFavoritesOnly && usageStore.favorites.isEmpty
+                    ? .panelNoFavorites
+                    : .overlayNoCandidates)
             Text(localization.text(emptyKey))
                 .font(.system(size: 12))
                 .foregroundStyle(palette.secondaryText)
@@ -568,6 +571,11 @@ private struct OverlayPanelContentView: View {
                 .decorative()
         }
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(rowAccessibilityLabel(row)))
+        .accessibilityValue(Text(row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { engine.performPanelRow(rowID: row.id, action: .execute) }
         .onHover { inside in
             hoveredRowID = inside ? row.id : (hoveredRowID == row.id ? nil : hoveredRowID)
             if inside {
@@ -599,7 +607,8 @@ private struct OverlayPanelContentView: View {
     /// and fire the shortcut into the front app. A child tap gesture is unambiguous — the
     /// innermost recogniser wins — and the hit area is bounded to the (always reserved) star.
     private func favoriteButton(_ row: PanelRow) -> some View {
-        let visible = hoveredRowID == row.id || row.isFavorite
+        let selected = row.index >= 0 && state.panel.selectionIndex == row.index
+        let visible = hoveredRowID == row.id || selected || row.isFavorite
         let lit = hoveredStarID == row.id
         return Image(systemName: row.isFavorite ? "star.fill" : "star")
             .font(.system(size: 9.5))
@@ -617,6 +626,10 @@ private struct OverlayPanelContentView: View {
             })
             .animation(.easeOut(duration: 0.1), value: lit)
             .help(localization.text(row.isFavorite ? .panelUnpin : .panelPin))
+            .accessibilityHidden(!visible)
+            .accessibilityLabel(Text(localization.text(row.isFavorite ? .panelUnpin : .panelPin)))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { engine.toggleFavorite(rowID: row.id) }
     }
 
     /// One-frame press highlight. Row actions usually dismiss the panel, so the flash is
@@ -628,6 +641,13 @@ private struct OverlayPanelContentView: View {
                 if pressedRowID == id { pressedRowID = nil }
             }
         }
+    }
+
+    private func rowAccessibilityLabel(_ row: PanelRow) -> String {
+        let key = row.keySegments.map(\.text).joined()
+        return [row.title, key, row.note]
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 
     /// The command name: whatever width is left once every other column is reserved.
@@ -761,17 +781,22 @@ private struct OverlaySearchContentView: View {
             if let answer = state.search.comboAnswer {
                 ComboLookupBanner(answer: answer, palette: palette)
             }
+            if state.search.usedBuiltInCatalog {
+                HStack(spacing: 6) {
+                    Image(systemName: "shippingbox")
+                    Text(localization.text(.searchBuiltInNotice))
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(palette.secondaryText)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(palette.hover)
+            }
             Group {
                 if state.search.results.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 22))
-                            .foregroundStyle(palette.tertiaryText)
-                        Text(localization.text(.searchNoResults))
-                            .font(.system(size: 12))
-                            .foregroundStyle(palette.secondaryText)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    searchEmptyState
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     SearchResultList(
                         sections: searchSections,
@@ -784,6 +809,40 @@ private struct OverlaySearchContentView: View {
                         onHover: { engine.selectSearchResult($0) }
                     )
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var searchEmptyState: some View {
+        if state.search.loadState == .loading {
+            VStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(localization.text(.searchScopeLoading))
+                    .font(.system(size: 12))
+                    .foregroundStyle(palette.secondaryText)
+            }
+        } else if state.search.loadState == .permissionDenied {
+            VStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(palette.secondaryText)
+                Text(localization.text(.scanPermissionDenied))
+                    .font(.system(size: 12))
+                    .foregroundStyle(palette.secondaryText)
+                Button(localization.text(.permissionWizard)) {
+                    engine.showPermissionsWindow()
+                }
+                .controlSize(.small)
+            }
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 22))
+                    .foregroundStyle(palette.tertiaryText)
+                Text(localization.text(.searchNoResults))
+                    .font(.system(size: 12))
+                    .foregroundStyle(palette.secondaryText)
             }
         }
     }
@@ -968,9 +1027,11 @@ private struct SearchResultList: View {
                         style: style,
                         keyPosition: keyPosition,
                         isSelected: index == selection,
-                        palette: palette
+                        palette: palette,
+                        onActivate: { if item.isEnabled { onTap(index) } }
                     )
                     .id(item.id)
+                    .opacity(item.isEnabled ? 1 : 0.48)
                     .onHover { inside in
                         if inside { onHover(index) }
                     }
@@ -1012,6 +1073,8 @@ private struct SearchResultRow: View {
     let keyPosition: KeyPosition
     let isSelected: Bool
     let palette: PanelPalette
+    let onActivate: () -> Void
+    @EnvironmentObject private var localization: Localization
 
     /// The shortcut column never moves, whichever app the palette is looking at: that is
     /// what lets the eye run down one column and ignore the text beside it.
@@ -1044,6 +1107,17 @@ private struct SearchResultRow: View {
         }
         .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.12), value: isSelected)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(searchRowAccessibilityLabel))
+        .accessibilityValue(Text(item.isEnabled ? "" : localization.text(.overlayUnavailableBadge)))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onActivate() }
+    }
+
+    private var searchRowAccessibilityLabel: String {
+        [item.title, item.subgroup ?? "", item.chord.isEmpty ? "" : KeyFormatter.render(item.chord, style: style)]
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
     }
 
     /// The menu item, and under it where the item lives — the description that turns

@@ -173,6 +173,7 @@ final class SurfacePanelController {
                 .environmentObject(engine.state)
                 .environmentObject(engine.settingsStore)
                 .environmentObject(engine.localization)
+                .environmentObject(engine.usageStore)
         )
     }
 

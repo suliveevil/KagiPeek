@@ -22,6 +22,10 @@ struct SearchSnapshot {
     var scopeAppID: String? = nil
     var scopeName = ""
     var scopeItems: [BindingItem] = []
+    /// Loading and provenance are separate from "results are empty": a slow scoped scan
+    /// and a genuinely empty list must not look the same.
+    var loadState: SearchLoadState = .idle
+    var usedBuiltInCatalog = false
 
     var isEmpty: Bool { results.isEmpty }
 }

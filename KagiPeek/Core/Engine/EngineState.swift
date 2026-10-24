@@ -32,6 +32,10 @@ final class EngineState: ObservableObject {
     /// When the list above was produced, or nil when it has never been scanned.
     @Published var crossAppScannedAt: Date?
     @Published var isScanningCrossApp = false
+    @Published var crossAppScanState: ConflictScanState = .idle
+    @Published var crossAppFailedAppCount = 0
+    /// Explicit catalog lifecycle: emptiness is a result, not a loading indicator.
+    @Published var isCatalogLoading = false
     @Published var catalogSize = 0
     @Published var scanDuration: TimeInterval = 0
     /// Why the last catalog read produced what it did. An empty panel and a read that
@@ -135,6 +139,7 @@ final class EngineState: ObservableObject {
     var completionTask: Task<Void, Never>?
     var crossAppRefreshTask: Task<Void, Never>?
     var configScanTask: Task<Void, Never>?
+    var configScanGeneration = 0
     var liveTestPollingTask: Task<Void, Never>?
     var isTestingShortcut = false
 

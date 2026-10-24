@@ -27,6 +27,7 @@ final class AppContextService {
 
     private var observers: [NSObjectProtocol] = []
     private var lastIdentity: String?
+    private var lastPID: pid_t?
 
     func start() {
         guard observers.isEmpty else { return }
@@ -80,8 +81,11 @@ final class AppContextService {
             icon: app.icon
         )
         frontmost = context
-        guard identity != lastIdentity else { return }
+        // A relaunch or a second instance keeps the bundle identity but changes the PID;
+        // the rendered catalog and its AX elements still belong to the old process.
+        guard identity != lastIdentity || pid != lastPID else { return }
         lastIdentity = identity
+        lastPID = pid
         onFrontmostChange?(context)
     }
 }

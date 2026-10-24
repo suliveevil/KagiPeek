@@ -121,9 +121,9 @@ extension PanelTheme {
 struct KeycapView: View {
     let text: String
     var compact = false
-    var foreground: Color = .white
-    var background: Color = Color.white.opacity(0.14)
-    var border: Color = Color.white.opacity(0.18)
+    var foreground: Color = .primary
+    var background: Color = Color.primary.opacity(0.10)
+    var border: Color = Color.primary.opacity(0.18)
 
     var body: some View {
         Text(text)

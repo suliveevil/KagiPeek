@@ -198,6 +198,9 @@ final class ShortcutEngine: ObservableObject {
         localization.update(preference: newValue.language)
         applyHotkeySwallowing()
 
+        if previous.triggerMode != newValue.triggerMode {
+            state.doubleTapCommand = CommandDoubleTap()
+        }
         if previous.language != newValue.language {
             reloadSystemHotkeys()
             state.searchCorpus = nil
@@ -315,9 +318,20 @@ final class ShortcutEngine: ObservableObject {
             } else if state.catalog.appIdentity.isEmpty {
                 reloadCatalog(force: false)
             }
-        } else if monitor.isActive {
-            monitor.stop()
-            state.isListening = false
+        } else {
+            if monitor.isActive {
+                monitor.stop()
+                state.isListening = false
+            }
+            if changed {
+                // Revoked Accessibility is not a cache miss: every cached row was read under
+                // a grant this process no longer has.
+                catalogLoader.invalidateMemory()
+                clearCatalogForIdentityChange()
+                state.scanState = .permissionDenied
+                state.isCatalogLoading = false
+                reloadCatalog(force: true)
+            }
         }
     }
 
@@ -393,7 +407,10 @@ final class ShortcutEngine: ObservableObject {
 
     func reloadCatalog(force: Bool = true) {
         guard !isPreviewing else { return }
-        guard let app = appContext.frontmost else { return }
+        guard let app = appContext.frontmost else {
+            state.isCatalogLoading = false
+            return
+        }
         // KagiPeek is an accessory app that activates itself for the search palette, the
         // settings window. Scanning its own menu bar would replace the real
         // app's shortcuts with the built-in fallback, so it is never a catalog source.
@@ -401,6 +418,7 @@ final class ShortcutEngine: ObservableObject {
             AppLog.scan.debug("skipping own process as a catalog source")
             return
         }
+        state.isCatalogLoading = true
         if state.panel.isVisible {
             state.panel.isScanning = true
             surface.presentPanel(state: state.panel, settings: state.settings)
@@ -422,6 +440,7 @@ final class ShortcutEngine: ObservableObject {
                 AppLog.scan.debug("dropping stale scan for \(snapshot.appIdentity, privacy: .public)")
                 return
             }
+            self.state.isCatalogLoading = false
             self.state.catalog = snapshot
             self.state.catalogSize = snapshot.items.count
             self.state.usedBuiltInCatalog = snapshot.usedBuiltInCatalog
@@ -464,6 +483,7 @@ final class ShortcutEngine: ObservableObject {
         Diag.debug(.scan, "frontmost changed: \(app.bundleID ?? "?") pid=\(app.pid)")
         Diag.action("app.activate", target: app.bundleID)
         dismissPanel()
+        clearCatalogForIdentityChange()
         state.appName = app.name
         state.appIcon = app.icon
         evaluateExclusion()
@@ -473,6 +493,21 @@ final class ShortcutEngine: ObservableObject {
         // the whole menu bar. An explicit refresh (a settings
         // change, a permission grant) stays forced and always rescans.
         reloadCatalog(force: false)
+        if state.search.isVisible { refreshSearch() }
+    }
+
+    /// Old rows belong to the old process. Keeping them behind a new app name made a
+    /// half-finished scan look like app B's complete catalog.
+    private func clearCatalogForIdentityChange() {
+        state.catalog = .empty
+        state.catalogSize = 0
+        state.usedBuiltInCatalog = false
+        state.scanState = .ok
+        state.orderedHitsCache = nil
+        state.rowBudgetCache = nil
+        state.searchCorpus = nil
+        state.conflicts = []
+        state.conflictIDs = []
     }
 
     private func evaluateExclusion() {
@@ -503,6 +538,7 @@ final class ShortcutEngine: ObservableObject {
 
         switch event.kind {
         case .interruption:
+            state.doubleTapCommand.cancel()
             dismissEverything()
         case .flagsChanged:
             handleModifiers(event)
@@ -615,6 +651,9 @@ final class ShortcutEngine: ObservableObject {
     }
 
     private func handleKeyDown(_ event: KeyEvent) {
+        // A modifier-only double-tap candidate must not survive a real key press: ⌘C is a
+        // chord, not half of a gesture.
+        state.doubleTapCommand.cancel()
         if PermissionCenter.isSecureInputEnabled {
             // Same restriction as in `handleModifiers`, reached by a different door: a key
             // pressed while secure input is on is not ours to act on, and the log says so.
@@ -851,7 +890,7 @@ final class ShortcutEngine: ObservableObject {
         // A sequence belongs to one panel session: opening a new one starts from nothing.
         state.panel.latchedModifiers = []
         state.panel.latchedOrder = []
-        state.panel.isScanning = state.catalog.items.isEmpty
+        state.panel.isScanning = state.isCatalogLoading
         rebuildPanel()
         updateKeyCapture()
     }
@@ -1008,19 +1047,12 @@ final class ShortcutEngine: ObservableObject {
         hits = favoritesPolicy.favoritesOnly(hits) { usageStore.isFavorite($0.item.usageKey) }
         let total = hits.count
         let pageSize = key.pageSize
-        // Both sections flow through the same pages, so the widest page is a full page of
-        // rows and the system section contributes a heading rather than extra rows on the
-        // last page. `OverlayMetrics` adds the heading height on top of the row budget.
-        // Two cards, so two title strips: the app's always, the system's when it has rows.
+        // Both sections flow through the same pages. A short list reserves only its own
+        // rows; the system section's heading still gets its one strip.
         let headings = state.systemBindings.isEmpty ? 1 : 2
-        guard total > 0 || headings > 0 else {
-            // Nothing to size for yet (an app with no rows, or a scan still running): the
-            // window falls back to the rows on screen instead of reserving a full page.
-            state.rowBudgetCache = (key, 0, 0)
-            return (0, 0)
-        }
-        state.rowBudgetCache = (key, pageSize, headings)
-        return (pageSize, headings)
+        let allocation = PanelBudget.budget(totalRows: total, pageSize: pageSize, headings: headings)
+        state.rowBudgetCache = (key, allocation.rows, allocation.headings)
+        return (allocation.rows, allocation.headings)
     }
 
     private func rebuildPanel() {
@@ -1677,6 +1709,8 @@ final class ShortcutEngine: ObservableObject {
             .map { BindingConflict(id: $0.chordKey, chordKey: $0.chordKey, items: $0.items) }
             .map { $0.scoped(to: $0.appBundleIDs.sorted().first) }
         state.crossAppScannedAt = payload.scannedAt
+        state.crossAppScanState = .complete
+        state.crossAppFailedAppCount = 0
         resetOwnerFilterIfGone()
     }
 
@@ -1700,31 +1734,47 @@ final class ShortcutEngine: ObservableObject {
         let apps = state.runningApps.filter { $0.bundleID != ownBundleID }
         guard !apps.isEmpty else { return }
         state.isScanningCrossApp = true
+        state.crossAppScanState = .scanning
+        state.crossAppFailedAppCount = 0
         lastCrossAppPublish = .distantPast
         state.crossAppRefreshTask = Task { [weak self] in
             guard let self else { return }
             let externals = self.externalBindings
             var builder = CrossAppConflictBuilder()
+            var successes = 0
+            var failures = 0
             builder.addGlobal(await Self.detectConflicts(in: [], externals: externals))
             for app in apps {
-                if Task.isCancelled {
-                    self.state.isScanningCrossApp = false
-                    return
+                if Task.isCancelled { return }
+                let loaded = await self.catalogItems(for: app)
+                if Task.isCancelled { return }
+                if loaded.state == .permissionDenied {
+                    failures += 1
+                } else {
+                    successes += 1
                 }
-                let items = await self.catalogItems(for: app)
-                if Task.isCancelled {
-                    self.state.isScanningCrossApp = false
-                    return
-                }
-                builder.add(await Self.detectConflicts(in: items, externals: externals), keepingAppsOnly: true)
+                builder.add(await Self.detectConflicts(in: loaded.items, externals: externals), keepingAppsOnly: true)
                 self.publishIfDue(builder.sorted())
             }
             let scannedAt = Date()
-            self.state.crossAppConflicts = builder.sorted()
-            self.state.crossAppScannedAt = scannedAt
+            let outcome = ConflictScanState.finished(successes: successes, failures: failures)
+            self.state.crossAppScanState = outcome
+            self.state.crossAppFailedAppCount = failures
             self.state.isScanningCrossApp = false
+            switch outcome {
+            case .failed:
+                self.state.crossAppConflicts = []
+                self.state.crossAppScannedAt = nil
+            case .complete, .partial:
+                self.state.crossAppConflicts = builder.sorted()
+                self.state.crossAppScannedAt = scannedAt
+                if outcome == .complete {
+                    ConflictCache.save(self.state.crossAppConflicts, at: scannedAt)
+                }
+            case .idle, .scanning:
+                break
+            }
             self.resetOwnerFilterIfGone()
-            ConflictCache.save(self.state.crossAppConflicts, at: scannedAt)
             let owners = Set(self.state.crossAppConflicts.flatMap(\.appBundleIDs)).count
             Diag.info(.scan, "cross-app scan: \(self.state.crossAppConflicts.count) findings across \(owners) app(s)")
         }
@@ -1760,7 +1810,7 @@ final class ShortcutEngine: ObservableObject {
     }
 
     /// Catalog of one running app, cache first (`force: false`).
-    private func catalogItems(for app: AppEntry) async -> [BindingItem] {
+    private func catalogItems(for app: AppEntry) async -> (items: [BindingItem], state: ScanState) {
         await withCheckedContinuation { continuation in
             catalogLoader.load(
                 app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
@@ -1769,7 +1819,7 @@ final class ShortcutEngine: ObservableObject {
                 showAppleMenu: state.settings.showAppleMenu,
                 force: false
             ) { snapshot in
-                continuation.resume(returning: snapshot.items)
+                continuation.resume(returning: (snapshot.items, snapshot.state))
             }
         }
     }
@@ -1822,6 +1872,8 @@ final class ShortcutEngine: ObservableObject {
     /// six files on every activation would be work whose result cannot have changed.
     func scanConfigFiles() {
         state.configScanTask?.cancel()
+        state.configScanGeneration &+= 1
+        let generation = state.configScanGeneration
         let enabled = state.settings.scanConfigFiles
         // The scan itself is the only part that leaves the main actor, and it takes nothing
         // but a Bool across: keeping `self` out of the detached closure is what lets the
@@ -1830,7 +1882,11 @@ final class ShortcutEngine: ObservableObject {
             let result = await Task.detached(priority: .utility) {
                 enabled ? ConfigFileScanner.scan() : ConfigScanResult()
             }.value
-            self?.applyConfigScan(result)
+            guard let self,
+                  !Task.isCancelled,
+                  generation == self.state.configScanGeneration,
+                  self.state.settings.scanConfigFiles == enabled else { return }
+            self.applyConfigScan(result)
         }
     }
 
@@ -2012,6 +2068,7 @@ final class ShortcutEngine: ObservableObject {
     func activateSearchResult(_ index: Int) {
         guard state.search.results.indices.contains(index) else { return }
         let item = state.search.results[index]
+        guard RowEligibility.canActivate(isEnabled: item.isEnabled) else { return }
         // With a scope, the app to run in is the one being searched — it is usually *not* in
         // front, because the palette took the keyboard from whatever was.
         let scoped = state.searchScopeProcessID.flatMap { NSRunningApplication(processIdentifier: $0) }
@@ -2031,6 +2088,7 @@ final class ShortcutEngine: ObservableObject {
 
     /// The trigger itself, split out so the scoped path can activate first and still share it.
     private func triggerSearchItem(_ item: BindingItem, target: NSRunningApplication?) {
+        guard RowEligibility.canActivate(isEnabled: item.isEnabled) else { return }
         // Pressing the menu item is the primary trigger, exactly as in the panel and the
         // search: it reaches commands that have no shortcut at all. The palette gives no
         // confirmation either way, so the HUD stays out of this path.
@@ -2085,12 +2143,16 @@ final class ShortcutEngine: ObservableObject {
         state.searchScopeCatalog = .empty
         state.searchCorpus = nil
         guard let appID, let app = state.runningApps.first(where: { $0.id == appID }) else {
+            state.search.loadState = .idle
+            state.search.usedBuiltInCatalog = false
             refreshSearch()
             return
         }
         state.search.scopeName = app.name
         state.searchScopeIcon = app.icon
         state.searchScopeProcessID = app.pid
+        state.search.loadState = .loading
+        state.search.usedBuiltInCatalog = false
         refreshSearch()
         // Cache first: switching scope should feel like flipping a page, not like a scan.
         catalogLoader.load(
@@ -2104,6 +2166,8 @@ final class ShortcutEngine: ObservableObject {
             self.state.search.scopeItems = snapshot.items
             self.state.searchScopeCatalog = snapshot
             self.state.searchCorpus = nil
+            self.state.search.loadState = snapshot.state == .permissionDenied ? .permissionDenied : .ready
+            self.state.search.usedBuiltInCatalog = snapshot.usedBuiltInCatalog
             self.refreshSearch()
         }
     }
@@ -2148,18 +2212,37 @@ final class ShortcutEngine: ObservableObject {
         state.search.comboAnswer = ComboLookup.answer(forQuery: state.search.query, in: searchItems + externalBindings)
         // An empty field means "show this app's list", not "show the first 60 of it".
         let isEmptyQuery = state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let includeDisabled = state.settings.showDisabledItems
         var results = (state.searchCorpus?.search(state.search.query, limit: isEmptyQuery ? 400 : 60) ?? [])
-            .filter { !isIgnored($0) }
+            .filter {
+                !isIgnored($0)
+                    && (includeDisabled || RowEligibility.canActivate(isEnabled: $0.isEnabled))
+            }
         if !favoritesPolicy.canBeFiltered,
            !state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let existing = Set(results.map(\.id))
             let favorites = searchItems.filter {
-                usageStore.isFavorite($0.usageKey) && !isIgnored($0) && !existing.contains($0.id)
+                usageStore.isFavorite($0.usageKey)
+                    && !isIgnored($0)
+                    && (includeDisabled || RowEligibility.canActivate(isEnabled: $0.isEnabled))
+                    && !existing.contains($0.id)
             }
             results.append(contentsOf: favorites)
         }
         results = favoritesPolicy.pinningFavoritesFirst(results) { usageStore.isFavorite($0.usageKey) }
         state.search.results = results
+        if state.search.scopeAppID == nil {
+            if state.isCatalogLoading {
+                state.search.loadState = .loading
+            } else if state.scanState == .permissionDenied {
+                state.search.loadState = .permissionDenied
+            } else {
+                state.search.loadState = .ready
+            }
+        }
+        state.search.usedBuiltInCatalog = state.search.scopeAppID == nil
+            ? state.usedBuiltInCatalog
+            : state.searchScopeCatalog.usedBuiltInCatalog
         // The first match is always selected.
         state.search.selection = 0
         if isPreviewing {
@@ -2383,7 +2466,7 @@ final class ShortcutEngine: ObservableObject {
         state.hasAccessibility = true
         state.hasInputMonitoring = true
         reloadSystemHotkeys()
-        var items = previewSampleItems()
+        let items = previewSampleItems()
         state.appName = "Safari"
         state.appIcon = NSWorkspace.shared.icon(forFile: "/Applications/Safari.app")
         state.catalog = CatalogSnapshot(
