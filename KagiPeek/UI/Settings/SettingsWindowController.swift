@@ -28,6 +28,7 @@ final class SettingsWindowController {
     private func makeWindow() {
         let root = SettingsView()
             .environmentObject(engine)
+            .environmentObject(engine.state)
             .environmentObject(engine.settingsStore)
             .environmentObject(engine.usageStore)
             .environmentObject(engine.localization)

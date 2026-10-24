@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var store: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var localization: Localization
@@ -144,7 +145,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .sheet(isPresented: $showIgnoreSheet) {
             IgnoreCommandSheet(
-                runningApps: engine.runningApps,
+                runningApps: state.runningApps,
                 localization: localization,
                 suggestionsFor: { app, completion in
                     engine.commandTitles(for: app, completion: completion)
@@ -347,19 +348,19 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    private func hotkeyRow(title: String, target: ShortcutEngine.HotkeyTarget, spec: HotkeySpec) -> some View {
+    private func hotkeyRow(title: String, target: HotkeyTarget, spec: HotkeySpec) -> some View {
         LabeledContent(title) {
             HStack(spacing: 8) {
-                if engine.recordingTarget == target {
+                if state.recordingTarget == target {
                     Text(localization.text(.triggerRecordingHint))
                         .foregroundStyle(.orange)
                 } else {
                     KeycapView(text: KeyFormatter.render(spec.chord, style: settings.keyStyle), compact: true)
                 }
-                Button(engine.recordingTarget == target
+                Button(state.recordingTarget == target
                        ? localization.text(.triggerOff)
                        : localization.text(.triggerRecording)) {
-                    if engine.recordingTarget == target {
+                    if state.recordingTarget == target {
                         engine.cancelRecording()
                     } else {
                         engine.beginRecording(target)
@@ -573,10 +574,10 @@ struct SettingsView: View {
 
             Section(localization.text(.conflictListTitle)) {
                 LabeledContent(localization.text(.conflictType)) {
-                    Picker("", selection: $engine.conflictCategory) {
-                        Text(localization.format(.conflictTypeAllFormat, engine.crossAppConflicts.count))
+                    Picker("", selection: $state.conflictCategory) {
+                        Text(localization.format(.conflictTypeAllFormat, state.crossAppConflicts.count))
                             .tag(ConflictCategory?.none)
-                        ForEach(engine.conflictTypeOptions) { option in
+                        ForEach(state.conflictTypeOptions) { option in
                             Text(typeFilterLabel(option)).tag(Optional(option.category))
                         }
                     }
@@ -585,7 +586,7 @@ struct SettingsView: View {
                 }
 
                 LabeledContent(localization.text(.conflictOwner)) {
-                    Picker("", selection: $engine.conflictOwner) {
+                    Picker("", selection: $state.conflictOwner) {
                         ForEach(engine.conflictOwnerOptions) { option in
                             Text(ownerFilterLabel(option)).tag(option)
                         }
@@ -597,7 +598,7 @@ struct SettingsView: View {
                 // The scan walks every running app's menus, so it is a button, not something
                 // that happens when the page opens. The timestamp says how old the list is.
                 HStack(spacing: 8) {
-                    if engine.isScanningCrossApp {
+                    if state.isScanningCrossApp {
                         ProgressView().controlSize(.small)
                         Text(localization.text(.conflictScanning))
                             .font(.caption)
@@ -612,30 +613,30 @@ struct SettingsView: View {
                         engine.rescanCrossAppConflicts()
                     }
                     .controlSize(.small)
-                    .disabled(engine.isScanningCrossApp)
+                    .disabled(state.isScanningCrossApp)
                 }
 
-                if engine.visibleConflicts.isEmpty {
+                if state.visibleConflicts.isEmpty {
                     Text(localization.text(
-                        engine.conflicts.isEmpty ? .conflictNone : .conflictTypeEmpty
+                        state.conflicts.isEmpty ? .conflictNone : .conflictTypeEmpty
                     ))
                     .foregroundStyle(.secondary)
                 } else {
-                    Text(localization.format(.conflictFoundFormat, engine.visibleConflicts.count))
+                    Text(localization.format(.conflictFoundFormat, state.visibleConflicts.count))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     // Rendered in pages. A scan can produce a few hundred findings, and a Form
                     // builds every row it is handed — laying out all of them at once is what
                     // makes the window stutter while the background scan appends.
-                    let shown = Array(engine.visibleConflicts.prefix(findingPageSize))
+                    let shown = Array(state.visibleConflicts.prefix(findingPageSize))
                     ForEach(shown) { conflict in
                         ConflictRowView(conflict: conflict, style: settings.keyStyle)
                     }
-                    if engine.visibleConflicts.count > shown.count {
+                    if state.visibleConflicts.count > shown.count {
                         Button(localization.format(
                             .conflictShowMoreFormat,
-                            min(Self.findingPageStep, engine.visibleConflicts.count - shown.count),
-                            engine.visibleConflicts.count
+                            min(Self.findingPageStep, state.visibleConflicts.count - shown.count),
+                            state.visibleConflicts.count
                         )) {
                             findingPageSize += Self.findingPageStep
                         }
@@ -652,7 +653,7 @@ struct SettingsView: View {
     }
 
     private var scanTimestampText: String {
-        guard let scannedAt = engine.crossAppScannedAt else {
+        guard let scannedAt = state.crossAppScannedAt else {
             return localization.text(.conflictNeverScanned)
         }
         let formatter = DateFormatter()
@@ -683,7 +684,7 @@ struct SettingsView: View {
                 Text(localization.text(.configToolsPrivacyNote))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-            } else if engine.configScan.totalCount == 0 && engine.configScan.counts.isEmpty {
+            } else if state.configScan.totalCount == 0 && state.configScan.counts.isEmpty {
                 Text(localization.text(.configToolsNoneFound))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -692,12 +693,12 @@ struct SettingsView: View {
                     HStack {
                         Text(tool.displayName)
                         Spacer()
-                        Text(engine.configScan.unreadable.contains(tool)
+                        Text(state.configScan.unreadable.contains(tool)
                              ? localization.text(.configToolUnreadable)
                              : localization.format(
                                 .configToolCountFormat,
                                 tool.displayName,
-                                engine.configScan.counts[tool] ?? 0
+                                state.configScan.counts[tool] ?? 0
                              ))
                             .font(.caption)
                             .monospacedDigit()
@@ -729,7 +730,7 @@ struct SettingsView: View {
             permissionRow(
                 title: localization.text(.permissionAccessibility),
                 hint: localization.text(.permissionAccessibilityHint),
-                granted: engine.hasAccessibility,
+                granted: state.hasAccessibility,
                 showDrag: true,
                 request: { engine.requestAccessibility() },
                 openSettings: { engine.openAccessibilitySettings() }
@@ -738,21 +739,21 @@ struct SettingsView: View {
             permissionRow(
                 title: localization.text(.permissionInputMonitoring),
                 hint: localization.text(.permissionInputMonitoringHint),
-                granted: engine.hasInputMonitoring,
+                granted: state.hasInputMonitoring,
                 request: { engine.requestInputMonitoring() },
                 openSettings: { engine.openInputMonitoringSettings() }
             )
 
             Section {
                 LabeledContent(localization.text(.statusReady)) {
-                    Text(engine.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
-                        .foregroundStyle(engine.isListening ? .green : .orange)
+                    Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
+                        .foregroundStyle(state.isListening ? .green : .orange)
                 }
                 LabeledContent(localization.text(.appName)) {
-                    Text(engine.appName.isEmpty ? "—" : engine.appName).foregroundStyle(.secondary)
+                    Text(state.appName.isEmpty ? "—" : state.appName).foregroundStyle(.secondary)
                 }
                 LabeledContent(localization.text(.aboutMenuItems)) {
-                    Text("\(engine.catalogSize)").monospacedDigit()
+                    Text("\(state.catalogSize)").monospacedDigit()
                 }
             }
         }
@@ -925,16 +926,16 @@ struct SettingsView: View {
 
             Section(localization.text(.aboutDiagnostics)) {
                 LabeledContent(localization.text(.permissionAccessibility)) {
-                    Text(engine.hasAccessibility ? "✓" : "—")
+                    Text(state.hasAccessibility ? "✓" : "—")
                 }
                 LabeledContent(localization.text(.permissionInputMonitoring)) {
-                    Text(engine.hasInputMonitoring ? "✓" : "—")
+                    Text(state.hasInputMonitoring ? "✓" : "—")
                 }
                 LabeledContent(localization.text(.statusReady)) {
-                    Text(engine.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
+                    Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
                 }
                 LabeledContent(localization.text(.aboutMenuItems)) {
-                    Text("\(engine.catalogSize)").monospacedDigit()
+                    Text("\(state.catalogSize)").monospacedDigit()
                 }
                 Button(localization.text(.aboutExportDiagnostics)) {
                     exportDiagnostics()

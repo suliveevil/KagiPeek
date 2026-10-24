@@ -170,6 +170,7 @@ final class SurfacePanelController {
         panel.contentView = NSHostingView(
             rootView: OverlayView()
                 .environmentObject(engine)
+                .environmentObject(engine.state)
                 .environmentObject(engine.settingsStore)
                 .environmentObject(engine.localization)
         )
@@ -213,7 +214,7 @@ final class SurfacePanelController {
                 // ⌘/ is never taken: that is macOS's Help shortcut.
                 if event.keyCode == KeyCode.slash,
                    ModifierSet.from(flags: event.modifierFlags).isEmpty,
-                   self.engine.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                   self.engine.state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     self.engine.returnToPanelFromSearch()
                     handled = true
                     return

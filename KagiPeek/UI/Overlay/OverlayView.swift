@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 /// text field because its window is allowed to become key.
 struct OverlayView: View {
     @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
     @State private var hoveredRowID: String?
@@ -20,7 +21,7 @@ struct OverlayView: View {
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
     private var palette: PanelPalette { settings.panelTheme.palette }
-    private var isSearch: Bool { engine.search.isVisible }
+    private var isSearch: Bool { state.search.isVisible }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -49,17 +50,17 @@ struct OverlayView: View {
                 DispatchQueue.main.async { searchFocused = true }
             }
         }
-        .onChange(of: engine.searchFocusToken) { _, _ in
+        .onChange(of: state.searchFocusToken) { _, _ in
             if isSearch { searchFocused = true }
         }
-        .onChange(of: engine.search.isVisible) { _, visible in
+        .onChange(of: state.search.isVisible) { _, visible in
             if visible {
                 DispatchQueue.main.async { searchFocused = true }
             } else {
                 searchFocused = false
             }
         }
-        .onChange(of: engine.panel.appName) { _, _ in
+        .onChange(of: state.panel.appName) { _, _ in
             // A stale hover would paint a row for the previous app, which the pointer has
             // never been over.
             hoveredRowID = nil
@@ -121,9 +122,9 @@ struct OverlayView: View {
 
             if !isSearch, layout.showsFavoritesToggle {
                 Button(action: engine.toggleFavoritesFilter) {
-                    Image(systemName: engine.showsFavoritesOnly ? "star.fill" : "star")
+                    Image(systemName: state.showsFavoritesOnly ? "star.fill" : "star")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(engine.showsFavoritesOnly ? Color.yellow : palette.secondaryText)
+                        .foregroundStyle(state.showsFavoritesOnly ? Color.yellow : palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover))
                 .help(localization.text(.panelFavoritesFilter))
@@ -137,10 +138,10 @@ struct OverlayView: View {
             .buttonStyle(IconButtonStyle(hoverFill: palette.hover))
             .help(localization.text(.panelSettings))
 
-            if engine.panel.isScanning {
+            if state.panel.isScanning {
                 ProgressView().controlSize(.small).tint(palette.secondaryText)
             }
-            if engine.panel.hasConflicts {
+            if state.panel.hasConflicts {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(.orange.opacity(0.9))
@@ -148,7 +149,7 @@ struct OverlayView: View {
             }
 
             if layout.showsCount {
-                Text(isSearch ? "\(engine.search.results.count)" : "\(engine.panel.totalCount)")
+                Text(isSearch ? "\(state.search.results.count)" : "\(state.panel.totalCount)")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(palette.tertiaryText)
                     .monospacedDigit()
@@ -182,8 +183,8 @@ struct OverlayView: View {
     private func modifierChip(_ modifier: ModifierSet) -> some View {
         // Ticking a chip narrows the list *and* composes a stroke (⌥ ticked + C pressed =
         // ⌥⌘C): the two readings share one state, which is why a tick reads as "ticked".
-        let ticked = engine.panel.latchedModifiers.contains(modifier)
-        let held = engine.panel.heldModifiers.contains(modifier)
+        let ticked = state.panel.latchedModifiers.contains(modifier)
+        let held = state.panel.heldModifiers.contains(modifier)
         return Button {
             engine.toggleModifier(modifier)
         } label: {
@@ -220,7 +221,7 @@ struct OverlayView: View {
     /// button and still works by clicking outside or pressing Esc.
     private func appIdentity(layout: HeaderLayout) -> some View {
         HStack(spacing: 11) {
-            if let icon = isSearch ? engine.searchPaletteIcon : engine.appIcon {
+            if let icon = isSearch ? state.searchPaletteIcon : state.appIcon {
                 Image(nsImage: icon)
                     .resizable()
                     .interpolation(.high)
@@ -229,7 +230,7 @@ struct OverlayView: View {
             if layout.showsAppName || layout.showsSubtitle {
                 VStack(alignment: .leading, spacing: 2) {
                     if layout.showsAppName {
-                        Text(isSearch ? engine.searchPaletteTitle : appTitle)
+                        Text(isSearch ? state.searchPaletteTitle : appTitle)
                             .font(.system(size: 15, weight: .semibold))
                             .lineLimit(1)
                             .foregroundStyle(palette.text)
@@ -243,24 +244,24 @@ struct OverlayView: View {
     }
 
     private var appTitle: String {
-        engine.panel.appName.isEmpty ? localization.text(.appName) : engine.panel.appName
+        state.panel.appName.isEmpty ? localization.text(.appName) : state.panel.appName
     }
 
     @ViewBuilder
     private var subtitle: some View {
         if isSearch {
-            Text(localization.text(engine.search.scopeAppID == nil ? .searchSubtitle : .searchSubtitleScoped))
+            Text(localization.text(state.search.scopeAppID == nil ? .searchSubtitle : .searchSubtitleScoped))
                 .font(.system(size: 11))
                 .foregroundStyle(palette.secondaryText)
                 .lineLimit(1)
-        } else if engine.panel.prefixLabels.isEmpty {
+        } else if state.panel.prefixLabels.isEmpty {
             Text(localization.text(.panelIdleHint))
                 .font(.system(size: 11))
                 .foregroundStyle(palette.secondaryText)
                 .lineLimit(1)
         } else {
             HStack(spacing: 4) {
-                ForEach(Array(engine.panel.prefixLabels.enumerated()), id: \.offset) { _, label in
+                ForEach(Array(state.panel.prefixLabels.enumerated()), id: \.offset) { _, label in
                     Text(label)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 4)
@@ -268,11 +269,11 @@ struct OverlayView: View {
                         .background(RoundedRectangle(cornerRadius: 4).fill(palette.selection))
                         .foregroundStyle(palette.secondaryText)
                 }
-                if engine.panel.usedBuiltInCatalog {
+                if state.panel.usedBuiltInCatalog {
                     // The rows are not this app's menus. Say so — and when the scan was
                     // blocked outright, say that too, instead of leaving the user to
                     // wonder why the app's own commands are missing.
-                    Text(localization.text(engine.scanState == .permissionDenied ? .scanFallbackHint : .overlayBuiltInBadge))
+                    Text(localization.text(state.scanState == .permissionDenied ? .scanFallbackHint : .overlayBuiltInBadge))
                         .font(.system(size: 11))
                         .foregroundStyle(palette.tertiaryText)
                         .lineLimit(1)
@@ -289,7 +290,7 @@ struct OverlayView: View {
             } label: {
                 Label(localization.text(.frontmostApp), systemImage: "desktopcomputer")
             }
-            let apps = engine.runningApps.filter { $0.bundleID != Bundle.main.bundleIdentifier }
+            let apps = state.runningApps.filter { $0.bundleID != Bundle.main.bundleIdentifier }
             if !apps.isEmpty { Divider() }
             ForEach(apps) { app in
                 Button(app.name) { engine.selectSearchScope(app.id) }
@@ -298,9 +299,9 @@ struct OverlayView: View {
             HStack(spacing: 4) {
                 Image(systemName: "macwindow.on.rectangle")
                     .font(.system(size: 11))
-                Text(engine.search.scopeName.isEmpty
+                Text(state.search.scopeName.isEmpty
                      ? localization.text(.frontmostApp)
-                     : engine.search.scopeName)
+                     : state.search.scopeName)
                     .font(.system(size: 11.5, weight: .medium))
                     .lineLimit(1)
             }
@@ -315,7 +316,7 @@ struct OverlayView: View {
 
     private func exportSearchMarkdown() {
         let panel = NSSavePanel()
-        let title = engine.search.scopeName.isEmpty ? engine.appName : engine.search.scopeName
+        let title = state.search.scopeName.isEmpty ? state.appName : state.search.scopeName
         panel.nameFieldStringValue = "\(title).md"
         panel.canCreateDirectories = true
         if let markdownType = UTType(filenameExtension: "md") {
@@ -335,16 +336,16 @@ struct OverlayView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(palette.secondaryText)
-            TextField(localization.text(.searchPlaceholder), text: $engine.search.query)
+            TextField(localization.text(.searchPlaceholder), text: $state.search.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
                 .onSubmit {
                     engine.confirmSearchSelection()
                 }
-            if !engine.search.query.isEmpty {
+            if !state.search.query.isEmpty {
                 Button {
-                    engine.search.query = ""
+                    state.search.query = ""
                     searchFocused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -377,7 +378,7 @@ struct OverlayView: View {
 
     @ViewBuilder
     private var panelContent: some View {
-        if engine.panel.isScanning {
+        if state.panel.isScanning {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small).tint(palette.secondaryText)
                 Text(localization.text(.overlayScanning))
@@ -386,12 +387,12 @@ struct OverlayView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
-        } else if engine.panel.isEmpty {
+        } else if state.panel.isEmpty {
             // An empty panel and a scan that never happened look identical to the user;
             // the scan state says which one it was (Menu-Bar-Search's initState).
-            let emptyKey: L10nKey = engine.scanState == .permissionDenied
+            let emptyKey: L10nKey = state.scanState == .permissionDenied
                 ? .scanPermissionDenied
-                : (engine.panel.showsFavoritesOnly ? .panelNoFavorites : .overlayNoCandidates)
+                : (state.panel.showsFavoritesOnly ? .panelNoFavorites : .overlayNoCandidates)
             Text(localization.text(emptyKey))
                 .font(.system(size: 12))
                 .foregroundStyle(palette.secondaryText)
@@ -415,7 +416,7 @@ struct OverlayView: View {
                 )
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: OverlayMetrics.cardGap) {
-                        ForEach(engine.panel.groups) { group in
+                        ForEach(state.panel.groups) { group in
                             groupSection(group, columns: columns, layout: layout)
                         }
                     }
@@ -486,7 +487,7 @@ struct OverlayView: View {
     private func rowView(_ row: PanelRow, layout: RowLayout.Metrics) -> some View {
         // A dimmed row carries index -1, exactly like the "nothing selected" marker, so
         // comparing the two lit up every dimmed row. Only a real position can be selected.
-        let isSelected = row.index >= 0 && engine.panel.selectionIndex == row.index
+        let isSelected = row.index >= 0 && state.panel.selectionIndex == row.index
         let isHovered = hoveredRowID == row.id
         let fill: Color = {
             if row.isCompleted { return Color.accentColor.opacity(0.38) }
@@ -682,7 +683,7 @@ struct OverlayView: View {
     /// A ticked modifier lights up because the row it affects is about that modifier, whether
     /// the tick was meant as "narrow to these" or as the first half of a stroke.
     private var emphasizedModifiers: ModifierSet {
-        engine.panel.heldModifiers.union(engine.panel.latchedModifiers)
+        state.panel.heldModifiers.union(state.panel.latchedModifiers)
     }
 
     private func isEmphasized(_ segment: KeyFormatter.Segment) -> Bool {
@@ -710,11 +711,11 @@ struct OverlayView: View {
             // A query that spells out a combo gets its own answer above the list. Without
             // it, a combo only one thing owns comes back as an empty list, which reads as
             // "not scanned" rather than "nobody else wants this".
-            if let answer = engine.search.comboAnswer {
+            if let answer = state.search.comboAnswer {
                 ComboLookupBanner(answer: answer, palette: palette)
             }
             Group {
-                if engine.search.results.isEmpty {
+                if state.search.results.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 22))
@@ -727,8 +728,8 @@ struct OverlayView: View {
                 } else {
                     SearchResultList(
                         sections: searchSections,
-                        selection: engine.search.selection,
-                        query: engine.search.query,
+                        selection: state.search.selection,
+                        query: state.search.query,
                         style: settings.keyStyle,
                         keyPosition: settings.keyPosition,
                         palette: palette,
@@ -743,7 +744,7 @@ struct OverlayView: View {
     private var searchSections: [SearchSection] {
         var order: [String] = []
         var rows: [String: [(Int, BindingItem)]] = [:]
-        for (index, item) in engine.search.results.enumerated() {
+        for (index, item) in state.search.results.enumerated() {
             let key = item.displayGroup
             if rows[key] == nil { order.append(key) }
             rows[key, default: []].append((index, item))
@@ -764,22 +765,22 @@ struct OverlayView: View {
     private func footerContent(layout: HeaderLayout) -> some View {
         HStack(spacing: 8) {
             if isSearch {
-                Text(engine.search.results.count == 1
+                Text(state.search.results.count == 1
                      ? localization.text(.searchResultCountOne)
-                     : localization.format(.searchResultCount, engine.search.results.count))
+                     : localization.format(.searchResultCount, state.search.results.count))
                     .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(palette.tertiaryText)
-            } else if engine.panel.pageCount > 1 {
+            } else if state.panel.pageCount > 1 {
                 Button(action: engine.previousPage) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
-                .disabled(engine.panel.pageIndex == 0)
+                .disabled(state.panel.pageIndex == 0)
                 .help(localization.text(.panelPreviousPage))
 
-                Text(localization.format(.overlayPageFormat, engine.panel.pageIndex + 1, engine.panel.pageCount))
+                Text(localization.format(.overlayPageFormat, state.panel.pageIndex + 1, state.panel.pageCount))
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(palette.secondaryText)
 
@@ -789,10 +790,10 @@ struct OverlayView: View {
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
-                .disabled(engine.panel.pageIndex >= engine.panel.pageCount - 1)
+                .disabled(state.panel.pageIndex >= state.panel.pageCount - 1)
                 .help(localization.text(.panelNextPage))
             } else {
-                Text(engine.panel.appName)
+                Text(state.panel.appName)
                     .font(.system(size: 11))
                     .foregroundStyle(palette.tertiaryText)
                     .lineLimit(1)
@@ -818,7 +819,7 @@ struct OverlayView: View {
             // The palette is run-only: Return replays the shortcut and there is no copy key.
             return localization.text(.searchHintRun)
         }
-        guard engine.panel.isPinned else { return localization.text(.overlayHint) }
+        guard state.panel.isPinned else { return localization.text(.overlayHint) }
         let run = KeyFormatter.render(settings.runRowKey.chord, style: settings.keyStyle)
         let copy = KeyFormatter.render(settings.copyRowKey.chord, style: settings.keyStyle)
         switch layout {

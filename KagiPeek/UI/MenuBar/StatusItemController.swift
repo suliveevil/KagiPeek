@@ -173,7 +173,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
 
         let header = NSMenuItem(
-            title: engine.appName.isEmpty ? engine.localization.text(.appName) : engine.appName,
+            title: engine.state.appName.isEmpty ? engine.localization.text(.appName) : engine.state.appName,
             action: nil,
             keyEquivalent: ""
         )
@@ -184,14 +184,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(entry(.menuSearch, symbol: "magnifyingglass", action: #selector(openSearch)))
         menu.addItem(entry(.menuPanel, symbol: "rectangle.on.rectangle", action: #selector(togglePanel)))
 
-        if !engine.hasAccessibility {
+        if !engine.state.hasAccessibility {
             menu.addItem(entry(.permissionWizard, symbol: "lock.shield", action: #selector(openPermissions)))
         }
 
         menu.addItem(.separator())
         menu.addItem(entry(
-            engine.isPaused ? .menuResume : .menuPause,
-            symbol: engine.isPaused ? "play.circle" : "pause.circle",
+            engine.state.isPaused ? .menuResume : .menuPause,
+            symbol: engine.state.isPaused ? "play.circle" : "pause.circle",
             action: #selector(togglePaused)
         ))
         menu.addItem(entry(.menuSettings, symbol: "gearshape", action: #selector(openSettings)))

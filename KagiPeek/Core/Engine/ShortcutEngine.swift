@@ -5,6 +5,16 @@ import Foundation
 import SwiftUI
 import os
 
+/// What the active shortcut should do when it fires. Shared by the engine (which executes
+/// the side effect) and `EngineState` (which remembers the recording target).
+enum HotkeyTarget: Hashable {
+    case panel
+    case search
+    case switcher
+    case runRow
+    case copyRow
+}
+
 /// Orchestrates input, catalog, ranking and presentation.
 ///
 /// Deliberately thin: pure decisions live in `PrefixResolver` / `Ranker`, AX access in
@@ -15,118 +25,12 @@ final class ShortcutEngine: ObservableObject {
     /// without importing the engine.
     typealias Phase = EnginePhase
 
-    enum HotkeyTarget: Hashable {
-        case panel
-        case search
-        case switcher
-        case runRow
-        case copyRow
-    }
+    // MARK: - State
 
-    /// Everything that feeds the row order. While it is unchanged, a rebuild can reuse the
-    /// previous ordering, so a modifier press that does not move anything stays cheap.
-    private struct OrderedHitsKey: Equatable {
-        var prefix: KeyChord
-        var heldModifiers: ModifierSet
-        /// Also invalidates the cached order: a tick changes which rows are emphasised and
-        /// which are reachable, so a cached order computed without it would be stale.
-        var latchedModifiers: ModifierSet
-        var scannedAt: Date
-        /// The favorites rules as one value, so any of the three booleans changing (the
-        /// star toggle or either settings) invalidates the cached order together.
-        var favorites: FavoritesPolicy
-        var includeDisabled: Bool
-        /// A signature, not a count: editing a rule without changing how many exist must
-        /// still invalidate the cached order.
-        var ignoredSignature: String
-    }
-
-    /// Everything that changes the session's row budget (the size the panel is sized for).
-    private struct RowBudgetKey: Equatable {
-        var scannedAt: Date
-        var showsFavoritesOnly: Bool
-        var includeDisabled: Bool
-        var ignoredSignature: String
-        var systemCount: Int
-        var pageSize: Int
-    }
-
-    // MARK: - Published state
-
-    @Published private(set) var panel = PanelState.hidden
-    @Published private(set) var settings: AppSettingsSnapshot
-    @Published private(set) var appName = ""
-    @Published private(set) var appIcon: NSImage?
-    @Published private(set) var isListening = false
-    @Published private(set) var hasAccessibility = false
-    @Published private(set) var hasInputMonitoring = false
-    @Published private(set) var isPaused = false
-    @Published private(set) var conflicts: [BindingConflict] = []
-    /// Conflicts across every running app, with ids scoped to their owner. Only the
-    /// Conflicts page reads this; the panel keeps using `conflicts`.
-    @Published private(set) var crossAppConflicts: [BindingConflict] = []
-    /// When the list above was produced, or nil when it has never been scanned.
-    @Published private(set) var crossAppScannedAt: Date?
-    @Published private(set) var isScanningCrossApp = false
-    private var crossAppRefreshTask: Task<Void, Never>?
-    @Published private(set) var catalogSize = 0
-    @Published private(set) var scanDuration: TimeInterval = 0
-    /// Why the last catalog read produced what it did. An empty panel and a read that
-    /// never happened look the same, so the surfaces can say which one it was.
-    @Published private(set) var scanState: ScanState = .ok
-    @Published private(set) var usedBuiltInCatalog = false
-    @Published private(set) var statusMessage: String?
-    @Published private(set) var isFrontAppExcluded = false
-    @Published private(set) var recordingTarget: HotkeyTarget?
-    @Published private(set) var searchFocusToken = 0
-    @Published private(set) var systemBindings: [BindingItem] = []
-    /// Shortcuts read out of third-party config files. They are not part of any app's menu,
-    /// so like the system hotkeys they only ever feed conflict detection and lookup.
-    @Published private(set) var configBindings: [BindingItem] = []
-    @Published private(set) var configScan = ConfigScanResult()
-    /// Which kind of clash the list shows, or nil for every kind. View state, not a setting:
-    /// it filters what is on screen and has no business following the user to the next launch.
-    @Published var conflictCategory: ConflictCategory?
-    /// Which owner the conflict list is narrowed to: everything, clashes with no app in them
-    /// at all, or one app. Also view state.
-    @Published var conflictOwner: ConflictOwnerFilter = .all
-    /// Which app the search palette looks at, or nil for the frontmost one.
-    ///
-    /// Looking at another app is the palette's job now: it is where
-    /// people actually type, so the scope lives here now.
-    /// The scope's identity and items live in `search` (pure state); the icon is AppKit
-    /// and has to stay engine-side.
-    @Published private(set) var searchScopeIcon: NSImage?
-    /// The scoped app's catalog, elements included, so a click can press its menu item instead
-    /// of only replaying the chord — the press is what reaches commands with no shortcut.
-    private var searchScopeCatalog = CatalogSnapshot.empty
-    /// The scoped app's process, so a click can bring it forward before the chord lands.
-    private var searchScopeProcessID: pid_t?
-
-    /// Title and icon the palette shows: the scoped app when one is chosen, otherwise the app
-    /// that is in front. "Search Shortcuts" was a label where the answer belonged.
-    var searchPaletteTitle: String {
-        if !search.scopeName.isEmpty { return search.scopeName }
-        if !appName.isEmpty { return appName }
-        return appContext.frontmost?.name ?? localization.text(.appName)
-    }
-
-    var searchPaletteIcon: NSImage? {
-        searchScopeIcon ?? appIcon
-    }
-
-    @Published private(set) var liveTestState: ShortcutTester.State = .idle
-    @Published private(set) var runningApps: [AppEntry] = []
-
-    /// The palette's whole state as one snapshot (see `SearchSnapshot`). Only the query
-    /// drives a re-search; the engine writes results/selection/visibility itself, and a
-    /// re-search from those writes would loop.
-    @Published var search = SearchSnapshot() {
-        didSet {
-            if oldValue.query != search.query { refreshSearch() }
-        }
-    }
-    @Published private(set) var showsFavoritesOnly = false
+    /// Everything the engine knows — the published state the UI binds, the session state,
+    /// the caches, the gesture machines and the in-flight tasks. The engine coordinates;
+    /// this is the data (see `EngineState` for the split).
+    let state = EngineState()
 
     // MARK: - Collaborators
 
@@ -140,10 +44,6 @@ final class ShortcutEngine: ObservableObject {
     private let catalogLoader = CatalogLoader()
     private let appDirectory = AppDirectory()
     let updateChecker = UpdateChecker()
-    private var searchCorpus: SearchCorpus?
-    /// What `searchCorpus` was built from. Rebuilt when the scope, the scan or the style
-    /// changes; nil means "nothing built yet".
-    private var searchCorpusKey: String?
     private lazy var surface = SurfacePanelController(engine: self)
     private lazy var hud = HUDPanelController()
     private lazy var permissionsWindow = PermissionsWindowController(engine: self)
@@ -151,42 +51,10 @@ final class ShortcutEngine: ObservableObject {
     private lazy var shortcutTester = ShortcutTester(
         appToRestore: { [weak self] in self?.lastExternalFrontmost },
         onListeningChanged: { [weak self] listening in
-            MainActor.assumeIsolated { self?.isTestingShortcut = listening }
+            MainActor.assumeIsolated { self?.state.isTestingShortcut = listening }
         }
     )
 
-    // MARK: - Internal state
-
-    private var catalog = CatalogSnapshot.empty
-    private var conflictIDs: Set<String> = []
-    /// Set while a live shortcut test is listening. It suspends every panel behaviour, so
-    /// KagiPeek itself can never be the thing that swallowed the key under test.
-    private var isTestingShortcut = false
-    private var configScanTask: Task<Void, Never>?
-    /// Mirrors the live tester's countdown into published state; the tester owns the timing.
-    private var liveTestPollingTask: Task<Void, Never>?
-    private var phase: Phase = .idle
-    private var prefix: KeyChord = .empty
-    /// Incremented on every scan request; only the newest one may publish its snapshot.
-    private var catalogGeneration = 0
-    /// Ranked hits are reused while nothing that feeds the ranking has changed: a modifier
-    /// press only changes how the same rows are drawn.
-    private var orderedHitsCache: (key: OrderedHitsKey, hits: [PrefixHit])?
-    private var rowBudgetCache: (key: RowBudgetKey, rows: Int, headings: Int)?
-    /// Joined statistics, per app bucket. Rebuilt when the scans or the counters move.
-    private var usageBreakdownCache: [String: (signature: String, entries: [UsageEntry])] = [:]
-    private var previousModifiers: ModifierSet = []
-    /// The "press ⌘ twice to pin" gesture, as a pure state machine (see `CommandDoubleTap`).
-    private var doubleTapCommand = CommandDoubleTap()
-    /// Karabiner-style hyper (⌃⌥⇧⌘) used as a single "Escape" key, as a pure state machine
-    /// (see `HyperEscape`).
-    private var hyperEscape = HyperEscape()
-    /// Throttle for the secure-input line: the check runs on every modifier press, and one
-    /// line every few seconds is enough to explain a session in which nothing worked.
-    private var lastSecureInputLog: Date?
-    /// Press-and-release of a modifier, remembered so it can become a sticky tick: ⌥ ⌘ C
-    /// instead of holding ⌥⌘ and pressing C. See `ModifierTapTracker`.
-    private var modifierTap = ModifierTapTracker()
     /// Where the pointer was when the panel opened.
     ///
     /// Running a command from the panel means clicking a row, and dismissing it by clicking
@@ -198,8 +66,6 @@ final class ShortcutEngine: ObservableObject {
     /// "hold ⌘ and glance" is never mistaken for "tick ⌘", short enough that a deliberate
     /// tap always lands inside it.
     private static let modifierTapWindow: TimeInterval = 0.35
-    private var armedTask: Task<Void, Never>?
-    private var completionTask: Task<Void, Never>?
     private var activationObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
@@ -215,7 +81,7 @@ final class ShortcutEngine: ObservableObject {
     /// title bar. Derived, never stored — `panel` already holds each half, and a third copy
     /// would be one more thing that has to be kept in step.
     private var pending: PendingModifiers {
-        PendingModifiers(held: panel.heldModifiers, latched: panel.latchedModifiers)
+        PendingModifiers(held: state.panel.heldModifiers, latched: state.panel.latchedModifiers)
     }
 
     // MARK: - Lifecycle
@@ -223,8 +89,12 @@ final class ShortcutEngine: ObservableObject {
     init(settingsStore: SettingsStore, usageStore: UsageStore) {
         self.settingsStore = settingsStore
         self.usageStore = usageStore
-        self.settings = settingsStore.settings
+        state.settings = settingsStore.settings
         localization.update(preference: settingsStore.settings.language)
+        state.defaultTitle = localization.text(.appName)
+        state.searchChangeHandler = { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshSearch() }
+        }
 
         permissions.onChange = { [weak self] in
             MainActor.assumeIsolated { self?.permissionStateChanged() }
@@ -255,8 +125,8 @@ final class ShortcutEngine: ObservableObject {
         // initialiser already ran. Without this, the first refreshPermissions() below would
         // read as a permission flip (false → true) and force a scan — on every cold start,
         // which is exactly the moment the caches exist for.
-        hasAccessibility = permissions.accessibility.isGranted
-        hasInputMonitoring = permissions.inputMonitoring.isGranted
+        state.hasAccessibility = permissions.accessibility.isGranted
+        state.hasInputMonitoring = permissions.inputMonitoring.isGranted
 
         appContext.onFrontmostChange = { [weak self] app in
             self?.frontmostChanged(app)
@@ -311,23 +181,23 @@ final class ShortcutEngine: ObservableObject {
     }
 
     func stop() {
-        armedTask?.cancel()
-        liveTestPollingTask?.cancel()
-        configScanTask?.cancel()
-        crossAppRefreshTask?.cancel()
+        state.armedTask?.cancel()
+        state.liveTestPollingTask?.cancel()
+        state.configScanTask?.cancel()
+        state.crossAppRefreshTask?.cancel()
         monitor.stop()
         appContext.stop()
         appDirectory.stop()
         permissions.stopPolling()
-        isListening = false
+        state.isListening = false
         dismissEverything()
     }
 
     // MARK: - Settings
 
     private func apply(settings newValue: AppSettingsSnapshot) {
-        let previous = settings
-        settings = newValue
+        let previous = state.settings
+        state.settings = newValue
         // The diagnostics switches take effect immediately: a user turning verbose logging on
         // to reproduce a problem should not have to restart the app first.
         Diag.applySettings(newValue)
@@ -337,10 +207,10 @@ final class ShortcutEngine: ObservableObject {
 
         if previous.language != newValue.language {
             reloadSystemHotkeys()
-            searchCorpus = nil
+            state.searchCorpus = nil
         }
         if previous.keyStyle != newValue.keyStyle {
-            searchCorpus = nil
+            state.searchCorpus = nil
         }
 
         if previous.language != newValue.language || previous.includeBuiltInCatalog != newValue.includeBuiltInCatalog {
@@ -357,14 +227,14 @@ final class ShortcutEngine: ObservableObject {
         if previous.sortMode != newValue.sortMode
             || previous.showDisabledItems != newValue.showDisabledItems
             || previous.ignoredCommands != newValue.ignoredCommands {
-            orderedHitsCache = nil
+            state.orderedHitsCache = nil
         }
         // Turning the scanners off has to forget what they found, or the conflict list would
         // keep blaming tools the user just asked us to stop reading.
         if previous.scanConfigFiles != newValue.scanConfigFiles {
             scanConfigFiles()
         }
-        if panel.isVisible {
+        if state.panel.isVisible {
             rebuildPanel()
         }
     }
@@ -402,14 +272,14 @@ final class ShortcutEngine: ObservableObject {
     }
 
     func setPaused(_ paused: Bool) {
-        isPaused = paused
+        state.isPaused = paused
         if paused {
             dismissEverything()
         }
     }
 
     func togglePaused() {
-        setPaused(!isPaused)
+        setPaused(!state.isPaused)
     }
 
     // MARK: - Permissions
@@ -424,18 +294,18 @@ final class ShortcutEngine: ObservableObject {
 
     private func permissionStateChanged() {
         let granted = permissions.accessibility.isGranted
-        let changed = granted != hasAccessibility
+        let changed = granted != state.hasAccessibility
         let inputMonitoring = permissions.inputMonitoring.isGranted
         if changed {
             // The single most common support question has this exact answer: the permission
             // was revoked (often by a reinstall under a new signature).
             Diag.info(.perm, "accessibility \(granted ? "granted" : "revoked")")
         }
-        if inputMonitoring != hasInputMonitoring {
+        if inputMonitoring != state.hasInputMonitoring {
             Diag.info(.perm, "input monitoring \(inputMonitoring ? "granted" : "revoked")")
         }
-        hasAccessibility = granted
-        hasInputMonitoring = inputMonitoring
+        state.hasAccessibility = granted
+        state.hasInputMonitoring = inputMonitoring
 
         if granted {
             if !monitor.isActive {
@@ -449,12 +319,12 @@ final class ShortcutEngine: ObservableObject {
             // cold start and the disk cache would never answer.
             if changed {
                 reloadCatalog(force: true)
-            } else if catalog.appIdentity.isEmpty {
+            } else if state.catalog.appIdentity.isEmpty {
                 reloadCatalog(force: false)
             }
         } else if monitor.isActive {
             monitor.stop()
-            isListening = false
+            state.isListening = false
         }
     }
 
@@ -467,7 +337,7 @@ final class ShortcutEngine: ObservableObject {
     func handleWake() {
         Diag.info(.tap, "woke from sleep: re-asserting the event tap")
         refreshPermissions()
-        if hasAccessibility, !monitor.isActive {
+        if state.hasAccessibility, !monitor.isActive {
             startMonitor()
         }
         reloadCatalog(force: false)
@@ -480,7 +350,7 @@ final class ShortcutEngine: ObservableObject {
 
     func requestInputMonitoring() {
         permissions.inputMonitoring.performRequest()
-        hasInputMonitoring = permissions.inputMonitoring.isGranted
+        state.hasInputMonitoring = permissions.inputMonitoring.isGranted
     }
 
     func openAccessibilitySettings() {
@@ -510,13 +380,13 @@ final class ShortcutEngine: ObservableObject {
         }
         do {
             try monitor.start()
-            isListening = true
-            statusMessage = nil
+            state.isListening = true
+            state.statusMessage = nil
             AppLog.input.notice("event tap installed")
             Diag.info(.tap, "event tap installed (accessibility granted)")
         } catch {
-            isListening = false
-            statusMessage = error.localizedDescription
+            state.isListening = false
+            state.statusMessage = error.localizedDescription
             AppLog.input.error("event tap failed: \(error.localizedDescription, privacy: .public)")
             // The one failure that makes every shortcut stop working at once. The file log
             // gets the domain and code, not just the localised sentence.
@@ -538,39 +408,39 @@ final class ShortcutEngine: ObservableObject {
             AppLog.scan.debug("skipping own process as a catalog source")
             return
         }
-        if panel.isVisible {
-            panel.isScanning = true
-            surface.presentPanel(state: panel, settings: settings)
+        if state.panel.isVisible {
+            state.panel.isScanning = true
+            surface.presentPanel(state: state.panel, settings: state.settings)
         }
         // Scans run on a background queue with a concurrency of two, so a slow scan for the
         // previous app can finish after a fast one for the current app. Only the newest
         // request is allowed to publish.
-        catalogGeneration &+= 1
-        let generation = catalogGeneration
+        state.catalogGeneration &+= 1
+        let generation = state.catalogGeneration
         catalogLoader.load(
             app: app,
-            language: settings.language,
-            includeBuiltIn: settings.includeBuiltInCatalog,
-            showAppleMenu: settings.showAppleMenu,
+            language: state.settings.language,
+            includeBuiltIn: state.settings.includeBuiltInCatalog,
+            showAppleMenu: state.settings.showAppleMenu,
             force: force
         ) { [weak self] snapshot in
             guard let self, !self.isPreviewing else { return }
-            guard generation == self.catalogGeneration else {
+            guard generation == self.state.catalogGeneration else {
                 AppLog.scan.debug("dropping stale scan for \(snapshot.appIdentity, privacy: .public)")
                 return
             }
-            self.catalog = snapshot
-            self.catalogSize = snapshot.items.count
-            self.usedBuiltInCatalog = snapshot.usedBuiltInCatalog
-            self.scanDuration = snapshot.readDuration
-            self.scanState = snapshot.state
-            self.conflicts = ConflictDetector.conflicts(in: snapshot.items, external: self.externalBindings)
-            self.conflictIDs = Set(self.conflicts.flatMap { $0.items.map(\.id) })
-            self.panel.isScanning = false
-            self.searchCorpus = nil
-            self.orderedHitsCache = nil
+            self.state.catalog = snapshot
+            self.state.catalogSize = snapshot.items.count
+            self.state.usedBuiltInCatalog = snapshot.usedBuiltInCatalog
+            self.state.scanDuration = snapshot.readDuration
+            self.state.scanState = snapshot.state
+            self.state.conflicts = ConflictDetector.conflicts(in: snapshot.items, external: self.externalBindings)
+            self.state.conflictIDs = Set(self.state.conflicts.flatMap { $0.items.map(\.id) })
+            self.state.panel.isScanning = false
+            self.state.searchCorpus = nil
+            self.state.orderedHitsCache = nil
             self.evaluateExclusion()
-            if self.panel.isVisible {
+            if self.state.panel.isVisible {
                 self.rebuildPanel()
             }
             self.refreshSearch()
@@ -602,8 +472,8 @@ final class ShortcutEngine: ObservableObject {
         Diag.debug(.scan, "frontmost changed: \(app.bundleID ?? "?") pid=\(app.pid)")
         Diag.action("app.activate", target: app.bundleID)
         dismissPanel()
-        appName = app.name
-        appIcon = app.icon
+        state.appName = app.name
+        state.appIcon = app.icon
         evaluateExclusion()
         // Not forced: switching apps is the moment the caches exist for. The identity
         // changed, so the in-memory snapshot misses anyway; the disk cache then gets its
@@ -615,11 +485,11 @@ final class ShortcutEngine: ObservableObject {
 
     private func evaluateExclusion() {
         guard let bundleID = appContext.frontmost?.bundleID else {
-            isFrontAppExcluded = false
+            state.isFrontAppExcluded = false
             return
         }
-        isFrontAppExcluded = settings.excludedBundleIDs.contains(bundleID)
-        if isFrontAppExcluded {
+        state.isFrontAppExcluded = state.settings.excludedBundleIDs.contains(bundleID)
+        if state.isFrontAppExcluded {
             // "Shortcuts do nothing in this app" has exactly one cause in the settings, and
             // it used to be invisible.
             Diag.info(.scan, "front app is on the exclusion list (bundle=\(bundleID)): panel suppressed")
@@ -630,14 +500,14 @@ final class ShortcutEngine: ObservableObject {
     // MARK: - Input
 
     private func handle(_ event: KeyEvent) {
-        if let target = recordingTarget, handleRecording(event, target: target) {
+        if let target = state.recordingTarget, handleRecording(event, target: target) {
             return
         }
         // While a live test is listening, every key belongs to the test. Anything KagiPeek
         // did here — arming the panel, consuming a stroke — would make it the thing that
         // swallowed the key, which is the one result this feature must never report.
-        if isTestingShortcut { return }
-        if isPaused { return }
+        if state.isTestingShortcut { return }
+        if state.isPaused { return }
 
         switch event.kind {
         case .interruption:
@@ -653,8 +523,8 @@ final class ShortcutEngine: ObservableObject {
 
     private func handleModifiers(_ event: KeyEvent) {
         let modifiers = event.modifiers
-        let previous = previousModifiers
-        previousModifiers = modifiers
+        let previous = state.previousModifiers
+        state.previousModifiers = modifiers
 
         if PermissionCenter.isSecureInputEnabled {
             logSecureInputOnce()
@@ -662,26 +532,26 @@ final class ShortcutEngine: ObservableObject {
             return
         }
 
-        if settings.triggerMode == .doubleTapCommand,
-           doubleTapCommand.process(
+        if state.settings.triggerMode == .doubleTapCommand,
+           state.doubleTapCommand.process(
                modifiers: modifiers,
                previous: previous,
                now: event.happenedAt,
-               window: settings.doubleTapWindow
+               window: state.settings.doubleTapWindow
            ) {
             togglePinnedPanel()
             return
         }
 
-        switch phase {
+        switch state.phase {
         case .active:
             // A lone hyper press (⌃⌥⇧⌘) is the user's "Escape" key: do not narrow the
             // panel to a prefix no menu could match; close it on a clean release instead.
             // The gesture is a pure state machine (`HyperEscape`), tested on its own.
-            switch hyperEscape.process(modifiers: modifiers, now: event.happenedAt) {
+            switch state.hyperEscape.process(modifiers: modifiers, now: event.happenedAt) {
             case .arm:
-                modifierTap.reset()
-                panel.heldModifiers = modifiers
+                state.modifierTap.reset()
+                state.panel.heldModifiers = modifiers
                 rebuildPanel()
                 return
             case .releaseDismiss:
@@ -695,13 +565,13 @@ final class ShortcutEngine: ObservableObject {
             // behaviour: hold ⌘ and only the ⌘ shortcuts are left). A lone ⇧ never counts —
             // it also arrives while typing capital letters.
             let held = modifiers == [.shift] ? ModifierSet() : modifiers
-            panel.heldModifiers = held
+            state.panel.heldModifiers = held
             // A tap — press and let go quickly, with nothing typed in between — sticks: it
             // ticks the modifier instead of narrowing only while the finger is down, so
             // ⌥ ⌘ C can be typed one key at a time and each tap narrows on top of the last.
             // Holding still narrows temporarily. The difference is the point: holding is
             // looking, tapping is composing.
-            if let tapped = modifierTap.flagsChanged(
+            if let tapped = state.modifierTap.flagsChanged(
                 held,
                 previous: previous,
                 now: event.happenedAt,
@@ -718,23 +588,23 @@ final class ShortcutEngine: ObservableObject {
             // narrowing after the physical key is let go. Latched modifiers are deliberately
             // *not* cleared here — pressing a physical modifier while a sequence is being
             // composed is the normal case, not a reason to abandon it.
-            if prefix.isEmpty || prefix.isModifierOnly {
+            if state.prefix.isEmpty || state.prefix.isModifierOnly {
                 let effective = pending.effective
-                prefix = effective.isEmpty ? .empty : .modifiers(effective)
+                state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
             }
-            panel.pageIndex = 0
+            state.panel.pageIndex = 0
             // Deliberately no `selectionIndex = -1` here. Narrowing is exactly the case where
             // the user is about to press Return, and a narrowed panel often has one row left:
             // clearing the selection here is what made Return do nothing.
             rebuildPanel()
             updateKeyCapture()
         case .idle, .armed:
-            guard settings.triggerMode == .holdModifiers else { return }
+            guard state.settings.triggerMode == .holdModifiers else { return }
             if modifiers.isEmpty || modifiers == [.shift] {
                 cancelArm()
-                if phase == .armed {
-                    phase = .idle
-                    prefix = .empty
+                if state.phase == .armed {
+                    state.phase = .idle
+                    state.prefix = .empty
                 }
                 return
             }
@@ -747,8 +617,8 @@ final class ShortcutEngine: ObservableObject {
     /// seconds is enough to explain a session, and cheap enough for the modifier path.
     private func logSecureInputOnce() {
         let now = Date()
-        if let last = lastSecureInputLog, now.timeIntervalSince(last) < 5 { return }
-        lastSecureInputLog = now
+        if let last = state.lastSecureInputLog, now.timeIntervalSince(last) < 5 { return }
+        state.lastSecureInputLog = now
         Diag.info(.perm, "secure input is on (password field or login window): key handling suspended")
     }
 
@@ -768,24 +638,24 @@ final class ShortcutEngine: ObservableObject {
             key: event.key,
             modifiers: event.modifiers,
             isRepeat: event.isRepeat,
-            phase: phase,
-            settings: settings,
-            panel: panel,
-            prefix: prefix,
+            phase: state.phase,
+            settings: state.settings,
+            panel: state.panel,
+            prefix: state.prefix,
             pending: pending,
-            items: catalog.items
+            items: state.catalog.items
         )
 
         // A key the panel consumed while a hyper is armed marks the hyper as used, so a
         // clean release no longer counts as Escape. The guard mirrors the old inline code:
         // only a key with a token, while the panel is active, and not Escape itself.
-        if phase == .active, event.key != nil, action != .dismiss, hyperEscape.armedAt != nil {
-            hyperEscape.noteKeyUsed()
+        if state.phase == .active, event.key != nil, action != .dismiss, state.hyperEscape.armedAt != nil {
+            state.hyperEscape.noteKeyUsed()
         }
         // A key pressed while a modifier is down means the modifier was part of a shortcut,
         // not a tap to be ticked.
-        if phase == .active {
-            modifierTap.noteKeyPress()
+        if state.phase == .active {
+            state.modifierTap.noteKeyPress()
         }
 
         switch action {
@@ -799,8 +669,8 @@ final class ShortcutEngine: ObservableObject {
             break
         case .cancelArm:
             cancelArm()
-            phase = .idle
-            prefix = .empty
+            state.phase = .idle
+            state.prefix = .empty
         case .dismiss:
             dismissPanel()
         case .showSearch:
@@ -816,7 +686,7 @@ final class ShortcutEngine: ObservableObject {
             // keeps the old behaviour if the tick vanished in between.
             if popLatched() {
                 refreshAfterLatchedChange()
-            } else if !prefix.isEmpty {
+            } else if !state.prefix.isEmpty {
                 goUpOneLevel()
             }
         case .goUpLevel:
@@ -837,9 +707,9 @@ final class ShortcutEngine: ObservableObject {
             AppLog.input.info(
                 "replaying composed \(KeyFormatter.render(probe, style: .symbols), privacy: .public) into the front app"
             )
-            if settings.showExecutedHUD {
+            if state.settings.showExecutedHUD {
                 hud.show(
-                    chord: KeyFormatter.render(probe, style: settings.keyStyle),
+                    chord: KeyFormatter.render(probe, style: state.settings.keyStyle),
                     title: item.title
                 )
             }
@@ -847,13 +717,13 @@ final class ShortcutEngine: ObservableObject {
                 ShortcutInjector.post(probe, delay: 0.12)
             }
         case .descend(let probe):
-            prefix = probe
+            state.prefix = probe
             // The ticked modifiers have been folded into this stroke; keeping them would
             // apply them a second time to the next one.
-            panel.latchedModifiers = []
-            panel.latchedOrder = []
-            panel.pageIndex = 0
-            panel.selectionIndex = -1
+            state.panel.latchedModifiers = []
+            state.panel.latchedOrder = []
+            state.panel.pageIndex = 0
+            state.panel.selectionIndex = -1
             rebuildPanel()
             updateKeyCapture()
         case .noMatch(let heldModifiers):
@@ -861,17 +731,17 @@ final class ShortcutEngine: ObservableObject {
             // not made a mistake yet. A bare key with no match is not swallowed, so the
             // app receives it and nothing is lost.
             Diag.debug(.tap, """
-                nomatch: prefix=\(KeyFormatter.render(prefix, style: .symbols)) \
-                key=\(event.key?.raw ?? "-") latched=\(panel.latchedModifiers.rawValue)
+                nomatch: prefix=\(KeyFormatter.render(state.prefix, style: .symbols)) \
+                key=\(event.key?.raw ?? "-") latched=\(state.panel.latchedModifiers.rawValue)
                 """)
-            panel.heldModifiers = heldModifiers
+            state.panel.heldModifiers = heldModifiers
             rebuildPanel()
         }
     }
     /// Karabiner's "hyper tap → Escape" rule usually emits Escape on key-up, so the tap
     /// consumes Esc releases as well and closes the panel from either direction.
     private func handleKeyUp(_ event: KeyEvent) {
-        guard phase == .active else { return }
+        guard state.phase == .active else { return }
         if event.keyCode == KeyCode.escape {
             dismissPanel()
         }
@@ -895,32 +765,32 @@ final class ShortcutEngine: ObservableObject {
     ///   swallow the `;` as its first stroke — while the engine pages the list. The tap reads
     ///   `PanelKeyIntake`, the same list the handler walks, so the two cannot diverge.
     private func shouldSwallowComposed(_ event: KeyEvent) -> Bool {
-        guard !isTestingShortcut else { return false }
-        guard !panel.latchedModifiers.isEmpty else { return false }
-        guard panel.isVisible, phase == .active else { return false }
+        guard !state.isTestingShortcut else { return false }
+        guard !state.panel.latchedModifiers.isEmpty else { return false }
+        guard state.panel.isVisible, state.phase == .active else { return false }
         guard let key = event.key else { return false }
         if event.modifiers.isEmpty, key == .backspace { return true }
         if PanelKeyIntake.isConsumedBeforeComposition(
             keyCode: event.keyCode,
             modifiers: event.modifiers,
-            held: panel.heldModifiers,
-            run: settings.runRowKey,
-            copy: settings.copyRowKey
+            held: state.panel.heldModifiers,
+            run: state.settings.runRowKey,
+            copy: state.settings.copyRowKey
         ) { return false }
         let resolution = ChordComposition.resolve(
-            prefix: prefix,
+            prefix: state.prefix,
             physical: event.modifiers,
             pending: pending,
             key: key,
-            in: catalog.items
+            in: state.catalog.items
         )
         return resolution.shouldSwallow
     }
 
     private func applyHotkeySwallowing() {
         var rules: [SwallowRule] = []
-        if recordingTarget == nil {
-            for spec in [settings.panelHotkey, settings.searchHotkey, settings.switchHotkey] {
+        if state.recordingTarget == nil {
+            for spec in [state.settings.panelHotkey, state.settings.searchHotkey, state.settings.switchHotkey] {
                 rules.append(SwallowRule(
                     keyCode: spec.keyCode,
                     modifiers: spec.modifiers,
@@ -938,28 +808,28 @@ final class ShortcutEngine: ObservableObject {
     /// the rest of the time
     /// key codes and modifiers are enough, even for hotkey matching.
     private func refreshKeyDecoding() {
-        let needed = recordingTarget != nil || (panel.isVisible && phase == .active)
+        let needed = state.recordingTarget != nil || (state.panel.isVisible && state.phase == .active)
         monitor.updateDecodesKeyEvents(needed)
     }
 
     // MARK: - Panel lifecycle
 
     private func armShow() {
-        guard phase == .idle || phase == .armed else { return }
-        phase = .armed
-        armedTask?.cancel()
-        let delay = settings.holdDelay
-        armedTask = Task { [weak self] in
+        guard state.phase == .idle || state.phase == .armed else { return }
+        state.phase = .armed
+        state.armedTask?.cancel()
+        let delay = state.settings.holdDelay
+        state.armedTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
-            guard self.phase == .armed else { return }
+            guard self.state.phase == .armed else { return }
             self.activatePanel(seedPrefix: true)
         }
     }
 
     private func cancelArm() {
-        armedTask?.cancel()
-        armedTask = nil
+        state.armedTask?.cancel()
+        state.armedTask = nil
     }
 
     /// Opens the persistent panel. The keys used to trigger it are deliberately not used
@@ -970,41 +840,41 @@ final class ShortcutEngine: ObservableObject {
     /// is a complete combination. Either way the rows keep their full chord — a ⌘ that is
     /// held is lit up in the row, not removed from it.
     func activatePanel(seedPrefix: Bool = false) {
-        guard !isFrontAppExcluded else { return }
-        search.isVisible = false
+        guard !state.isFrontAppExcluded else { return }
+        state.search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
-        phase = .active
-        let seed = (previousModifiers == [.shift]) ? ModifierSet() : previousModifiers
-        prefix = seedPrefix && !seed.isEmpty ? .modifiers(seed) : .empty
-        panel.isVisible = true
-        panel.isPinned = true
-        panel.pageIndex = 0
-        panel.selectionIndex = -1
-        panel.completedRowID = nil
-        hyperEscape = HyperEscape()
+        state.phase = .active
+        let seed = (state.previousModifiers == [.shift]) ? ModifierSet() : state.previousModifiers
+        state.prefix = seedPrefix && !seed.isEmpty ? .modifiers(seed) : .empty
+        state.panel.isVisible = true
+        state.panel.isPinned = true
+        state.panel.pageIndex = 0
+        state.panel.selectionIndex = -1
+        state.panel.completedRowID = nil
+        state.hyperEscape = HyperEscape()
         // A modifier held down to summon the panel is the trigger, not a tap: letting go of
         // it must not tick anything.
-        modifierTap.reset()
-        panel.heldModifiers = previousModifiers == [.shift] ? [] : previousModifiers
+        state.modifierTap.reset()
+        state.panel.heldModifiers = state.previousModifiers == [.shift] ? [] : state.previousModifiers
         // A sequence belongs to one panel session: opening a new one starts from nothing.
-        panel.latchedModifiers = []
-        panel.latchedOrder = []
-        panel.isScanning = catalog.items.isEmpty
+        state.panel.latchedModifiers = []
+        state.panel.latchedOrder = []
+        state.panel.isScanning = state.catalog.items.isEmpty
         rebuildPanel()
         updateKeyCapture()
     }
 
     func dismissPanel() {
-        completionTask?.cancel()
-        completionTask = nil
+        state.completionTask?.cancel()
+        state.completionTask = nil
         cancelArm()
-        phase = .idle
-        prefix = .empty
-        hyperEscape = HyperEscape()
-        modifierTap.reset()
-        panel = .hidden
+        state.phase = .idle
+        state.prefix = .empty
+        state.hyperEscape = HyperEscape()
+        state.modifierTap.reset()
+        state.panel = .hidden
         updateKeyCapture()
-        surface.presentPanel(state: panel, settings: settings)
+        surface.presentPanel(state: state.panel, settings: state.settings)
         // One run loop later: `showSearch()` closes the panel on its way to opening the
         // search palette, and pulling the pointer back out from under a surface that is
         // about to want it would be worse than leaving it where it is.
@@ -1034,7 +904,7 @@ final class ShortcutEngine: ObservableObject {
         guard !isPreviewing else { return }
         // Nothing is showing any more: not the panel (it may have been reopened in the
         // meantime), and not the search palette, which has its own pointer to worry about.
-        guard !panel.isVisible, !search.isVisible else { return }
+        guard !state.panel.isVisible, !state.search.isVisible else { return }
         guard let current = Self.cursorPoint() else { return }
         let moved = hypot(current.x - origin.x, current.y - origin.y)
         guard moved > 2 else { return }
@@ -1052,7 +922,7 @@ final class ShortcutEngine: ObservableObject {
 
     private func dismissEverything() {
         dismissPanel()
-        search.isVisible = false
+        state.search.isVisible = false
         surface.close()
     }
 
@@ -1068,30 +938,30 @@ final class ShortcutEngine: ObservableObject {
             refreshAfterLatchedChange()
             return
         }
-        guard !prefix.isEmpty else {
+        guard !state.prefix.isEmpty else {
             dismissPanel()
             return
         }
-        let next = prefix.droppingLastStep()
+        let next = state.prefix.droppingLastStep()
         if next.isEmpty {
             dismissPanel()
             return
         }
-        prefix = next
+        state.prefix = next
         rebuildPanel()
     }
 
     private func complete(_ item: BindingItem, probe: KeyChord) {
         usageStore.record(usageKey: item.usageKey)
         ensurePage(containing: item.id)
-        panel.completedRowID = item.id
+        state.panel.completedRowID = item.id
         rebuildPanel()
 
-        completionTask?.cancel()
-        completionTask = Task { [weak self] in
+        state.completionTask?.cancel()
+        state.completionTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 380_000_000)
             guard !Task.isCancelled, let self else { return }
-            self.panel.completedRowID = nil
+            self.state.panel.completedRowID = nil
             self.dismissPanel()
         }
     }
@@ -1101,12 +971,12 @@ final class ShortcutEngine: ObservableObject {
     /// In fill-screen mode the panel can show everything at once, so the page grows with the
     /// screen instead of sticking to the small-window row limit.
     private var panelPageSize: Int {
-        guard settings.panelPlacement == .fillScreen, let screen = NSScreen.main else {
-            return max(1, settings.maxItemsPerPage)
+        guard state.settings.panelPlacement == .fillScreen, let screen = NSScreen.main else {
+            return max(1, state.settings.maxItemsPerPage)
         }
         let columns = max(1, min(4, Int((screen.visibleFrame.width - Theme.padding * 2) / 300)))
         let usableRows = max(1, Int((screen.visibleFrame.height - 150) / Theme.rowHeight))
-        return max(settings.maxItemsPerPage, columns * usableRows)
+        return max(state.settings.maxItemsPerPage, columns * usableRows)
     }
 
     /// How many rows and headings the panel window must be sized for: the widest list this
@@ -1120,28 +990,28 @@ final class ShortcutEngine: ObservableObject {
     /// stale order or budget behind.
     private var favoritesPolicy: FavoritesPolicy {
         FavoritesPolicy(
-            showsFavoritesOnly: showsFavoritesOnly,
-            pinToTop: settings.pinFavoritesToTop,
-            canBeFiltered: settings.favoritesCanBeFiltered
+            showsFavoritesOnly: state.showsFavoritesOnly,
+            pinToTop: state.settings.pinFavoritesToTop,
+            canBeFiltered: state.settings.favoritesCanBeFiltered
         )
     }
 
     private func unnarrowedBudget() -> (rows: Int, headings: Int) {
         let key = RowBudgetKey(
-            scannedAt: catalog.scannedAt,
+            scannedAt: state.catalog.scannedAt,
             showsFavoritesOnly: favoritesPolicy.showsFavoritesOnly,
-            includeDisabled: settings.showDisabledItems,
+            includeDisabled: state.settings.showDisabledItems,
             ignoredSignature: ignoredSignature,
-            systemCount: systemBindings.count,
+            systemCount: state.systemBindings.count,
             pageSize: panelPageSize
         )
-        if let cached = rowBudgetCache, cached.key == key {
+        if let cached = state.rowBudgetCache, cached.key == key {
             return (cached.rows, cached.headings)
         }
         var hits = PrefixResolver.hits(
             for: .empty,
-            in: catalog.items,
-            includeDisabled: settings.showDisabledItems
+            in: state.catalog.items,
+            includeDisabled: state.settings.showDisabledItems
         ).filter { !isIgnored($0.item) }
         hits = favoritesPolicy.favoritesOnly(hits) { usageStore.isFavorite($0.item.usageKey) }
         let total = hits.count
@@ -1150,23 +1020,23 @@ final class ShortcutEngine: ObservableObject {
         // rows and the system section contributes a heading rather than extra rows on the
         // last page. `OverlayMetrics` adds the heading height on top of the row budget.
         // Two cards, so two title strips: the app's always, the system's when it has rows.
-        let headings = systemBindings.isEmpty ? 1 : 2
+        let headings = state.systemBindings.isEmpty ? 1 : 2
         guard total > 0 || headings > 0 else {
             // Nothing to size for yet (an app with no rows, or a scan still running): the
             // window falls back to the rows on screen instead of reserving a full page.
-            rowBudgetCache = (key, 0, 0)
+            state.rowBudgetCache = (key, 0, 0)
             return (0, 0)
         }
-        rowBudgetCache = (key, pageSize, headings)
+        state.rowBudgetCache = (key, pageSize, headings)
         return (pageSize, headings)
     }
 
     private func rebuildPanel() {
-        guard panel.isVisible else { return }
+        guard state.panel.isVisible else { return }
         let sequence = panelSequence()
         let pageSize = panelPageSize
         let pageCount = max(1, Int(ceil(Double(sequence.count) / Double(pageSize))))
-        let pageIndex = min(max(0, panel.pageIndex), pageCount - 1)
+        let pageIndex = min(max(0, state.panel.pageIndex), pageCount - 1)
         let pageEntries = Array(sequence.dropFirst(pageIndex * pageSize).prefix(pageSize))
         let pageHits = pageEntries.map(\.hit)
         let highlighted = highlightedIDs(for: pageHits)
@@ -1174,14 +1044,14 @@ final class ShortcutEngine: ObservableObject {
         // Both sections get a card, and a card needs a name: the app's own section is the one
         // the title bar names, so the same name heads it — with the count the title bar has
         // no room for.
-        let sectionTitle = appName.isEmpty ? (appContext.frontmost?.name ?? "") : appName
+        let sectionTitle = state.appName.isEmpty ? (appContext.frontmost?.name ?? "") : state.appName
 
         let specs: [PanelRowBuilder.Spec] = pageEntries.map { entry in
             let hit = entry.hit
             return PanelRowBuilder.Spec(
                 id: hit.id,
                 keySegments: keySegments(for: hit),
-                title: DescriptionCleaner.truncate(hit.item.title, maxLength: settings.maxDescriptionLength),
+                title: DescriptionCleaner.truncate(hit.item.title, maxLength: state.settings.maxDescriptionLength),
                 // The system card's header already names the section, so repeating it in
                 // every row's note column would be the same word 79 times.
                 note: entry.isSystem ? "" : menuPath(of: hit.item),
@@ -1191,11 +1061,11 @@ final class ShortcutEngine: ObservableObject {
                 groupTitle: entry.isSystem ? systemTitle : sectionTitle,
                 // The chevron and the click share one answer: a row without a chevron is a
                 // shortcut the user can run (`KeyChord.isFinalStroke`).
-                isGroup: !hit.item.chord.isFinalStroke(after: prefix),
+                isGroup: !hit.item.chord.isFinalStroke(after: state.prefix),
                 isEnabled: hit.item.isEnabled,
-                hasConflict: conflictIDs.contains(hit.item.id),
+                hasConflict: state.conflictIDs.contains(hit.item.id),
                 isHighlighted: highlighted.contains(hit.item.id),
-                isCompleted: panel.completedRowID == hit.item.id,
+                isCompleted: state.panel.completedRowID == hit.item.id,
                 isFavorite: usageStore.isFavorite(hit.item.usageKey)
             )
         }
@@ -1211,7 +1081,7 @@ final class ShortcutEngine: ObservableObject {
         // slice on screen — "15" was the count of the page, not of the section.
         let systemTotal = sequence.reduce(0) { $0 + ($1.isSystem ? 1 : 0) }
         let appTotal = sequence.count - systemTotal
-        panel.groups = built.groups.map { group in
+        state.panel.groups = built.groups.map { group in
             PanelGroup(
                 id: group.id,
                 title: group.title,
@@ -1219,23 +1089,23 @@ final class ShortcutEngine: ObservableObject {
                 totalCount: group.title == systemTitle ? systemTotal : appTotal
             )
         }
-        panel.flatRowIDs = built.flatRowIDs
-        panel.rowBudget = budget.rows
-        panel.headingBudget = budget.headings
-        panel.selectionIndex = PanelSelection.resolved(
-            previous: panel.selectionIndex,
+        state.panel.flatRowIDs = built.flatRowIDs
+        state.panel.rowBudget = budget.rows
+        state.panel.headingBudget = budget.headings
+        state.panel.selectionIndex = PanelSelection.resolved(
+            previous: state.panel.selectionIndex,
             rowCount: built.flatRowIDs.count
         )
-        panel.prefixLabels = KeyFormatter.breadcrumb(for: prefix, style: settings.keyStyle)
-        panel.pageIndex = pageIndex
-        panel.pageCount = pageCount
-        panel.totalCount = sequence.count
-        panel.appName = appName.isEmpty ? (appContext.frontmost?.name ?? "") : appName
-        panel.hasConflicts = !conflicts.isEmpty
-        panel.showsFavoritesOnly = showsFavoritesOnly
-        panel.usedBuiltInCatalog = usedBuiltInCatalog
-        panel.isPinned = phase == .active
-        surface.presentPanel(state: panel, settings: settings)
+        state.panel.prefixLabels = KeyFormatter.breadcrumb(for: state.prefix, style: state.settings.keyStyle)
+        state.panel.pageIndex = pageIndex
+        state.panel.pageCount = pageCount
+        state.panel.totalCount = sequence.count
+        state.panel.appName = state.appName.isEmpty ? (appContext.frontmost?.name ?? "") : state.appName
+        state.panel.hasConflicts = !state.conflicts.isEmpty
+        state.panel.showsFavoritesOnly = state.showsFavoritesOnly
+        state.panel.usedBuiltInCatalog = state.usedBuiltInCatalog
+        state.panel.isPinned = state.phase == .active
+        surface.presentPanel(state: state.panel, settings: state.settings)
     }
 
     /// Hits in ranked order; shared by rendering and by "jump to the page of this row".
@@ -1243,32 +1113,32 @@ final class ShortcutEngine: ObservableObject {
         IgnoredCommands.isIgnored(
             item.title,
             bundleID: item.appBundleID,
-            in: settings.ignoredCommands
+            in: state.settings.ignoredCommands
         )
     }
 
     /// Changes whenever the rules change in any way, including an edit that keeps the count.
     private var ignoredSignature: String {
-        settings.ignoredCommands.map(\.id).joined(separator: ",")
+        state.settings.ignoredCommands.map(\.id).joined(separator: ",")
     }
 
     private func orderedHits() -> [PrefixHit] {
         let cacheKey = OrderedHitsKey(
-            prefix: prefix,
-            heldModifiers: panel.heldModifiers,
-            latchedModifiers: panel.latchedModifiers,
-            scannedAt: catalog.scannedAt,
+            prefix: state.prefix,
+            heldModifiers: state.panel.heldModifiers,
+            latchedModifiers: state.panel.latchedModifiers,
+            scannedAt: state.catalog.scannedAt,
             favorites: favoritesPolicy,
-            includeDisabled: settings.showDisabledItems,
+            includeDisabled: state.settings.showDisabledItems,
             ignoredSignature: ignoredSignature
         )
-        if let cached = orderedHitsCache, cached.key == cacheKey {
+        if let cached = state.orderedHitsCache, cached.key == cacheKey {
             return cached.hits
         }
         let hits = PrefixResolver.hits(
-            for: prefix,
-            in: catalog.items,
-            includeDisabled: settings.showDisabledItems
+            for: state.prefix,
+            in: state.catalog.items,
+            includeDisabled: state.settings.showDisabledItems
         ).filter { !isIgnored($0.item) }
         // The panel is ordered by the shortcut itself, not by a score and not by the menu it
         // came from: ⌘C, ⌘V and ⌘X belong together. The modifiers being composed decide which
@@ -1280,7 +1150,7 @@ final class ShortcutEngine: ObservableObject {
         }
         sorted = favoritesPolicy.favoritesOnly(sorted) { usageStore.isFavorite($0.item.usageKey) }
         sorted = favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.item.usageKey) }
-        orderedHitsCache = (cacheKey, sorted)
+        state.orderedHitsCache = (cacheKey, sorted)
         return sorted
     }
 
@@ -1291,10 +1161,10 @@ final class ShortcutEngine: ObservableObject {
     /// "jump to the page of this row" walk exactly the sequence the panel draws.
     private func panelSequence() -> [PanelEntry] {
         let appHits = orderedHits()
-        guard prefix == .empty, !systemBindings.isEmpty else {
+        guard state.prefix == .empty, !state.systemBindings.isEmpty else {
             return PanelSections.combine(app: appHits, system: [])
         }
-        let items = favoritesPolicy.favoritesOnly(systemBindings) { usageStore.isFavorite($0.usageKey) }
+        let items = favoritesPolicy.favoritesOnly(state.systemBindings) { usageStore.isFavorite($0.usageKey) }
         var sorted = PanelOrdering.sorted(items, emphasizing: pending.effective)
         sorted = favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.usageKey) }
         return PanelSections.combine(app: appHits, system: PanelSections.hits(for: sorted))
@@ -1308,7 +1178,7 @@ final class ShortcutEngine: ObservableObject {
     private func highlightedIDs(for pageHits: [PrefixHit]) -> Set<String> {
         PanelHighlighter.highlightedIDs(
             items: pageHits.map(\.item),
-            prefix: prefix,
+            prefix: state.prefix,
             heldModifiers: pending.effective
         )
     }
@@ -1328,14 +1198,14 @@ final class ShortcutEngine: ObservableObject {
             return [KeyFormatter.Segment(kind: .key, text: KeyFormatter.noShortcutPlaceholder)]
         }
         let shown: KeyChord
-        if prefix.isEmpty || prefix.isModifierOnly {
+        if state.prefix.isEmpty || state.prefix.isModifierOnly {
             shown = hit.item.chord
-        } else if let step = hit.item.chord.step(after: prefix) {
+        } else if let step = hit.item.chord.step(after: state.prefix) {
             shown = KeyChord([step])
         } else {
             shown = .empty
         }
-        return KeyFormatter.segments(for: shown, style: settings.keyStyle)
+        return KeyFormatter.segments(for: shown, style: state.settings.keyStyle)
     }
 
     /// Menu-bar path ("File", "Format › Text") used as the row's annotation.
@@ -1346,14 +1216,14 @@ final class ShortcutEngine: ObservableObject {
     private func ensurePage(containing itemID: String) {
         let sequence = panelSequence()
         guard let index = sequence.firstIndex(where: { $0.id == itemID }) else { return }
-        panel.pageIndex = index / panelPageSize
+        state.panel.pageIndex = index / panelPageSize
     }
 
     // MARK: - Favourites and panel actions
 
     func toggleFavoritesFilter() {
-        showsFavoritesOnly.toggle()
-        panel.pageIndex = 0
+        state.showsFavoritesOnly.toggle()
+        state.panel.pageIndex = 0
         // No `selectionIndex = -1`: narrowing to one row has to leave that row selected, and
         // a selection that is still visible has to survive. `PanelSelection.resolved` decides.
         rebuildPanel()
@@ -1371,11 +1241,11 @@ final class ShortcutEngine: ObservableObject {
     private func toggleLatched(_ modifiers: ModifierSet) {
         let next = LatchedTicks.toggling(
             modifiers.ordered,
-            latched: panel.latchedModifiers,
-            order: panel.latchedOrder
+            latched: state.panel.latchedModifiers,
+            order: state.panel.latchedOrder
         )
-        panel.latchedModifiers = next.latched
-        panel.latchedOrder = next.order
+        state.panel.latchedModifiers = next.latched
+        state.panel.latchedOrder = next.order
         refreshAfterLatchedChange()
     }
 
@@ -1383,41 +1253,41 @@ final class ShortcutEngine: ObservableObject {
     @discardableResult
     private func popLatched() -> Bool {
         guard let next = LatchedTicks.popping(
-            latched: panel.latchedModifiers,
-            order: panel.latchedOrder
+            latched: state.panel.latchedModifiers,
+            order: state.panel.latchedOrder
         ) else { return false }
-        panel.latchedModifiers = next.latched
-        panel.latchedOrder = next.order
+        state.panel.latchedModifiers = next.latched
+        state.panel.latchedOrder = next.order
         return true
     }
 
     /// Re-seeds the prefix and redraws after the ticked set changed.
     private func refreshAfterLatchedChange() {
-        if prefix.isEmpty || prefix.isModifierOnly {
+        if state.prefix.isEmpty || state.prefix.isModifierOnly {
             let effective = pending.effective
-            prefix = effective.isEmpty ? .empty : .modifiers(effective)
+            state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
         }
-        orderedHitsCache = nil
-        panel.pageIndex = 0
+        state.orderedHitsCache = nil
+        state.panel.pageIndex = 0
         rebuildPanel()
         updateKeyCapture()
     }
 
     func toggleFavorite(rowID: String) {
-        let item = catalog.items.first(where: { $0.id == rowID })
-            ?? systemBindings.first(where: { $0.id == rowID })
+        let item = state.catalog.items.first(where: { $0.id == rowID })
+            ?? state.systemBindings.first(where: { $0.id == rowID })
         guard let item else { return }
         usageStore.toggleFavorite(item.usageKey)
         // A pin changes the order but not the press counter, so the cache has to be dropped.
-        orderedHitsCache = nil
+        state.orderedHitsCache = nil
         rebuildPanel()
     }
 
     /// Rows can come from the frontmost app's catalog, the app the browser window is
     /// showing, or the system hotkey list. One resolver keeps clicks and keys honest.
     private func item(forRowID rowID: String) -> BindingItem? {
-        catalog.items.first(where: { $0.id == rowID })
-            ?? systemBindings.first(where: { $0.id == rowID })
+        state.catalog.items.first(where: { $0.id == rowID })
+            ?? state.systemBindings.first(where: { $0.id == rowID })
     }
 
     /// The Accessibility element behind a row, taken from the snapshot that owns the row.
@@ -1428,14 +1298,14 @@ final class ShortcutEngine: ObservableObject {
     /// from the disk cache carries no elements, so its rows are resolved on demand by
     /// re-walking the menu path.
     private func element(forRowID rowID: String) -> AXUIElement? {
-        if search.scopeAppID != nil {
-            if let element = searchScopeCatalog.elements[rowID] { return element }
-            if let resolved = resolveCachedElement(in: &searchScopeCatalog, rowID: rowID) {
+        if state.search.scopeAppID != nil {
+            if let element = state.searchScopeCatalog.elements[rowID] { return element }
+            if let resolved = resolveCachedElement(in: &state.searchScopeCatalog, rowID: rowID) {
                 return resolved
             }
         }
-        if let element = catalog.elements[rowID] { return element }
-        if let resolved = resolveCachedElement(in: &catalog, rowID: rowID) { return resolved }
+        if let element = state.catalog.elements[rowID] { return element }
+        if let resolved = resolveCachedElement(in: &state.catalog, rowID: rowID) { return resolved }
         return nil
     }
 
@@ -1458,7 +1328,7 @@ final class ShortcutEngine: ObservableObject {
 
     func copyShortcut(rowID: String) {
         guard let item = item(forRowID: rowID) else { return }
-        let text = KeyFormatter.render(item.chord, style: settings.keyStyle)
+        let text = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
         // Copying an empty string would wipe the pasteboard and report success.
         guard !text.isEmpty else {
             hud.show(chord: "!", title: localization.text(.panelNothingToCopy))
@@ -1471,7 +1341,7 @@ final class ShortcutEngine: ObservableObject {
     /// still answers the click.
     func copyRow(rowID: String) {
         guard let item = item(forRowID: rowID) else { return }
-        let text = KeyFormatter.render(item.chord, style: settings.keyStyle)
+        let text = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
         // A command with no shortcut has nothing to put on the pasteboard; saying "copied"
         // after clearing it would be a lie the user only notices later.
         guard !text.isEmpty else {
@@ -1491,34 +1361,34 @@ final class ShortcutEngine: ObservableObject {
     }
 
     func nextPage() {
-        guard panel.pageIndex + 1 < panel.pageCount else { return }
-        panel.pageIndex += 1
-        panel.selectionIndex = -1
+        guard state.panel.pageIndex + 1 < state.panel.pageCount else { return }
+        state.panel.pageIndex += 1
+        state.panel.selectionIndex = -1
         rebuildPanel()
     }
 
     func previousPage() {
-        guard panel.pageIndex > 0 else { return }
-        panel.pageIndex -= 1
-        panel.selectionIndex = -1
+        guard state.panel.pageIndex > 0 else { return }
+        state.panel.pageIndex -= 1
+        state.panel.selectionIndex = -1
         rebuildPanel()
     }
 
     // MARK: - Panel execution
 
     func moveSelection(_ delta: Int) {
-        guard panel.isVisible, !panel.flatRowIDs.isEmpty else { return }
-        let last = panel.flatRowIDs.count - 1
-        panel.selectionIndex = min(max(-1, panel.selectionIndex + delta), last)
+        guard state.panel.isVisible, !state.panel.flatRowIDs.isEmpty else { return }
+        let last = state.panel.flatRowIDs.count - 1
+        state.panel.selectionIndex = min(max(-1, state.panel.selectionIndex + delta), last)
     }
 
     /// The run key / copy key pressed on the selected panel row.
     func performSelectedPanelRow(action: RowAction) {
-        guard panel.selectionIndex >= 0, panel.flatRowIDs.indices.contains(panel.selectionIndex) else {
+        guard state.panel.selectionIndex >= 0, state.panel.flatRowIDs.indices.contains(state.panel.selectionIndex) else {
             // The run key on a panel with nothing selected used to be indistinguishable from
             // a broken key: no execution, no copy, no log. Say why.
-            let index = panel.selectionIndex
-            let rows = panel.flatRowIDs.count
+            let index = state.panel.selectionIndex
+            let rows = state.panel.flatRowIDs.count
             let name = action.rawValue
             AppLog.input.notice(
                 "\(name, privacy: .public) key ignored: no row selected (index \(index), rows \(rows))"
@@ -1526,7 +1396,7 @@ final class ShortcutEngine: ObservableObject {
             Diag.info(.run, "\(name) key ignored: no row selected (index=\(index), rows=\(rows))")
             return
         }
-        performPanelRow(rowID: panel.flatRowIDs[panel.selectionIndex], action: action)
+        performPanelRow(rowID: state.panel.flatRowIDs[state.panel.selectionIndex], action: action)
     }
 
     /// A click and the run key share one contract: run or copy, as asked for.
@@ -1539,18 +1409,18 @@ final class ShortcutEngine: ObservableObject {
 
     /// Cursor moved over a row: make it the selected row so Return acts on it.
     func select(rowID: String) {
-        guard panel.isVisible, let index = panel.flatRowIDs.firstIndex(of: rowID) else { return }
-        guard panel.selectionIndex != index else { return }
-        panel.selectionIndex = index
+        guard state.panel.isVisible, let index = state.panel.flatRowIDs.firstIndex(of: rowID) else { return }
+        guard state.panel.selectionIndex != index else { return }
+        state.panel.selectionIndex = index
     }
 
     /// Click in the panel: close it and trigger the command in the front app — by pressing
     /// the menu item when there is one, by replaying the chord otherwise — the same
     /// contract as clicking a search result.
     func activate(rowID: String) {
-        if let item = catalog.items.first(where: { $0.id == rowID }) {
-            if !item.chord.isFinalStroke(after: prefix),
-               let step = item.chord.step(after: prefix),
+        if let item = state.catalog.items.first(where: { $0.id == rowID }) {
+            if !item.chord.isFinalStroke(after: state.prefix),
+               let step = item.chord.step(after: state.prefix),
                let key = step.key {
                 // Only a row with a level below it descends. A row showing the last stroke is
                 // a complete shortcut as far as the user is concerned — it is drawn without a
@@ -1560,9 +1430,9 @@ final class ShortcutEngine: ObservableObject {
                 // `hits` then dropped that row, because `nextKey(after:)` is nil once the
                 // prefix is the whole chord. The panel emptied itself instead of running.
                 AppLog.input.debug("descending one level for \(item.title, privacy: .public)")
-                prefix = PrefixResolver.probe(after: prefix, modifiers: step.modifiers, key: key)
-                panel.selectionIndex = -1
-                panel.pageIndex = 0
+                state.prefix = PrefixResolver.probe(after: state.prefix, modifiers: step.modifiers, key: key)
+                state.panel.selectionIndex = -1
+                state.panel.pageIndex = 0
                 rebuildPanel()
                 updateKeyCapture()
                 return
@@ -1573,7 +1443,7 @@ final class ShortcutEngine: ObservableObject {
             }
             usageStore.record(usageKey: item.usageKey)
             dismissPanel()
-            let rendered = KeyFormatter.render(item.chord, style: settings.keyStyle)
+            let rendered = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
             // Triggering the command is the point, so the menu item itself is pressed
             // first: it works for commands that have no shortcut at all, and for the ones
             // that do it is exactly what clicking the menu would do. Replaying the chord is
@@ -1584,7 +1454,7 @@ final class ShortcutEngine: ObservableObject {
                 Diag.debug(.run, "pressed menu item \(Sanitizer.clamp(item.title))")
                 // The panel has to show the toast too: the setting
                 // promises a confirmation and a run that vanishes without one reads as a failure.
-                if settings.showExecutedHUD {
+                if state.settings.showExecutedHUD {
                     hud.show(
                         chord: item.chord.isEmpty ? KeyFormatter.noShortcutPlaceholder : rendered,
                         title: item.title
@@ -1614,7 +1484,7 @@ final class ShortcutEngine: ObservableObject {
             Diag.action("panel.run.replay", target: item.appBundleID ?? appContext.frontmost?.bundleID)
             // The panel has to show the toast too: the setting
             // promises a confirmation and a run that vanishes without one reads as a failure.
-            if settings.showExecutedHUD {
+            if state.settings.showExecutedHUD {
                 hud.show(chord: rendered, title: item.title)
             }
             DispatchQueue.main.async {
@@ -1622,12 +1492,12 @@ final class ShortcutEngine: ObservableObject {
             }
             return
         }
-        if let system = systemBindings.first(where: { $0.id == rowID }) {
+        if let system = state.systemBindings.first(where: { $0.id == rowID }) {
             usageStore.record(usageKey: system.usageKey)
             dismissPanel()
             AppLog.input.info("replaying system hotkey into the front app")
-            if settings.showExecutedHUD {
-                hud.show(chord: KeyFormatter.render(system.chord, style: settings.keyStyle), title: system.title)
+            if state.settings.showExecutedHUD {
+                hud.show(chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle), title: system.title)
             }
             DispatchQueue.main.async {
                 ShortcutInjector.post(system.chord, delay: 0.12)
@@ -1657,13 +1527,13 @@ final class ShortcutEngine: ObservableObject {
     private func updateKeyCapture() {
         var identifiers: Set<UInt32> = []
         var capturedKeyCodes: Set<UInt16> = []
-        if panel.isVisible, phase == .active {
+        if state.panel.isVisible, state.phase == .active {
             // While the list is narrowed the user is physically holding the modifiers, so
             // every key the panel consumes arrives carrying them. Both spellings have to be
             // captured — the bare one and the one with the held set — or the panel answers a
             // key it never swallowed and the front app acts on it as well. ⌃↩ used to reach
             // the front app while the panel did nothing at all.
-            let held = panel.heldModifiers
+            let held = state.panel.heldModifiers
             func capture(_ keyCode: UInt16, _ modifiers: ModifierSet) {
                 identifiers.insert(KeyboardMonitor.identifier(keyCode: keyCode, modifiers: modifiers))
                 if !held.isEmpty {
@@ -1678,7 +1548,7 @@ final class ShortcutEngine: ObservableObject {
             // The two row keys, whatever they are recorded to, including the Enter alias.
             // Swallowing them keeps the front app from also acting on a chord the panel
             // has just handled.
-            for pair in RowKeyRouter.capturedIdentifiers(run: settings.runRowKey, copy: settings.copyRowKey) {
+            for pair in RowKeyRouter.capturedIdentifiers(run: state.settings.runRowKey, copy: state.settings.copyRowKey) {
                 capture(pair.keyCode, pair.modifiers)
             }
             // Esc closes the panel whatever the modifiers are.
@@ -1691,7 +1561,7 @@ final class ShortcutEngine: ObservableObject {
             capture(KeyCode.semicolon, [])
             capture(KeyCode.quote, [])
             // Backspace only belongs to the panel while navigating a chord.
-            if !prefix.isEmpty {
+            if !state.prefix.isEmpty {
                 capture(KeyCode.delete, [])
             }
             // A bare `/` is the panel's own key: it opens the palette. Without capturing it
@@ -1714,13 +1584,13 @@ final class ShortcutEngine: ObservableObject {
     func usageEntries(for bundleID: String) -> [UsageEntry] {
         let signature = [
             String(usageStore.totalPresses),
-            String(catalog.scannedAt.timeIntervalSince1970),
-            settings.language.rawValue,
+            String(state.catalog.scannedAt.timeIntervalSince1970),
+            state.settings.language.rawValue,
             // The order is part of the answer now: without the mode here, changing the
             // picker would keep serving the previous list from the cache.
-            settings.sortMode.rawValue
+            state.settings.sortMode.rawValue
         ].joined(separator: "|")
-        if let cached = usageBreakdownCache[bundleID], cached.signature == signature {
+        if let cached = state.usageBreakdownCache[bundleID], cached.signature == signature {
             return cached.entries
         }
         let joined = UsageBreakdown.entries(
@@ -1728,19 +1598,19 @@ final class ShortcutEngine: ObservableObject {
             records: usageStore.records,
             known: knownBindings(for: bundleID)
         )
-        let entries = UsageOrdering.entries(joined, mode: settings.sortMode)
-        usageBreakdownCache[bundleID] = (signature, entries)
+        let entries = UsageOrdering.entries(joined, mode: state.settings.sortMode)
+        state.usageBreakdownCache[bundleID] = (signature, entries)
         return entries
     }
 
     private func knownBindings(for bundleID: String) -> [BindingItem] {
         switch bundleID {
         case "system":
-            return systemBindings
+            return state.systemBindings
         case "*":
-            return BuiltInCatalog.items(language: L10n.resolvedLanguage(settings.language))
+            return BuiltInCatalog.items(language: L10n.resolvedLanguage(state.settings.language))
         default:
-            var items = catalog.items + externalBindings
+            var items = state.catalog.items + externalBindings
             items += MenuScanCache.cachedItems(identity: bundleID)
             return items
         }
@@ -1750,7 +1620,7 @@ final class ShortcutEngine: ObservableObject {
     /// nothing here is "browsing" any more.
     func refreshRunningApps() {
         appDirectory.refresh()
-        runningApps = appDirectory.apps
+        state.runningApps = appDirectory.apps
     }
 
     /// Command titles of a running app, for the ignored-command picker.
@@ -1759,8 +1629,8 @@ final class ShortcutEngine: ObservableObject {
     /// `CatalogLoader` — instead of forcing a scan: the picker is a convenience, and making it
     /// pay for a full AX walk of a big app would be felt as a hang in Settings.
     func commandTitles(for app: AppEntry, completion: @escaping ([String]) -> Void) {
-        if app.pid == appContext.frontmost?.pid, !catalog.items.isEmpty {
-            completion(catalog.items.map(\.title))
+        if app.pid == appContext.frontmost?.pid, !state.catalog.items.isEmpty {
+            completion(state.catalog.items.map(\.title))
             return
         }
         let target = FrontmostApp(
@@ -1771,9 +1641,9 @@ final class ShortcutEngine: ObservableObject {
         )
         catalogLoader.load(
             app: target,
-            language: settings.language,
+            language: state.settings.language,
             includeBuiltIn: false,
-            showAppleMenu: settings.showAppleMenu,
+            showAppleMenu: state.settings.showAppleMenu,
             force: false
         ) { snapshot in
             completion(snapshot.items.map(\.title))
@@ -1781,27 +1651,27 @@ final class ShortcutEngine: ObservableObject {
     }
 
     private func reloadSystemHotkeys() {
-        systemBindings = SystemHotkeyReader.read(language: localization.language)
+        state.systemBindings = SystemHotkeyReader.read(language: localization.language)
         if isPreviewing {
             // "Named" means the name table knew the chord; the rest render as an em dash, so
             // counting non-empty titles would report 79 of 79 named and tell us nothing.
-            let named = systemBindings.filter { $0.title != DescriptionCleaner.placeholder }.count
-            Diag.info(.ui, "system hotkeys: \(systemBindings.count) read, \(named) named, first: \(systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
+            let named = state.systemBindings.filter { $0.title != DescriptionCleaner.placeholder }.count
+            Diag.info(.ui, "system hotkeys: \(state.systemBindings.count) read, \(named) named, first: \(state.systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
         }
-        searchCorpus = nil
-        conflicts = ConflictDetector.conflicts(in: catalog.items, external: externalBindings)
-        conflictIDs = Set(conflicts.flatMap { $0.items.map(\.id) })
+        state.searchCorpus = nil
+        state.conflicts = ConflictDetector.conflicts(in: state.catalog.items, external: externalBindings)
+        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
         resetOwnerFilterIfGone()
     }
 
     /// A filter pointing at an owner that no longer appears would show an empty page with no
     /// explanation; fall back to "all" instead.
     private func resetOwnerFilterIfGone() {
-        if conflictOwner != .all, !conflictOwnerOptions.contains(conflictOwner) {
-            conflictOwner = .all
+        if state.conflictOwner != .all, !conflictOwnerOptions.contains(state.conflictOwner) {
+            state.conflictOwner = .all
         }
-        if let category = conflictCategory, !conflictTypeOptions.contains(where: { $0.category == category }) {
-            conflictCategory = nil
+        if let category = state.conflictCategory, !conflictTypeOptions.contains(where: { $0.category == category }) {
+            state.conflictCategory = nil
         }
     }
 
@@ -1811,11 +1681,11 @@ final class ShortcutEngine: ObservableObject {
     /// difference between a Conflicts page that opens instantly and one that scans fifteen
     /// apps every time.
     func loadCachedCrossAppConflicts() {
-        guard crossAppConflicts.isEmpty, let payload = ConflictCache.load() else { return }
-        crossAppConflicts = payload.conflicts
+        guard state.crossAppConflicts.isEmpty, let payload = ConflictCache.load() else { return }
+        state.crossAppConflicts = payload.conflicts
             .map { BindingConflict(id: $0.chordKey, chordKey: $0.chordKey, items: $0.items) }
             .map { $0.scoped(to: $0.appBundleIDs.sorted().first) }
-        crossAppScannedAt = payload.scannedAt
+        state.crossAppScannedAt = payload.scannedAt
         resetOwnerFilterIfGone()
     }
 
@@ -1823,7 +1693,7 @@ final class ShortcutEngine: ObservableObject {
     /// nothing to show yet.
     func prepareCrossAppConflicts() {
         loadCachedCrossAppConflicts()
-        guard crossAppConflicts.isEmpty, !isScanningCrossApp else { return }
+        guard state.crossAppConflicts.isEmpty, !state.isScanningCrossApp else { return }
         rescanCrossAppConflicts()
     }
 
@@ -1834,38 +1704,38 @@ final class ShortcutEngine: ObservableObject {
     /// list of several hundred cards. The first is detached, the second is throttled to one
     /// publish a second — the page stays usable while it fills in.
     func rescanCrossAppConflicts() {
-        crossAppRefreshTask?.cancel()
+        state.crossAppRefreshTask?.cancel()
         let ownBundleID = Bundle.main.bundleIdentifier
-        let apps = runningApps.filter { $0.bundleID != ownBundleID }
+        let apps = state.runningApps.filter { $0.bundleID != ownBundleID }
         guard !apps.isEmpty else { return }
-        isScanningCrossApp = true
+        state.isScanningCrossApp = true
         lastCrossAppPublish = .distantPast
-        crossAppRefreshTask = Task { [weak self] in
+        state.crossAppRefreshTask = Task { [weak self] in
             guard let self else { return }
             let externals = self.externalBindings
             var builder = CrossAppConflictBuilder()
             builder.addGlobal(await Self.detectConflicts(in: [], externals: externals))
             for app in apps {
                 if Task.isCancelled {
-                    self.isScanningCrossApp = false
+                    self.state.isScanningCrossApp = false
                     return
                 }
                 let items = await self.catalogItems(for: app)
                 if Task.isCancelled {
-                    self.isScanningCrossApp = false
+                    self.state.isScanningCrossApp = false
                     return
                 }
                 builder.add(await Self.detectConflicts(in: items, externals: externals), keepingAppsOnly: true)
                 self.publishIfDue(builder.sorted())
             }
             let scannedAt = Date()
-            self.crossAppConflicts = builder.sorted()
-            self.crossAppScannedAt = scannedAt
-            self.isScanningCrossApp = false
+            self.state.crossAppConflicts = builder.sorted()
+            self.state.crossAppScannedAt = scannedAt
+            self.state.isScanningCrossApp = false
             self.resetOwnerFilterIfGone()
-            ConflictCache.save(self.crossAppConflicts, at: scannedAt)
-            let owners = Set(self.crossAppConflicts.flatMap(\.appBundleIDs)).count
-            Diag.info(.scan, "cross-app scan: \(self.crossAppConflicts.count) findings across \(owners) app(s)")
+            ConflictCache.save(self.state.crossAppConflicts, at: scannedAt)
+            let owners = Set(self.state.crossAppConflicts.flatMap(\.appBundleIDs)).count
+            Diag.info(.scan, "cross-app scan: \(self.state.crossAppConflicts.count) findings across \(owners) app(s)")
         }
     }
 
@@ -1877,7 +1747,7 @@ final class ShortcutEngine: ObservableObject {
         let now = Date()
         guard now.timeIntervalSince(lastCrossAppPublish) >= 1 else { return }
         lastCrossAppPublish = now
-        crossAppConflicts = conflicts
+        state.crossAppConflicts = state.conflicts
     }
 
     /// Conflict detection over one app's catalog, off the main thread.
@@ -1896,11 +1766,11 @@ final class ShortcutEngine: ObservableObject {
     /// in the rest, is worth more than a spinner. Results are published per app, so a slow
     /// app does not hold back the other nine.
     func refreshCrossAppConflicts() {
-        crossAppRefreshTask?.cancel()
+        state.crossAppRefreshTask?.cancel()
         let ownBundleID = Bundle.main.bundleIdentifier
-        let apps = runningApps.filter { $0.bundleID != ownBundleID }
+        let apps = state.runningApps.filter { $0.bundleID != ownBundleID }
         guard !apps.isEmpty else { return }
-        crossAppRefreshTask = Task { [weak self] in
+        state.crossAppRefreshTask = Task { [weak self] in
             guard let self else { return }
             var builder = CrossAppConflictBuilder()
             builder.addGlobal(ConflictDetector.conflicts(in: [], external: self.externalBindings))
@@ -1912,10 +1782,10 @@ final class ShortcutEngine: ObservableObject {
                     ConflictDetector.conflicts(in: items, external: self.externalBindings),
                     keepingAppsOnly: true
                 )
-                self.crossAppConflicts = builder.sorted()
+                self.state.crossAppConflicts = builder.sorted()
             }
             self.resetOwnerFilterIfGone()
-            Diag.info(.scan, "cross-app conflicts: \(self.crossAppConflicts.count) findings across \(apps.count) apps")
+            Diag.info(.scan, "cross-app conflicts: \(self.state.crossAppConflicts.count) findings across \(apps.count) apps")
         }
     }
 
@@ -1924,9 +1794,9 @@ final class ShortcutEngine: ObservableObject {
         await withCheckedContinuation { continuation in
             catalogLoader.load(
                 app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
-                language: settings.language,
+                language: state.settings.language,
                 includeBuiltIn: false,
-                showAppleMenu: settings.showAppleMenu,
+                showAppleMenu: state.settings.showAppleMenu,
                 force: false
             ) { snapshot in
                 continuation.resume(returning: snapshot.items)
@@ -1973,7 +1843,7 @@ final class ShortcutEngine: ObservableObject {
 
     /// Everything that is not part of the frontmost app's own menus but can still claim a
     /// combo: the system's own hotkeys plus whatever the config scanners found.
-    private var externalBindings: [BindingItem] { systemBindings + configBindings }
+    private var externalBindings: [BindingItem] { state.systemBindings + state.configBindings }
 
     /// Reads the third-party config tools, off the main actor.
     ///
@@ -1981,12 +1851,12 @@ final class ShortcutEngine: ObservableObject {
     /// not when they change apps, so a scan runs at launch and when it is asked for. Reading
     /// six files on every activation would be work whose result cannot have changed.
     func scanConfigFiles() {
-        configScanTask?.cancel()
-        let enabled = settings.scanConfigFiles
+        state.configScanTask?.cancel()
+        let enabled = state.settings.scanConfigFiles
         // The scan itself is the only part that leaves the main actor, and it takes nothing
         // but a Bool across: keeping `self` out of the detached closure is what lets the
         // result come back on the main actor without a data race to reason about.
-        configScanTask = Task { [weak self] in
+        state.configScanTask = Task { [weak self] in
             let result = await Task.detached(priority: .utility) {
                 enabled ? ConfigFileScanner.scan() : ConfigScanResult()
             }.value
@@ -1996,11 +1866,11 @@ final class ShortcutEngine: ObservableObject {
 
     private func applyConfigScan(_ result: ConfigScanResult) {
         guard !isPreviewing else { return }
-        configScan = result
-        configBindings = result.items
-        searchCorpus = nil
-        conflicts = ConflictDetector.conflicts(in: catalog.items, external: externalBindings)
-        conflictIDs = Set(conflicts.flatMap { $0.items.map(\.id) })
+        state.configScan = result
+        state.configBindings = result.items
+        state.searchCorpus = nil
+        state.conflicts = ConflictDetector.conflicts(in: state.catalog.items, external: externalBindings)
+        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
         resetOwnerFilterIfGone()
         AppLog.scan.info("config scan: \(result.totalCount) shortcuts")
     }
@@ -2011,8 +1881,8 @@ final class ShortcutEngine: ObservableObject {
     /// panel and the row badges use, while the Conflicts page answers "which app is this
     /// about" — a question you ask precisely when you are not in that app.
     var visibleConflicts: [BindingConflict] {
-        let filter = ConflictFilter(category: conflictCategory, owner: conflictOwner)
-        return crossAppConflicts.filter { filter.matches($0) }
+        let filter = ConflictFilter(category: state.conflictCategory, owner: state.conflictOwner)
+        return state.crossAppConflicts.filter { filter.matches($0) }
     }
 
     /// Kinds that actually appear in the current findings, worst first, with counts.
@@ -2021,7 +1891,7 @@ final class ShortcutEngine: ObservableObject {
     /// seven would be mostly empty answers.
     var conflictTypeOptions: [ConflictTypeOption] {
         var counts: [ConflictCategory: Int] = [:]
-        for conflict in crossAppConflicts {
+        for conflict in state.crossAppConflicts {
             counts[conflict.category, default: 0] += 1
         }
         return counts
@@ -2036,7 +1906,7 @@ final class ShortcutEngine: ObservableObject {
     var conflictOwnerOptions: [ConflictOwnerFilter] {
         var apps = Set<String>()
         var hasGlobal = false
-        for conflict in crossAppConflicts {
+        for conflict in state.crossAppConflicts {
             if conflict.isGlobalOnly { hasGlobal = true }
             apps.formUnion(conflict.appBundleIDs)
         }
@@ -2068,7 +1938,7 @@ final class ShortcutEngine: ObservableObject {
         if item.source == .system { return "macOS" }
         if let bundleID = item.appBundleID, let name = ownerName(forBundleID: bundleID) { return name }
         if item.appBundleID == nil { return item.appBundleID ?? "" }
-        return appName.isEmpty ? (item.appBundleID ?? item.title) : appName
+        return state.appName.isEmpty ? (item.appBundleID ?? item.title) : state.appName
     }
 
     // MARK: - Live shortcut test
@@ -2076,25 +1946,25 @@ final class ShortcutEngine: ObservableObject {
     func startLiveTest(for chord: KeyChord) {
         dismissPanel()
         shortcutTester.start(for: chord)
-        liveTestState = shortcutTester.state
+        state.liveTestState = shortcutTester.state
     }
 
     func cancelLiveTest() {
         shortcutTester.cancel()
-        liveTestState = shortcutTester.state
+        state.liveTestState = shortcutTester.state
     }
 
     /// The verdict of a finished test for `chord`, or nil when no test of it has run.
     func liveTestVerdict(for chord: KeyChord) -> LiveTestVerdict? {
         shortcutTester.verdict(
             for: chord,
-            items: catalog.items + externalBindings
+            items: state.catalog.items + externalBindings
         ) { [weak self] bundleID in self?.ownerName(forBundleID: bundleID) }
     }
 
     /// Mirrors the tester's countdown into published state so the UI can tick down.
     func refreshLiveTestState() {
-        liveTestState = shortcutTester.state
+        state.liveTestState = shortcutTester.state
     }
 
     /// The combo the tester is currently busy with, so a row knows whether the countdown on
@@ -2104,14 +1974,14 @@ final class ShortcutEngine: ObservableObject {
     /// Polls the tester while it is listening. The tester owns the timing and mutates its own
     /// state, so published state has to be pulled across rather than pushed from inside it.
     private func startLiveTestCountdown() {
-        liveTestPollingTask?.cancel()
-        liveTestPollingTask = Task { [weak self] in
+        state.liveTestPollingTask?.cancel()
+        state.liveTestPollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 guard let self else { return }
                 let current = self.shortcutTester.state
-                if self.liveTestState != current {
-                    self.liveTestState = current
+                if self.state.liveTestState != current {
+                    self.state.liveTestState = current
                 }
             }
         }
@@ -2130,8 +2000,8 @@ final class ShortcutEngine: ObservableObject {
     /// same search, so the query, the scope and the selection survive it — losing typed text
     /// to a view switch would make the switch not worth using.
     func showSearchFromPanel() {
-        guard panel.isVisible, !search.isVisible else { return }
-        Diag.info(.ui, "panel: `/` opens the search palette (query kept: \(search.query.isEmpty ? "no" : "yes"))")
+        guard state.panel.isVisible, !state.search.isVisible else { return }
+        Diag.info(.ui, "panel: `/` opens the search palette (query kept: \(state.search.query.isEmpty ? "no" : "yes"))")
         openSearch(keepingQuery: true)
     }
 
@@ -2141,9 +2011,9 @@ final class ShortcutEngine: ObservableObject {
     /// search field that refuses to accept a slash is a worse bug than a missing shortcut.
     /// This is the other half of the toggle, for when focus is elsewhere in the window.
     func returnToPanelFromSearch() {
-        guard search.isVisible else { return }
+        guard state.search.isVisible else { return }
         Diag.info(.ui, "search: `/` returns to the shortcut panel")
-        search.isVisible = false
+        state.search.isVisible = false
         surface.closeSearch()
         activatePanel()
     }
@@ -2151,30 +2021,30 @@ final class ShortcutEngine: ObservableObject {
     private func openSearch(keepingQuery: Bool) {
         dismissPanel()
         if !keepingQuery {
-            search.query = ""
+            state.search.query = ""
             // Always open on the frontmost app: a scope left over from the last session
             // would answer a question the user is not asking.
             selectSearchScope(nil)
-        } else if let pid = searchScopeProcessID,
+        } else if let pid = state.searchScopeProcessID,
                   NSRunningApplication(processIdentifier: pid)?.isTerminated != false {
             // A kept scope whose app has quit in the meantime would answer from a list that
             // can no longer be run; fall back to the frontmost app, keeping the query.
             selectSearchScope(nil)
         }
-        search.selection = 0
-        searchFocusToken += 1
+        state.search.selection = 0
+        state.searchFocusToken += 1
         refreshSearch()
-        search.isVisible = true
+        state.search.isVisible = true
         surface.presentSearch()
     }
 
     func hideSearch() {
-        search.isVisible = false
+        state.search.isVisible = false
         surface.closeSearch()
     }
 
     func toggleSearch() {
-        if search.isVisible {
+        if state.search.isVisible {
             hideSearch()
         } else {
             showSearch()
@@ -2182,24 +2052,24 @@ final class ShortcutEngine: ObservableObject {
     }
 
     func selectSearchResult(_ index: Int) {
-        guard search.results.indices.contains(index) else { return }
-        search.selection = index
+        guard state.search.results.indices.contains(index) else { return }
+        state.search.selection = index
     }
 
     func moveSearchSelection(_ delta: Int) {
-        guard !search.results.isEmpty else { return }
-        let next = search.selection + delta
-        search.selection = min(max(0, next), search.results.count - 1)
+        guard !state.search.results.isEmpty else { return }
+        let next = state.search.selection + delta
+        state.search.selection = min(max(0, next), state.search.results.count - 1)
     }
 
     /// Click in the search palette: close it, return to the previous app and replay the
     /// shortcut there.
     func activateSearchResult(_ index: Int) {
-        guard search.results.indices.contains(index) else { return }
-        let item = search.results[index]
+        guard state.search.results.indices.contains(index) else { return }
+        let item = state.search.results[index]
         // With a scope, the app to run in is the one being searched — it is usually *not* in
         // front, because the palette took the keyboard from whatever was.
-        let scoped = searchScopeProcessID.flatMap { NSRunningApplication(processIdentifier: $0) }
+        let scoped = state.searchScopeProcessID.flatMap { NSRunningApplication(processIdentifier: $0) }
         let target = scoped ?? surface.searchTargetApplication ?? NSWorkspace.shared.frontmostApplication
         hideSearch()
         if let scoped, !scoped.isActive {
@@ -2249,46 +2119,46 @@ final class ShortcutEngine: ObservableObject {
     /// Return in the search palette behaves exactly like a click: close it, return to
     /// the front app and replay the shortcut there.
     func confirmSearchSelection() {
-        guard search.results.indices.contains(search.selection) else { return }
-        activateSearchResult(search.selection)
+        guard state.search.results.indices.contains(state.search.selection) else { return }
+        activateSearchResult(state.search.selection)
     }
 
     /// Rows the palette searches: the scoped app's commands, or the frontmost app's plus the
     /// system's own hotkeys.
     private var searchItems: [BindingItem] {
-        search.scopeAppID == nil ? catalog.items + systemBindings : search.scopeItems
+        state.search.scopeAppID == nil ? state.catalog.items + state.systemBindings : state.search.scopeItems
     }
 
     /// Points the palette at another app, or back at the frontmost one with nil.
     func selectSearchScope(_ appID: String?) {
-        guard appID != search.scopeAppID else { return }
-        search.scopeAppID = appID
-        search.scopeName = ""
-        search.scopeItems = []
-        searchScopeIcon = nil
-        searchScopeProcessID = nil
-        searchScopeCatalog = .empty
-        searchCorpus = nil
-        guard let appID, let app = runningApps.first(where: { $0.id == appID }) else {
+        guard appID != state.search.scopeAppID else { return }
+        state.search.scopeAppID = appID
+        state.search.scopeName = ""
+        state.search.scopeItems = []
+        state.searchScopeIcon = nil
+        state.searchScopeProcessID = nil
+        state.searchScopeCatalog = .empty
+        state.searchCorpus = nil
+        guard let appID, let app = state.runningApps.first(where: { $0.id == appID }) else {
             refreshSearch()
             return
         }
-        search.scopeName = app.name
-        searchScopeIcon = app.icon
-        searchScopeProcessID = app.pid
+        state.search.scopeName = app.name
+        state.searchScopeIcon = app.icon
+        state.searchScopeProcessID = app.pid
         refreshSearch()
         // Cache first: switching scope should feel like flipping a page, not like a scan.
         catalogLoader.load(
             app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
-            language: settings.language,
+            language: state.settings.language,
             includeBuiltIn: false,
-            showAppleMenu: settings.showAppleMenu,
+            showAppleMenu: state.settings.showAppleMenu,
             force: false
         ) { [weak self] snapshot in
-            guard let self, self.search.scopeAppID == appID else { return }
-            self.search.scopeItems = snapshot.items
-            self.searchScopeCatalog = snapshot
-            self.searchCorpus = nil
+            guard let self, self.state.search.scopeAppID == appID else { return }
+            self.state.search.scopeItems = snapshot.items
+            self.state.searchScopeCatalog = snapshot
+            self.state.searchCorpus = nil
             self.refreshSearch()
         }
     }
@@ -2296,14 +2166,14 @@ final class ShortcutEngine: ObservableObject {
     /// Markdown for what the palette is showing: the matches when there is a query, the
     /// scope's whole list when there is not.
     func makeSearchMarkdown() -> String {
-        let title = search.scopeName.isEmpty ? appName : search.scopeName
-        let items = search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let title = state.search.scopeName.isEmpty ? state.appName : state.search.scopeName
+        let items = state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? searchItems
-            : search.results
+            : state.search.results
         return MarkdownExporter.render(
             appName: title,
             items: items,
-            style: settings.keyStyle,
+            style: state.settings.keyStyle,
             language: localization.language
         )
     }
@@ -2316,27 +2186,27 @@ final class ShortcutEngine: ObservableObject {
         // the cache identity, so a scope switch (or its catalog arriving a moment later)
         // cannot be answered from the previous app's documents.
         let corpusKey = [
-            search.scopeAppID ?? "-",
-            String(catalog.scannedAt.timeIntervalSince1970),
-            String(searchScopeCatalog.scannedAt.timeIntervalSince1970),
+            state.search.scopeAppID ?? "-",
+            String(state.catalog.scannedAt.timeIntervalSince1970),
+            String(state.searchScopeCatalog.scannedAt.timeIntervalSince1970),
             String(searchItems.count),
-            settings.keyStyle.rawValue,
+            state.settings.keyStyle.rawValue,
             localization.language.rawValue
         ].joined(separator: "|")
-        if searchCorpus == nil || searchCorpusKey != corpusKey {
-            searchCorpus = SearchCorpus(items: searchItems, style: settings.keyStyle)
-            searchCorpusKey = corpusKey
+        if state.searchCorpus == nil || state.searchCorpusKey != corpusKey {
+            state.searchCorpus = SearchCorpus(items: searchItems, style: state.settings.keyStyle)
+            state.searchCorpusKey = corpusKey
         }
         // A query that spells out a combo gets a direct answer about who owns it, even when
         // the answer is "one thing, so no conflict" — which is exactly the case the conflict
         // list stays silent about.
-        search.comboAnswer = ComboLookup.answer(forQuery: search.query, in: searchItems + externalBindings)
+        state.search.comboAnswer = ComboLookup.answer(forQuery: state.search.query, in: searchItems + externalBindings)
         // An empty field means "show this app's list", not "show the first 60 of it".
-        let isEmptyQuery = search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        var results = (searchCorpus?.search(search.query, limit: isEmptyQuery ? 400 : 60) ?? [])
+        let isEmptyQuery = state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        var results = (state.searchCorpus?.search(state.search.query, limit: isEmptyQuery ? 400 : 60) ?? [])
             .filter { !isIgnored($0) }
         if !favoritesPolicy.canBeFiltered,
-           !search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+           !state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let existing = Set(results.map(\.id))
             let favorites = searchItems.filter {
                 usageStore.isFavorite($0.usageKey) && !isIgnored($0) && !existing.contains($0.id)
@@ -2344,13 +2214,13 @@ final class ShortcutEngine: ObservableObject {
             results.append(contentsOf: favorites)
         }
         results = favoritesPolicy.pinningFavoritesFirst(results) { usageStore.isFavorite($0.usageKey) }
-        search.results = results
+        state.search.results = results
         // The first match is always selected.
-        search.selection = 0
+        state.search.selection = 0
         if isPreviewing {
             // A screenshot cannot show which app's list it is showing; this line can.
             Diag.info(.ui, """
-                search: scope=\(search.scopeAppID ?? "frontmost") items=\(searchItems.count) \
+                search: scope=\(state.search.scopeAppID ?? "frontmost") items=\(searchItems.count) \
                 results=\(results.count) first=\(Sanitizer.clamp(results.first?.title ?? "-"))
                 """)
         }
@@ -2359,14 +2229,14 @@ final class ShortcutEngine: ObservableObject {
     // MARK: - Hotkey recording
 
     func beginRecording(_ target: HotkeyTarget) {
-        recordingTarget = target
+        state.recordingTarget = target
         dismissPanel()
         applyHotkeySwallowing()
     }
 
     func cancelRecording() {
-        guard recordingTarget != nil else { return }
-        recordingTarget = nil
+        guard state.recordingTarget != nil else { return }
+        state.recordingTarget = nil
         applyHotkeySwallowing()
     }
 
@@ -2377,14 +2247,14 @@ final class ShortcutEngine: ObservableObject {
         case .keyUp:
             return true
         case .interruption:
-            recordingTarget = nil
+            state.recordingTarget = nil
             applyHotkeySwallowing()
             return true
         case .keyDown:
             // A held key would otherwise be recorded as the binding and then fire.
             if event.isRepeat { return true }
             if event.keyCode == KeyCode.escape, event.modifiers.isEmpty {
-                recordingTarget = nil
+                state.recordingTarget = nil
                 applyHotkeySwallowing()
                 return true
             }
@@ -2419,7 +2289,7 @@ final class ShortcutEngine: ObservableObject {
             case .copyRow:
                 settingsStore.settings.copyRowKey = spec
             }
-            recordingTarget = nil
+            state.recordingTarget = nil
             applyHotkeySwallowing()
             return true
         }
@@ -2428,7 +2298,7 @@ final class ShortcutEngine: ObservableObject {
     // MARK: - Commands from the UI
 
     func togglePinnedPanel() {
-        if panel.isVisible, phase == .active {
+        if state.panel.isVisible, state.phase == .active {
             dismissPanel()
             return
         }
@@ -2437,10 +2307,10 @@ final class ShortcutEngine: ObservableObject {
 
     /// One shortcut that swaps between the panel and the search palette.
     func toggleShortcutSurface() {
-        if search.isVisible {
+        if state.search.isVisible {
             hideSearch()
             activatePanel()
-        } else if panel.isVisible, phase == .active {
+        } else if state.panel.isVisible, state.phase == .active {
             dismissPanel()
             showSearch()
         } else {
@@ -2454,7 +2324,7 @@ final class ShortcutEngine: ObservableObject {
 
     func resetUsage() {
         usageStore.reset()
-        orderedHitsCache = nil
+        state.orderedHitsCache = nil
         rebuildPanel()
     }
 
@@ -2477,28 +2347,28 @@ final class ShortcutEngine: ObservableObject {
             "bundlePath": Bundle.main.bundlePath,
             "macOS": ProcessInfo.processInfo.operatingSystemVersionString,
             "schemaVersion": AppSettingsSnapshot.currentSchemaVersion,
-            "hasAccessibility": hasAccessibility,
-            "hasInputMonitoring": hasInputMonitoring,
-            "isListening": isListening,
-            "catalogSize": catalogSize,
-            "frontmost": appName,
+            "hasAccessibility": state.hasAccessibility,
+            "hasInputMonitoring": state.hasInputMonitoring,
+            "isListening": state.isListening,
+            "catalogSize": state.catalogSize,
+            "frontmost": state.appName,
             "frontmostBundleID": appContext.frontmost?.bundleID ?? "",
-            "usedBuiltInCatalog": usedBuiltInCatalog,
+            "usedBuiltInCatalog": state.usedBuiltInCatalog,
             // The three numbers a "Return did nothing" report needs: was a row selected, how
             // many rows were there, and what prefix was the panel matching against.
-            "panelSelectionIndex": panel.selectionIndex,
-            "panelRowCount": panel.flatRowIDs.count,
-            "prefix": KeyFormatter.render(prefix, style: settings.keyStyle),
-            "scanDuration": scanDuration,
+            "panelSelectionIndex": state.panel.selectionIndex,
+            "panelRowCount": state.panel.flatRowIDs.count,
+            "prefix": KeyFormatter.render(state.prefix, style: state.settings.keyStyle),
+            "scanDuration": state.scanDuration,
             "scanState": {
-                switch scanState {
+                switch state.scanState {
                 case .ok: return "ok"
                 case .noMenus: return "noMenus"
                 case .permissionDenied: return "permissionDenied"
                 }
             }(),
-            "conflicts": conflicts.count,
-            "systemHotkeys": systemBindings.count,
+            "conflicts": state.conflicts.count,
+            "systemHotkeys": state.systemBindings.count,
             "usageTracked": usageStore.trackedCount,
             "usageTotalPresses": usageStore.totalPresses,
             "favorites": usageStore.favorites.count,
@@ -2553,8 +2423,8 @@ final class ShortcutEngine: ObservableObject {
         settingsStore.settings.sortMode = .smart
         // The screenshot host may not have granted Accessibility to a binary launched from a
         // shell; the banner it would draw is not what the window looks like in normal use.
-        hasAccessibility = true
-        hasInputMonitoring = true
+        state.hasAccessibility = true
+        state.hasInputMonitoring = true
         reloadSystemHotkeys()
         var items = BuiltInCatalog.items(language: .english).filter { $0.appBundleID == nil }
         // The screenshots have to show the row kind this build added: a menu command with
@@ -2587,9 +2457,9 @@ final class ShortcutEngine: ObservableObject {
                 axPath: "0,0,9"
             )
         ])
-        appName = "Safari"
-        appIcon = NSWorkspace.shared.icon(forFile: "/Applications/Safari.app")
-        catalog = CatalogSnapshot(
+        state.appName = "Safari"
+        state.appIcon = NSWorkspace.shared.icon(forFile: "/Applications/Safari.app")
+        state.catalog = CatalogSnapshot(
             items: items,
             elements: [:],
             hasMenuBar: true,
@@ -2598,12 +2468,12 @@ final class ShortcutEngine: ObservableObject {
             state: .ok,
             usedBuiltInCatalog: false
         )
-        catalogSize = items.count
-        conflicts = ConflictDetector.conflicts(in: items, external: externalBindings)
-        conflictIDs = Set(conflicts.flatMap { $0.items.map(\.id) })
+        state.catalogSize = items.count
+        state.conflicts = ConflictDetector.conflicts(in: items, external: externalBindings)
+        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
         // The screenshot has no running apps to scan; show the sample set on the conflicts
         // page instead of an empty one.
-        crossAppConflicts = conflicts.map { $0.scoped(to: $0.appBundleIDs.sorted().first) }
+        state.crossAppConflicts = state.conflicts.map { $0.scoped(to: $0.appBundleIDs.sorted().first) }
 
         switch mode {
         case "settings", "settings-ranking", "settings-statistics", "settings-conflicts", "settings-diagnostics", "settings-tall":
@@ -2620,6 +2490,7 @@ final class ShortcutEngine: ObservableObject {
             let hosting = NSHostingView(
                 rootView: SettingsView(initialTab: Self.previewSettingsTab(for: mode))
                     .environmentObject(self)
+                    .environmentObject(state)
                     .environmentObject(settingsStore)
                     .environmentObject(usageStore)
                     .environmentObject(localization)
@@ -2646,8 +2517,8 @@ final class ShortcutEngine: ObservableObject {
             // Documents the narrowed state: ⌘ is down, so only the ⌘ shortcuts are left and
             // their ⌘ glyph is lit rather than stripped from the chord.
             activatePanel()
-            panel.heldModifiers = [.command]
-            prefix = .modifiers([.command])
+            state.panel.heldModifiers = [.command]
+            state.prefix = .modifiers([.command])
             rebuildPanel()
         case "overlay-chips":
             // Documents the title bar's modifier chips: ⌘ and ⇧ ticked.
@@ -2667,7 +2538,7 @@ final class ShortcutEngine: ObservableObject {
             // clickable rows with a dash in the key column, triggered by pressing the
             // menu item itself rather than by typing.
             activatePanel()
-            panel.pageIndex = max(0, panel.pageCount - 1)
+            state.panel.pageIndex = max(0, state.panel.pageCount - 1)
             rebuildPanel()
         case "overlay-system":
             // Documents the boundary between the app's section and the system's: the last page
@@ -2679,7 +2550,7 @@ final class ShortcutEngine: ObservableObject {
                 // Jump to the page that holds the boundary itself, not to the last page: the
                 // heading is what this screenshot is about.
                 let boundary = PanelSections.boundary(in: self.panelSequence()) ?? 0
-                self.panel.pageIndex = boundary / self.panelPageSize
+                self.state.panel.pageIndex = boundary / self.panelPageSize
                 self.rebuildPanel()
             }
         case "panel-search":
@@ -2687,20 +2558,20 @@ final class ShortcutEngine: ObservableObject {
             // palette with the query it was left with, `/` again comes back, and a second
             // `/` lands on the same search rather than an empty one.
             activatePanel()
-            search.query = "copy"
+            state.search.query = "copy"
             refreshSearch()
-            let firstCount = search.results.count
+            let firstCount = state.search.results.count
             showSearchFromPanel()
             Diag.info(.ui, """
-                toggle: panel->search visible=\(search.isVisible) query=\(Sanitizer.clamp(search.query)) \
-                results=\(search.results.count)
+                toggle: panel->search visible=\(state.search.isVisible) query=\(Sanitizer.clamp(state.search.query)) \
+                results=\(state.search.results.count)
                 """)
             returnToPanelFromSearch()
-            Diag.info(.ui, "toggle: search->panel visible=\(panel.isVisible) searchVisible=\(search.isVisible)")
+            Diag.info(.ui, "toggle: search->panel visible=\(state.panel.isVisible) searchVisible=\(state.search.isVisible)")
             showSearchFromPanel()
             Diag.info(.ui, """
-                toggle: reopened query=\(Sanitizer.clamp(search.query)) \
-                results=\(search.results.count) first=\(Sanitizer.clamp(search.results.first?.title ?? "-")) \
+                toggle: reopened query=\(Sanitizer.clamp(state.search.query)) \
+                results=\(state.search.results.count) first=\(Sanitizer.clamp(state.search.results.first?.title ?? "-")) \
                 before=\(firstCount)
                 """)
             // The palette must recognise its own field, or `/` would bounce straight back.
@@ -2712,13 +2583,13 @@ final class ShortcutEngine: ObservableObject {
             // Documents the scoped palette: the title, icon and list belong to the chosen app,
             // not to the one that happened to be in front.
             showSearch()
-            if let app = runningApps.first(where: { $0.bundleID != Bundle.main.bundleIdentifier }) {
+            if let app = state.runningApps.first(where: { $0.bundleID != Bundle.main.bundleIdentifier }) {
                 selectSearchScope(app.id)
             }
-            search.query = ""
+            state.search.query = ""
         case "search":
             showSearch()
-            search.query = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_QUERY"] ?? "copy"
+            state.search.query = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_QUERY"] ?? "copy"
         default:
             activatePanel()
         }

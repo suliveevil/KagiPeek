@@ -8,6 +8,7 @@ import SwiftUI
 /// and find out for real.
 struct ConflictRowView: View {
     @EnvironmentObject private var engine: ShortcutEngine
+    @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var localization: Localization
 
     let conflict: BindingConflict
@@ -94,7 +95,7 @@ struct ConflictRowView: View {
 
     @ViewBuilder
     private var liveTest: some View {
-        switch engine.liveTestState {
+        switch state.liveTestState {
         case .listening(let remaining):
             if isCurrentTest {
                 HStack(spacing: 8) {
