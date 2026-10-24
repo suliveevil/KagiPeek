@@ -109,3 +109,12 @@ deliverables/
 # was done here, not what the project is. (Not deleted — only untracked.)
 # ---------------------------------------------------------------------------
 .workbuddy/
+
+# ---------------------------------------------------------------------------
+# QwenWork session workspace
+#
+# Scratch area for QwenWork desktop sessions: canvas previews, review reports
+# and backup patches. Local by nature, like .workbuddy/ — it records what
+# happened in a session, not what the project is.
+# ---------------------------------------------------------------------------
+qwenwork/
