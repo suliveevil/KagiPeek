@@ -427,8 +427,7 @@ final class ShortcutEngine: ObservableObject {
             self.state.usedBuiltInCatalog = snapshot.usedBuiltInCatalog
             self.state.scanDuration = snapshot.readDuration
             self.state.scanState = snapshot.state
-            self.state.conflicts = ConflictDetector.conflicts(in: snapshot.items, external: self.externalBindings)
-            self.state.conflictIDs = Set(self.state.conflicts.flatMap { $0.items.map(\.id) })
+            self.recomputeConflicts(for: snapshot.items)
             self.state.panel.isScanning = false
             self.state.searchCorpus = nil
             self.state.orderedHitsCache = nil
@@ -1652,8 +1651,7 @@ final class ShortcutEngine: ObservableObject {
             Diag.info(.ui, "system hotkeys: \(state.systemBindings.count) read, \(named) named, first: \(state.systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
         }
         state.searchCorpus = nil
-        state.conflicts = ConflictDetector.conflicts(in: state.catalog.items, external: externalBindings)
-        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
+        recomputeConflicts(for: state.catalog.items)
         resetOwnerFilterIfGone()
     }
 
@@ -1743,6 +1741,14 @@ final class ShortcutEngine: ObservableObject {
         state.crossAppConflicts = conflicts
     }
 
+    /// One path for "the catalog changed, recompute the findings": callers differ only in
+    /// where the items came from, and the id set the panel and the conflicts page share
+    /// must never drift from the list it was built from.
+    private func recomputeConflicts(for items: [BindingItem]) {
+        state.conflicts = ConflictDetector.conflicts(in: items, external: externalBindings)
+        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
+    }
+
     /// Conflict detection over one app's catalog, off the main thread.
     private nonisolated static func detectConflicts(
         in items: [BindingItem],
@@ -1751,35 +1757,6 @@ final class ShortcutEngine: ObservableObject {
         await Task.detached(priority: .utility) {
             ConflictDetector.conflicts(in: items, external: externals)
         }.value
-    }
-
-    /// Rescans every running app's menus for the Conflicts page.
-    ///
-    /// Cache-first on purpose: a page that shows what was already read, then quietly fills
-    /// in the rest, is worth more than a spinner. Results are published per app, so a slow
-    /// app does not hold back the other nine.
-    func refreshCrossAppConflicts() {
-        state.crossAppRefreshTask?.cancel()
-        let ownBundleID = Bundle.main.bundleIdentifier
-        let apps = state.runningApps.filter { $0.bundleID != ownBundleID }
-        guard !apps.isEmpty else { return }
-        state.crossAppRefreshTask = Task { [weak self] in
-            guard let self else { return }
-            var builder = CrossAppConflictBuilder()
-            builder.addGlobal(ConflictDetector.conflicts(in: [], external: self.externalBindings))
-            for app in apps {
-                if Task.isCancelled { return }
-                let items = await self.catalogItems(for: app)
-                if Task.isCancelled { return }
-                builder.add(
-                    ConflictDetector.conflicts(in: items, external: self.externalBindings),
-                    keepingAppsOnly: true
-                )
-                self.state.crossAppConflicts = builder.sorted()
-            }
-            self.resetOwnerFilterIfGone()
-            Diag.info(.scan, "cross-app conflicts: \(self.state.crossAppConflicts.count) findings across \(apps.count) apps")
-        }
     }
 
     /// Catalog of one running app, cache first (`force: false`).
@@ -1862,8 +1839,7 @@ final class ShortcutEngine: ObservableObject {
         state.configScan = result
         state.configBindings = result.items
         state.searchCorpus = nil
-        state.conflicts = ConflictDetector.conflicts(in: state.catalog.items, external: externalBindings)
-        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
+        recomputeConflicts(for: state.catalog.items)
         resetOwnerFilterIfGone()
         AppLog.scan.info("config scan: \(result.totalCount) shortcuts")
     }
@@ -2368,16 +2344,14 @@ final class ShortcutEngine: ObservableObject {
         ["settings-ranking", "settings-statistics", "settings-conflicts", "settings-tall"].contains(mode)
     }
 
-    func startPreview(mode: String) {
-        isPreviewing = true
-        NSApp.appearance = NSAppearance(named: .darkAqua)
-        // English is fixed for documentation screenshots, but only in memory: writing it to
-        // settings.json is how a preview run used to leave the app speaking English.
+    /// Screenshot runs must not depend on the machine's own settings or language. The
+    /// overrides are in-memory only: writing them to settings.json is how a preview run
+    /// used to leave the app speaking English.
+    private func pinPreviewSettings() {
         settingsStore.beginPreviewSession()
         localization.update(preference: .english)
-        // Documentation screenshots must not depend on the settings of the machine that took
-        // them: fix the layout so the panel shows a full page instead of overflowing the
-        // screen with someone's 60-row, three-column configuration.
+        // Fix the layout so the panel shows a full page instead of overflowing the screen
+        // with someone's 60-row, three-column configuration.
         settingsStore.settings.language = .english
         settingsStore.settings.columnCount = 2
         settingsStore.settings.maxItemsPerPage = 24
@@ -2386,42 +2360,30 @@ final class ShortcutEngine: ObservableObject {
         settingsStore.settings.keyPosition = .right
         settingsStore.settings.showDisabledItems = false
         settingsStore.settings.sortMode = .smart
-        // The screenshot host may not have granted Accessibility to a binary launched from a
-        // shell; the banner it would draw is not what the window looks like in normal use.
+    }
+
+    /// The built-in catalog plus the one row kind this build added: menu commands with no
+    /// keyboard shortcut at all. Real menus are full of them — Safari's "Zoom" has no
+    /// chord — and they sort after every chord: clickable, with a dash in the key column,
+    /// and triggered by pressing the menu item itself.
+    private func previewSampleItems() -> [BindingItem] {
+        var items = BuiltInCatalog.items(language: .english).filter { $0.appBundleID == nil }
+        items.append(contentsOf: [
+            BindingItem(chord: .empty, title: "Zoom", group: ["Window"], source: .menu, appBundleID: "com.apple.Safari", axPath: "7,0,2"),
+            BindingItem(chord: .empty, title: "Clear History…", group: ["Safari"], source: .menu, appBundleID: "com.apple.Safari", axPath: "0,0,6"),
+            BindingItem(chord: .empty, title: "Block Pop-up Windows", group: ["Safari"], source: .menu, appBundleID: "com.apple.Safari", axPath: "0,0,9")
+        ])
+        return items
+    }
+
+    func startPreview(mode: String) {
+        isPreviewing = true
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        pinPreviewSettings()
         state.hasAccessibility = true
         state.hasInputMonitoring = true
         reloadSystemHotkeys()
-        var items = BuiltInCatalog.items(language: .english).filter { $0.appBundleID == nil }
-        // The screenshots have to show the row kind this build added: a menu command with
-        // no keyboard shortcut at all. Real menus are full of them — Safari's "Zoom" has
-        // no chord — and they sort after every chord: clickable, with a dash in the key
-        // column, and triggered by pressing the menu item itself.
-        items.append(contentsOf: [
-            BindingItem(
-                chord: .empty,
-                title: "Zoom",
-                group: ["Window"],
-                source: .menu,
-                appBundleID: "com.apple.Safari",
-                axPath: "7,0,2"
-            ),
-            BindingItem(
-                chord: .empty,
-                title: "Clear History…",
-                group: ["Safari"],
-                source: .menu,
-                appBundleID: "com.apple.Safari",
-                axPath: "0,0,6"
-            ),
-            BindingItem(
-                chord: .empty,
-                title: "Block Pop-up Windows",
-                group: ["Safari"],
-                source: .menu,
-                appBundleID: "com.apple.Safari",
-                axPath: "0,0,9"
-            )
-        ])
+        var items = previewSampleItems()
         state.appName = "Safari"
         state.appIcon = NSWorkspace.shared.icon(forFile: "/Applications/Safari.app")
         state.catalog = CatalogSnapshot(
@@ -2434,8 +2396,7 @@ final class ShortcutEngine: ObservableObject {
             usedBuiltInCatalog: false
         )
         state.catalogSize = items.count
-        state.conflicts = ConflictDetector.conflicts(in: items, external: externalBindings)
-        state.conflictIDs = Set(state.conflicts.flatMap { $0.items.map(\.id) })
+        recomputeConflicts(for: items)
         // The screenshot has no running apps to scan; show the sample set on the conflicts
         // page instead of an empty one.
         state.crossAppConflicts = state.conflicts.map { $0.scoped(to: $0.appBundleIDs.sorted().first) }
