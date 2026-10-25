@@ -144,23 +144,20 @@ final class KeyboardMonitor {
         guard tap == nil else { return }
         guard PermissionCenter.hasAccessibility else { throw KeyboardMonitorError.accessibilityDenied }
 
-        // Every base is an explicit CGEventMask: a chain of literal `1`s makes the type
-        // checker explore IntegerLiteral conversions across all ten terms at once, which
-        // Xcode 16.4's compiler cannot do in reasonable time.
-        let mask: CGEventMask =
-            (CGEventMask(1) << CGEventType.flagsChanged.rawValue) |
-            (CGEventMask(1) << CGEventType.keyDown.rawValue) |
-            (CGEventMask(1) << CGEventType.keyUp.rawValue) |
+        // Assembled statement-by-statement: one long `|` chain — even with typed bases —
+        // exceeds the type-check budget of Xcode 16.4 (the CI toolchain), while the
+        // split form compiles quickly everywhere.
+        let eventTypes: [CGEventType] = [
+            .flagsChanged, .keyDown, .keyUp,
             // The mouse is here for one reason: the click that dismisses the panel must not
             // also reach the app behind it. Everything else is passed straight through.
-            (CGEventMask(1) << CGEventType.leftMouseDown.rawValue) |
-            (CGEventMask(1) << CGEventType.leftMouseUp.rawValue) |
-            (CGEventMask(1) << CGEventType.rightMouseDown.rawValue) |
-            (CGEventMask(1) << CGEventType.rightMouseUp.rawValue) |
-            (CGEventMask(1) << CGEventType.otherMouseDown.rawValue) |
-            (CGEventMask(1) << CGEventType.otherMouseUp.rawValue) |
-            (CGEventMask(1) << CGEventType.tapDisabledByTimeout.rawValue) |
-            (CGEventMask(1) << CGEventType.tapDisabledByUserInput.rawValue)
+            .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+            .otherMouseDown, .otherMouseUp,
+            .tapDisabledByTimeout, .tapDisabledByUserInput
+        ]
+        let mask = eventTypes.reduce(CGEventMask(0)) { partial, eventType in
+            partial | (CGEventMask(1) << CGEventMask(eventType.rawValue))
+        }
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else { return Unmanaged.passUnretained(event) }
