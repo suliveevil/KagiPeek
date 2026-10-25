@@ -125,7 +125,9 @@ private struct PermissionCardView: View {
                         permission.performRequest()
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(tint)
+                    // Two grants of the same kind in two colours made the orange one read as
+                    // "riskier". The colour stays on the icon and the badge, where it groups.
+                    .tint(.accentColor)
                 }
             }
         }

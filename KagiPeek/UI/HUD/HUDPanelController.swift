@@ -32,6 +32,7 @@ final class HUDPanelController {
         effect.layer?.masksToBounds = true
 
         label.font = .systemFont(ofSize: 12.5, weight: .medium)
+        label.lineBreakMode = .byTruncatingTail
         label.textColor = .white
         label.alignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -57,7 +58,10 @@ final class HUDPanelController {
     private func present(_ text: String, after delay: TimeInterval) {
         hideWorkItem?.cancel()
         label.stringValue = text
-        panel.setContentSize(NSSize(width: max(180, label.intrinsicContentSize.width + 34), height: 44))
+        // An uncapped toast grew to the width of the longest command title and hung across
+        // the screen; past this the label truncates instead.
+        let width = min(460, max(180, label.intrinsicContentSize.width + 34))
+        panel.setContentSize(NSSize(width: width, height: 44))
         position()
         panel.alphaValue = 0
         panel.orderFrontRegardless()

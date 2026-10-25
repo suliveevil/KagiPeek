@@ -16,6 +16,13 @@ import Foundation
 /// - the chord is capped, so a `words`-style chord cannot overflow a two-column panel;
 /// - the title takes whatever is left.
 ///
+/// The row reads as two clusters rather than three islands: the command on the left, and
+/// `path · badge · chord` packed against the right edge. The chord slot is sized by the
+/// chord *style* (a two-glyph chord does not need the width of `ctrl opt shift cmd K`), and
+/// the menu path is right-aligned inside its slot so it sits next to the chord instead of
+/// floating a quarter of the way across a wide row. The only slack left is between the
+/// command and that cluster, where a table would put it.
+///
 /// All of it is arithmetic on doubles, like `HeaderLayout`, so the thresholds can be tested
 /// without a window.
 enum RowLayout {
@@ -32,7 +39,7 @@ enum RowLayout {
     /// Gap between two columns.
     static let columnGap: Double = 8
     /// Gap between two grid columns (matches the `LazyVGrid` spacing).
-    static let columnSpacing: Double = 18
+    static let columnSpacing: Double = 28
     /// The slot for the "has a sub-level" chevron, inside the trailing gutter.
     static let chevronWidth: Double = 8
     /// Below this the menu path is dropped: a 300pt panel is one column beside a window and
@@ -49,6 +56,22 @@ enum RowLayout {
         var keyWidth: Double
         var titleWidth: Double
         var gutterWidth: Double
+        /// The menu path sits next to the chord, so its text is aligned to the slot's trailing
+        /// edge. With the chord on the left the path follows the title instead and reads from
+        /// its leading edge.
+        var noteHugsChord: Bool
+    }
+
+    /// Width of the chord slot, per chord style.
+    ///
+    /// Measured at 12.5pt semibold: `⌘A` is 20pt, `⇧⌘4` is 33pt, `⌃⌥⇧⌘Q` is 57pt, while the
+    /// words style needs 69pt for `cmd shift 4` and 117pt for `ctrl opt shift cmd K`. One cap
+    /// for both styles parked ~50pt of empty column between the path and a two-glyph chord.
+    static func keyWidthCap(for style: KeyFormatter.Style) -> Double {
+        switch style {
+        case .symbols: return 70
+        case .words: return 132
+        }
     }
 
     /// Width of one row when `columns` rows share `contentWidth`.
@@ -58,11 +81,15 @@ enum RowLayout {
         return max(0, usable / Double(columns))
     }
 
-    static func metrics(rowWidth: Double, keyPosition: KeyPosition) -> Metrics {
+    static func metrics(
+        rowWidth: Double,
+        keyPosition: KeyPosition,
+        keyStyle: KeyFormatter.Style = .symbols
+    ) -> Metrics {
         let content = max(0, rowWidth - horizontalPadding * 2)
         let showsNote = rowWidth >= noteThreshold
         let note = showsNote ? noteWidth(rowWidth: rowWidth, content: content) : 0
-        let key = keyWidth(content: content, keyPosition: keyPosition)
+        let key = keyWidth(content: content, style: keyStyle)
         // Everything except the title is reserved. The chord is subtracted in both positions:
         // it is part of the trailing cluster, so leaving it out would let a long title push
         // the chord out of the row instead of truncating the title.
@@ -78,7 +105,8 @@ enum RowLayout {
             noteWidth: note,
             keyWidth: key,
             titleWidth: title,
-            gutterWidth: gutterWidth
+            gutterWidth: gutterWidth,
+            noteHugsChord: keyPosition == .right
         )
     }
 
@@ -89,11 +117,8 @@ enum RowLayout {
         return clamped(0.28 * content, lower: 64, upper: 108)
     }
 
-    private static func keyWidth(content: Double, keyPosition: KeyPosition) -> Double {
-        switch keyPosition {
-        case .right: return clamped(0.28 * content, lower: 52, upper: 120)
-        case .left: return clamped(0.22 * content, lower: 48, upper: 96)
-        }
+    private static func keyWidth(content: Double, style: KeyFormatter.Style) -> Double {
+        clamped(0.28 * content, lower: 52, upper: keyWidthCap(for: style))
     }
 
     private static func clamped(_ value: Double, lower: Double, upper: Double) -> Double {

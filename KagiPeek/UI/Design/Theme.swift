@@ -63,6 +63,9 @@ struct PanelPalette {
     let rule: Color
     let selection: Color
     let hover: Color
+    /// Hover fill for a control, one step louder than the card hover: at 6 % the pointer
+    /// feedback on the panel's icon buttons was invisible on a dark panel.
+    let controlHover: Color
     let key: Color
     let keyHighlight: Color
     let border: Color
@@ -81,6 +84,7 @@ extension PanelTheme {
                 rule: .white.opacity(0.10),
                 selection: .white.opacity(0.12),
                 hover: .white.opacity(0.06),
+                controlHover: .white.opacity(0.13),
                 key: .white.opacity(0.72),
                 keyHighlight: Color.accentColor,
                 border: .white.opacity(0.16)
@@ -95,6 +99,7 @@ extension PanelTheme {
                 rule: .white.opacity(0.12),
                 selection: Color(red: 0.24, green: 0.38, blue: 0.62).opacity(0.55),
                 hover: .white.opacity(0.07),
+                controlHover: .white.opacity(0.14),
                 key: Color(red: 0.72, green: 0.82, blue: 0.98),
                 keyHighlight: Color(red: 0.45, green: 0.72, blue: 1.0),
                 border: .white.opacity(0.18)
@@ -109,6 +114,7 @@ extension PanelTheme {
                 rule: Color.black.opacity(0.12),
                 selection: Color.accentColor.opacity(0.14),
                 hover: Color.black.opacity(0.05),
+                controlHover: Color.black.opacity(0.08),
                 key: Color.black.opacity(0.66),
                 keyHighlight: Color.accentColor,
                 border: Color.black.opacity(0.12)

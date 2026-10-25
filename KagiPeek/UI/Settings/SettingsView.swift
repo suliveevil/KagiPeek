@@ -75,32 +75,36 @@ struct SettingsView: View {
 
     private var generalTab: some View {
         Form {
-            Picker(localization.text(.appearanceLanguage), selection: $store.settings.language) {
-                ForEach(AppLanguage.allCases, id: \.self) { language in
-                    Text(localization.text(language.titleKey)).tag(language)
+            // Every other group on this page has a heading; the first one did not, so the
+            // page had two rhythms.
+            Section(localization.text(.generalBehaviorSection)) {
+                Picker(localization.text(.appearanceLanguage), selection: $store.settings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(localization.text(language.titleKey)).tag(language)
+                    }
                 }
+
+                Toggle(localization.text(.generalLaunchAtLogin), isOn: Binding(
+                    get: { settings.launchAtLogin },
+                    set: { store.setLaunchAtLogin($0) }
+                ))
+
+                if let message = store.launchAtLoginMessage {
+                    Text(message).font(.footnote).foregroundStyle(.secondary)
+                }
+
+                Toggle(localization.text(.rankingHUD), isOn: $store.settings.showExecutedHUD)
+                Toggle(localization.text(.rankingIncludeBuiltIn), isOn: $store.settings.includeBuiltInCatalog)
+                Toggle(localization.text(.generalShowAppleMenu), isOn: $store.settings.showAppleMenu)
+                Text(localization.text(.generalShowAppleMenuHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Toggle(localization.text(.generalShowDockIcon), isOn: $store.settings.showDockIcon)
+                Text(localization.text(.generalShowDockIconHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-
-            Toggle(localization.text(.generalLaunchAtLogin), isOn: Binding(
-                get: { settings.launchAtLogin },
-                set: { store.setLaunchAtLogin($0) }
-            ))
-
-            if let message = store.launchAtLoginMessage {
-                Text(message).font(.footnote).foregroundStyle(.secondary)
-            }
-
-            Toggle(localization.text(.rankingHUD), isOn: $store.settings.showExecutedHUD)
-            Toggle(localization.text(.rankingIncludeBuiltIn), isOn: $store.settings.includeBuiltInCatalog)
-            Toggle(localization.text(.generalShowAppleMenu), isOn: $store.settings.showAppleMenu)
-            Text(localization.text(.generalShowAppleMenuHint))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            Toggle(localization.text(.generalShowDockIcon), isOn: $store.settings.showDockIcon)
-            Text(localization.text(.generalShowDockIconHint))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
 
             Section(localization.text(.rowActionSection)) {
                 hotkeyRow(title: localization.text(.rowActionExecute),
@@ -546,9 +550,17 @@ struct SettingsView: View {
                 Text(appDisplayName(for: summary.bundleID))
                     .lineLimit(1)
                 Spacer(minLength: 6)
-                Text("\(summary.presses)")
+                // Two bare numbers in a row ("81 13 shortcuts") left the reader to guess
+                // which was which, and every one-shortcut app was labelled "1 shortcuts".
+                Text(summary.presses == 1
+                     ? localization.text(.statsPressesOne)
+                     : localization.format(.statsPressesFormat, summary.presses))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .monospacedDigit()
-                Text("\(summary.shortcutCount) \(localization.text(.statsShortcuts))")
+                Text(summary.shortcutCount == 1
+                     ? "\(summary.shortcutCount) \(localization.text(.statsShortcutsOne))"
+                     : "\(summary.shortcutCount) \(localization.text(.statsShortcuts))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

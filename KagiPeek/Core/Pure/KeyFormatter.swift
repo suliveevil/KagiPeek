@@ -41,6 +41,9 @@ nonisolated enum KeyFormatter {
             case key
             /// Spacing between glyphs or between strokes of a chord.
             case separator
+            /// A word where a chord would be ("No shortcut"): the column still says what it
+            /// means, without borrowing the dash that also means "this hotkey has no name".
+            case label
         }
 
         let kind: Kind

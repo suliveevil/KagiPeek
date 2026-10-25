@@ -119,25 +119,42 @@ final class RowLayoutContractTests: XCTestCase {
         }
     }
 
-    func testKeyWidthIsClampedForBothPositions() {
-        // 上限：右侧 120，左侧 96。
-        assertClose(RowLayout.metrics(rowWidth: 500, keyPosition: .right).keyWidth, 120)
-        assertClose(RowLayout.metrics(rowWidth: 500, keyPosition: .left).keyWidth, 96)
-        assertClose(RowLayout.metrics(rowWidth: 1600, keyPosition: .right).keyWidth, 120)
-        assertClose(RowLayout.metrics(rowWidth: 1600, keyPosition: .left).keyWidth, 96)
-        // 下限：短快捷键不至于塌成一个点。
+    /// 快捷键列由**字形风格**定宽，与左右位置无关：符号风格 70pt（`⌃⌥⇧⌘Q` 实测 57pt），
+    /// words 风格 132pt（`ctrl opt shift cmd K` 实测 117pt），下限 52pt 保证短 chord 不塌成
+    /// 一个点。以前两种风格共用 120/96 两档，符号风格下每行空出约 50pt 的列宽，正落在
+    /// 菜单路径与 chord 之间 —— 那是“三座孤岛”里最刺眼的一处。
+    func testKeyWidthIsSizedByChordStyle() {
+        assertClose(RowLayout.metrics(rowWidth: 500, keyPosition: .right).keyWidth, 70)
+        assertClose(RowLayout.metrics(rowWidth: 500, keyPosition: .left).keyWidth, 70)
+        assertClose(RowLayout.metrics(rowWidth: 500, keyPosition: .right, keyStyle: .words).keyWidth, 132)
+        assertClose(RowLayout.metrics(rowWidth: 1600, keyPosition: .left, keyStyle: .words).keyWidth, 132)
+        // 下限：短快捷键不至于塌成一个点，与位置无关。
         assertClose(RowLayout.metrics(rowWidth: 180, keyPosition: .right).keyWidth, 52)
-        assertClose(RowLayout.metrics(rowWidth: 200, keyPosition: .left).keyWidth, 48)
+        assertClose(RowLayout.metrics(rowWidth: 180, keyPosition: .left).keyWidth, 52)
+    }
+
+    /// 紧凑风格把省下的列宽还给标题：这是重排的收益之一。
+    func testCompactChordsGiveTheTitleTheFreedWidth() {
+        let symbols = RowLayout.metrics(rowWidth: 720, keyPosition: .right, keyStyle: .symbols)
+        let words = RowLayout.metrics(rowWidth: 720, keyPosition: .right, keyStyle: .words)
+        assertClose(symbols.titleWidth - words.titleWidth, 62) // 132 − 70
+    }
+
+    /// 菜单路径在右侧快捷键布局里贴住 chord（从槽位的右边缘对齐），在左侧布局里跟着标题
+    /// 走（左对齐）。这是「行读成两簇」的那一条：路径与 chord 属于同一个右侧簇。
+    func testTheMenuPathHugsTheChordOnTheRight() {
+        XCTAssertTrue(RowLayout.metrics(rowWidth: 720, keyPosition: .right).noteHugsChord)
+        XCTAssertFalse(RowLayout.metrics(rowWidth: 720, keyPosition: .left).noteHugsChord)
     }
 
     /// 快捷键列在左右两种布局下都要从标题里扣掉：长标题必须被截断，而不是把 chord
-    /// 挤出这一行。左右之差正好是两种排布下 chord 列的宽度之差（120 − 96）。
+    /// 挤出这一行。槽宽现在只由风格决定，所以两种排布的标题宽度相同。
     func testTitleWidthReservesTheChordInBothPositions() {
         let right = RowLayout.metrics(rowWidth: 720, keyPosition: .right)
         assertClose(right.rowContentWidth, 704)
-        assertClose(right.titleWidth, 348) // 704 − 120 − 168 − 44 − 24
+        assertClose(right.titleWidth, 398) // 704 − 70 − 168 − 44 − 24
         let left = RowLayout.metrics(rowWidth: 720, keyPosition: .left)
-        assertClose(left.titleWidth, 372) // 704 − 96 − 168 − 44 − 24
+        assertClose(left.titleWidth, 398)
         assertClose(right.titleWidth + right.keyWidth, left.titleWidth + left.keyWidth)
     }
 
@@ -147,11 +164,13 @@ final class RowLayoutContractTests: XCTestCase {
     func testTitleIsWhatIsLeftAfterEveryReservedSlot() {
         for width in [0.0, 120.0, 200.0, 299.0, 300.0, 379.0, 380.0, 500.0, 720.0, 1000.0] {
             for position in [KeyPosition.left, .right] {
-                let metrics = RowLayout.metrics(rowWidth: width, keyPosition: position)
-                let gaps = RowLayout.columnGap * Double(metrics.showsNote ? 3 : 2)
-                let reserved = metrics.keyWidth + metrics.noteWidth + metrics.gutterWidth + gaps
-                assertClose(metrics.titleWidth, max(60, metrics.rowContentWidth - reserved), "rowWidth \(width)")
-                assertClose(metrics.rowContentWidth, max(0, width - RowLayout.horizontalPadding * 2))
+                for style in [KeyFormatter.Style.symbols, .words] {
+                    let metrics = RowLayout.metrics(rowWidth: width, keyPosition: position, keyStyle: style)
+                    let gaps = RowLayout.columnGap * Double(metrics.showsNote ? 3 : 2)
+                    let reserved = metrics.keyWidth + metrics.noteWidth + metrics.gutterWidth + gaps
+                    assertClose(metrics.titleWidth, max(60, metrics.rowContentWidth - reserved), "rowWidth \(width)")
+                    assertClose(metrics.rowContentWidth, max(0, width - RowLayout.horizontalPadding * 2))
+                }
             }
         }
     }
@@ -163,27 +182,20 @@ final class RowLayoutContractTests: XCTestCase {
         XCTAssertEqual(RowLayout.metrics(rowWidth: 0, keyPosition: .right).titleWidth, 60)
     }
 
-    /// 记录 `max(60, …)` 这个下限**在哪一档真的生效**，以及生效时行会溢出多少。
+    /// 记录 `max(60, …)` 这个下限**在哪一档真的生效**。
     ///
-    /// 下限不是理论问题：单列 300pt（面板的最小宽度）+ 右侧快捷键列时，预留之和已经
-    /// 比行宽多出约 3pt，行内容会溢出并被裁掉；两列布局下窗口宽到 ~626pt 也会踩到
-    /// （rowWidth = (626 − 18) / 2 ≈ 304）。钉在这里是为了让这个口子保持"显式决策"：
-    /// 若改成降级式（放不下就把菜单路径列让掉重算），本用例要跟着翻。
-    func testTitleFloorEngagesAtTheNarrowestSupportedRow() {
+    /// 快捷键槽收窄之后，单列 300pt（面板的最小宽度）不再溢出 —— 以前这一档预留之和比
+    /// 行内容宽多 3pt，行会被裁掉。现在下限只在 rowWidth ≤ 188 时才生效，而那个宽度只出现
+    /// 在退化几何里（面板最小 300pt）。这同时也是重排的收益：最小面板不再溢出。
+    func testTitleFloorEngagesOnlyBelowTheNarrowestPanel() {
         let tightest = RowLayout.metrics(rowWidth: 300, keyPosition: .right)
-        XCTAssertEqual(tightest.titleWidth, 60)
+        assertClose(tightest.titleWidth, 66.48)
         let gaps = RowLayout.columnGap * Double(tightest.showsNote ? 3 : 2)
         let reserved = tightest.keyWidth + tightest.noteWidth + tightest.gutterWidth + gaps
-        assertClose(tightest.titleWidth + reserved - tightest.rowContentWidth, 3.04)
+        XCTAssertLessThanOrEqual(reserved, tightest.rowContentWidth, "最小支持宽度不再溢出")
 
-        // 左侧快捷键列更窄，同一宽度下不触发。
-        let left = RowLayout.metrics(rowWidth: 300, keyPosition: .left)
-        assertClose(left.titleWidth, 74)
-        assertClose(left.titleWidth + left.keyWidth + left.noteWidth + left.gutterWidth + gaps, left.rowContentWidth)
-
-        // 宽到 308 就脱离下限了（304 仍触发，308 起不再）。
-        XCTAssertGreaterThan(RowLayout.metrics(rowWidth: 308, keyPosition: .right).titleWidth, 60)
-        XCTAssertEqual(RowLayout.metrics(rowWidth: 304, keyPosition: .right).titleWidth, 60)
+        XCTAssertEqual(RowLayout.metrics(rowWidth: 188, keyPosition: .right).titleWidth, 60)
+        XCTAssertGreaterThan(RowLayout.metrics(rowWidth: 190, keyPosition: .right).titleWidth, 60)
     }
 }
 

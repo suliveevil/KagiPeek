@@ -1090,10 +1090,18 @@ final class ShortcutEngine: ObservableObject {
 
         let specs: [PanelRowBuilder.Spec] = pageEntries.map { entry in
             let hit = entry.hit
+            // A system hotkey macOS refuses to name used to arrive as a row whose command
+            // column was an em dash, and the same dash also said "no keyboard shortcut" a few
+            // rows down. The only true thing about that row is its chord, so the chord becomes
+            // the name and the key column stays empty.
+            let unnamedSystemHotkey = entry.isSystem && hit.item.title == DescriptionCleaner.placeholder
+            let renderedChord = KeyFormatter.render(hit.item.chord, style: state.settings.keyStyle)
             return PanelRowBuilder.Spec(
                 id: hit.id,
-                keySegments: keySegments(for: hit),
-                title: DescriptionCleaner.truncate(hit.item.title, maxLength: state.settings.maxDescriptionLength),
+                keySegments: unnamedSystemHotkey ? [] : keySegments(for: hit),
+                title: unnamedSystemHotkey
+                    ? renderedChord
+                    : DescriptionCleaner.truncate(hit.item.title, maxLength: state.settings.maxDescriptionLength),
                 // The system card's header already names the section, so repeating it in
                 // every row's note column would be the same word 79 times.
                 note: entry.isSystem ? "" : menuPath(of: hit.item),
@@ -1237,7 +1245,7 @@ final class ShortcutEngine: ObservableObject {
         // A command with no keyboard shortcut still gets a row; its shortcut column says so
         // with a dash instead of going blank and reading as a rendering bug.
         if hit.item.chord.isEmpty {
-            return [KeyFormatter.Segment(kind: .key, text: KeyFormatter.noShortcutPlaceholder)]
+            return [KeyFormatter.Segment(kind: .label, text: localization.text(.overlayNoShortcut))]
         }
         let shown: KeyChord
         if state.prefix.isEmpty || state.prefix.isModifierOnly {
@@ -1956,8 +1964,17 @@ final class ShortcutEngine: ObservableObject {
         if let tool = item.configTool { return tool.displayName }
         if item.source == .system { return "macOS" }
         if let bundleID = item.appBundleID, let name = ownerName(forBundleID: bundleID) { return name }
-        if item.appBundleID == nil { return item.appBundleID ?? "" }
+        if item.appBundleID == nil { return localization.text(.ownerBuiltIn) }
         return state.appName.isEmpty ? (item.appBundleID ?? item.title) : state.appName
+    }
+
+    /// The row's name. macOS reports some system hotkeys without one, and the placeholder it
+    /// leaves behind ("—") also means "no keyboard shortcut" a few rows down, so the chord
+    /// stands in for the missing name wherever a title is drawn.
+    func displayName(of item: BindingItem) -> String {
+        guard item.title == DescriptionCleaner.placeholder else { return item.title }
+        let rendered = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
+        return rendered.isEmpty ? item.title : rendered
     }
 
     // MARK: - Live shortcut test
@@ -2051,6 +2068,7 @@ final class ShortcutEngine: ObservableObject {
             selectSearchScope(nil)
         }
         state.search.selection = 0
+        state.search.scrollRequest &+= 1
         state.searchFocusToken += 1
         refreshSearch()
         state.search.isVisible = true
@@ -2070,15 +2088,20 @@ final class ShortcutEngine: ObservableObject {
         }
     }
 
-    func selectSearchResult(_ index: Int) {
+    /// - Parameter scrollIntoView: false for the pointer. Hovering moves the selection so
+    ///   Return acts on the row under the cursor, but the list must stay where it is: a
+    ///   scroll per hover event made the scrollbar move with the mouse.
+    func selectSearchResult(_ index: Int, scrollIntoView: Bool = true) {
         guard state.search.results.indices.contains(index) else { return }
         state.search.selection = index
+        if scrollIntoView { state.search.scrollRequest &+= 1 }
     }
 
     func moveSearchSelection(_ delta: Int) {
         guard !state.search.results.isEmpty else { return }
         let next = state.search.selection + delta
         state.search.selection = min(max(0, next), state.search.results.count - 1)
+        state.search.scrollRequest &+= 1
     }
 
     /// Click in the search palette: close it, return to the previous app and replay the
@@ -2263,6 +2286,7 @@ final class ShortcutEngine: ObservableObject {
             : state.searchScopeCatalog.usedBuiltInCatalog
         // The first match is always selected.
         state.search.selection = 0
+        state.search.scrollRequest &+= 1
         if isPreviewing {
             // A screenshot cannot show which app's list it is showing; this line can.
             Diag.info(.ui, """
@@ -2455,6 +2479,12 @@ final class ShortcutEngine: ObservableObject {
         // with someone's 60-row, three-column configuration.
         settingsStore.settings.language = .english
         settingsStore.settings.columnCount = 2
+        // Screenshot runs default to two columns; the override exists so a capture can
+        // exercise the three-column layout the panel now fills down.
+        if let raw = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_COLUMNS"],
+           let columns = Int(raw), (1...3).contains(columns) {
+            settingsStore.settings.columnCount = columns
+        }
         settingsStore.settings.maxItemsPerPage = 24
         settingsStore.settings.panelPlacement = .coverWindow
         settingsStore.settings.panelTheme = .graphite

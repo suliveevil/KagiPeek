@@ -32,6 +32,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
     case searchResultCount, searchResultCountOne, searchClearHint
+    case overlayCountFormat, overlayNoShortcut, searchNoResultsScopedFormat, searchNoResultsHint, ownerBuiltIn
     case searchSubtitle
     case appearanceTheme, themeGraphite, themeMidnight, themePaper
     case appearanceKeyPosition, keyPositionLeft, keyPositionRight
@@ -40,6 +41,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     case ignoredAddCommand, ignoredSheetTitle, ignoredScopeGlobal, ignoredScopeApp
     case ignoredAppPicker, ignoredCommandTitle, ignoredCommandPlaceholder, ignoredSuggestionsHint
     case ignoredAdd, ignoredCancel, ignoredEmpty
+    case generalBehaviorSection
     case generalAddApp, generalRemoveApp, generalNoExcludedApps
     case permissionRequiredBadge, permissionOptionalBadge
     case permissionAccessibilityDetail1, permissionAccessibilityDetail2, permissionAccessibilityDetail3
@@ -76,6 +78,7 @@ enum L10nKey: String, CaseIterable, Sendable {
 
     // Statistics
     case statsSection, statsByApp, statsGenericApp, statsNoData, statsOpenDataFolder, statsShortcuts
+    case statsShortcutsOne, statsPressesFormat, statsPressesOne
     case statsUnknownCommand
 
     // Main window
@@ -294,7 +297,7 @@ enum L10n {
             "没有排除的 App——所有 App 都会弹出面板。"
         ),
         .searchSubtitleScoped: ("This app's shortcuts", "这个 App 的快捷键"),
-        .searchSubtitle: ("Search every shortcut", "搜索所有快捷键"),
+        .searchSubtitle: ("Search shortcuts", "搜索快捷键"),
         .searchResultCount: ("%d results", "%d 条结果"),
         .searchResultCountOne: ("1 result", "1 条结果"),
         .searchClearHint: ("Clear", "清除"),
@@ -424,6 +427,9 @@ enum L10n {
         .statsNoData: ("No usage recorded yet", "还没有统计数据"),
         .statsOpenDataFolder: ("Show data folder", "显示数据目录"),
         .statsShortcuts: ("shortcuts", "个快捷键"),
+        .statsShortcutsOne: ("shortcut", "个快捷键"),
+        .statsPressesFormat: ("%d presses", "%d 次"),
+        .statsPressesOne: ("1 press", "1 次"),
         .statsUnknownCommand: ("Not scanned yet", "尚未扫描到"),
         .generalExcludedAppsHint: (
             "Apps in this list never show the panel. Add one with the + button (Finder opens), select a row and press − to remove it.",
@@ -433,6 +439,7 @@ enum L10n {
         .settingsTitle: ("Settings", "设置"),
 
 
+        .generalBehaviorSection: ("Behavior", "行为"),
         .rowActionSection: ("Row actions", "行操作"),
         .rowActionExecute: ("Run the shortcut", "执行快捷键"),
         .rowActionCopy: ("Copy the shortcut", "复制快捷键"),
@@ -487,6 +494,11 @@ enum L10n {
         // The palette has no copy action: Return always replays the shortcut.
         .searchHintRun: ("↑↓ select · ↵ run · Esc close", "↑↓ 选择 · ↵ 执行 · Esc 关闭"),
         .searchNoResults: ("No matches", "无匹配结果"),
+        .searchNoResultsScopedFormat: ("No matches in %@", "%@ 中没有匹配"),
+        .searchNoResultsHint: ("Switch to the app you want, then search again.", "切到目标 App 后再搜索一次。"),
+        .overlayCountFormat: ("%d items", "%d 项"),
+        .overlayNoShortcut: ("No shortcut", "无快捷键"),
+        .ownerBuiltIn: ("Built-in", "内置"),
         .searchBackToPanel: ("Back to the shortcut panel (/)", "返回快捷键面板（/）"),
 
         .conflictTitle: ("Conflicts", "冲突"),

@@ -15,6 +15,11 @@ struct SearchSnapshot {
     var query = ""
     var results: [BindingItem] = []
     var selection = 0
+    /// Bumped when the palette should bring the selection into view. Hovering a row also
+    /// moves the selection (Return has to act on the row under the pointer), but it must not
+    /// move the list — scrolling on every hover is what made the palette's scrollbar chase
+    /// the cursor.
+    var scrollRequest = 0
     var isVisible = false
     /// The direct answer to a query that spells out a combo, or nil for a plain text search.
     var comboAnswer: ComboLookup.Answer? = nil

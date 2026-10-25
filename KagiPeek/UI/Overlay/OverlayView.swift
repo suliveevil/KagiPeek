@@ -99,8 +99,9 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 20, cornerRadius: 5))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: 6))
                 .help(localization.text(.searchBackToPanel))
+                .accessibilityLabel(localization.text(.searchBackToPanel))
             }
             appIdentity(layout: layout)
 
@@ -122,8 +123,9 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(palette.secondaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.hover))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
                 .help(localization.text(.exportMarkdown))
+                .accessibilityLabel(localization.text(.exportMarkdown))
             }
 
             if !isSearch, layout.showsModifierFilter {
@@ -136,8 +138,9 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(state.showsFavoritesOnly ? Theme.favoriteStar : palette.secondaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.hover))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
                 .help(localization.text(.panelFavoritesFilter))
+                .accessibilityLabel(localization.text(.panelFavoritesFilter))
             }
 
             Button(action: engine.showSettings) {
@@ -145,23 +148,31 @@ private struct OverlayHeaderView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(palette.secondaryText)
             }
-            .buttonStyle(IconButtonStyle(hoverFill: palette.hover))
+            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
             .help(localization.text(.panelSettings))
+            .accessibilityLabel(localization.text(.panelSettings))
 
             if state.panel.isScanning {
                 ProgressView().controlSize(.small).tint(palette.secondaryText)
             }
             if state.panel.hasConflicts {
+                // Informational, not a control: at full size and full orange it was the
+                // loudest thing in a row of quiet glyphs the user *can* click.
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.warning.opacity(0.9))
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.warning.opacity(0.75))
                     .help(localization.text(.overlayConflictHint))
+                    .accessibilityLabel(localization.text(.overlayConflictHint))
             }
 
             if layout.showsCount {
-                Text(isSearch ? "\(state.search.results.count)" : "\(state.panel.totalCount)")
+                // A bare "136" next to a warning triangle read as "136 conflicts"; the
+                // panel's own total and the conflicts list then disagreed.
+                Text(isSearch
+                     ? "\(state.search.results.count)"
+                     : localization.format(.overlayCountFormat, state.panel.totalCount))
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(palette.tertiaryText)
+                    .foregroundStyle(palette.secondaryText)
                     .monospacedDigit()
             }
 
@@ -170,8 +181,9 @@ private struct OverlayHeaderView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(palette.secondaryText)
             }
-            .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 20, cornerRadius: 5))
+            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: 6))
             .help(localization.text(.panelClose))
+            .accessibilityLabel(localization.text(.panelClose))
         }
         .padding(.horizontal, 16)
     }
@@ -439,6 +451,20 @@ private struct OverlayPanelContentView: View {
         } else {
             GeometryReader { proxy in
                 let columns = max(1, min(settings.columnCount, OverlayMetrics.columns(forWidth: proxy.size.width)))
+                // How many rows one column can show. Filling each column to this height — not
+                // dividing the page evenly — is what keeps a three-column page as tall as a
+                // two-column one: 50 rows spread as 17·17·16 left the card short of the
+                // window while the columns below were empty. `perCard` lets the rows be
+                // shared out when a page straddles both sections.
+                let cards = max(1, state.panel.groups.count)
+                let cardChrome = Double(Theme.groupHeaderHeight) + OverlayMetrics.cardVerticalInset * 2
+                let fittedRows = (Double(proxy.size.height) - 18 - cardChrome * Double(cards))
+                    / Double(Theme.rowHeight)
+                let tallestCard = state.panel.groups.map(\.rows.count).max() ?? 0
+                let capacity = max(
+                    Int((Double(tallestCard) / Double(columns)).rounded(.up)),
+                    max(1, Int(fittedRows) / cards)
+                )
                 // One measurement per panel, not per row: every row in every column is the
                 // same width, so the three columns line up down the whole list.
                 let layout = RowLayout.metrics(
@@ -449,17 +475,33 @@ private struct OverlayPanelContentView: View {
                             - OverlayMetrics.cardHorizontalInset * 2,
                         columns: columns
                     ),
-                    keyPosition: settings.keyPosition
+                    keyPosition: settings.keyPosition,
+                    keyStyle: settings.keyStyle
                 )
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: OverlayMetrics.cardGap) {
                         ForEach(state.panel.groups) { group in
-                            groupSection(group, columns: columns, layout: layout)
+                            groupSection(group, columns: columns, capacity: capacity, layout: layout)
                         }
                     }
                     .padding(.horizontal, Theme.padding)
                     .padding(.top, 8)
                     .padding(.bottom, 10)
+                    // A short page used to end mid-window with 300 pt of empty glass under
+                    // it; centring keeps the shape deliberate without shrinking the cover.
+                    .frame(minHeight: proxy.size.height, alignment: .center)
+                }
+                .overlay(alignment: .bottom) {
+                    // The pagination budget can be taller than a fixed panel, so a row can be
+                    // cut by the bottom edge. The fade says "there is more" instead of
+                    // looking like a rendering fault.
+                    LinearGradient(
+                        colors: [palette.backgroundSolid.opacity(0), palette.backgroundSolid],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 18)
+                    .allowsHitTesting(false)
                 }
             }
         }
@@ -472,7 +514,12 @@ private struct OverlayPanelContentView: View {
     /// they used to be told apart by a heading in the middle of the list. A card makes the
     /// boundary a shape instead of a line of text: it survives scrolling, it survives the
     /// narrow layout, and it matches what the palette already looks like.
-    private func groupSection(_ group: PanelGroup, columns: Int, layout: RowLayout.Metrics) -> some View {
+    private func groupSection(
+        _ group: PanelGroup,
+        columns: Int,
+        capacity: Int,
+        layout: RowLayout.Metrics
+    ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if !group.title.isEmpty {
                 HStack(spacing: 7) {
@@ -480,9 +527,9 @@ private struct OverlayPanelContentView: View {
                         .font(.system(size: 12.5, weight: .medium))
                         .lineLimit(1)
                         .foregroundStyle(palette.secondaryText)
-                    Text("\(group.totalCount ?? group.rows.count)")
+                    Text(localization.format(.overlayCountFormat, group.totalCount ?? group.rows.count))
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(palette.tertiaryText)
+                        .foregroundStyle(palette.secondaryText)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 12)
@@ -494,16 +541,21 @@ private struct OverlayPanelContentView: View {
                     .frame(height: 1)
                     .decorative()
             }
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(minimum: 180), spacing: 18, alignment: .leading),
-                               count: max(1, columns)),
-                alignment: .leading,
-                spacing: 0
-            ) {
-                ForEach(group.rows) { row in
-                    rowView(row, layout: layout)
+            // Filled down each column, not across: the page is ordered by the shortcut
+            // itself, so ⌘A…⌘K belong in one run down the first column. A LazyVGrid fills
+            // across (A B C on one line), which zig-zags that order and makes ↓ walk sideways.
+            HStack(alignment: .top, spacing: CGFloat(RowLayout.columnSpacing)) {
+                ForEach(Array(PanelColumnFill.split(group.rows, into: columns, capacity: capacity).enumerated()),
+                        id: \.offset) { _, columnRows in
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(columnRows) { row in
+                            rowView(row, layout: layout)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            .background(alignment: .leading) { columnRules(columns: columns) }
             .padding(.horizontal, OverlayMetrics.cardHorizontalInset)
             .padding(.vertical, OverlayMetrics.cardVerticalInset)
         }
@@ -517,6 +569,30 @@ private struct OverlayPanelContentView: View {
                 .decorative()
         )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    /// One hairline per internal column boundary.
+    ///
+    /// The columns are far apart by construction, so the chord at the end of one row sits
+    /// closer to the command at the start of the next (36 pt) than to its own menu path
+    /// (291 pt) — the nearest thing to a chord was somebody else's command. The rule is the
+    /// border the gap could not draw.
+    @ViewBuilder
+    private func columnRules(columns: Int) -> some View {
+        if columns > 1 {
+            GeometryReader { proxy in
+                let spacing = CGFloat(RowLayout.columnSpacing)
+                let usable = proxy.size.width - spacing * CGFloat(columns - 1)
+                let columnWidth = max(0, usable / CGFloat(columns))
+                ForEach(1..<columns, id: \.self) { index in
+                    Rectangle()
+                        .fill(palette.rule)
+                        .frame(width: 1)
+                        .offset(x: CGFloat(index) * (columnWidth + spacing) - spacing / 2)
+                }
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     /// Three columns of fixed width, so the same field starts at the same x on every row:
@@ -542,11 +618,15 @@ private struct OverlayPanelContentView: View {
                 // Key · command · path — the path and the trailing slot travel together, so
                 // the row still has three columns and the chord keeps the opposite end.
                 HStack(spacing: Theme.rowColumnGap) {
-                    if layout.showsNote { noteColumn(row, width: layout.noteWidth) }
+                    if layout.showsNote {
+                        noteColumn(row, width: layout.noteWidth, hugsChord: layout.noteHugsChord)
+                    }
                     gutter(row)
                 }
             } else {
-                if layout.showsNote { noteColumn(row, width: layout.noteWidth) }
+                if layout.showsNote {
+                    noteColumn(row, width: layout.noteWidth, hugsChord: layout.noteHugsChord)
+                }
                 HStack(spacing: Theme.rowColumnGap) {
                     gutter(row)
                     keyLabel(row, width: layout.keyWidth, alignment: .trailing)
@@ -667,13 +747,17 @@ private struct OverlayPanelContentView: View {
     ///
     /// Truncated in the middle: the head of a path ("File") and its last step are the parts
     /// that tell the user where the command lives, so those are what survive.
-    private func noteColumn(_ row: PanelRow, width: Double) -> some View {
+    private func noteColumn(_ row: PanelRow, width: Double, hugsChord: Bool) -> some View {
         Text(row.note)
             .font(.system(size: 10.5))
             .lineLimit(1)
             .truncationMode(.middle)
-            .foregroundStyle(palette.tertiaryText)
-            .frame(width: width, alignment: .leading)
+            // The menu path is the only answer to "where does this command live"; at 32 %
+            // white it measured 2.8:1 on the card, under every legibility floor for 10.5 pt.
+            .foregroundStyle(palette.secondaryText)
+            // The path belongs to the chord, not to the middle of the row: with the chord on
+            // the right its slot is aligned to that edge, so "System ⌘A" reads as one cluster.
+            .frame(width: width, alignment: hugsChord ? .trailing : .leading)
     }
 
     /// The row's trailing slot: conflict badge, sub-level chevron and favourite star, always
@@ -718,10 +802,12 @@ private struct OverlayPanelContentView: View {
         HStack(spacing: 0) {
             ForEach(Array(row.keySegments.enumerated()), id: \.offset) { _, segment in
                 Text(segment.text)
+                    // A word standing in for a chord ("No shortcut") is a note, not a key: at
+                    // chord size it no longer fits the slot the chord column was narrowed to.
                     .font(.system(
-                        size: 12.5,
-                        weight: isEmphasized(segment) ? .bold : .semibold,
-                        design: .rounded
+                        size: isLabel(segment) ? 10.5 : 12.5,
+                        weight: isEmphasized(segment) ? .bold : (isLabel(segment) ? .regular : .semibold),
+                        design: isLabel(segment) ? .default : .rounded
                     ))
                     .foregroundStyle(keySegmentColor(row, segment))
             }
@@ -740,6 +826,11 @@ private struct OverlayPanelContentView: View {
         state.panel.heldModifiers.union(state.panel.latchedModifiers)
     }
 
+    private func isLabel(_ segment: KeyFormatter.Segment) -> Bool {
+        if case .label = segment.kind { return true }
+        return false
+    }
+
     private func isEmphasized(_ segment: KeyFormatter.Segment) -> Bool {
         guard case .modifier(let modifier) = segment.kind else { return false }
         return emphasizedModifiers.contains(modifier)
@@ -752,6 +843,7 @@ private struct OverlayPanelContentView: View {
     }
 
     private func keySegmentColor(_ row: PanelRow, _ segment: KeyFormatter.Segment) -> Color {
+        if case .label = segment.kind { return palette.secondaryText }
         if !row.isEnabled { return palette.tertiaryText }
         if isEmphasized(segment) { return palette.keyHighlight }
         if row.isCompleted { return palette.text }
@@ -801,12 +893,14 @@ private struct OverlaySearchContentView: View {
                     SearchResultList(
                         sections: searchSections,
                         selection: state.search.selection,
+                        scrollRequest: state.search.scrollRequest,
                         query: state.search.query,
                         style: settings.keyStyle,
                         keyPosition: settings.keyPosition,
                         palette: palette,
+                        titleFor: { engine.displayName(of: $0) },
                         onTap: { engine.activateSearchResult($0) },
-                        onHover: { engine.selectSearchResult($0) }
+                        onHover: { engine.selectSearchResult($0, scrollIntoView: false) }
                     )
                 }
             }
@@ -840,10 +934,20 @@ private struct OverlaySearchContentView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 22))
                     .foregroundStyle(palette.tertiaryText)
-                Text(localization.text(.searchNoResults))
+                // Name the scope: with the palette scoped to one app, "No matches" reads
+                // as "KagiPeek does not know this shortcut" when the answer is "not in this
+                // app".
+                Text(state.search.scopeName.isEmpty
+                     ? localization.text(.searchNoResults)
+                     : localization.format(.searchNoResultsScopedFormat, state.search.scopeName))
                     .font(.system(size: 12))
                     .foregroundStyle(palette.secondaryText)
+                Text(localization.text(.searchNoResultsHint))
+                    .font(.system(size: 11))
+                    .foregroundStyle(palette.secondaryText)
+                    .multilineTextAlignment(.center)
             }
+            .padding(.horizontal, 24)
         }
     }
 
@@ -889,7 +993,7 @@ private struct OverlayFooterView: View {
                      ? localization.text(.searchResultCountOne)
                      : localization.format(.searchResultCount, state.search.results.count))
                     .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(palette.tertiaryText)
+                    .foregroundStyle(palette.secondaryText)
             } else if state.panel.pageCount > 1 {
                 Button(action: engine.previousPage) {
                     Image(systemName: "chevron.left")
@@ -912,17 +1016,14 @@ private struct OverlayFooterView: View {
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
                 .disabled(state.panel.pageIndex >= state.panel.pageCount - 1)
                 .help(localization.text(.panelNextPage))
-            } else {
-                Text(state.panel.appName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(palette.tertiaryText)
-                    .lineLimit(1)
             }
 
             Spacer()
             Text(footerHint(layout: layout))
                 .font(.system(size: 11))
-                .foregroundStyle(palette.tertiaryText)
+                // This line is the only place the panel teaches its own keys; at 32 % white
+                // it measured 2.5:1, the faintest text on the surface.
+                .foregroundStyle(palette.secondaryText)
                 .lineLimit(1)
         }
         .padding(.horizontal, 16)
@@ -969,10 +1070,16 @@ private struct SearchSection: Identifiable {
 private struct SearchResultList: View {
     let sections: [SearchSection]
     let selection: Int
+    /// Changes only when the palette itself wants the selection on screen — never for the
+    /// pointer moving over a row.
+    let scrollRequest: Int
     let query: String
     let style: KeyFormatter.Style
     let keyPosition: KeyPosition
     let palette: PanelPalette
+    /// The engine decides what a row is called (a nameless system hotkey is named by its
+    /// chord), so the list does not re-derive a title of its own.
+    let titleFor: (BindingItem) -> String
     let onTap: (Int) -> Void
     let onHover: (Int) -> Void
 
@@ -988,8 +1095,8 @@ private struct SearchResultList: View {
                 .padding(.top, 10)
                 .padding(.bottom, 12)
             }
-            .onChange(of: selection) { _, newValue in
-                scroll(to: newValue, proxy: proxy)
+            .onChange(of: scrollRequest) { _, _ in
+                scroll(to: selection, proxy: proxy)
             }
         }
     }
@@ -1023,6 +1130,8 @@ private struct SearchResultList: View {
                 ForEach(section.rows, id: \.1.id) { index, item in
                     SearchResultRow(
                         item: item,
+                        title: titleFor(item),
+                        isUnnamed: item.title == DescriptionCleaner.placeholder,
                         query: query,
                         style: style,
                         keyPosition: keyPosition,
@@ -1068,6 +1177,9 @@ private struct SearchResultList: View {
 
 private struct SearchResultRow: View {
     let item: BindingItem
+    let title: String
+    /// The title here *is* the chord, so the shortcut column would print it twice.
+    let isUnnamed: Bool
     let query: String
     let style: KeyFormatter.Style
     let keyPosition: KeyPosition
@@ -1115,7 +1227,9 @@ private struct SearchResultRow: View {
     }
 
     private var searchRowAccessibilityLabel: String {
-        [item.title, item.subgroup ?? "", item.chord.isEmpty ? "" : KeyFormatter.render(item.chord, style: style)]
+        [title,
+         item.subgroup ?? "",
+         isUnnamed || item.chord.isEmpty ? "" : KeyFormatter.render(item.chord, style: style)]
             .filter { !$0.isEmpty }
             .joined(separator: ", ")
     }
@@ -1137,21 +1251,27 @@ private struct SearchResultRow: View {
         }
     }
 
+    @ViewBuilder
     private var shortcut: some View {
-        // A command with no shortcut keeps the column: the dash says "none" without
-        // letting the titles beside it shift left.
-        Text(item.chord.isEmpty ? "—" : KeyFormatter.render(item.chord, style: style))
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(item.chord.isEmpty
-                             ? palette.tertiaryText
-                             : (isSelected ? palette.text : palette.key))
-            .lineLimit(1)
-            .frame(width: keyColumn, alignment: keyPosition == .left ? .leading : .trailing)
+        if isUnnamed {
+            // The title already is the chord; printing it twice reads as two different keys.
+            Color.clear.frame(width: keyColumn, height: 1)
+        } else {
+            // A command with no shortcut keeps the column: the dash says "none" without
+            // letting the titles beside it shift left.
+            Text(item.chord.isEmpty ? "—" : KeyFormatter.render(item.chord, style: style))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(item.chord.isEmpty
+                                 ? palette.tertiaryText
+                                 : (isSelected ? palette.text : palette.key))
+                .lineLimit(1)
+                .frame(width: keyColumn, alignment: keyPosition == .left ? .leading : .trailing)
+        }
     }
 
     private var highlightedTitle: Text {
-        let text = item.title
+        let text = title
         var matched = Set<Int>()
         let tokens = query
             .split(whereSeparator: { $0 == " " || $0 == "+" || $0 == "," })

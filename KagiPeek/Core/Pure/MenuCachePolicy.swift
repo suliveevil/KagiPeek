@@ -10,7 +10,12 @@ import Foundation
 enum MenuCachePolicy {
     /// Bumped whenever the entry layout changes; entries written by an older build stop
     /// loading, because their fingerprint no longer matches.
-    static let schemaVersion = 1
+    ///
+    /// 2…4: the walk stopped treating menus of data (Safari `History`, Chrome `书签`) as
+    /// command menus, so every entry written before that change lists rows the scan no
+    /// longer produces. 3 added the sampling rule for nested lists; 4 split the verdict for
+    /// top-level menus (keep their shortcuts, drop the list) from submenus (skip outright).
+    static let schemaVersion = 6
 
     /// How long a cached scan stays usable.
     ///

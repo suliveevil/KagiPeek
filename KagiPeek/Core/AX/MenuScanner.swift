@@ -83,13 +83,37 @@ enum MenuScanner {
             // and the disk cache keyed on them — do not shift when the setting flips.
             if topLevelTitle == "Apple", !showAppleMenu { continue }
             for (menuIndex, menu) in children(of: menuBarItem).enumerated() {
-                for (itemIndex, item) in children(of: menu).enumerated() {
+                // `History`, `Bookmarks` and their like are menus of data: they hold one row
+                // per visited page or saved link. Read only the command prefix at the top of
+                // such a menu, and treat everything else as content.
+                let menuChildren = children(of: menu)
+                // A menu whose name says it is a list of the user's data — a browser's
+                // `Bookmarks` or `History` — is filtered by name. That is exact, where the
+                // shortcut sample can only guess: `Bookmarks` opens with real commands
+                // (⌘D, ⌥⌘B), so a sample finds shortcuts and would keep the fifty links
+                // that follow them.
+                // Top level decides by name, then by size — never by sampling. A top menu
+                // is a command menu until it is known otherwise: `Develop` has 27 children
+                // whose first ones carry no shortcut, and sampling would have dropped its
+                // eighteen shortcutless commands.
+                let decision = MenuContentPolicy.isDataMenu(title: topLevelTitle)
+                    ? MenuContentPolicy.decideDataMenuByTitle(childCount: menuChildren.count)
+                    : MenuContentPolicy.decideOpenMenu(childCount: menuChildren.count)
+                if decision.looksLikeContent {
+                    let menuTitle = Sanitizer.clamp(topLevelTitle.isEmpty ? "?" : topLevelTitle)
+                    Diag.info(.scan, """
+                        menu ·\(menuTitle) is a list of data (\(menuChildren.count) children), \
+                        reading \(decision.childrenToVisit), keeping shortcuts only
+                        """)
+                }
+                for (itemIndex, item) in menuChildren.prefix(decision.childrenToVisit).enumerated() {
                     collect(
                         item,
                         path: topLevelTitle.isEmpty ? [] : [topLevelTitle],
                         depth: 0,
                         axPath: [barIndex, menuIndex, itemIndex],
                         bundleID: bundleID,
+                        keepsShortcutless: decision.keepsShortcutlessChildren,
                         items: &items,
                         elements: &elements
                     )
@@ -143,12 +167,33 @@ enum MenuScanner {
 
     // MARK: - Walking
 
+    /// Decides what a menu node is: a list of commands, or a list of data (browsing history
+    /// by day, bookmarks by folder). The shortcut sample is what separates them — a command
+    /// menu has shortcuts in it, a page or link list has none.
+    ///
+    /// Sampling costs at most `MenuContentPolicy.sampleLimit` shortcut reads, which is what
+    /// makes skipping a 198-entry history day cheap instead of walking all of it.
+    private static func submenuDecision(for children: [AXUIElement]) -> MenuContentPolicy.Decision {
+        guard MenuContentPolicy.needsSample(childCount: children.count) else {
+            return MenuContentPolicy.decideSubmenu(childCount: children.count, sampledShortcut: nil)
+        }
+        let hasShortcut = children.prefix(MenuContentPolicy.sampleLimit)
+            .contains { shortcutChord(of: $0) != nil }
+        return MenuContentPolicy.decideSubmenu(
+            childCount: children.count,
+            sampledShortcut: hasShortcut
+        )
+    }
+
     private static func collect(
         _ element: AXUIElement,
         path: [String],
         depth: Int,
         axPath: [Int],
         bundleID: String?,
+        /// False once the walk is inside a menu of data: a shortcutless child there is a page
+        /// or a bookmark, not a command.
+        keepsShortcutless: Bool,
         items: inout [BindingItem],
         elements: inout [String: AXUIElement]
     ) {
@@ -163,7 +208,7 @@ enum MenuScanner {
         // the menu item itself — so it becomes a row with an empty chord instead of being
         // dropped. A *parent* item (it has children: "Open Recent", "Services") is not a
         // command and is only walked, unless it also carries a shortcut of its own.
-        if !title.isEmpty, chord != nil || (chord == nil && submenu.isEmpty) {
+        if !title.isEmpty, chord != nil || (keepsShortcutless && submenu.isEmpty) {
             let enabled = boolAttribute(kAXEnabledAttribute, of: element, fallback: true)
             let binding = BindingItem(
                 chord: chord ?? .empty,
@@ -178,16 +223,27 @@ enum MenuScanner {
             elements[binding.id] = element
         }
 
-        guard !submenu.isEmpty else { return }
+        // A data menu's submenus are folders of the same content (bookmark folders, history
+        // by date): walking them costs an AX read per entry and yields nothing a shortcut
+        // panel can use.
+        guard !submenu.isEmpty, keepsShortcutless else { return }
+        let childDecision = submenuDecision(for: submenu)
+        if childDecision.looksLikeContent {
+            let label = Sanitizer.clamp(title.isEmpty ? (path.last ?? "?") : title)
+            Diag.info(.scan, """
+                submenu ·\(label) looks like data (\(submenu.count) children),                 reading \(childDecision.childrenToVisit) of them
+                """)
+        }
         var nextPath = path
         if !title.isEmpty { nextPath.append(title) }
-        for (index, child) in submenu.enumerated() {
+        for (index, child) in submenu.prefix(childDecision.childrenToVisit).enumerated() {
             collect(
                 child,
                 path: nextPath,
                 depth: depth + 1,
                 axPath: axPath + [index],
                 bundleID: bundleID,
+                keepsShortcutless: keepsShortcutless && childDecision.keepsShortcutlessChildren,
                 items: &items,
                 elements: &elements
             )

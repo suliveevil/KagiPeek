@@ -15,7 +15,7 @@ struct ComboLookupBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: answer.items.isEmpty ? "checkmark.circle" : "person.fill")
+                Image(systemName: answer.items.isEmpty ? "checkmark.circle" : "keyboard")
                     .font(.system(size: 10))
                     .foregroundStyle(answer.items.isEmpty ? palette.tertiaryText : palette.keyHighlight)
                 Text(localization.text(.comboLookupTitle))
@@ -30,9 +30,9 @@ struct ComboLookupBanner: View {
 
             // Named only when the answer is short enough to read at a glance; a long list
             // belongs in the results below, not in a banner.
-            if !answer.items.isEmpty, answer.items.count <= 3 {
-                ForEach(answer.items) { item in
-                    Text("• \(engine.displayOwner(of: item)) — \(item.title)")
+            if !distinctItems.isEmpty, distinctItems.count <= 3 {
+                ForEach(distinctItems) { item in
+                    Text("• \(engine.displayOwner(of: item)) — \(engine.displayName(of: item))")
                         .font(.system(size: 11))
                         .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
@@ -44,9 +44,19 @@ struct ComboLookupBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(palette.hover.opacity(0.45))
+                .fill(palette.selection)
         )
+        .padding(.horizontal, 12)
         .padding(.bottom, 8)
+    }
+
+    /// One source was reported twice for the same chord, so the banner printed the same line
+    /// twice. Keyed by owner and title, order preserved.
+    private var distinctItems: [BindingItem] {
+        var seen: Set<String> = []
+        return answer.items.filter { item in
+            seen.insert("\(engine.displayOwner(of: item))\u{1F}\(item.title)").inserted
+        }
     }
 
     private var headline: String {
@@ -57,7 +67,9 @@ struct ComboLookupBanner: View {
             if owners.count == 1, let only = owners.first {
                 return localization.format(.comboLookupOwnerFormat, engine.displayOwner(of: only))
             }
-            return localization.format(.comboLookupOwnersFormat, owners.count)
+            // Count what is printed: the same source is sometimes reported twice for one
+            // chord, and a headline of 3 over a list of 2 reads like a bug.
+            return localization.format(.comboLookupOwnersFormat, distinctItems.count)
         }
     }
 }
