@@ -38,7 +38,7 @@ final class PermissionsWindowController {
         .environmentObject(engine.localization)
 
         let panel = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 740, height: 540),
+            contentRect: NSRect(x: 0, y: 0, width: 740, height: 380),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false

@@ -44,6 +44,8 @@ enum L10nKey: String, CaseIterable, Sendable {
     case permissionRequiredBadge, permissionOptionalBadge
     case permissionAccessibilityDetail1, permissionAccessibilityDetail2, permissionAccessibilityDetail3
     case permissionInputMonitoringDetail1, permissionInputMonitoringDetail2
+    case permissionGuideDrag, permissionGuideStaleHint
+    case permissionGuideGranted, permissionGuideClose
 
     // Trigger
     case triggerTitle, triggerMode, triggerHoldModifiers, triggerDoubleTap, triggerHotkey, triggerOff
@@ -326,6 +328,22 @@ enum L10n {
         .permissionDragHint: (
             "Or drag the KagiPeek icon from here into the list in System Settings.",
             "也可以把这里的 KagiPeek 图标直接拖进系统设置的列表里。"
+        ),
+        .permissionGuideDrag: (
+            "Drag KagiPeek into the list above",
+            "把上面的 KagiPeek 图标拖进列表"
+        ),
+        .permissionGuideStaleHint: (
+            "Already listed but the switch won't stick? Remove it with −, drop the icon in again, and switch it on.",
+            "若列表里已有 KagiPeek 但开关无效：先用 − 移除，再拖入并打开。"
+        ),
+        .permissionGuideGranted: (
+            "Permission granted",
+            "已授权"
+        ),
+        .permissionGuideClose: (
+            "Close the guide",
+            "关闭引导"
         ),
         .permissionSecureInput: (
             "Secure keyboard entry is active — hints are paused.",

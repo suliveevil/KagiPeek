@@ -47,6 +47,7 @@ final class ShortcutEngine: ObservableObject {
     private lazy var surface = SurfacePanelController(engine: self)
     private lazy var hud = HUDPanelController()
     private lazy var permissionsWindow = PermissionsWindowController(engine: self)
+    private lazy var permissionGuide = PermissionGuidePanelController()
     private lazy var settingsWindow = SettingsWindowController(engine: self)
     private lazy var shortcutTester = ShortcutTester(
         appToRestore: { [weak self] in self?.lastExternalFrontmost },
@@ -158,6 +159,16 @@ final class ShortcutEngine: ObservableObject {
 
         permissions.startPolling()
         permissions.startObservingSystemChanges()
+        // Every path that opens a Settings pane — the grant buttons, the standalone
+        // "Open Settings" buttons — funnels through the same hook, so the drag guide
+        // anchors to the Settings window no matter which surface started the request.
+        // The permission is captured weakly: the hook lives on the permission itself.
+        for permission in permissions.all {
+            permission.onSettingsPaneOpened = { [weak self, weak permission] in
+                guard let self, let permission else { return }
+                permissionGuide.present(permission, localization: localization)
+            }
+        }
         refreshPermissions()
         applyHotkeySwallowing()
         appDirectory.start()

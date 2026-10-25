@@ -26,6 +26,11 @@ final class AppPermission: ObservableObject, Identifiable {
 
     var onChange: ((Bool) -> Void)?
 
+    /// Fired after the matching System Settings pane has been opened — by both
+    /// `performRequest()` and `openSettingsPane()` — so the UI can anchor a drag guide
+    /// to the Settings window.
+    var onSettingsPaneOpened: (() -> Void)?
+
     private let check: () -> Bool
     private let requestPrompt: () -> Bool
     private var timer: Timer?
@@ -73,6 +78,7 @@ final class AppPermission: ObservableObject, Identifiable {
         if let settingsURL {
             NSWorkspace.shared.open(settingsURL)
         }
+        onSettingsPaneOpened?()
     }
 
     func startPolling() {

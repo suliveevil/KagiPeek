@@ -44,6 +44,15 @@ KagiPeek also notices when the toggle is switched **off** while it is running: t
 
 The macOS authorization dialog is shown by the system, not by KagiPeek. KagiPeek never asks for an administrator password and does not install a privileged helper.
 
+## The drag guide
+
+Whenever a request opens a permission pane — the **Grant Permission** button in the Permissions window, or **Request** / **Open Settings** in **Settings → Permissions** — a horizontal **drag guide** bar appears just below the bottom-right corner of the System Settings window and follows that window while it moves. It carries the KagiPeek icon as a real drag source, so granting is one gesture: drag the icon from the bar straight into the list above it, then flip the toggle.
+
+- The guide never takes focus (it is a non-activating panel), so System Settings stays frontmost for the whole drag.
+- Its instructions follow the remove-then-add order that solves stale entries: if KagiPeek is already listed but the toggle will not stick, remove it with **−** first, then drop the icon in again.
+- It dismisses itself when the toggle lands (with a brief confirmed state), when the System Settings window is closed, or from its own ✕ button.
+- The guide reads only the Settings window's bounds — never its title or contents — so it needs no permission of its own.
+
 The Permissions tab's icon is a real drag source. Dropping it on the Accessibility or Input Monitoring list adds the running app even when the list is empty; this is often faster than using **+**, and it is the same app macOS will later remember. The icon only adds the entry — you still have to toggle it on.
 
 > If you use a managed Mac, an MDM profile may pre-approve or block these permissions. In that case the toggles can be greyed out; contact your administrator.

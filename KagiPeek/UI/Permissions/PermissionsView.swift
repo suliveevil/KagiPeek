@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// First-run / on-demand permission guide, modelled after Thaw's permission cards:
-/// one card per permission with the concrete reasons, a live status that updates while
-/// System Settings is open, and a Continue button that waits for the required grant.
+/// First-run / on-demand permission guide: one horizontal card per permission —
+/// title, reasons, and the grant action in a single strip — with a live status that
+/// updates while System Settings is open and a Continue button that waits for the
+/// required grant.
 struct PermissionsView: View {
     @EnvironmentObject private var engine: ShortcutEngine
     @EnvironmentObject private var localization: Localization
@@ -13,13 +14,13 @@ struct PermissionsView: View {
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 14) {
             header
             cards
             footer
         }
-        .padding(24)
-        .frame(width: 740, height: 540)
+        .padding(20)
+        .frame(width: 740, height: 380)
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: permissions.state) { _, _ in
             engine.bringPermissionsWindowForward()
@@ -29,7 +30,7 @@ struct PermissionsView: View {
     private var header: some View {
         VStack(spacing: 6) {
             Text(localization.text(.permissionsTitle))
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold))
             Text(localization.text(.permissionsSubtitle))
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -39,11 +40,10 @@ struct PermissionsView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .padding(.top, 4)
     }
 
     private var cards: some View {
-        HStack(alignment: .top, spacing: 14) {
+        VStack(spacing: 12) {
             ForEach(permissions.all) { permission in
                 PermissionCardView(permission: permission)
             }
@@ -78,73 +78,66 @@ private struct PermissionCardView: View {
         }
     }
 
+    /// The card's reasons as one flowing line; two lines of it fit the strip, and the
+    /// full text rides along as a tooltip so nothing is lost to the tighter layout.
+    private var details: String {
+        permission.detailKeys.map { localization.text($0) }.joined(separator: "  ·  ")
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: permission.iconName)
-                    .font(.title3)
-                    .foregroundStyle(tint)
-                Text(localization.text(permission.titleKey))
-                    .font(.headline)
-                Spacer(minLength: 0)
-                Text(localization.text(permission.isRequired ? .permissionRequiredBadge : .permissionOptionalBadge))
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(permission.isRequired ? Color.orange.opacity(0.16) : Color.secondary.opacity(0.12)))
-                    .foregroundStyle(permission.isRequired ? .orange : .secondary)
-            }
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: permission.iconName)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 30)
 
             VStack(alignment: .leading, spacing: 5) {
-                ForEach(permission.detailKeys, id: \.self) { key in
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: "circle.fill")
-                            .font(.system(size: 3))
-                            .padding(.top, 5)
-                            .foregroundStyle(.tertiary)
-                        Text(localization.text(key))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                HStack(spacing: 8) {
+                    Text(localization.text(permission.titleKey))
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(localization.text(permission.isRequired ? .permissionRequiredBadge : .permissionOptionalBadge))
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(permission.isRequired ? Color.orange.opacity(0.16) : Color.secondary.opacity(0.12)))
+                        .foregroundStyle(permission.isRequired ? .orange : .secondary)
                 }
+                Text(details)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .help(details)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
 
             if permission.isGranted {
                 Label(localization.text(.permissionGrantedDone), systemImage: "checkmark")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.green)
-                    .frame(maxWidth: .infinity)
             } else {
-                Button(localization.text(.permissionGrant)) {
-                    permission.performRequest()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(tint)
-                .frame(maxWidth: .infinity)
-
-                if permission.id == .accessibility {
-                    HStack(spacing: 8) {
-                        DragAppIcon(side: 30)
-                        Text(localization.text(.permissionDragHint))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    if permission.id == .accessibility {
+                        DragAppIcon(side: 26)
                     }
+                    Button(localization.text(.permissionGrant)) {
+                        permission.performRequest()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(tint)
                 }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 250, alignment: .topLeading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
                 .decorative()
         )
