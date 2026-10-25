@@ -86,11 +86,14 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 
 ### Download a release
 
-1. Download the latest DMG from [Releases](https://github.com/suliveevil/KagiPeek/releases/latest).
-2. Open the DMG and drag **KagiPeek** into **Applications**.
+1. Download the latest DMG from [Releases](https://github.com/suliveevil/KagiPeek/releases/latest) and verify it against the published `.sha256` file (`shasum -a 256 KagiPeek-*.dmg`).
+2. Open the DMG and drag **KagiPeek** into **Applications** — launch it from there, not from inside the DMG.
 3. Launch KagiPeek and grant Accessibility as described below. Add Input Monitoring only if the panel does not appear.
 
-Notarized builds open normally. If you are running a local or otherwise non-notarized build, macOS may block the first launch: right-click the app and choose **Open**, or use **System Settings → Privacy & Security → Open Anyway**.
+Notarized builds open normally. A build that is not notarized is blocked on first launch with an "unverified developer" notice — the app is still fully signed, only Apple's check is missing. After the block dialog, use either:
+
+- **No Terminal:** open **System Settings → Privacy & Security**, scroll down to the KagiPeek notice, and click **Open Anyway** (the right-click → Open shortcut does not exist on macOS 15), or
+- **Terminal:** `xattr -dr com.apple.quarantine /Applications/KagiPeek.app`
 
 > **Upgrading or replacing an existing copy?** macOS ties privacy grants to the app's code signature. If you replace KagiPeek with a build signed differently — a local or ad-hoc rebuild, or an install over a release signed by another identity — the old Accessibility grant is no longer valid: open **System Settings → Privacy & Security → Accessibility**, remove the stale KagiPeek entry if present, and enable the new app again. Without this step no panel will appear. A normal signed update keeps the bundle identifier and its grant.
 
@@ -428,11 +431,14 @@ KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility
 
 #### 下载 DMG
 
-1. 从 [Releases](https://github.com/suliveevil/KagiPeek/releases/latest) 下载最新 DMG。
-2. 打开 DMG，把 **KagiPeek** 拖进 **Applications**。
+1. 从 [Releases](https://github.com/suliveevil/KagiPeek/releases/latest) 下载最新 DMG，并用发布的 `.sha256` 文件校验（`shasum -a 256 KagiPeek-*.dmg`）。
+2. 打开 DMG，把 **KagiPeek** 拖进 **Applications**——从 Applications 里启动，不要在 DMG 里直接运行。
 3. 启动并先授予辅助功能；如果面板不弹出，再添加输入监控。
 
-已公证的版本可以直接打开。本地构建或未公证的版本可能被 Gatekeeper 拦截：右键点击 App 选择“打开”，或在“系统设置 → 隐私与安全性”中选择“仍要打开”。
+已公证的版本可以直接打开。未公证的版本首次启动会被 Gatekeeper 以“无法验证开发者”拦截——App 本身是完整签名的，缺的只是 Apple 的公证。看到拦截提示后，任选其一：
+
+- **不用终端：** 打开**系统设置 → 隐私与安全性**，拉到底找到 KagiPeek 的提示，点**仍要打开**（macOS 15 上“右键 → 打开”已不可用），或
+- **用终端：** `xattr -dr com.apple.quarantine /Applications/KagiPeek.app`
 
 > **覆盖安装或替换旧版本？** macOS 把隐私授权绑定到 App 的代码签名。如果用签名不同的构建替换 KagiPeek（本地或 ad-hoc 重新构建，或覆盖签名身份不同的版本），旧的辅助功能授权会失效：请打开**系统设置 → 隐私与安全性 → 辅助功能**，移除残留的 KagiPeek 条目（如果有），再重新勾选新的 App。不做这一步，面板不会出现。使用同一签名身份的正常升级 Bundle ID 不变，授权会保留。
 

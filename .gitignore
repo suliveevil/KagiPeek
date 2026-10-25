@@ -118,3 +118,11 @@ deliverables/
 # happened in a session, not what the project is.
 # ---------------------------------------------------------------------------
 qwenwork/
+
+# ---------------------------------------------------------------------------
+# ZCode agent session data
+#
+# Plans and session state for ZCode CLI runs in this workspace, like .workbuddy/
+# and qwenwork/ above: local working data, not part of the project.
+# ---------------------------------------------------------------------------
+.zcode/
