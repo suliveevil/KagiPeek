@@ -60,9 +60,13 @@ fi
 # Repositories cloned over HTTPS need a credential helper; fall back to SSH.
 git push origin "$TAG" 2>/dev/null || git push git@github.com:suliveevil/KagiPeek.git "$TAG"
 
-ARGS=(release create "$TAG" "$DMG" --title "KagiPeek $VERSION" --notes-file "$NOTES")
+ARGS=(release create "$TAG" "$DMG" --repo suliveevil/KagiPeek --title "KagiPeek $VERSION" --notes-file "$NOTES")
 if [ "${1:-}" = "--prerelease" ]; then
     ARGS+=(--prerelease)
 fi
 
+# `gh` picks a repo from the git remotes and lands on `upstream` (Voltline/KagiPeek) when
+# one exists; releases belong to this fork, so the script pins it. The .sha256 sidecar is
+# what README tells users to verify against, and `release create` uploads only the DMG.
 gh "${ARGS[@]}"
+gh release upload "$TAG" "$DMG.sha256" --repo suliveevil/KagiPeek
