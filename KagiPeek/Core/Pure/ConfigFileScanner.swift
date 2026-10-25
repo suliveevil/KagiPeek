@@ -11,7 +11,7 @@ nonisolated struct ConfigBinding: Hashable, Sendable {
 }
 
 /// What one config scan found.
-struct ConfigScanResult: Sendable, Equatable {
+nonisolated struct ConfigScanResult: Sendable, Equatable {
     var items: [BindingItem] = []
     /// How many shortcuts each tool contributed, including the ones that came back empty.
     var counts: [ConfigTool: Int] = [:]
@@ -32,7 +32,10 @@ struct ConfigScanResult: Sendable, Equatable {
 /// Every scanner is split the same way: a pure `parse` that takes text, data or a decoded
 /// plist, and a `scan` that finds the file on disk and hands it over. That split is what
 /// makes the parsers testable with a fixture instead of a real `~/.config`.
-enum ConfigFileScanner {
+///
+/// Nonisolated so the nonisolated scanners can share these key tables under the app
+/// target's default-MainActor isolation; everything here is immutable or stateless.
+nonisolated enum ConfigFileScanner {
 
     /// Upper bound on a config file we are willing to read into memory. A corrupted file
     /// or a symlink to something enormous must not become an unbounded allocation.

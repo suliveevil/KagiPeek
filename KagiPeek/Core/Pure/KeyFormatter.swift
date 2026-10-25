@@ -1,7 +1,10 @@
 import Foundation
 
 /// Renders chords the way macOS does: `⌃⌥⇧⌘` order, no separators, `⇧⌘3`.
-enum KeyFormatter {
+///
+/// Nonisolated: pure string rendering with no state, called from nonisolated scanners
+/// and verdicts under the app target's default-MainActor isolation.
+nonisolated enum KeyFormatter {
     enum Style: String, Codable, CaseIterable, Hashable, Sendable {
         case symbols
         case words

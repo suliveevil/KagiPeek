@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where a binding was discovered.
-enum BindingSource: String, Codable, Hashable, Sendable {
+nonisolated enum BindingSource: String, Codable, Hashable, Sendable {
     /// Read from the frontmost app's menu bar through the Accessibility API.
     case menu
     /// One of the bundled fallback shortcuts.
@@ -15,7 +15,10 @@ enum BindingSource: String, Codable, Hashable, Sendable {
 }
 
 /// One discoverable shortcut.
-struct BindingItem: Identifiable, Hashable, Codable, Sendable {
+///
+/// Nonisolated: pure value data produced by the nonisolated config scanners and consumed
+/// everywhere; the Hashable/Codable conformances must not inherit MainActor isolation.
+nonisolated struct BindingItem: Identifiable, Hashable, Codable, Sendable {
     /// Unique per (chord, group, title, source, app). Used as the SwiftUI identity.
     let id: String
     let chord: KeyChord

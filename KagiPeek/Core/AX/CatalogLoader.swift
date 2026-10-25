@@ -29,7 +29,9 @@ struct CatalogSnapshot {
 /// the app exposes no usable menu bar, and caches the result per app: in memory for the
 /// length of a sitting, on disk across launches.
 final class CatalogLoader {
-    private struct CacheKey: Hashable {
+    // Nonisolated so the off-main scan path can build and look up keys; the key is plain
+    // value data and its Hashable conformance must not inherit the enclosing isolation.
+    private nonisolated struct CacheKey: Hashable {
         let identity: String
         /// A relaunched app keeps its bundle id but gets new AX elements and a new pid.
         let pid: pid_t

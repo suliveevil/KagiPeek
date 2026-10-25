@@ -47,8 +47,9 @@ struct CrashReport: Codable, Equatable {
 /// Assembles and renders crash reports; parses the minimal `.partial` fragment the signal
 /// handler was able to `write()`.
 enum CrashLogFormatter {
-    /// Signal names for the set CrashReporter installs handlers for.
-    static func signalName(_ signal: Int32) -> String {
+    /// Signal names for the set CrashReporter installs handlers for. Nonisolated so the
+    /// report builder can run outside the main actor.
+    nonisolated static func signalName(_ signal: Int32) -> String {
         switch signal {
         case SIGABRT: return "SIGABRT"
         case SIGSEGV: return "SIGSEGV"

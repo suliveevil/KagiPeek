@@ -147,7 +147,8 @@ nonisolated enum ConflictCategory: Int, Comparable, CaseIterable, Sendable {
     var isAlwaysOnPair: Bool { rawValue >= ConflictCategory.toolSelfOverlap.rawValue }
 }
 
-struct BindingConflict: Identifiable, Equatable, Sendable {
+/// Pure value data built and sorted by the nonisolated detector.
+nonisolated struct BindingConflict: Identifiable, Equatable, Sendable {
     let id: String
     let chordKey: String
     let items: [BindingItem]
@@ -255,7 +256,10 @@ struct ConflictFilter: Equatable, Sendable {
 }
 
 /// Finds chords that more than one entry claims, and says how much each one matters.
-enum ConflictDetector {
+///
+/// Nonisolated: pure set logic over value types, run from a detached task by the engine
+/// under the app target's default-MainActor isolation.
+nonisolated enum ConflictDetector {
     /// `external` entries (system-wide hotkeys and third-party config bindings) are
     /// considered for clashes but are not part of the app's own list.
     static func conflicts(

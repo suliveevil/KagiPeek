@@ -17,7 +17,8 @@ extension ModifierSet {
 
     /// Bridges a CoreGraphics event tap's flags to the pure modifier set: the tap speaks
     /// `CGEventFlags`, the engine speaks `ModifierSet`, and the two mappings must not drift.
-    static func from(cgEventFlags: CGEventFlags) -> ModifierSet {
+    /// Nonisolated: the tap callbacks run off the main actor.
+    nonisolated static func from(cgEventFlags: CGEventFlags) -> ModifierSet {
         var set: ModifierSet = []
         if cgEventFlags.contains(.maskControl) { set.insert(.control) }
         if cgEventFlags.contains(.maskAlternate) { set.insert(.option) }
@@ -28,7 +29,7 @@ extension ModifierSet {
 
     /// The inverse bridge: one chord, posted back through the HID tap
     /// (`ShortcutInjector`). The mirror image of `from(cgEventFlags:)`.
-    static func cgEventFlags(for modifiers: ModifierSet) -> CGEventFlags {
+    nonisolated static func cgEventFlags(for modifiers: ModifierSet) -> CGEventFlags {
         var flags: CGEventFlags = []
         if modifiers.contains(.control) { flags.insert(.maskControl) }
         if modifiers.contains(.option) { flags.insert(.maskAlternate) }

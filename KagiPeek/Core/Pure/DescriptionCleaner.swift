@@ -5,7 +5,9 @@ import Foundation
 /// Accessibility returns raw menu titles: mixed tabs, trailing shortcut glyphs on some
 /// apps, duplicated whitespace, leading "+" markers. The panel has a fixed column width,
 /// so titles are also truncated here.
-enum DescriptionCleaner {
+///
+/// Nonisolated: pure string work called from the nonisolated binding builders.
+nonisolated enum DescriptionCleaner {
     /// What a row shows when there is no name to show. A single em dash is the typographic
     /// way of saying "nothing here", and it is visibly not a description — unlike repeating
     /// the shortcut, which read as if the description had been lost.
