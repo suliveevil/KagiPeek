@@ -2484,53 +2484,30 @@ final class ShortcutEngine: ObservableObject {
     /// (`settingsError`) rather than failing it — a report without settings is still worth
     /// attaching, but dropping the section in silence is how a broken encoder goes unnoticed.
     func diagnosticsReport() throws -> Data {
-        let info = Bundle.main.infoDictionary
-        var payload: [String: Any] = [
-            "generatedAt": ISO8601DateFormatter().string(from: Date()),
-            "version": info?["CFBundleShortVersionString"] as? String ?? "?",
-            "build": info?["CFBundleVersion"] as? String ?? "?",
-            "bundleID": Bundle.main.bundleIdentifier ?? "?",
-            "bundlePath": Bundle.main.bundlePath,
-            "macOS": ProcessInfo.processInfo.operatingSystemVersionString,
-            "schemaVersion": AppSettingsSnapshot.currentSchemaVersion,
-            // Empty is the only acceptable value: a pattern here is a redaction rule that is
-            // not being applied, so log lines are reaching disk unredacted.
-            "sanitizerFailedPatterns": Sanitizer.failedPatterns,
-            "hasAccessibility": state.hasAccessibility,
-            "hasInputMonitoring": state.hasInputMonitoring,
-            "isListening": state.isListening,
-            "catalogSize": state.catalogSize,
-            "frontmost": state.appName,
-            "frontmostBundleID": appContext.frontmost?.bundleID ?? "",
-            "usedBuiltInCatalog": state.usedBuiltInCatalog,
-            // The three numbers a "Return did nothing" report needs: was a row selected, how
-            // many rows were there, and what prefix was the panel matching against.
-            "panelSelectionIndex": state.panel.selectionIndex,
-            "panelRowCount": state.panel.flatRowIDs.count,
-            "prefix": KeyFormatter.render(state.prefix, style: state.settings.keyStyle),
-            "scanDuration": state.scanDuration,
-            "scanState": {
-                switch state.scanState {
-                case .ok: return "ok"
-                case .noMenus: return "noMenus"
-                case .permissionDenied: return "permissionDenied"
-                }
-            }(),
-            "conflicts": state.conflicts.count,
-            "systemHotkeys": state.systemBindings.count,
-            "usageTracked": usageStore.trackedCount,
-            "usageTotalPresses": usageStore.totalPresses,
-            "favorites": usageStore.favorites.count,
-            "dataFolder": usageStore.dataFolderURL.path,
-            "windowTitles": NSApp.windows.filter(\.isVisible).map(\.title),
-            "logCommand": "log show --last 10m --predicate 'subsystem == \"\(Bundle.main.bundleIdentifier ?? "")\"'"
-        ]
-        do {
-            let encoded = try JSONEncoder().encode(settingsStore.settings)
-            payload["settings"] = try JSONSerialization.jsonObject(with: encoded)
-        } catch {
-            payload["settingsError"] = String(describing: error)
-        }
-        return try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        try DiagnosticsReportBuilder.report(
+            .init(
+                generatedAt: Date(),
+                settings: settingsStore.settings,
+                hasAccessibility: state.hasAccessibility,
+                hasInputMonitoring: state.hasInputMonitoring,
+                isListening: state.isListening,
+                catalogSize: state.catalogSize,
+                frontmostName: state.appName,
+                frontmostBundleID: appContext.frontmost?.bundleID ?? "",
+                usedBuiltInCatalog: state.usedBuiltInCatalog,
+                panelSelectionIndex: state.panel.selectionIndex,
+                panelRowCount: state.panel.flatRowIDs.count,
+                prefixText: KeyFormatter.render(state.prefix, style: state.settings.keyStyle),
+                scanDuration: state.scanDuration,
+                scanState: state.scanState,
+                conflictCount: state.conflicts.count,
+                systemBindingCount: state.systemBindings.count,
+                usageTracked: usageStore.trackedCount,
+                usageTotalPresses: usageStore.totalPresses,
+                favoriteCount: usageStore.favorites.count,
+                dataFolderPath: usageStore.dataFolderURL.path,
+                windowTitles: NSApp.windows.filter(\.isVisible).map(\.title)
+            )
+        )
     }
 }
