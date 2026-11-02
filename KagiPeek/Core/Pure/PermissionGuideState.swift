@@ -3,9 +3,16 @@ import Foundation
 /// What the drag guide is telling the user right now.
 ///
 /// Modelled on the state machine LobeHub's desktop permission guide runs
-/// (`feat/macos-permission-drag-guide`): the panel is not a static hint, it reports the
-/// four ways the drag flow goes wrong instead of pretending it is still waiting. Every
-/// phase below is a state the user can actually be in — nothing here is a spinner.
+/// (`feat/macos-permission-drag-guide`): the panel is not a static hint, it reports the ways
+/// the drag flow goes wrong instead of pretending it is still waiting. Every phase below is
+/// a state the user can actually be in — nothing here is a spinner.
+///
+/// LobeHub also has a "you left this page" phase. This one deliberately does not, because
+/// the signal it would need is not available here: Settings reports its current page only in
+/// the window *title* (Screen Recording) or through AX (the permission being granted), and
+/// `CurrentExtensionURL` in its preference domain neither carries the page in a usable form
+/// nor updates while the app is running. A phase whose detector is always wrong is worse
+/// than no phase at all — it fired for every user, and it hid the drag icon.
 enum PermissionGuidePhase: String, Equatable, Sendable {
     /// The panel is up and the icon is waiting to be dragged into the list.
     case dragging
@@ -15,8 +22,6 @@ enum PermissionGuidePhase: String, Equatable, Sendable {
     case granted
     /// System Settings went away before the grant landed.
     case settingsClosed
-    /// The user navigated to another page of System Settings.
-    case leftPane
     /// The password / Touch ID prompt was dismissed without a grant.
     case cancelled
 }
@@ -27,10 +32,6 @@ enum PermissionGuideEvent: Equatable, Sendable {
     case settingsAppeared
     /// No System Settings window is on screen any more.
     case settingsLost
-    /// The front page of System Settings is the privacy page the list lives on.
-    case paneMatched
-    /// System Settings is showing a different page.
-    case paneLeft
     /// A password / Touch ID prompt is up over the Settings window.
     case sheetShown
     /// That prompt went away without the grant landing.
@@ -44,13 +45,11 @@ enum PermissionGuideEvent: Equatable, Sendable {
 enum PermissionGuideAction: Equatable, Sendable {
     /// Reopen System Settings on the permission's own pane.
     case openSettings
-    /// Go back to the privacy page the list lives on.
-    case goBack
 }
 
-/// Pure transitions and copy for the guide. Kept out of the controller so the four
-/// recovery branches are unit-testable without a live System Settings window — which is
-/// exactly the part that is impossible to exercise by hand.
+/// Pure transitions and copy for the guide. Kept out of the controller so the recovery
+/// branches are unit-testable without a live System Settings window — which is exactly the
+/// part that is impossible to exercise by hand.
 enum PermissionGuideState {
     /// The next phase for `phase` when `event` happens.
     ///
@@ -66,28 +65,26 @@ enum PermissionGuideState {
             // A prompt disappearing takes the Settings window list with it on some
             // configurations; the lost window is the more actionable message.
             return .settingsClosed
-        case .paneLeft:
-            return .leftPane
         case .sheetShown:
             return .waiting
         case .sheetDismissed:
             // Only a prompt the user cancelled is news. A dismissal that was actually the
             // grant arriving is handled by `granted` above.
             return phase == .waiting ? .cancelled : phase
-        case .settingsAppeared, .paneMatched:
+        case .settingsAppeared:
             return recoveryTarget(from: phase)
         case .granted:
             return .granted
         }
     }
 
-    /// Coming back to a live Settings window on the right page clears every "you are in the
-    /// wrong place" message, and refuses to invent progress the user has not made: a
-    /// cancelled drag stays cancelled until they drag again, because macOS gives no signal
-    /// for "the icon moved" before the prompt appears.
+    /// Coming back to a live Settings window clears the "Settings is gone" message, and
+    /// refuses to invent progress the user has not made: a cancelled drag stays cancelled
+    /// until they drag again, because macOS gives no signal for "the icon moved" before the
+    /// prompt appears.
     private static func recoveryTarget(from phase: PermissionGuidePhase) -> PermissionGuidePhase {
         switch phase {
-        case .settingsClosed, .leftPane: return .dragging
+        case .settingsClosed: return .dragging
         case .dragging, .waiting, .cancelled, .granted: return phase
         }
     }
@@ -96,7 +93,6 @@ enum PermissionGuideState {
     static func action(for phase: PermissionGuidePhase) -> PermissionGuideAction? {
         switch phase {
         case .settingsClosed: return .openSettings
-        case .leftPane: return .goBack
         case .dragging, .waiting, .granted, .cancelled: return nil
         }
     }
@@ -109,7 +105,6 @@ enum PermissionGuideState {
         case .waiting: return .permissionGuideWaiting
         case .granted: return .permissionGuideGranted
         case .settingsClosed: return .permissionGuideSettingsClosed
-        case .leftPane: return .permissionGuideLeftPane
         case .cancelled: return .permissionGuideCancelled
         }
     }
@@ -123,7 +118,6 @@ enum PermissionGuideState {
         case .waiting: return .permissionGuideWaitingHint
         case .granted: return .permissionGuideGrantedHint
         case .settingsClosed: return .permissionGuideSettingsClosedHint
-        case .leftPane: return .permissionGuideLeftPaneHint
         case .cancelled: return .permissionGuideCancelledHint
         }
     }
@@ -132,16 +126,19 @@ enum PermissionGuideState {
     static func actionKey(for action: PermissionGuideAction) -> L10nKey {
         switch action {
         case .openSettings: return .permissionGuideOpenSettings
-        case .goBack: return .permissionGuideGoBack
         }
     }
 
-    /// Whether the icon is worth showing as a drag source. A closed Settings window has no
-    /// list to drop into, and offering the drag there is what made the old flow feel broken.
+    /// Whether the icon is worth showing as a drag source.
+    ///
+    /// The invariant that matters: **a recovery message may never take the drag icon away.**
+    /// The icon is the only way to finish the flow, so a phase that hides it has to be one
+    /// where dragging genuinely cannot succeed — Settings gone, or already granted. Getting
+    /// this wrong is not a cosmetic bug: it locks the user out of the only action left.
     static func showsDragSource(_ phase: PermissionGuidePhase) -> Bool {
         switch phase {
         case .dragging, .waiting, .cancelled: return true
-        case .settingsClosed, .leftPane, .granted: return false
+        case .settingsClosed, .granted: return false
         }
     }
 }

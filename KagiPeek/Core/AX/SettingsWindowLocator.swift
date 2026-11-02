@@ -85,11 +85,6 @@ enum SettingsWindowLocator {
         UserDefaults(suiteName: settingsBundleIdentifier)
     }
 
-    /// The pane Settings is currently showing, or nil when it has not recorded one.
-    static func currentPaneURL() -> String? {
-        settingsDefaults?.string(forKey: "CurrentExtensionURL")
-    }
-
     /// The sidebar width Settings last laid out, or nil when it has never saved one. Keys
     /// have been spelled with both a lowercase and a capitalised split-view name across
     /// releases, so both are tried before giving up.

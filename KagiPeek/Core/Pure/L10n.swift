@@ -50,7 +50,6 @@ enum L10nKey: String, CaseIterable, Sendable {
     case permissionGuideGranted, permissionGuideGrantedHint, permissionGuideClose
     case permissionGuideWaiting, permissionGuideWaitingHint
     case permissionGuideSettingsClosed, permissionGuideSettingsClosedHint, permissionGuideOpenSettings
-    case permissionGuideLeftPane, permissionGuideLeftPaneHint, permissionGuideGoBack
     case permissionGuideCancelled, permissionGuideCancelledHint
     case permissionWaitingForAccess, permissionContinueGrant
 
@@ -376,18 +375,6 @@ enum L10n {
         .permissionGuideOpenSettings: (
             "Open Settings",
             "打开系统设置"
-        ),
-        .permissionGuideLeftPane: (
-            "You left this page",
-            "你已离开这个页面"
-        ),
-        .permissionGuideLeftPaneHint: (
-            "Go back to the privacy list to drop the icon.",
-            "回到隐私列表才能拖入图标。"
-        ),
-        .permissionGuideGoBack: (
-            "Go back",
-            "回到该页面"
         ),
         .permissionGuideCancelled: (
             "Cancelled",

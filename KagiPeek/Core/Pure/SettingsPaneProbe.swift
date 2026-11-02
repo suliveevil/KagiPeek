@@ -1,39 +1,23 @@
 import CoreGraphics
 import Foundation
 
-/// Reads the two things the drag guide needs out of System Settings' own preferences,
-/// without asking for Screen Recording or Accessibility to get them.
+/// What System Settings' own preferences can tell the drag guide, without asking for Screen
+/// Recording or Accessibility to read them.
 ///
-/// LobeHub detects "the user left this page" from the Settings window *title* when Screen
-/// Recording is granted and otherwise guesses from a sidebar click — but this app's whole
-/// premise is that the only permission it wants is the one being granted, so the title is
-/// out of reach. `com.apple.systempreferences` records the pane it is showing in
-/// `CurrentExtensionURL`, and the sidebar width in its saved split-view frames, both of
-/// which are readable with no permission at all.
+/// Only the sidebar width survives here, and the negative half of the result is written
+/// down here so nobody re-adds it: `CurrentExtensionURL` looks exactly like "the page
+/// Settings is showing", but it is not usable as one. Measured on macOS 27 —
 ///
-/// The page it reports is the containing extension, not the sub-page: every privacy list
-/// (Accessibility, Input Monitoring, Screen Recording…) lives in
-/// `PrivacySecurity.extension`, so a jump from Accessibility to Displays is caught while a
-/// move between two privacy lists is not. The panel's instruction ("drag into the list
-/// above") stays true in that case, which is why the coarser signal is enough.
+/// - the value is a file path (`…/ExtensionKit/Extensions/SecurityPrivacyExtension.appex`),
+///   never the `com.apple.settings.PrivacySecurity.extension` identifier a deep link uses;
+/// - it does not change while Settings runs. With the app parked on Accessibility it still
+///   reported the software-update page from before.
+///
+/// A "you left this page" detector built on it is therefore wrong for every user, and
+/// because that phase hid the drag icon it took away the only action the panel exists to
+/// offer. LobeHub detects the same thing from the window title, which needs Screen
+/// Recording, or from a sidebar click; neither is available here, so the phase is gone.
 enum SettingsPaneProbe {
-    /// The privacy page that holds both lists this app cares about.
-    static let privacyExtension = "com.apple.settings.PrivacySecurity.extension"
-
-    /// The Ventura-and-earlier spelling, still accepted so the check does not misfire on an
-    /// OS that kept the old identifier.
-    static let legacySecurityPane = "com.apple.preference.security"
-
-    /// The pane Settings was last showing, from `CurrentExtensionURL`.
-    ///
-    /// Nil means "no opinion": the key is absent on a fresh profile and after a Settings
-    /// reset. Callers treat that as still-on-the-right-page rather than inventing a
-    /// "you left" message the user cannot act on.
-    static func privacyPageShown(inPaneURL paneURL: String?) -> Bool? {
-        guard let paneURL, !paneURL.isEmpty else { return nil }
-        return paneURL.contains(privacyExtension) || paneURL.contains(legacySecurityPane)
-    }
-
     /// The sidebar width in points, from a saved `NSSplitView` frame row.
     ///
     /// The stored string is `"x, y, width, height, NO, NO"`; the first row is the sidebar.

@@ -37,8 +37,6 @@ final class PermissionGuidePanelController {
     /// How long the granted state stays up before the guide closes itself.
     private static let grantedLinger: TimeInterval = 1.2
     private static let flightInterval: TimeInterval = 1.0 / 60.0
-    /// How many ticks a pane mismatch has to hold before the panel admits the user left.
-    private static let paneMismatchTicks = 4
 
     private var panel: PermissionGuidePanel?
     private var trackingTimer: Timer?
@@ -53,7 +51,6 @@ final class PermissionGuidePanelController {
     private var waitingTicks = 0
     private var lostTicks = 0
     private var promptWasUp = false
-    private var paneMismatchTicks = 0
     private var hasAnchored = false
     private var targetOrigin: CGPoint?
     private var flightOrigin: CGPoint?
@@ -79,7 +76,6 @@ final class PermissionGuidePanelController {
         waitingTicks = 0
         lostTicks = 0
         promptWasUp = false
-        paneMismatchTicks = 0
         hasAnchored = false
         targetOrigin = nil
         flightOrigin = nil
@@ -189,11 +185,12 @@ final class PermissionGuidePanelController {
         return panel
     }
 
-    /// The permission's button in the panel: reopening Settings and going back to the list
-    /// are the same deep link — the copy differs because the reason does.
+    /// The permission's button in the panel. Reopening Settings is a user action, never a
+    /// reaction to a state change: the panel must not put a System Settings window on screen
+    /// by itself.
     private func run(_ action: PermissionGuideAction) {
         switch action {
-        case .openSettings, .goBack:
+        case .openSettings:
             currentPermission?.openSettingsPane()
         }
     }
@@ -277,7 +274,6 @@ final class PermissionGuidePanelController {
         }
 
         detectPrompt(windows: windows)
-        detectPaneChange()
 
         let visibleFrame = SettingsWindowLocator.screenVisibleFrame(forSettingsFrame: main)
         targetOrigin = anchoredOrigin(panelSize: panel.frame.size, settingsFrame: main, visibleFrame: visibleFrame)
@@ -315,25 +311,11 @@ final class PermissionGuidePanelController {
         apply(isUp ? .sheetShown : .sheetDismissed)
     }
 
-    /// "You left this page" waits for the mismatch to hold, because a deep link lands before
-    /// Settings has navigated: the pane it reports is still the previous one for the first
-    /// ticks, and flashing "you left" at the exact moment the list is opening would be a lie
-    /// about the most important second of the flow.
-    private func detectPaneChange() {
-        guard let onPrivacy = SettingsPaneProbe.privacyPageShown(
-            inPaneURL: SettingsWindowLocator.currentPaneURL()
-        )
-        else { return }
-
-        guard !onPrivacy else {
-            paneMismatchTicks = 0
-            apply(.paneMatched)
-            return
-        }
-        paneMismatchTicks += 1
-        guard paneMismatchTicks >= Self.paneMismatchTicks else { return }
-        apply(.paneLeft)
-    }
+    // There is deliberately no "the user navigated to another page" detection. LobeHub reads
+    // it from the Settings window title (Screen Recording), and the permission-free
+    // substitute — `CurrentExtensionURL` — neither carries the page in a matchable form nor
+    // updates while Settings runs; see `SettingsPaneProbe`. Guessing cost more than it paid:
+    // it fired for every user and hid the drag icon.
 
     /// Inside the Settings window, centred under the list, is the placement that makes the
     /// drop one short move up. A window too small to hold the panel falls back to hugging
@@ -550,7 +532,8 @@ private struct PermissionGuideView: View {
 
     /// The drag source while a drop is possible, and a plain status glyph when it is not —
     /// offering something to drag with no list to drag it into is what made the old flow
-    /// feel broken.
+    /// feel broken. Note the direction of the rule: only "no window to drop into" and
+    /// "already granted" take the icon away. A message alone never does.
     @ViewBuilder
     private var leadingGlyph: some View {
         if PermissionGuideState.showsDragSource(phase) {
@@ -565,11 +548,7 @@ private struct PermissionGuideView: View {
     }
 
     private var statusGlyphName: String {
-        switch phase {
-        case .settingsClosed: return "macwindow.badge.plus"
-        case .leftPane: return "arrow.uturn.backward.circle"
-        default: return permission.iconName
-        }
+        phase == .settingsClosed ? "macwindow.badge.plus" : permission.iconName
     }
 
     private var closeButton: some View {

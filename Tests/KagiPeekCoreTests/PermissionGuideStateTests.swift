@@ -7,9 +7,8 @@ import XCTest
 final class PermissionGuideStateTests: XCTestCase {
     // MARK: - Happy path
 
-    func testStartsDraggingAndStaysWhileThePaneMatches() {
+    func testStartsDraggingAndStaysWhileSettingsIsUp() {
         XCTAssertEqual(PermissionGuideState.next(.dragging, on: .settingsAppeared), .dragging)
-        XCTAssertEqual(PermissionGuideState.next(.dragging, on: .paneMatched), .dragging)
     }
 
     func testPromptAppearingMeansWaiting() {
@@ -33,7 +32,6 @@ final class PermissionGuideStateTests: XCTestCase {
     func testCancelledStaysCancelledUntilTheUserDragsAgain() {
         // macOS gives no signal for "the icon moved" before the prompt appears, so there is
         // nothing to transition on: the message has to survive the next ticks.
-        XCTAssertEqual(PermissionGuideState.next(.cancelled, on: .paneMatched), .cancelled)
         XCTAssertEqual(PermissionGuideState.next(.cancelled, on: .settingsAppeared), .cancelled)
     }
 
@@ -49,22 +47,16 @@ final class PermissionGuideStateTests: XCTestCase {
         XCTAssertEqual(PermissionGuideState.next(.settingsClosed, on: .settingsAppeared), .dragging)
     }
 
-    func testLeavingThePageIsRecoveredByComingBack() {
-        XCTAssertEqual(PermissionGuideState.next(.dragging, on: .paneLeft), .leftPane)
-        XCTAssertEqual(PermissionGuideState.next(.leftPane, on: .paneMatched), .dragging)
-    }
-
     // MARK: - Grant wins
 
     func testGrantWinsOverEveryRecoveryMessage() {
-        for phase in [PermissionGuidePhase.dragging, .waiting, .settingsClosed, .leftPane, .cancelled] {
+        for phase in [PermissionGuidePhase.dragging, .waiting, .settingsClosed, .cancelled] {
             XCTAssertEqual(PermissionGuideState.next(phase, on: .granted), .granted, "\(phase)")
         }
     }
 
     func testGrantIsTerminal() {
         XCTAssertEqual(PermissionGuideState.next(.granted, on: .settingsLost), .granted)
-        XCTAssertEqual(PermissionGuideState.next(.granted, on: .paneLeft), .granted)
         XCTAssertEqual(PermissionGuideState.next(.granted, on: .sheetDismissed), .granted)
     }
 
@@ -72,19 +64,19 @@ final class PermissionGuideStateTests: XCTestCase {
 
     func testOnlyTheDeadEndsCarryAButton() {
         XCTAssertEqual(PermissionGuideState.action(for: .settingsClosed), .openSettings)
-        XCTAssertEqual(PermissionGuideState.action(for: .leftPane), .goBack)
         XCTAssertNil(PermissionGuideState.action(for: .dragging))
         XCTAssertNil(PermissionGuideState.action(for: .waiting))
         XCTAssertNil(PermissionGuideState.action(for: .cancelled))
         XCTAssertNil(PermissionGuideState.action(for: .granted))
     }
 
-    func testTheDragSourceIsHiddenWhenThereIsNoListToDropInto() {
+    func testTheDragSourceSurvivesEveryMessageThatStillHasAListToDropInto() {
         XCTAssertTrue(PermissionGuideState.showsDragSource(.dragging))
         XCTAssertTrue(PermissionGuideState.showsDragSource(.waiting))
+        // The one that matters: a wrong "cancelled" is a wrong sentence, not a dead end.
+        // Hiding the icon here is what turned a bad detector into an unusable panel.
         XCTAssertTrue(PermissionGuideState.showsDragSource(.cancelled))
         XCTAssertFalse(PermissionGuideState.showsDragSource(.settingsClosed))
-        XCTAssertFalse(PermissionGuideState.showsDragSource(.leftPane))
         XCTAssertFalse(PermissionGuideState.showsDragSource(.granted))
     }
 
@@ -101,7 +93,7 @@ final class PermissionGuideStateTests: XCTestCase {
 
     func testEveryPhaseHasItsOwnDetailLine() {
         let details: [L10nKey] = [
-            .dragging, .waiting, .granted, .settingsClosed, .leftPane, .cancelled
+            .dragging, .waiting, .granted, .settingsClosed, .cancelled
         ].map { PermissionGuideState.detailKey(for: $0) }
         XCTAssertEqual(Set(details.map(\.rawValue)).count, details.count)
     }
