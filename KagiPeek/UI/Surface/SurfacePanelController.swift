@@ -211,43 +211,27 @@ final class SurfacePanelController: PanelPresenting {
                 // the candidate window and Escape cancels it. None of those belong to the
                 // palette, so let the text field see the event untouched.
                 if TextComposition.isComposing(in: self.panel) { return }
-                // `/` is the way back to the panel on one condition: there is nothing to
-                // search. An empty field means the round trip is over, so `/` closes it;
-                // once something is typed, `/` is a character like any other — a search
-                // field that refuses a slash mid-word is worse than a missing shortcut.
-                // The query survives the trip, so the next `/` lands on the same search.
-                // ⌘/ is never taken: that is macOS's Help shortcut.
-                if event.keyCode == KeyCode.slash,
-                   ModifierSet.from(flags: event.modifierFlags).isEmpty,
-                   self.engine.state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.engine.returnToPanelFromSearch()
-                    handled = true
-                    return
-                }
-                // The event's real modifiers decide, not a hard-coded ⌃: passing `[.control]`
-                // here made ⌃⌥P / ⌃⌘P look like navigation and swallowed them, while the
-                // used to let the same combinations through.
+                // The key-by-key decision is pure and tested (`SearchKeyRouter`); here we only
+                // run the action it returns.
                 let modifiers = ModifierSet.from(flags: event.modifierFlags)
-                if let direction = NavigationKey.direction(keyCode: event.keyCode, modifiers: modifiers) {
-                    switch direction {
-                    case .down: self.engine.moveSearchSelection(1)
-                    case .up: self.engine.moveSearchSelection(-1)
-                    case .left, .right:
-                        // Leave caret movement to the text field.
-                        return
-                    }
+                let isQueryEmpty = self.engine.state.search.query
+                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                switch SearchKeyRouter.action(
+                    keyCode: event.keyCode,
+                    modifiers: modifiers,
+                    isQueryEmpty: isQueryEmpty
+                ) {
+                case .moveSelection(let delta):
+                    self.engine.moveSearchSelection(delta)
                     handled = true
-                    return
-                }
-                if event.keyCode == KeyCode.escape {
+                case .close:
                     self.engine.hideSearch()
                     handled = true
-                } else if event.keyCode == KeyCode.down {
-                    self.engine.moveSearchSelection(1)
+                case .returnToPanel:
+                    self.engine.returnToPanelFromSearch()
                     handled = true
-                } else if event.keyCode == KeyCode.up {
-                    self.engine.moveSearchSelection(-1)
-                    handled = true
+                case .passThrough:
+                    break
                 }
             }
             return handled ? nil : event
