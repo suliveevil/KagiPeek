@@ -1240,24 +1240,72 @@ final class ShortcutEngine: ObservableObject {
         return (allocation.rows, allocation.headings)
     }
 
+    /// One page of the ranked sequence, plus where it sits in the whole.
+    ///
+    /// A shape rather than a tuple so the three numbers travel together: `pageIndex` alone is
+    /// meaningless without the `pageCount` it was clamped against.
+    private struct PanelPage {
+        let index: Int
+        let count: Int
+        let entries: [PanelEntry]
+    }
+
+    /// The name the app's own section is headed with.
+    ///
+    /// Both sections get a card, and a card needs a name: the app's own section is the one the
+    /// title bar names, so the same name heads it — with the count the title bar has no room
+    /// for. Empty until a scan names the front app.
+    private var panelSectionTitle: String {
+        state.appName.isEmpty ? (appContext.frontmost?.name ?? "") : state.appName
+    }
+
     /// Internal for `PreviewScenarios`, which jumps between pages. Every other caller is in
     /// this file — the panel is rebuilt after a state change, never on demand from outside.
+    ///
+    /// Five phases, each with one job: slice the page, describe its rows, build them, and
+    /// write the result back. Split at the seams the blank lines were already drawing.
     func rebuildPanel() {
         guard state.panel.isVisible else { return }
         let sequence = panelSequence()
-        let pageSize = panelPageSize
+        let page = panelPage(of: sequence, pageSize: panelPageSize)
+        let systemTitle = localization.text(.groupSystemHotkeys)
+        let sectionTitle = panelSectionTitle
+        let specs = rowSpecs(
+            for: page.entries,
+            highlighted: highlightedIDs(for: page.entries.map(\.hit)),
+            systemTitle: systemTitle,
+            sectionTitle: sectionTitle
+        )
+        if isPreviewing {
+            let systemRows = sequence.filter(\.isSystem).count
+            Diag.info(.ui, "panel sequence: app=\(sequence.count - systemRows) system=\(systemRows) page=\(page.index + 1)/\(page.count) rows=\(specs.count)")
+        }
+        applyPanelUpdate(
+            sequence: sequence,
+            specs: specs,
+            page: page,
+            systemTitle: systemTitle,
+            sectionTitle: sectionTitle
+        )
+    }
+
+    /// Clamps the requested page into the sequence. A narrowing prefix can delete the page the
+    /// user was on, and a stale index would otherwise render an empty panel.
+    private func panelPage(of sequence: [PanelEntry], pageSize: Int) -> PanelPage {
         let pageCount = max(1, Int(ceil(Double(sequence.count) / Double(pageSize))))
         let pageIndex = min(max(0, state.panel.pageIndex), pageCount - 1)
-        let pageEntries = Array(sequence.dropFirst(pageIndex * pageSize).prefix(pageSize))
-        let pageHits = pageEntries.map(\.hit)
-        let highlighted = highlightedIDs(for: pageHits)
-        let systemTitle = localization.text(.groupSystemHotkeys)
-        // Both sections get a card, and a card needs a name: the app's own section is the one
-        // the title bar names, so the same name heads it — with the count the title bar has
-        // no room for.
-        let sectionTitle = state.appName.isEmpty ? (appContext.frontmost?.name ?? "") : state.appName
+        let entries = Array(sequence.dropFirst(pageIndex * pageSize).prefix(pageSize))
+        return PanelPage(index: pageIndex, count: pageCount, entries: entries)
+    }
 
-        let specs: [PanelRowBuilder.Spec] = pageEntries.map { entry in
+    /// One row per entry, described for the builder.
+    private func rowSpecs(
+        for entries: [PanelEntry],
+        highlighted: Set<String>,
+        systemTitle: String,
+        sectionTitle: String
+    ) -> [PanelRowBuilder.Spec] {
+        entries.map { entry in
             let hit = entry.hit
             // A system hotkey macOS refuses to name used to arrive as a row whose command
             // column was an em dash, and the same dash also said "no keyboard shortcut" a few
@@ -1288,12 +1336,16 @@ final class ShortcutEngine: ObservableObject {
                 isFavorite: usageStore.isFavorite(hit.item.usageKey)
             )
         }
+    }
 
-        if isPreviewing {
-            let systemRows = sequence.filter(\.isSystem).count
-            Diag.info(.ui, "panel sequence: app=\(sequence.count - systemRows) system=\(systemRows) page=\(pageIndex + 1)/\(pageCount) rows=\(specs.count)")
-        }
-
+    /// Builds the rows and writes the whole panel state back in one pass.
+    private func applyPanelUpdate(
+        sequence: [PanelEntry],
+        specs: [PanelRowBuilder.Spec],
+        page: PanelPage,
+        systemTitle: String,
+        sectionTitle: String
+    ) {
         let built = PanelRowBuilder.build(specs)
         let budget = unnarrowedBudget()
         // Both sections span pages, so their headings print the section's size rather than the
@@ -1316,10 +1368,10 @@ final class ShortcutEngine: ObservableObject {
             rowCount: built.flatRowIDs.count
         )
         state.panel.prefixLabels = KeyFormatter.breadcrumb(for: state.prefix, style: state.settings.keyStyle)
-        state.panel.pageIndex = pageIndex
-        state.panel.pageCount = pageCount
+        state.panel.pageIndex = page.index
+        state.panel.pageCount = page.count
         state.panel.totalCount = sequence.count
-        state.panel.appName = state.appName.isEmpty ? (appContext.frontmost?.name ?? "") : state.appName
+        state.panel.appName = sectionTitle
         state.panel.hasConflicts = !state.conflicts.isEmpty
         state.panel.showsFavoritesOnly = state.showsFavoritesOnly
         state.panel.usedBuiltInCatalog = state.usedBuiltInCatalog
@@ -1640,94 +1692,129 @@ final class ShortcutEngine: ObservableObject {
     /// Click in the panel: close it and trigger the command in the front app — by pressing
     /// the menu item when there is one, by replaying the chord otherwise — the same
     /// contract as clicking a search result.
+    /// Runs the row the user picked, in whichever namespace owns it.
+    ///
+    /// A row belongs to exactly one namespace, so this is a router into the three effects
+    /// below rather than a function that does the work. Split at the same seams the
+    /// `if`-chain already had: catalog row, system hotkey, unknown id.
     func activate(rowID: String) {
         if let item = state.catalog.items.first(where: { $0.id == rowID }) {
-            if !item.chord.isFinalStroke(after: state.prefix),
-               let step = item.chord.step(after: state.prefix),
-               let key = step.key {
-                // Only a row with a level below it descends. A row showing the last stroke is
-                // a complete shortcut as far as the user is concerned — it is drawn without a
-                // chevron — so running it replays the whole chord.
-                //
-                // Descending a final stroke used to push the prefix onto the complete chord;
-                // `hits` then dropped that row, because `nextKey(after:)` is nil once the
-                // prefix is the whole chord. The panel emptied itself instead of running.
-                Diag.debug(.run, "descending one level for \(item.title)")
-                state.prefix = PrefixResolver.probe(after: state.prefix, modifiers: step.modifiers, key: key)
-                state.panel.selectionIndex = -1
-                state.panel.pageIndex = 0
-                rebuildPanel()
-                updateKeyCapture()
-                return
-            }
-            guard item.isEnabled else {
-                Diag.info(.run, "ignoring disabled row \(item.title)")
-                return
-            }
-            usageStore.record(usageKey: item.usageKey)
-            dismissPanel()
-            let rendered = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
-            // Triggering the command is the point, so the menu item itself is pressed
-            // first: it works for commands that have no shortcut at all, and for the ones
-            // that do it is exactly what clicking the menu would do. Replaying the chord is
-            // the fallback — for a stale element, or an app that refuses the press.
-            if let element = element(forRowID: rowID), MenuTrigger.press(element) {
-                Diag.action("panel.run", target: item.appBundleID ?? appContext.frontmost?.bundleID)
-                Diag.debug(.run, "pressed menu item \(Sanitizer.clamp(item.title))")
-                // The panel has to show the toast too: the setting
-                // promises a confirmation and a run that vanishes without one reads as a failure.
-                if state.settings.showExecutedHUD {
-                    presenters.notices.show(
-                        chord: item.chord.isEmpty ? KeyFormatter.noShortcutPlaceholder : rendered,
-                        title: item.title
-                    )
-                }
-                return
-            }
-            if item.chord.isEmpty {
-                // No shortcut to replay either: the row is unreachable until the next scan.
-                Diag.error(.run, """
-                    menu press failed and \(item.title) has no shortcut \
-                    to replay
-                    """)
-                // Two ways out, both gone: the press was refused and there is no chord. This
-                // is the row that "does nothing" until the next scan.
-                Diag.error(.inject, """
-                    ax-press failed and no chord to replay row=\(rowID) \
-                    title=\(Sanitizer.clamp(item.title)) target=\(item.appBundleID ?? "?")
-                    """)
-                return
-            }
-            Diag.debug(.run, """
-                ax-press refused, replaying \(KeyFormatter.render(item.chord, style: .symbols)) \
-                row=\(rowID) title=\(Sanitizer.clamp(item.title))
+            activateCatalogItem(item, rowID: rowID)
+        } else if let system = state.systemBindings.first(where: { $0.id == rowID }) {
+            replaySystemHotkey(system)
+        } else {
+            // Neither namespace knows this id. Reachable only if a row and the catalog
+            // disagree, which used to present itself as "clicking does nothing".
+            Diag.error(.run, "row \(rowID) is in neither the catalog nor the system hotkeys")
+        }
+    }
+
+    /// A catalog row either opens the level below it or runs the command.
+    private func activateCatalogItem(_ item: BindingItem, rowID: String) {
+        if let step = nextLevelStep(for: item) {
+            enterNextLevel(of: item, step: step)
+            return
+        }
+        guard item.isEnabled else {
+            Diag.info(.run, "ignoring disabled row \(item.title)")
+            return
+        }
+        usageStore.record(usageKey: item.usageKey)
+        dismissPanel()
+        pressOrReplay(item, rowID: rowID)
+    }
+
+    /// - Returns: the step to open, or nil when this row is a command to run.
+    ///
+    /// Only a row with a level below it opens. A row showing the last stroke is a complete
+    /// shortcut as far as the user is concerned — it is drawn without a chevron — so running
+    /// it replays the whole chord.
+    ///
+    /// Descending a final stroke used to push the prefix onto the complete chord; `hits` then
+    /// dropped that row, because `nextKey(after:)` is nil once the prefix is the whole chord.
+    /// The panel emptied itself instead of running.
+    private func nextLevelStep(for item: BindingItem) -> KeyStep? {
+        guard !item.chord.isFinalStroke(after: state.prefix),
+              let step = item.chord.step(after: state.prefix),
+              step.key != nil
+        else { return nil }
+        return step
+    }
+
+    /// The click-side counterpart of `descend(_:)`.
+    ///
+    /// Deliberately not shared with it, because the two differ: the keyboard path clears
+    /// `latchedModifiers` (the ticks have been folded into the stroke it just built), while
+    /// this one leaves them alone. That asymmetry is inherited from before this split and is
+    /// preserved here rather than "fixed" — changing it is a behaviour change, not a refactor.
+    private func enterNextLevel(of item: BindingItem, step: KeyStep) {
+        guard let key = step.key else { return }
+        Diag.debug(.run, "descending one level for \(item.title)")
+        state.prefix = PrefixResolver.probe(after: state.prefix, modifiers: step.modifiers, key: key)
+        state.panel.selectionIndex = -1
+        state.panel.pageIndex = 0
+        rebuildPanel()
+        updateKeyCapture()
+    }
+
+    /// Triggering the command is the point, so the menu item itself is pressed first: it
+    /// works for commands that have no shortcut at all, and for the ones that do it is
+    /// exactly what clicking the menu would do. Replaying the chord is the fallback — for a
+    /// stale element, or an app that refuses the press.
+    private func pressOrReplay(_ item: BindingItem, rowID: String) {
+        let rendered = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
+        if let element = element(forRowID: rowID), MenuTrigger.press(element) {
+            Diag.action("panel.run", target: item.appBundleID ?? appContext.frontmost?.bundleID)
+            Diag.debug(.run, "pressed menu item \(Sanitizer.clamp(item.title))")
+            showExecutedNotice(
+                chord: item.chord.isEmpty ? KeyFormatter.noShortcutPlaceholder : rendered,
+                title: item.title
+            )
+            return
+        }
+        if item.chord.isEmpty {
+            // No shortcut to replay either: the row is unreachable until the next scan.
+            Diag.error(.run, """
+                menu press failed and \(item.title) has no shortcut \
+                to replay
                 """)
-            Diag.action("panel.run.replay", target: item.appBundleID ?? appContext.frontmost?.bundleID)
-            // The panel has to show the toast too: the setting
-            // promises a confirmation and a run that vanishes without one reads as a failure.
-            if state.settings.showExecutedHUD {
-                presenters.notices.show(chord: rendered, title: item.title)
-            }
-            DispatchQueue.main.async {
-                ShortcutInjector.post(item.chord, delay: 0.12)
-            }
+            // Two ways out, both gone: the press was refused and there is no chord. This
+            // is the row that "does nothing" until the next scan.
+            Diag.error(.inject, """
+                ax-press failed and no chord to replay row=\(rowID) \
+                title=\(Sanitizer.clamp(item.title)) target=\(item.appBundleID ?? "?")
+                """)
             return
         }
-        if let system = state.systemBindings.first(where: { $0.id == rowID }) {
-            usageStore.record(usageKey: system.usageKey)
-            dismissPanel()
-            Diag.info(.inject, "replaying system hotkey into the front app")
-            if state.settings.showExecutedHUD {
-                presenters.notices.show(chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle), title: system.title)
-            }
-            DispatchQueue.main.async {
-                ShortcutInjector.post(system.chord, delay: 0.12)
-            }
-            return
+        Diag.debug(.run, """
+            ax-press refused, replaying \(KeyFormatter.render(item.chord, style: .symbols)) \
+            row=\(rowID) title=\(Sanitizer.clamp(item.title))
+            """)
+        Diag.action("panel.run.replay", target: item.appBundleID ?? appContext.frontmost?.bundleID)
+        showExecutedNotice(chord: rendered, title: item.title)
+        DispatchQueue.main.async {
+            ShortcutInjector.post(item.chord, delay: 0.12)
         }
-        // Neither namespace knows this id. Reachable only if a row and the catalog disagree,
-        // which used to present itself as "clicking does nothing".
-        Diag.error(.run, "row \(rowID) is in neither the catalog nor the system hotkeys")
+    }
+
+    /// The panel has to show the toast too: the setting promises a confirmation and a run
+    /// that vanishes without one reads as a failure.
+    private func showExecutedNotice(chord: String, title: String) {
+        guard state.settings.showExecutedHUD else { return }
+        presenters.notices.show(chord: chord, title: title)
+    }
+
+    private func replaySystemHotkey(_ system: BindingItem) {
+        usageStore.record(usageKey: system.usageKey)
+        dismissPanel()
+        Diag.info(.inject, "replaying system hotkey into the front app")
+        showExecutedNotice(
+            chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle),
+            title: system.title
+        )
+        DispatchQueue.main.async {
+            ShortcutInjector.post(system.chord, delay: 0.12)
+        }
     }
 
     /// - Returns: whether the pasteboard actually accepted the text.
