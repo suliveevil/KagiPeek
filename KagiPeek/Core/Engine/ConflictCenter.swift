@@ -225,10 +225,6 @@ private struct CrossAppConflictBuilder {
     }
 
     func sorted() -> [BindingConflict] {
-        conflicts.sorted { lhs, rhs in
-            if lhs.category != rhs.category { return lhs.category > rhs.category }
-            if lhs.ownerCount != rhs.ownerCount { return lhs.ownerCount > rhs.ownerCount }
-            return lhs.chordKey < rhs.chordKey
-        }
+        conflicts.sorted(by: BindingConflict.bySeverity)
     }
 }

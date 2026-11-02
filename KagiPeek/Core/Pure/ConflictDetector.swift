@@ -195,6 +195,19 @@ nonisolated struct BindingConflict: Identifiable, Equatable, Sendable {
     }
 }
 
+nonisolated extension BindingConflict {
+    /// The one severity ordering every conflict list uses: category desc, then distinct-owner
+    /// count desc, then chord key asc. The single-app detector (`ConflictDetector.conflicts`)
+    /// and the cross-app builder (`CrossAppConflictBuilder.sorted`) both sort findings this
+    /// way, so the comparator lives on the value instead of being copied in two places and
+    /// risking drift.
+    static func bySeverity(_ lhs: BindingConflict, _ rhs: BindingConflict) -> Bool {
+        if lhs.category != rhs.category { return lhs.category > rhs.category }
+        if lhs.ownerCount != rhs.ownerCount { return lhs.ownerCount > rhs.ownerCount }
+        return lhs.chordKey < rhs.chordKey
+    }
+}
+
 /// Which owner the conflict list is narrowed to.
 ///
 /// Independent of the type filter: "show me the ones a tool is blocking" and "show me the
@@ -299,11 +312,7 @@ nonisolated enum ConflictDetector {
         }
         // Severity first, then the combos the most owners agree on. A clash that bites
         // outranks a menu overlap no matter how many menu items share the combo.
-        return conflicts.sorted { lhs, rhs in
-            if lhs.category != rhs.category { return lhs.category > rhs.category }
-            if lhs.ownerCount != rhs.ownerCount { return lhs.ownerCount > rhs.ownerCount }
-            return lhs.chordKey < rhs.chordKey
-        }
+        return conflicts.sorted(by: BindingConflict.bySeverity)
     }
 
     static func conflictIDs(in items: [BindingItem], external: [BindingItem] = []) -> Set<String> {
