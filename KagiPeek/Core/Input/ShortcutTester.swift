@@ -83,7 +83,7 @@ final class ShortcutTester {
         watchForActivation()
         stepAside()
         startCountdown()
-        AppLog.input.notice("listening for a live shortcut test")
+        Diag.info(.tap, "listening for a live shortcut test")
     }
 
     func cancel() {
@@ -183,14 +183,14 @@ final class ShortcutTester {
     fileprivate func reenableTaps() {
         testTapRetries += 1
         guard testTapRetries <= 1 else {
-            AppLog.input.error("a test tap kept being disabled; removing it rather than retrying")
+            Diag.error(.tap, "a test tap kept being disabled; removing it rather than retrying")
             removeTaps()
             return
         }
         for tap in [headTap, tailTap].compactMap({ $0 }) {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
-        AppLog.input.debug("re-enabled a test tap macOS had disabled")
+        Diag.debug(.tap, "re-enabled a test tap macOS had disabled")
     }
 
     private func watchForActivation() {

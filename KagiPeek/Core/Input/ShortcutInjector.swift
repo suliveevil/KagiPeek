@@ -39,7 +39,7 @@ enum ShortcutInjector {
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
             // A silent failure here is indistinguishable from "the app ignored the shortcut".
-            AppLog.input.error("could not create key events for virtual key \(keyCode)")
+            Diag.error(.inject, "could not create key events for virtual key \(keyCode)")
             return
         }
         down.flags = flags

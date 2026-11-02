@@ -96,7 +96,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.delegate = self
         item.menu = menu
         statusItem = item
-        AppLog.ui.notice("status item created")
         Diag.info(.ui, "menu bar item created (autosave=KagiPeekMenuBarItem)")
     }
 

@@ -73,8 +73,8 @@ struct MenuScanCache {
         do {
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         } catch {
-            AppLog.storage.error("""
-                could not create the menu cache folder: \(error.localizedDescription, privacy: .public)
+            Diag.error(.settings, """
+                could not create the menu cache folder: \(error.localizedDescription)
                 """)
             return
         }
@@ -136,9 +136,9 @@ struct MenuScanCache {
         } catch {
             // A cache is an optimisation: a write that fails costs the next scan its
             // shortcut and nothing more. Say so and move on.
-            AppLog.storage.error("""
-                could not write \(url.lastPathComponent, privacy: .public): \
-                \(error.localizedDescription, privacy: .public)
+            Diag.error(.settings, """
+                could not write \(url.lastPathComponent): \
+                \(error.localizedDescription)
                 """)
         }
     }

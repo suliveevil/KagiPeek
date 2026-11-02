@@ -22,7 +22,6 @@ enum MenuTrigger {
         guard error == .success else {
             // A silent failure here is indistinguishable from "the command did nothing",
             // which is the bug this whole path exists to remove.
-            AppLog.input.error("menu press failed with AXError \(error.rawValue)")
             Diag.error(.inject, "ax-press failed err=\(error.rawValue)")
             return false
         }

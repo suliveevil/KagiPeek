@@ -122,9 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .appendingPathComponent("kagipeek-selftest.json")
         do {
             try data.write(to: url, options: [.atomic])
-            AppLog.ui.notice("selftest written to \(url.path, privacy: .public)")
+            Diag.info(.ui, "selftest written to \(url.path)")
         } catch {
-            AppLog.ui.error("selftest could not be written: \(error.localizedDescription, privacy: .public)")
+            Diag.error(.ui, "selftest could not be written: \(error.localizedDescription)")
         }
         engine.stop()
         settingsStore.flush()

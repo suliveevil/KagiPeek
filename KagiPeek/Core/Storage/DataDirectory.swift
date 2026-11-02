@@ -19,7 +19,7 @@ enum DataDirectory {
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         } catch {
-            AppLog.storage.error("could not create \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            Diag.error(.settings, "could not create \(url.path): \(error.localizedDescription)")
         }
     }
 
@@ -47,15 +47,15 @@ struct JsonFileStore {
                 .appendingPathExtension("corrupt-\(stamp).json")
             do {
                 try FileManager.default.moveItem(at: fileURL, to: backup)
-                AppLog.storage.error("""
-                    \(self.fileName, privacy: .public) could not be decoded \
-                    (\(error.localizedDescription, privacy: .public)); kept as \
-                    \(backup.lastPathComponent, privacy: .public)
+                Diag.error(.settings, """
+                    \(self.fileName) could not be decoded \
+                    (\(error.localizedDescription)); kept as \
+                    \(backup.lastPathComponent)
                     """)
             } catch {
-                AppLog.storage.error("""
-                    \(self.fileName, privacy: .public) could not be decoded and could not be moved aside: \
-                    \(error.localizedDescription, privacy: .public)
+                Diag.error(.settings, """
+                    \(self.fileName) could not be decoded and could not be moved aside: \
+                    \(error.localizedDescription)
                     """)
             }
             return nil
@@ -70,9 +70,9 @@ struct JsonFileStore {
         } catch {
             // A failed write used to look exactly like a successful one: the setting stayed on
             // screen and reverted at the next launch, with nothing anywhere to explain it.
-            AppLog.storage.error("""
-                could not write \(self.fileName, privacy: .public): \
-                \(error.localizedDescription, privacy: .public)
+            Diag.error(.settings, """
+                could not write \(self.fileName): \
+                \(error.localizedDescription)
                 """)
         }
     }

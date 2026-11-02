@@ -49,12 +49,12 @@ final class SettingsStore: ObservableObject {
         if let payload = fileStore.load(SettingsPayload.self) {
             loadedSchemaVersion = payload.schemaVersion
             if SettingsMigrator.isOutdated(payload) {
-                AppLog.storage.notice("""
+                Diag.info(.settings, """
                     settings.json is schema \(payload.schemaVersion), upgrading to \
                     \(SettingsMigrator.currentVersion)
                     """)
             } else if SettingsMigrator.isFuture(payload) {
-                AppLog.storage.error("""
+                Diag.error(.settings, """
                     settings.json is schema \(payload.schemaVersion), newer than \
                     \(SettingsMigrator.currentVersion); running read-only
                     """)
@@ -62,7 +62,7 @@ final class SettingsStore: ObservableObject {
             settings = SettingsMigrator.migrate(payload)
         } else if let data = defaults.data(forKey: Self.storageKey),
                   let decoded = try? JSONDecoder().decode(AppSettingsSnapshot.self, from: data) {
-            AppLog.storage.notice("importing settings from the 2.0 UserDefaults blob")
+            Diag.info(.settings, "importing settings from the 2.0 UserDefaults blob")
             settings = decoded.normalized()
         } else {
             settings = Self.migrateLegacy(defaults: defaults).normalized()
@@ -115,7 +115,7 @@ final class SettingsStore: ObservableObject {
             try SMAppService.mainApp.register()
         } catch {
             launchAtLoginMessage = error.localizedDescription
-            AppLog.ui.error("login item registration failed: \(error.localizedDescription, privacy: .public)")
+            Diag.error(.ui, "login item registration failed: \(error.localizedDescription)")
         }
     }
 
@@ -153,7 +153,7 @@ final class SettingsStore: ObservableObject {
         guard SettingsMigrator.canAutomaticallyRewrite(schemaVersion: loadedSchemaVersion) else {
             if !loggedFutureWriteRefusal {
                 loggedFutureWriteRefusal = true
-                AppLog.storage.error("""
+                Diag.error(.settings, """
                     refusing to overwrite settings.json from newer schema \(self.loadedSchemaVersion)
                     """)
             }
@@ -179,7 +179,7 @@ final class SettingsStore: ObservableObject {
             launchAtLoginMessage = nil
         } catch {
             launchAtLoginMessage = error.localizedDescription
-            AppLog.ui.error("login item change failed: \(error.localizedDescription, privacy: .public)")
+            Diag.error(.ui, "login item change failed: \(error.localizedDescription)")
         }
     }
 

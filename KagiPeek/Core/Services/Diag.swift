@@ -11,11 +11,28 @@ import os
 ///
 /// Nothing here throws or propagates: a logger that can break the app it observes would be
 /// worse than no logger. Every failure degrades to "the file simply stops receiving lines".
+///
+/// **One façade.** There used to be a second one (`AppLog`) with raw `os.Logger`s, and 43 call
+/// sites wrote straight to it — lines that looked identical at the call site but never reached
+/// the file, which is why a "the keyboard froze and the log says nothing" report could be true
+/// and useless at the same time. Every line now goes through `Diag`, and the four `Logger`s
+/// below are the private detail of the mirror:
+///
+///     log show --last 10m --predicate 'subsystem == "com.voltline.kagipeek"'
 enum Diag {
     private static let lock = NSLock()
     private static var enabled = true
     private static var verbose = false
     private static var store: FileLogStore?
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.voltline.kagipeek"
+    /// Menu scanning: which app, how many items, why a catalog was empty or dropped.
+    private static let scanLogger = Logger(subsystem: subsystem, category: "scan")
+    /// Event tap, swallowing decisions, key injection.
+    private static let inputLogger = Logger(subsystem: subsystem, category: "input")
+    /// Reads and writes of settings.json / usage.json.
+    private static let storageLogger = Logger(subsystem: subsystem, category: "storage")
+    /// Windows, permissions, update checks.
+    private static let uiLogger = Logger(subsystem: subsystem, category: "ui")
 
     /// Wires the switches and the sink. Called at launch and whenever settings change.
     static func configure(enabled: Bool, verbose: Bool, store: FileLogStore = .shared) {
@@ -120,13 +137,13 @@ enum Diag {
     private static func logger(for tag: DiagTag) -> Logger {
         switch tag {
         case .scan:
-            return AppLog.scan
+            return scanLogger
         case .tap, .inject, .run:
-            return AppLog.input
+            return inputLogger
         case .settings:
-            return AppLog.storage
+            return storageLogger
         case .start, .perm, .net, .ui, .crash, .exit, .export:
-            return AppLog.ui
+            return uiLogger
         }
     }
 }

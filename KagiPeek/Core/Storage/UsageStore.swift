@@ -45,7 +45,7 @@ final class UsageStore: ObservableObject {
             favorites = payload.favorites ?? []
         } else if let data = defaults.data(forKey: Self.storageKey),
                   let decoded = try? JSONDecoder().decode(UsageStatistics.self, from: data) {
-            AppLog.storage.notice("importing statistics from the 2.0 UserDefaults blob")
+            Diag.info(.settings, "importing statistics from the 2.0 UserDefaults blob")
             statistics = decoded
         } else {
             statistics = UsageStatistics()

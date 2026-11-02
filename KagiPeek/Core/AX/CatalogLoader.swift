@@ -80,7 +80,7 @@ final class CatalogLoader {
         // Defensive: the context service never reports the app itself, and a scan of our own
         // process would only produce an empty menu bar.
         guard !app.isSelf else {
-            AppLog.scan.error("refusing to scan KagiPeek's own process")
+            Diag.error(.scan, "refusing to scan KagiPeek's own process")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { completion(.empty) }
             }
@@ -125,7 +125,7 @@ final class CatalogLoader {
                     snapshot.appPID = pid
                     snapshot.state = .ok
                     self.cache[cacheKey] = snapshot
-                    AppLog.scan.debug("restored \(identity, privacy: .public) from the menu cache")
+                    Diag.debug(.scan, "restored \(identity) from the menu cache")
                     DispatchQueue.main.async {
                         MainActor.assumeIsolated { completion(snapshot) }
                     }

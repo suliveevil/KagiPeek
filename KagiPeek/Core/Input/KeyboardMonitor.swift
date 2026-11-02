@@ -329,7 +329,6 @@ final class KeyboardMonitor {
             },
             recovery: recovery
         )
-        AppLog.input.notice("event tap disabled by the system")
         Diag.warning(.tap, report.line)
 
         // The panel releases whatever it was holding: keys pressed during the stall are gone.

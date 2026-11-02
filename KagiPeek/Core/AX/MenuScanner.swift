@@ -52,7 +52,6 @@ enum MenuScanner {
         // An untrusted process gets no AX values at all, which is indistinguishable from
         // "this app has no menus". Say which one it was instead of guessing.
         guard AXIsProcessTrusted() else {
-            AppLog.scan.error("accessibility is not trusted; nothing can be read")
             Diag.error(.scan, "accessibility not trusted: no menu could be read (pid=\(pid), bundle=\(bundleID ?? "?"))")
             return ScannedMenu(items: [], elements: [:], hasMenuBar: false, duration: 0, state: .permissionDenied)
         }

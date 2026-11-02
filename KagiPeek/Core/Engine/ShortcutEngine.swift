@@ -445,12 +445,11 @@ final class ShortcutEngine: ObservableObject {
             state.isListening = true
             state.statusMessage = nil
             armHealthReset()
-            AppLog.input.notice("event tap installed")
             Diag.info(.tap, "event tap installed (accessibility granted)")
         } catch {
             state.isListening = false
             state.statusMessage = error.localizedDescription
-            AppLog.input.error("event tap failed: \(error.localizedDescription, privacy: .public)")
+            Diag.error(.tap, "event tap failed: \(error.localizedDescription)")
             // The one failure that makes every shortcut stop working at once. The file log
             // gets the domain and code, not just the localised sentence.
             let nsError = error as NSError
@@ -529,7 +528,7 @@ final class ShortcutEngine: ObservableObject {
         // settings window. Scanning its own menu bar would replace the real
         // app's shortcuts with the built-in fallback, so it is never a catalog source.
         guard !app.isSelf else {
-            AppLog.scan.debug("skipping own process as a catalog source")
+            Diag.debug(.scan, "skipping own process as a catalog source")
             return
         }
         state.isCatalogLoading = true
@@ -551,7 +550,7 @@ final class ShortcutEngine: ObservableObject {
         ) { [weak self] snapshot in
             guard let self, !self.isPreviewing else { return }
             guard generation == self.state.catalogGeneration else {
-                AppLog.scan.debug("dropping stale scan for \(snapshot.appIdentity, privacy: .public)")
+                Diag.debug(.scan, "dropping stale scan for \(snapshot.appIdentity)")
                 return
             }
             self.state.isCatalogLoading = false
@@ -570,8 +569,8 @@ final class ShortcutEngine: ObservableObject {
                 self.rebuildPanel()
             }
             self.refreshSearch()
-            AppLog.scan.info("""
-                scanned \(snapshot.appIdentity, privacy: .public): \
+            Diag.info(.scan, """
+                scanned \(snapshot.appIdentity): \
                 \(snapshot.items.count) items, menus \(snapshot.hasMenuBar), \
                 built-in \(snapshot.usedBuiltInCatalog)
                 """)
@@ -583,7 +582,6 @@ final class ShortcutEngine: ObservableObject {
                 state=\(snapshot.state.diagnosticCode), \(Int(snapshot.readDuration * 1000))ms
                 """)
             if !snapshot.hasMenuBar, !snapshot.usedBuiltInCatalog {
-                AppLog.scan.notice("no menu bar exposed and no fallback allowed: the panel will be empty")
                 Diag.warning(.scan, "no menu bar exposed and built-in catalog is off: the panel will be empty (bundle=\(snapshot.appIdentity))")
             }
         }
@@ -908,8 +906,9 @@ final class ShortcutEngine: ObservableObject {
     private func replayComposed(_ item: BindingItem, probe: KeyChord) {
         usageStore.record(usageKey: item.usageKey)
         dismissPanel()
-        AppLog.input.info(
-            "replaying composed \(KeyFormatter.render(probe, style: .symbols), privacy: .public) into the front app"
+        Diag.info(
+            .inject,
+            "replaying composed \(KeyFormatter.render(probe, style: .symbols)) into the front app"
         )
         if state.settings.showExecutedHUD {
             presenters.notices.show(
@@ -1601,9 +1600,6 @@ final class ShortcutEngine: ObservableObject {
             let index = state.panel.selectionIndex
             let rows = state.panel.flatRowIDs.count
             let name = action.rawValue
-            AppLog.input.notice(
-                "\(name, privacy: .public) key ignored: no row selected (index \(index), rows \(rows))"
-            )
             Diag.info(.run, "\(name) key ignored: no row selected (index=\(index), rows=\(rows))")
             return
         }
@@ -1640,7 +1636,7 @@ final class ShortcutEngine: ObservableObject {
                 // Descending a final stroke used to push the prefix onto the complete chord;
                 // `hits` then dropped that row, because `nextKey(after:)` is nil once the
                 // prefix is the whole chord. The panel emptied itself instead of running.
-                AppLog.input.debug("descending one level for \(item.title, privacy: .public)")
+                Diag.debug(.run, "descending one level for \(item.title)")
                 state.prefix = PrefixResolver.probe(after: state.prefix, modifiers: step.modifiers, key: key)
                 state.panel.selectionIndex = -1
                 state.panel.pageIndex = 0
@@ -1649,7 +1645,7 @@ final class ShortcutEngine: ObservableObject {
                 return
             }
             guard item.isEnabled else {
-                AppLog.input.notice("ignoring disabled row \(item.title, privacy: .public)")
+                Diag.info(.run, "ignoring disabled row \(item.title)")
                 return
             }
             usageStore.record(usageKey: item.usageKey)
@@ -1660,7 +1656,6 @@ final class ShortcutEngine: ObservableObject {
             // that do it is exactly what clicking the menu would do. Replaying the chord is
             // the fallback — for a stale element, or an app that refuses the press.
             if let element = element(forRowID: rowID), MenuTrigger.press(element) {
-                AppLog.input.info("pressed menu item \(item.title, privacy: .public)")
                 Diag.action("panel.run", target: item.appBundleID ?? appContext.frontmost?.bundleID)
                 Diag.debug(.run, "pressed menu item \(Sanitizer.clamp(item.title))")
                 // The panel has to show the toast too: the setting
@@ -1675,8 +1670,8 @@ final class ShortcutEngine: ObservableObject {
             }
             if item.chord.isEmpty {
                 // No shortcut to replay either: the row is unreachable until the next scan.
-                AppLog.input.error("""
-                    menu press failed and \(item.title, privacy: .public) has no shortcut \
+                Diag.error(.run, """
+                    menu press failed and \(item.title) has no shortcut \
                     to replay
                     """)
                 // Two ways out, both gone: the press was refused and there is no chord. This
@@ -1687,7 +1682,6 @@ final class ShortcutEngine: ObservableObject {
                     """)
                 return
             }
-            AppLog.input.info("replaying \(KeyFormatter.render(item.chord, style: .symbols), privacy: .public) into the front app")
             Diag.debug(.run, """
                 ax-press refused, replaying \(KeyFormatter.render(item.chord, style: .symbols)) \
                 row=\(rowID) title=\(Sanitizer.clamp(item.title))
@@ -1706,7 +1700,7 @@ final class ShortcutEngine: ObservableObject {
         if let system = state.systemBindings.first(where: { $0.id == rowID }) {
             usageStore.record(usageKey: system.usageKey)
             dismissPanel()
-            AppLog.input.info("replaying system hotkey into the front app")
+            Diag.info(.inject, "replaying system hotkey into the front app")
             if state.settings.showExecutedHUD {
                 presenters.notices.show(chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle), title: system.title)
             }
@@ -1717,7 +1711,7 @@ final class ShortcutEngine: ObservableObject {
         }
         // Neither namespace knows this id. Reachable only if a row and the catalog disagree,
         // which used to present itself as "clicking does nothing".
-        AppLog.input.error("row \(rowID, privacy: .public) is in neither the catalog nor the system hotkeys")
+        Diag.error(.run, "row \(rowID) is in neither the catalog nor the system hotkeys")
     }
 
     /// - Returns: whether the pasteboard actually accepted the text.
@@ -1729,7 +1723,6 @@ final class ShortcutEngine: ObservableObject {
         if !ok {
             // The pasteboard can refuse (another process holding it, a locked clipboard
             // manager). Log the length and nothing else: clipboard content is the user's.
-            AppLog.ui.error("pasteboard refused \(text.count, privacy: .public) characters")
             Diag.warning(.run, "pasteboard refused \(text.count) characters")
         }
         return ok
@@ -2087,7 +2080,7 @@ final class ShortcutEngine: ObservableObject {
         state.searchCorpus = nil
         recomputeConflicts(for: state.catalog.items)
         resetOwnerFilterIfGone()
-        AppLog.scan.info("config scan: \(result.totalCount) shortcuts")
+        Diag.info(.scan, "config scan: \(result.totalCount) shortcuts")
     }
 
     /// Owners that actually appear in the current conflicts, for the filter picker.
@@ -2293,15 +2286,15 @@ final class ShortcutEngine: ObservableObject {
         // search: it reaches commands that have no shortcut at all. The palette gives no
         // confirmation either way, so the HUD stays out of this path.
         if let element = element(forRowID: item.id), MenuTrigger.press(element) {
-            AppLog.input.info("pressed menu item \(item.title, privacy: .public) from search")
+            Diag.info(.run, "pressed menu item \(item.title) from search")
             Diag.action("search.run", target: item.appBundleID ?? appContext.frontmost?.bundleID)
             DispatchQueue.main.async { target?.activate() }
             usageStore.record(usageKey: item.usageKey)
             return
         }
         guard !item.chord.isEmpty else {
-            AppLog.input.error("""
-                menu press failed and \(item.title, privacy: .public) has no shortcut \
+            Diag.error(.run, """
+                menu press failed and \(item.title) has no shortcut \
                 to replay
                 """)
             Diag.error(.inject, """
