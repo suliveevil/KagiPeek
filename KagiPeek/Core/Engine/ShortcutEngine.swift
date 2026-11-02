@@ -169,11 +169,12 @@ final class ShortcutEngine: ObservableObject {
             MainActor.assumeIsolated { self?.refreshPermissions() }
         }
 
+        // One poller covers both directions: a grant landing mid-flow, and a revocation,
+        // which is the change with no reliable report of its own — and the one that used to
+        // freeze the machine, because the tap outlived its permission. It re-arms itself at
+        // 2s while something is missing and 5s once everything is granted.
         permissions.startPolling()
         permissions.startObservingSystemChanges()
-        // Revocation is the only change that has no reliable report — and the one that used
-        // to freeze the machine, because the tap outlived its permission.
-        permissions.startRevocationWatch()
         // Every path that opens a Settings pane — the grant buttons, the standalone
         // "Open Settings" buttons — funnels through the same hook, so the drag guide
         // anchors to the Settings window no matter which surface started the request.
@@ -212,7 +213,6 @@ final class ShortcutEngine: ObservableObject {
         appDirectory.stop()
         permissions.stopPolling()
         permissions.stopObservingSystemChanges()
-        permissions.stopRevocationWatch()
         state.isListening = false
         dismissEverything()
     }
@@ -316,7 +316,7 @@ final class ShortcutEngine: ObservableObject {
         // Re-read symbolic hotkeys on activation: the user may have changed them in
         // System Settings while KagiPeek was in the background.
         reloadSystemHotkeys()
-        permissions.refreshAll()
+        permissions.refreshAll(noticedBy: "activation")
         permissionStateChanged()
     }
 
@@ -438,7 +438,9 @@ final class ShortcutEngine: ObservableObject {
             // gets the domain and code, not just the localised sentence.
             let nsError = error as NSError
             Diag.error(.tap, "event tap failed: \(nsError.domain) code=\(nsError.code) — \(error.localizedDescription)")
-            permissions.accessibility.startPolling()
+            // A tap that could not be created is almost always a permission that is not
+            // (or not yet) granted; the poller is what notices when that changes.
+            permissions.startPolling()
         }
     }
 

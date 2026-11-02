@@ -57,7 +57,6 @@ final class AppPermission: ObservableObject, Identifiable {
 
     private let check: () -> Bool
     private let requestPrompt: () -> Bool
-    private var timer: Timer?
 
     init(
         id: Identifier,
@@ -84,14 +83,19 @@ final class AppPermission: ObservableObject, Identifiable {
         self.isGranted = check()
     }
 
-    func refresh() {
+    /// Re-reads the system and reports a change exactly once.
+    ///
+    /// - Parameter noticedBy: what triggered the check. Carried into the log because a grant
+    ///   has several possible discoverers — the poller, the distributed notification, the
+    ///   activation and wake refreshes — and during the 2026-11-02 investigation the log could
+    ///   not say which had spotted one, so a poller was credited with an observation a drag had
+    ///   actually produced.
+    func refresh(noticedBy reason: String) {
         let granted = check()
         guard granted != isGranted else { return }
         isGranted = granted
-        if granted {
-            stopPolling()
-            guideStatus = .idle
-        }
+        if granted { guideStatus = .idle }
+        Diag.info(.perm, "\(id.rawValue) \(granted ? "granted" : "revoked") (\(reason))")
         onChange?(granted)
     }
 
@@ -107,7 +111,6 @@ final class AppPermission: ObservableObject, Identifiable {
     /// and letting the guide's drag do the work is the only path that leaves the entry
     /// enabled, and it is the same fix LobeHub shipped for Accessibility.
     func performRequest() {
-        startPolling()
         if !promptPreRegisters {
             _ = requestPrompt()
         }
@@ -126,19 +129,6 @@ final class AppPermission: ObservableObject, Identifiable {
         onSettingsPaneOpened?()
     }
 
-    func startPolling() {
-        guard timer == nil, !isGranted else { return }
-        let timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
-        }
-        timer.tolerance = 0.5
-        self.timer = timer
-    }
-
-    func stopPolling() {
-        timer?.invalidate()
-        timer = nil
-    }
 }
 
 /// Aggregates the permissions and exposes the state the UI needs.
@@ -159,7 +149,10 @@ final class AppPermissions: ObservableObject {
     var onChange: (() -> Void)?
 
     private var systemChangeObserver: (any NSObjectProtocol)?
-    private var revocationTimer: Timer?
+    /// The one poller. There used to be two — a per-permission 3s timer that ran only while a
+    /// grant was missing, and a global 5s one that watched for revocation — and they could both
+    /// fire for the same change, which is why the log could not say which had noticed it.
+    private var pollTimer: Timer?
 
     var all: [AppPermission] { [accessibility, inputMonitoring] }
     var required: [AppPermission] { all.filter(\.isRequired) }
@@ -211,24 +204,45 @@ final class AppPermissions: ObservableObject {
 
     var isReady: Bool { required.allSatisfy(\.isGranted) }
 
+    /// Starts the single poller.
+    ///
+    /// The interval is adaptive rather than fixed, because the two reasons to poll are
+    /// different questions: while something is *missing*, the user is probably mid-flow and a
+    /// grant could land at any moment (2s); once everything is granted, the only remaining
+    /// event is a revocation, which costs a keypress or two of delay at 5s. One timer that
+    /// re-arms itself at the interval the current state deserves, instead of two timers that
+    /// overlap.
     func startPolling() {
-        for permission in all where !permission.isGranted {
-            permission.startPolling()
-        }
+        guard pollTimer == nil else { return }
+        scheduleNextPoll()
     }
 
     func stopPolling() {
-        for permission in all {
-            permission.stopPolling()
+        pollTimer?.invalidate()
+        pollTimer = nil
+    }
+
+    private func scheduleNextPoll() {
+        pollTimer?.invalidate()
+        let interval: TimeInterval = isReady ? 5.0 : 2.0
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.refreshAll(noticedBy: "poll")
+                self.scheduleNextPoll()
+            }
         }
+        timer.tolerance = interval * 0.2
+        pollTimer = timer
     }
 
     /// The system posts this undocumented distributed notification when an app's Accessibility
-    /// trust is toggled, which is the only way to notice a revocation while KagiPeek keeps
-    /// running: the 3-second polls stop once a grant is detected. `refreshAll()` is cheap and
-    /// idempotent, so a stray posting costs nothing. The polls and the activation/wake
-    /// refreshes stay as fallbacks for the day the name stops being posted — and for Input
-    /// Monitoring, which has no equivalent notification.
+    /// trust is toggled. Measured on macOS 27 it does *not* arrive when the entry is removed
+    /// with Settings frontmost, so the poller is the one that actually notices a revocation —
+    /// this stays because a stray posting is free and a working one would be faster.
+    /// `refreshAll(noticedBy:)` is cheap and idempotent, and records which of them saw it.
+    /// Input Monitoring has no equivalent notification at all, which is the other reason the
+    /// poller stays.
     func startObservingSystemChanges() {
         guard systemChangeObserver == nil else { return }
         systemChangeObserver = DistributedNotificationCenter.default().addObserver(
@@ -236,7 +250,7 @@ final class AppPermissions: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshAll() }
+            MainActor.assumeIsolated { self?.refreshAll(noticedBy: "notification") }
         }
     }
 
@@ -247,36 +261,17 @@ final class AppPermissions: ObservableObject {
         systemChangeObserver = nil
     }
 
-    /// Watches for a permission being *taken away*.
+    /// Re-reads every permission and reports what changed, with the reason it was checked.
     ///
-    /// `startPolling()` is the other half and cannot do this job: it runs only while a
-    /// permission is missing, and it stops the moment one is granted — which is exactly the
-    /// state a revocation starts from. The distributed notification above is undocumented
-    /// and, measured on macOS 27, did not arrive when the entry was removed with Settings
-    /// frontmost; the activation and wake refreshes miss it too, because a menu-bar app is
-    /// not frontmost while the user is in Settings. The gap is not cosmetic: a revoked
-    /// Accessibility leaves the event tap installed and unanswerable, and every keypress in
-    /// the session then waits out the tap's timeout.
-    ///
-    /// What runs here is two local boolean checks every five seconds — a grant costs nothing
-    /// to confirm and nothing happens when it is unchanged.
-    func startRevocationWatch() {
-        guard revocationTimer == nil else { return }
-        let timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshAll() }
-        }
-        timer.tolerance = 2.0
-        revocationTimer = timer
-    }
-
-    func stopRevocationWatch() {
-        revocationTimer?.invalidate()
-        revocationTimer = nil
-    }
-
-    func refreshAll() {
+    /// The reason matters more than it looks: revocation is the change with no reliable report
+    /// of its own. The distributed notification is undocumented and, measured on macOS 27, did
+    /// not arrive when the entry was removed with Settings frontmost; the activation and wake
+    /// refreshes miss it because a menu-bar app is not frontmost while the user is in Settings.
+    /// So `poll` is usually the one that notices — and the log should say so rather than
+    /// leaving the next investigation to guess.
+    func refreshAll(noticedBy reason: String) {
         for permission in all {
-            permission.refresh()
+            permission.refresh(noticedBy: reason)
         }
         updateState()
     }
