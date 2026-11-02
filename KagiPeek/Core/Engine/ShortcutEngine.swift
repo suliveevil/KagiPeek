@@ -75,6 +75,12 @@ final class ShortcutEngine: ObservableObject {
     /// A tap that tore itself down is rebuilt later, not immediately: rebuilding it into the
     /// same stall would repeat the whole episode within a second.
     private var monitorRetry: DispatchWorkItem?
+    /// How many times in a row the tap was torn down for unresponsiveness. The first gets an
+    /// automatic retry; a second inside the same unhealthy stretch stops the automation.
+    private var unresponsiveTeardowns = 0
+    /// Clears the count once the tap has been serving for a while, so a healthy session is
+    /// not judged by an old episode.
+    private var monitorHealthResetTask: DispatchWorkItem?
     private var cancellables: Set<AnyCancellable> = []
     private var isStarted = false
     private var isPreviewing = false
@@ -421,6 +427,7 @@ final class ShortcutEngine: ObservableObject {
             try monitor.start()
             state.isListening = true
             state.statusMessage = nil
+            armHealthReset()
             AppLog.input.notice("event tap installed")
             Diag.info(.tap, "event tap installed (accessibility granted)")
         } catch {
@@ -449,9 +456,32 @@ final class ShortcutEngine: ObservableObject {
         case .permissionLost:
             refreshPermissions()
         case .unresponsive:
-            state.statusMessage = localization.text(.errorEventTapStalled)
-            scheduleMonitorRetry()
+            // One automatic recovery, then none. A tap torn down for unresponsiveness is
+            // evidence the input chain is in a bad state; rebuilding it on a timer puts the
+            // same tap back in front of the same stream and can re-create the freeze. So
+            // the first teardown retries once (a genuine one-off must not kill shortcuts
+            // for the session), and a second teardown inside the same unhealthy stretch
+            // stops the automation: the app goes quiet and says so, and only a relaunch —
+            // or the next healthy start — arms it again.
+            unresponsiveTeardowns += 1
+            if unresponsiveTeardowns == 1 {
+                state.statusMessage = localization.text(.errorEventTapStalled)
+                scheduleMonitorRetry()
+            } else {
+                state.statusMessage = localization.text(.errorEventTapStalledPermanent)
+                hud.showNotice(text: localization.text(.errorEventTapStalledPermanent))
+                Diag.error(.tap, "tap torn down again after a retry: automatic recovery stopped to keep the input stream free")
+            }
         }
+    }
+
+    /// Forgets past teardowns after five minutes of service: a tap that has run that long is
+    /// a different tap from the one that stalled.
+    private func armHealthReset() {
+        monitorHealthResetTask?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.unresponsiveTeardowns = 0 }
+        monitorHealthResetTask = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 300, execute: work)
     }
 
     /// One delayed attempt, not a loop: each rebuild costs the same six chances the tap just

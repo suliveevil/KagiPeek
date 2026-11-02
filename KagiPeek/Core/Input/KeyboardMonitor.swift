@@ -107,6 +107,10 @@ final class KeyboardMonitor {
     /// Mirrors `watchdog.tapDetached` under `lock`, so the callback (tap thread) can see
     /// what the watchdog queue decided without touching its state.
     private var tapDetachedByWatchdog = false
+    /// When the tap was last turned on, so a disable can report how long it survived. The
+    /// distinction matters: a timeout a second after the re-enable means the events never
+    /// reach the callback, a timeout a minute later is a new episode.
+    private var lastEnableAt: Date?
 
     static func identifier(keyCode: UInt16, modifiers: ModifierSet) -> UInt32 {
         UInt32(keyCode) << 8 | UInt32(truncatingIfNeeded: modifiers.rawValue & 0xFF)
@@ -232,7 +236,7 @@ final class KeyboardMonitor {
             Diag.error(.tap, "run-loop source creation failed: the tap will never deliver events")
             throw KeyboardMonitorError.tapCreationFailed
         }
-        CGEvent.tapEnable(tap: created, enable: true)
+        enableTap(created)
         isRunning = true
 
         lock.lock()
@@ -285,6 +289,7 @@ final class KeyboardMonitor {
         source = nil
         isRunning = false
         health.reset()
+        lastEnableAt = nil
         lock.unlock()
         if let tapPort {
             CGEvent.tapEnable(tap: tapPort, enable: false)
@@ -325,8 +330,13 @@ final class KeyboardMonitor {
         let attempt = health.consecutiveDisables
         lock.unlock()
 
+        lock.lock()
+        let stoodFor = lastEnableAt.map { Int(Date().timeIntervalSince($0) * 1000) }
+        lock.unlock()
         let detail = "event tap disabled by the system (\(reason)); "
-            + "attempt \(attempt), trusted=\(trusted)"
+            + "attempt \(attempt), trusted=\(trusted), "
+            + "enabled=\(CGEvent.tapIsEnabled(tap: tapPort)), "
+            + "stood_ms=\(stoodFor.map(String.init) ?? "?")"
         AppLog.input.notice("event tap disabled by the system")
         Diag.warning(.tap, detail + " — " + Self.describe(recovery))
 
@@ -343,7 +353,7 @@ final class KeyboardMonitor {
             guard !detached else { return }
 
             guard delay > 0 else {
-                CGEvent.tapEnable(tap: tapPort, enable: true)
+                enableTap(tapPort)
                 return
             }
             // The pause is served on the tap's own run loop: a wedged main thread must not
@@ -356,7 +366,7 @@ final class KeyboardMonitor {
                 let stillRunning = self.isRunning
                 self.lock.unlock()
                 guard stillRunning else { return }
-                CGEvent.tapEnable(tap: tapPort, enable: true)
+                self.enableTap(tapPort)
             }
             lock.lock()
             pendingReEnable = work
@@ -383,6 +393,14 @@ final class KeyboardMonitor {
                 handler?(why)
             }
         }
+    }
+
+    /// Turns the tap on and remembers when, so the next disable can say how long it stood.
+    private func enableTap(_ tapPort: CFMachPort) {
+        lock.lock()
+        lastEnableAt = Date()
+        lock.unlock()
+        CGEvent.tapEnable(tap: tapPort, enable: true)
     }
 
     private static func describe(_ recovery: TapRecovery) -> String {

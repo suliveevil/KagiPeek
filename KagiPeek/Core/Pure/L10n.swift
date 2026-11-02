@@ -177,7 +177,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     case updateCheck, updateAvailable, updateNone, updateFailed, updateOpen
 
     // Errors
-    case errorEventTap, errorNoAccessibility, errorEventTapStalled
+    case errorEventTap, errorNoAccessibility, errorEventTapStalled, errorEventTapStalledPermanent
 }
 
 enum L10n {
@@ -839,6 +839,13 @@ enum L10n {
         .errorEventTapStalled: (
             "Shortcuts are paused: the system kept cancelling the key listener. This retries on its own.",
             "快捷键已暂停：系统反复取消了按键监听，稍后会自动重试。"
+        ),
+        // After the one automatic retry failed too. Nothing is retried again: rebuilding a
+        // listener the system will not service is what keeps the input stream contested, and
+        // a quiet app is the safer failure.
+        .errorEventTapStalledPermanent: (
+            "Shortcuts are off. The system would not service the key listener, so KagiPeek stopped retrying. Relaunch KagiPeek to try again.",
+            "快捷键已停用：系统不再为按键监听提供服务，KagiPeek 已停止重试。重新启动 KagiPeek 可再试。"
         )
     ]
 }

@@ -17,20 +17,27 @@ enum TapRecovery: Equatable {
 /// delivered, so the keyboard feels frozen while `ps` shows 0% CPU — blocking costs no CPU,
 /// which is why this failure is invisible to every resource monitor.
 ///
-/// Measured on macOS 27, after Accessibility was revoked with the tap still installed:
-/// the first version of this type reset its counter on *any* event getting through, and
-/// during a stall events do trickle through — eleven disables in two minutes, every one
-/// logged as "attempt 1, re-enabling in 0.0s", each ending in a force reboot. One mouse
-/// click is not proof that a tap serves the input stream. Only sustained service is:
-/// an event counts as healthy only this long after the last disable.
+/// Measured on macOS 27, 2026-11-02, in five episodes, three ending in a power-button reset:
+///
+/// - one re-enable per disable, forever, froze the machine for minutes;
+/// - a backoff of six steps froze it for 83 seconds (measured: attempt 1→7, 16:51:51→16:53:14);
+/// - a 0.0/0.3/0.6/1.2/2.5 s backoff froze it for ~40 seconds (measured: attempt 1→5,
+///   18:54:24→18:55:04, power-button reset before the seventh).
+///
+/// The log of that last episode is what settles the policy: the tap thread kept answering
+/// (every attempt was logged, scans ran in 1–8 ms, the system load stayed at 3–4), so the
+/// callback was never blocked — the events themselves were going into a tap that could not
+/// deliver them. Re-enabling such a tap cannot work, and every extra attempt buys another
+/// stall. One re-enable is the whole budget: enough for a genuine one-off hiccup, and the
+/// second disable inside the recovery window means the tap cannot serve, so it is removed
+/// from the input stream instead of put back in front of it.
 struct TapHealth {
-    /// Pause before each successive re-enable.
+    /// Pause before the one re-enable this type allows.
     ///
-    /// The first is zero on purpose: one hiccup while the machine is busy is normal, and
-    /// turning it into "shortcuts stopped working" would be a worse bug than the one being
-    /// fixed. From the second on the pause doubles, because a second disable means the
-    /// callback still cannot run and putting the tap back only restores the freeze.
-    static let backoff: [TimeInterval] = [0, 0.3, 0.6, 1.2, 2.5, 5]
+    /// Zero on purpose: a single hiccup while the machine is busy is normal, and turning it
+    /// into "shortcuts stopped working" would be a worse bug than the one being fixed. The
+    /// second disable is the answer, and it is teardown.
+    static let backoff: [TimeInterval] = [0]
 
     /// How long the tap must serve events — after the last disable, with none of its own —
     /// before one event is accepted as proof of health. Shorter than this, events are the
