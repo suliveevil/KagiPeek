@@ -104,6 +104,15 @@ final class KeyboardMonitor {
     /// distinction matters: a timeout a second after the re-enable means the events never
     /// reach the callback, a timeout a minute later is a new episode.
     private var lastEnableAt: Date?
+    /// The engine's copy of the event stream, bounded and drained in batches.
+    ///
+    /// One `DispatchQueue.main.async` per event made the hand-over an unbounded queue: a main
+    /// thread stuck for thirty seconds accumulated every keystroke typed during it and then
+    /// replayed them all at once. See `InputMailbox` for why a drop here is safe.
+    private var mailbox = InputMailbox()
+    /// Whether a drain is already in flight. Set when the mailbox asks for one, cleared when
+    /// the drain runs, so a burst costs one hop instead of one per event.
+    private var drainScheduled = false
 
     /// Runs `body` with the lock held.
     ///
@@ -276,6 +285,8 @@ final class KeyboardMonitor {
             isRunning = false
             health.reset()
             lastEnableAt = nil
+            mailbox.reset()
+            drainScheduled = false
             return ports
         }
         if let tapPort {
@@ -606,12 +617,41 @@ final class KeyboardMonitor {
         ComposedSwallow.decide(withLock { composedSwallowState }, event: event)
     }
 
+    /// Hands one event to the engine, through the bounded mailbox.
+    ///
+    /// Never synchronous: the tap thread must not wait for the main thread. Never one hop per
+    /// event either — the whole queued batch goes over on a single hop, which is what keeps a
+    /// wedged main thread from turning into a replay.
     private func emit(_ event: KeyEvent) {
-        // An async hop onto the main queue, never a synchronous call: the tap thread must
-        // not wait for the main thread, and the serial queue preserves event order.
-        let handler = onEvent
-        DispatchQueue.main.async {
-            handler?(event)
+        let needsDrain = withLock { () -> Bool in
+            let wantsDrain = mailbox.post(event)
+            guard wantsDrain, !drainScheduled else { return false }
+            drainScheduled = true
+            return true
+        }
+        guard needsDrain else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.drainMailbox()
+        }
+    }
+
+    /// Runs on the main thread: delivers everything queued, in order, then releases the debt a
+    /// drop left behind (a single `.interruption`, appended last by the mailbox).
+    private func drainMailbox() {
+        let (batch, dropped) = withLock { () -> ([KeyEvent], Int) in
+            let result = mailbox.drain()
+            drainScheduled = false
+            return result
+        }
+        if dropped > 0 {
+            Diag.warning(
+                .tap,
+                "input backlog overflowed: dropped \(dropped) event(s), told the engine to resync"
+            )
+        }
+        guard let handler = onEvent else { return }
+        for event in batch {
+            handler(event)
         }
     }
 

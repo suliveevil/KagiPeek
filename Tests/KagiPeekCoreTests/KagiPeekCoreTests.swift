@@ -41,11 +41,27 @@ final class KeyChordTests: XCTestCase {
         XCTAssertEqual(chord.relation(to: KeyChord.combo([.option], KeyToken("k"))), .unrelated)
     }
 
-    func testAlternatesMatchPhysicalKey() {
-        let step = KeyStep.combo([.command, .option], KeyToken("r"), alternates: [KeyToken("r")])
-        XCTAssertTrue(step.matchesKey(KeyToken("r")))
-        XCTAssertTrue(step.matchesKey(KeyToken("R")))
-        XCTAssertFalse(step.matchesKey(KeyToken("t")))
+    /// Alternates are alternative *spellings* of the same physical key — `return` written on a
+    /// binding that was recorded as `r`'s neighbour, and so on. The predicate that used to be
+    /// tested here (`matchesKey`) ignored modifiers entirely, so it answered "yes" to a step
+    /// whose only claim was that it named the same key; `matches` is the contract production
+    /// actually consults, and it compares the modifier set as well.
+    func testAlternatesAreAcceptedSpellingsOfTheSameKey() {
+        let plain = KeyStep.combo([.command], KeyToken("r"))
+        let withAlternate = KeyStep.combo(
+            [.command],
+            KeyToken("r"),
+            alternates: [KeyToken("return")]
+        )
+
+        XCTAssertTrue(withAlternate.matches(KeyStep.combo([.command], KeyToken("return"))))
+        XCTAssertTrue(withAlternate.matches(plain), "the recorded spelling still matches")
+        XCTAssertTrue(plain.matches(withAlternate), "and the relation is symmetric")
+        XCTAssertFalse(withAlternate.matches(KeyStep.combo([.command], KeyToken("t"))))
+        XCTAssertFalse(
+            withAlternate.matches(KeyStep.combo([.shift], KeyToken("return"))),
+            "an alternate spelling does not excuse a different modifier set"
+        )
     }
 
     func testDroppingLastStep() {
