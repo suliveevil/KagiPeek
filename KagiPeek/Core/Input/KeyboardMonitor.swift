@@ -96,6 +96,21 @@ final class KeyboardMonitor {
     /// attempts and burn the whole budget in one stalled second.
     private var pendingReEnable: DispatchWorkItem?
 
+    // MARK: Input watchdog
+
+    /// The failure no in-tap counter can see: a disable notification is delivered through
+    /// the callback itself, so a wedged main thread silences `TapHealth` exactly when it
+    /// matters — tap enabled, callback unable to run, input stream frozen, log empty.
+    /// See `MainThreadWatchdog`.
+    private var watchdog = MainThreadWatchdog()
+    private var watchdogTimer: DispatchSourceTimer?
+    /// Whether the ping issued at the previous watchdog tick has been answered; written on
+    /// the main thread, read on the watchdog queue.
+    private var mainPingAcknowledged = false
+    /// Mirrors `watchdog.tapDetached` under `lock`, so the callback (main thread) can see
+    /// what the watchdog queue decided without touching its state.
+    private var tapDetachedByWatchdog = false
+
     static func identifier(keyCode: UInt16, modifiers: ModifierSet) -> UInt32 {
         UInt32(keyCode) << 8 | UInt32(truncatingIfNeeded: modifiers.rawValue & 0xFF)
     }
@@ -213,9 +228,16 @@ final class KeyboardMonitor {
         }
         CGEvent.tapEnable(tap: created, enable: true)
         isRunning = true
+
+        lock.lock()
+        watchdog.reset()
+        tapDetachedByWatchdog = false
+        lock.unlock()
+        startWatchdog()
     }
 
     func stop() {
+        stopWatchdog()
         pendingReEnable?.cancel()
         pendingReEnable = nil
         if let tap {
@@ -259,6 +281,13 @@ final class KeyboardMonitor {
 
         switch recovery {
         case let .reEnable(delay):
+            // The watchdog detached the tap because the main thread is wedged: putting it
+            // back from here would re-create the freeze the watchdog just ended.
+            lock.lock()
+            let detached = tapDetachedByWatchdog
+            lock.unlock()
+            guard !detached else { return }
+
             guard delay > 0 else {
                 CGEvent.tapEnable(tap: tap, enable: true)
                 return
@@ -284,6 +313,87 @@ final class KeyboardMonitor {
         switch recovery {
         case let .reEnable(delay): return "re-enabling in \(delay)s"
         case .tearDown: return "giving up"
+        }
+    }
+
+    // MARK: - Input watchdog
+
+    private static let watchdogInterval: TimeInterval = 1.5
+
+    private func startWatchdog() {
+        guard watchdogTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.voltline.kagipeek.tap-watchdog"))
+        timer.schedule(deadline: .now() + Self.watchdogInterval, repeating: Self.watchdogInterval)
+        timer.setEventHandler { [weak self] in self?.watchdogTick() }
+        timer.resume()
+        watchdogTimer = timer
+    }
+
+    private func stopWatchdog() {
+        watchdogTimer?.cancel()
+        watchdogTimer = nil
+        lock.lock()
+        mainPingAcknowledged = false
+        tapDetachedByWatchdog = false
+        lock.unlock()
+    }
+
+    /// Runs on the watchdog queue. Pings the main thread once per interval; the answer to
+    /// the *previous* ping decides what this tick does.
+    private func watchdogTick() {
+        lock.lock()
+        let acknowledged = mainPingAcknowledged
+        mainPingAcknowledged = false
+        let tapPort = tap
+        let running = isRunning
+        lock.unlock()
+
+        guard running, let tapPort else { return }
+
+        // A no-op on the main run loop: if it has not run by the next tick, the main
+        // thread — and with it the tap callback — has been unresponsive for an interval.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            self.mainPingAcknowledged = true
+            self.lock.unlock()
+        }
+
+        // The state lives under the shared lock: start()/stop() reset it from the main
+        // thread while this queue may be mid-tick.
+        lock.lock()
+        var watchdog = self.watchdog
+        lock.unlock()
+
+        let action = watchdog.tick(mainAcknowledged: acknowledged)
+
+        lock.lock()
+        self.watchdog = watchdog
+        lock.unlock()
+
+        switch action {
+        case .none:
+            break
+
+        case .detachTap:
+            lock.lock()
+            tapDetachedByWatchdog = true
+            lock.unlock()
+            // From outside the wedged thread: a disabled tap is harmless, so this is what
+            // frees the input stream. Doing it here is the whole point — nothing on the
+            // main thread could run this right now.
+            CGEvent.tapEnable(tap: tapPort, enable: false)
+            Diag.error(.tap, "input watchdog: main thread unresponsive for \(watchdog.unresponsiveTicks) ticks with the tap enabled — detaching the tap to free the input stream")
+
+        case .reattachTap:
+            lock.lock()
+            tapDetachedByWatchdog = false
+            lock.unlock()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isRunning else { return }
+                CGEvent.tapEnable(tap: tapPort, enable: true)
+                Diag.info(.tap, "input watchdog: main thread recovered — tap re-enabled")
+            }
         }
     }
 
