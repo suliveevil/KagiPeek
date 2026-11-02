@@ -103,9 +103,6 @@ final class ShortcutEngine: ObservableObject {
     /// True while the screenshot fixture is driving the app. Read by the paths that must go
     /// quiet during a capture (scanning, executing, following the frontmost app).
     private(set) var isPreviewing = false
-    /// The fixture's own settings window: an `NSWindow` with `isReleasedWhenClosed = false`
-    /// has to be retained by someone, and the fixture lives in another file.
-    var previewWindow: NSWindow?
     /// The most recent app that was not KagiPeek, handed focus back to during a live test.
     private var lastExternalFrontmost: NSRunningApplication?
 

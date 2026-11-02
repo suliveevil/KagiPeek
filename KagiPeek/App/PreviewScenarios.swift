@@ -20,6 +20,25 @@ import SwiftUI
 /// `private` — `rebuildPanel`, `publishInputState`, `refreshSearch`, `recomputeConflicts`,
 /// `reloadSystemHotkeys`, `panelSequence`, `panelPageSize`. Each says so where it is
 /// declared, so the next reader does not mistake them for API.
+/// Owns the fixture's settings window.
+///
+/// `ShortcutEngine` used to hold this `NSWindow`, and the reason was purely mechanical: the
+/// fixture is an `extension ShortcutEngine`, and an extension cannot declare stored
+/// properties. A window with `isReleasedWhenClosed = false` still needs one strong
+/// reference, so that reference had to live somewhere, and the engine was the only place
+/// an extension could put it.
+///
+/// That cost was invisible to both dependency checks: enumerating the types in `UI/` cannot
+/// see `NSWindow`, and neither can type-checking `Core/` alone, because AppKit is available
+/// to both. So "the engine no longer holds UI objects" was half true, and this is the half
+/// that was left. An extension can still *own* one indirectly — this type sits in the same
+/// file as the code that makes the window, so creation and retention are in one place and
+/// the engine is out of it.
+private final class PreviewWindowOwner {
+    static let shared = PreviewWindowOwner()
+    var window: NSWindow?
+}
+
 extension ShortcutEngine {
     // MARK: - Preview (screenshots)
 
@@ -129,7 +148,7 @@ extension ShortcutEngine {
             window.contentView = hosting
             window.center()
             window.makeKeyAndOrderFront(nil)
-            previewWindow = window
+            PreviewWindowOwner.shared.window = window
         case "permissions":
             showPermissionsWindow()
         case "panel":
