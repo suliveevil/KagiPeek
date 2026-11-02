@@ -100,9 +100,9 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
   2. 若必须保留 `DateFormatter`，照 `Diag.State` 的既有做法收进一个不可变的 `State` 盒，
      用 `withLock`，并去掉 `nonisolated(unsafe)`。
 
-### N3（P1）　`KeyEventRouter.route`：80 行代码 + 10 个参数，且在 Pure 层、已有 23 个测试
+### N3（P1）　✅ 已修（`9334117`）　`KeyEventRouter.route`：80 行代码 + 10 个参数，且在 Pure 层、已有 23 个测试
 
-- 位置：`Core/Pure/KeyEventRouter.swift:67-173`
+- 位置：`Core/Pure/KeyEventRouter.swift:67-173`（拆分后 `route` 只剩 16 行）
 - 实测：107 行 = **80 行代码** + 18 行注释 + 9 行空行。不是被注释撑大的，是真的长。
 - 症状：两个 R2 味道叠在同一个函数上 —— *Long Function* + *Long Parameter List*（全项目参数最多）。
   10 个参数天然分成四组，而函数体正是按这四组顺序走的一条决策链：
@@ -121,6 +121,28 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
   函数体按已有顺序切三段：`routeHotkey` → `routePanelKey` → `routeStroke`。
   **顺序必须逐条保留**——函数上方的注释明确写了「顺序是有意义的：两个热键共用同一和弦时，
   先问的那个回答」，`HotkeyChoice` 的声明顺序也是承重的。
+
+- **实际做法（`9334117`）**：`route` 107 → **16 行**。10 个参数按"两样东西"分，不是按四组：
+  ① `keyCode`/`key`/`modifiers`/`isRepeat` 本来就是 `KeyEvent` 的字段，引擎手上就有这个对象，
+  直接传它（Preserve Whole Object，不必新造类型）；② 其余六个每次都从 `EngineState` 读、
+  且**本文件四个函数签名都要同一组**，收成 `RoutingContext`。
+  **参数对象值不值得成类型，判据是"这一组是否穿过多个签名"** ——只出现一次的话不值得。
+  函数体切三段：`routeActiveKey` 25 → `ownedKey` 54 → `composedStroke` 27。顺序逐条保留。
+  `ownedKey` 留 54 行没再切：其中约 20 行是承重注释，剩下的是一条五问的链，合着读比切开好。
+
+- **⚠️ 拆分过程中踩到一个 Swift 陷阱，测试抓住的，值得单独记**：
+  `ownedKey` 最初返回 `KeyDownAction?`，而 `KeyDownAction` **自身有 `case none`**。
+  在返回 Optional 的函数里，裸 `.none` 会被编译成 **`Optional.none`**（"这键不归面板管，继续"），
+  而不是 `Optional.some(.none)`（"面板吃下这键，答案是：啥也不做"）。**能编译、能跑**，
+  且只在三元表达式里才警告 —— `return .none` 完全不警告。后果是顶层 ⌫ 从终结分支静默变成
+  穿透进和弦合成，正好被 `testBackspaceAtTopLevelIsIgnored` 钉住。
+  正解不是写全 `KeyDownAction.none`（那只修一处、陷阱还在），而是**让两种含义无法写成同一个样子**：
+  私有 `enum OwnedKey { case action(KeyDownAction); case notOurs }`，`.action(...)` 参数位的类型是
+  非 Optional 的 `KeyDownAction`，那里的 `.none` 只能是枚举分支。
+  全项目扫过同类：6 个类型声明了 `case none`，**没有其他函数**在 Optional 返回里写裸 `.none`。
+- 验收：537 测试全绿（含本路由 23 个表征测试）；Core 独立 `-typecheck` 0 诊断；
+  panel 预览 `app=57 system=79 page=1/6 rows=24` 与拆分前逐字相同；search 预览
+  `items=136 results=136 first=Cut` 相同且截图 **78474 字节完全一致**。
 
 ### N4（P1）　P0-4 残留：诊断导出失败时**完全静默**，而同一个函数里写文件失败却会弹提示
 
@@ -184,15 +206,31 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 - 建议：保持现状，但把理由写进这条注释（现在只写了"只能留在引擎侧"，没写"为什么这样是安全的"），
   免得第三轮又把它当成漏网的违规重新查一遍。
 
-### N9（P3）　最大的测试文件是个杂物抽屉
+### N9（P3）　✅ 已修（`8a4909e`）　最大的测试文件是个杂物抽屉
 
 - 位置：`Tests/KagiPeekCoreTests/KagiPeekCoreTests.swift`，**1,105 行 / 109 个测试**
-- 症状：它是按 *target* 命名的，不是按类型命名的——里面测了 `KeyFormatter`、`DescriptionCleaner`、
-  `KeyChord`、`ModifierSet`、`Ranker`、`L10n`、用量统计等十几个互不相关的类型。
+- 症状：它是按 *target* 命名的，不是按类型命名的。拆开时才发现比原先描述的更具体——
+  它不是"一个类测了十几个类型"，而是**塞了 29 个 `XCTestCase` 类**（`KeyChordTests`、
+  `KeyFormatterTests`、`DescriptionCleanerTests`……`PanelHighlighterTests`）。
   其余 42 个测试文件都遵循「一类型一文件」，唯独最大的这个不遵循。
 - 代价：测试失败时，从文件名看不出是哪个类型坏了；`KeyChord` 的测试和 `L10n` 的测试
   挤在同一个文件里，改前者要打开后者。
 - 建议：按被测类型拆开。纯文件搬运，零风险，可以随时中断——这是最适合"有空就做一点"的一类改动。
+
+- **实际做法（`8a4909e`）**：拆成 29 个文件，原文件删除。作为**纯搬运**提交：
+  29 个新类的内容拼接后与原文 **SHA256 一致**（`59cff75194207a06`），测试函数 109 → 109，
+  diff 是 29 新增 + 1 删除、**0 修改**。
+  三件事让它可以脚本化而不是手搬：① 29 个类**互不引用**（先按类名交叉检索确认过，
+  所以没有共享 helper 需要复制或上提）；② 文件顶层只有两行 import；③ 4 个类的文档注释
+  落在**上一个类之后的空档里**而不是自己头顶，按语义重新挂回各自注释的类
+  （菜单路径加权→`MenuPathWeightTests`、磁盘缓存新鲜度→`MenuCachePolicyTests`、
+  面板高度→`PanelSizeStabilityTests`、`BindingItem` JSON 往返→`MenuCacheRoundTripTests`）。
+- **顺带（`e410fe5`）**：这轮才第一次认真看 `swift test` 的输出，发现测试 target 有
+  **16 处既有警告**（应用 target 自 Swift 6 迁移起就是 0 警告，所以它们一直没露出来）：
+  13 处"返回值未使用"（`InputMailbox.post`、`ModifierTapTracker.flagsChanged`，两者在测试里
+  本就故意丢弃返回值，用 `_ =` 是诚实写法而非压制）+ 3 处"var 从未改值"（改 `let`）。
+  现在测试构建也是 0 警告。值得做的原因不只是整洁：第二轮刚纠正过第一轮的四个度量数字，
+  一个无警告的测试构建是下一轮"是不是变差了"的稳定基线。
 
 ### N10（P2）　P2-14 / P2-15 / P2-16 未做，且 P2-14 的判定本身值得改
 
@@ -248,8 +286,9 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 
 ## 4. 建议的下一批（按风险递增，每批可独立回滚）
 
-**批次 A（零风险，有测试网）**
-N3 拆 `KeyEventRouter.route`（Pure + 23 个测试兜底）→ N9 拆 `KagiPeekCoreTests`（纯文件搬运）。
+**批次 A（零风险，有测试网）**　✅ **已完成**：`9334117` + `8a4909e` + `e410fe5`
+N3 拆 `KeyEventRouter.route`（Pure + 23 个测试兜底）→ N9 拆 `KagiPeekCoreTests`（纯文件搬运）
+→ 顺带把测试构建的 16 处既有警告清零。（详见 N3 / N9 条目的"实际做法"）
 
 **批次 B（零行为变化，编译期收益）**
 N1 把 `previewWindow` 移回夹具（唯一写入点、无读取点）→ N5 `fatalError` 换 `@available(*, unavailable)`。
@@ -271,22 +310,29 @@ N4 让 `diagnosticsReport()` 抛错、调用方沿用已有 HUD 分支 —— �
 
 ## 5. 量化基线（供第三轮比对）
 
-| 指标 | 第一轮基线 `bd8b926` | 本轮 `83a1b03` | 说明 |
-|---|---|---|---|
-| 应用文件 / 行数 | 126 / 20,542 | **129 / 21,431** | +3 文件 +889 行（Swift 6 标注 + 拆分 + 端口） |
-| 测试文件 / 行数 | 42 / 5,857 | **43 / 6,028** | |
-| 函数总数 / 中位长度 | 711 / 6 行 | **752 / 8 行** | 中位变长是拆分的正常产物 |
-| >80 行的函数 | 9 | **3** | `startPreview` 149 / `route` 107 / `CatalogLoader.scan` 81 |
-| 最大文件 | `ShortcutEngine` 2,775 | **2,530** | 仍 19 个 MARK 段 |
-| Core 跨文件 5 行重复块 | 2 | **6** | 变差（N6），其中 2 处真重复 |
-| `try?` | 64 | **59** | 分布改善（CrashReporter 15→12、Engine 14→8），但输入链路仍有 10 |
-| `try!` | 1 | **0** | ✅ |
-| `MainActor.assumeIsolated` | 31 | **24** | 均为 SDK 签名强制 |
-| `@unchecked Sendable` | 0 | **8** | 5 个类型，各有锁或串行队列，契约写在注释里 |
-| `nonisolated(unsafe)` | — | **23** | CrashReporter 20（信号处理器，正当）+ LogRotationPolicy 2（**不正当**，见 N2）+ UI 1 |
-| `ObservableObject` / `@Observable` | 10 / 0 | **10 / 0** | 未动 |
-| `accessibilityHint` | 0 | **0** | 但 P2-13 的真实缺口（图标按钮/装饰图标）已修 |
-| `.contentShape` | 7 | **7** | 未动（见 N10） |
-| `.frame(width:/height:)` | 41 | **41** | 未动 |
+| 指标 | 第一轮基线 `bd8b926` | 第二轮 `83a1b03` | 批次 A 后 `e410fe5` | 说明 |
+|---|---|---|---|---|
+| 应用文件 / 行数 | 126 / 20,542 | 129 / 21,431 | **129 / 21,485** | 批次 A 只动 Pure 与引擎各一处 |
+| 测试文件 / 行数 | 42 / 5,857 | 43 / 6,028 | **71 / 6,090** | N9：1 个 1,105 行文件 → 29 个一类一文件 |
+| 函数总数 / 中位长度 | 711 / 6 行 | 752 / 8 行 | **755 / 9 行** | 中位变长是拆分的正常产物 |
+| >80 行的函数 | 9 | 3 | **2** ✅ | `startPreview` 149 / `CatalogLoader.scan` 81（`route` 已拆，见 N3） |
+| 最大文件 | `ShortcutEngine` 2,775 | 2,530 | **2,529** | 仍 19 个 MARK 段（P1-5 未动） |
+| 测试构建警告 | — | 16 | **0** ✅ | `e410fe5`；应用构建自 Swift 6 迁移起就是 0 |
+| Core 跨文件 5 行重复块 | 2 | 6 | **6** | 未动（N6 待做） |
+| `try?` | 64 | 59 | **59** | 未动；输入链路仍有 10（P0-4 待收口） |
+| `try!` | 1 | 0 | **0** ✅ | 见下方计数口径说明 |
+| `MainActor.assumeIsolated` | 31（字符串匹配） | 24（真实调用点） | **24** | 未动；均为 SDK 签名强制 |
+| `@unchecked Sendable` | 0 | 8 | **8** | 5 个类型，各有锁或串行队列，契约写在注释里 |
+| `nonisolated(unsafe)` | — | 23 | **23** | CrashReporter 20（信号处理器，正当）+ LogRotationPolicy 2（**不正当**，见 N2）+ UI 1 |
+| `ObservableObject` / `@Observable` | 10 / 0 | 10 / 0 | **10 / 0** | 未动 |
+| `accessibilityHint` | 0 | 0 | **0** | 但 P2-13 的真实缺口（图标按钮/装饰图标）已修 |
+| `.contentShape` | 7 | 7 | **7** | 未动（见 N10） |
+| `.frame(width:/height:)` | 41 | 41 | **41** | 未动 |
+
+**计数口径（第三轮别再踩）**：本轮统计 `try!` 得到 2、`assumeIsolated` 得到 29，一度以为两者都回退了。
+实际是正则把**注释里的提及**也算进去了 —— 那 2 处 `try!` 是 `Sanitizer.swift:78-79` 在解释
+"为什么这里不用 `try!`"，真实代码 0 处；29 处 `assumeIsolated` 里有 5 处是注释，真实调用点仍是 24。
+**统计代码气味时必须先剥掉行内注释**（`re.sub(r'//.*$', '', line)` 后再匹配），否则每轮都会
+凭空"恶化"几条。这正是第 2 节想防的同一类错误，写报告的人自己也踩了。
 | `SWIFT_VERSION` | 5.0 | **6.0 + `complete`** | 三条路径 0 诊断，537 测试通过 |
 | `Core/` 独立 `-typecheck` | 失败 | **通过（0 诊断）** | 但用的是自有 UI 类型口径，漏 AppKit（见 N1） |
