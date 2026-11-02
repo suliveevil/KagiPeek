@@ -177,8 +177,10 @@ P0-3 有界邮箱（Pure + 测试）→ P0-4 `Sanitizer` 预编译 + `CrashRepor
 **批次 2（约半天）**
 P1-7 合并双轮询 → P1-8 参数对象 → P2-13/14 设置页与权限页无障碍与命中区。
 
-**批次 3（1–2 天，**必须有 Xcode**）**
-P0-1 依赖倒置：抽 `PanelPresenting` 端口 → `Theme` 数值下沉为 `PanelMetrics` → `startPreview` 移出 → P1-6 的 `handleKeyDown` / `handleModifiers` 拆分。顺序不能颠倒：先解耦，再拆长函数，否则拆完仍不可测。
+**批次 3（已完成 2026-11-02，`c5b9c9d` / `bed5476` / `a48d926`）**
+P1-6 五个长函数按原有接缝拆开（`handleKeyDown` 118→19、`handleModifiers` 94→40、`headerContent` 98→14、`rowView` 83→37、`MenuScanner.scan` 87→56）；P0-1 依赖倒置：`Core/Ports/PresentationPorts.swift` 五个出站端口 + `EnginePresenters`，引擎改为接收 `PresenterFactory` 闭包，`AppDelegate` 成为唯一知道具体窗口的地方；`Localization` 下沉 `Core/Services`；`panelPageSize` 改读 `OverlayMetrics.fillScreenPageSize`（纯函数 + 断言）；`startPreview` 整体移到 `App/PreviewScenarios.swift`，引擎文件去掉 `import SwiftUI`，`Core/` 不再出现任何 UI 类型。
+
+仍未做：P0-2（`assumeIsolated` → 隔离类型）、P1-5 剩余部分（把冲突/统计的持有字段搬走）、P1-8 / P1-9。
 
 **批次 4（持续）**
 P0-2 Swift 6 迁移：开 `targeted` → 清 31 处 `assumeIsolated` →（可选）`ObservableObject` → `@Observable` → 开 `complete`。
