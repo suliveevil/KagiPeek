@@ -114,11 +114,18 @@ enum CrashReporter {
 
     private static func writeSentinel() {
         let content = "pid=\(ProcessInfo.processInfo.processIdentifier) started=\(ISO8601DateFormatter().string(from: Date()))\n"
-        try? FileManager.default.createDirectory(
-            at: sentinelURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try? content.write(to: sentinelURL, atomically: true, encoding: .utf8)
+        do {
+            try FileManager.default.createDirectory(
+                at: sentinelURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try content.write(to: sentinelURL, atomically: true, encoding: .utf8)
+        } catch {
+            // Without the sentinel the next launch cannot tell a crash from a clean quit, so
+            // this is not housekeeping: it is the whole detection mechanism. A line in the log
+            // is the only thing that makes a silent gap explainable later.
+            Diag.warning(.crash, "could not write the launch sentinel (\(error.localizedDescription)): an unclean exit will go unreported")
+        }
     }
 
     /// Turns the previous session's sentinel into an honest log line. A crash and a force
@@ -317,7 +324,17 @@ enum CrashReporter {
             let target = crashDirectory.appendingPathComponent(
                 "kagipeek-crash-\(timestampString(occurredAt))-\(CrashLogFormatter.signalName(info.signalNumber)).json"
             )
-            try? CrashLogFormatter.render(report).write(to: target, atomically: true, encoding: .utf8)
+            do {
+                try CrashLogFormatter.render(report).write(to: target, atomically: true, encoding: .utf8)
+            } catch {
+                // The report was assembled and then thrown away: the one failure this feature
+                // exists to avoid. Say so, because the alternative is a user reporting a crash
+                // to a log that insists nothing happened.
+                Diag.warning(
+                    .crash,
+                    "could not write the crash report to \(target.lastPathComponent) (\(error.localizedDescription))"
+                )
+            }
             try? FileManager.default.removeItem(at: url)
         }
     }

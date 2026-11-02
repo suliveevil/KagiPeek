@@ -94,3 +94,25 @@ final class SanitizerTests: XCTestCase {
         XCTAssertEqual(Sanitizer.clamp("short"), "short")
     }
 }
+
+/// The redaction table is a security control, and every rule in it is a hand-written regular
+/// expression. A typo used to be fatal in the worst possible place — `try!` inside the logger,
+/// which took the app down on its first log line — so the compile step is now tolerant and this
+/// test is what makes the invariant true instead of asserted.
+final class SanitizerRuleCompilationTests: XCTestCase {
+    func testEveryRuleCompiles() {
+        // Touching `redact` forces the table to compile.
+        _ = Sanitizer.redact("warm-up")
+        XCTAssertEqual(
+            Sanitizer.failedPatterns,
+            [],
+            "a pattern that does not compile is silently skipping a redaction rule"
+        )
+    }
+
+    /// Sanity check that the table is actually wired: a bearer token must not survive.
+    func testTheTableStillRedactsAfterTheCompileChange() {
+        XCTAssertFalse(Sanitizer.redact("Authorization: Bearer abcdef123456").contains("abcdef123456"))
+        XCTAssertTrue(Sanitizer.redact("token=abc123&x=1").contains("<redacted>"))
+    }
+}

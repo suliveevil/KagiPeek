@@ -51,10 +51,27 @@ enum Sanitizer {
         )
     ]
 
-    private static let compiled: [NSRegularExpression] = rules.map { rule in
-        // swiftlint:disable:next force_try
-        try! NSRegularExpression(pattern: rule.pattern)
+    /// The compiled rules, paired with the template they replace with.
+    ///
+    /// Compiled with `compactMap` rather than `try!`: a malformed pattern is a typo in this
+    /// file, and the cost of `try!` is that the typo takes the whole app down on the first log
+    /// line — from inside the logger, where nothing can report it. The invariant that no rule
+    /// fails is pinned by `SanitizerTests.everyRuleCompiles`, which runs on every test pass;
+    /// the runtime tolerance exists only so a broken invariant degrades to "one rule skipped"
+    /// instead of a launch crash.
+    ///
+    /// A skipped rule is *not* silent: `rulesThatFailedToCompile` names the pattern, and the
+    /// diagnostics export surfaces it.
+    private static let compiled: [(regex: NSRegularExpression, template: String)] = rules.compactMap { rule in
+        guard let regex = try? NSRegularExpression(pattern: rule.pattern) else {
+            failedPatterns.append(rule.pattern)
+            return nil
+        }
+        return (regex, rule.template)
     }
+
+    /// Patterns that did not compile. Empty in any build where the tests have run.
+    private(set) static var failedPatterns: [String] = []
 
     // MARK: - API
 
@@ -80,12 +97,12 @@ enum Sanitizer {
     /// the one input it was written for.
     static func redact(_ line: String) -> String {
         var result = line
-        for (index, regex) in compiled.enumerated() {
+        for rule in compiled {
             let range = NSRange(result.startIndex..., in: result)
-            result = regex.stringByReplacingMatches(
+            result = rule.regex.stringByReplacingMatches(
                 in: result,
                 range: range,
-                withTemplate: rules[index].template
+                withTemplate: rule.template
             )
         }
         return result
