@@ -116,12 +116,25 @@ private struct PermissionCardView: View {
                 Label(localization.text(.permissionGrantedDone), systemImage: "checkmark")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.green)
+            } else if permission.guideStatus == .waiting {
+                // The guide is on screen and the next move is the user's, in System Settings.
+                // Showing the grant button again would invite a second click that cannot
+                // help; the row reports what is actually happening instead.
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(localization.text(.permissionWaitingForAccess))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 HStack(spacing: 10) {
                     if permission.id == .accessibility {
                         DragAppIcon(side: 26)
                     }
-                    Button(localization.text(.permissionGrant)) {
+                    Button(localization.text(
+                        permission.guideStatus == .interrupted ? .permissionContinueGrant : .permissionGrant
+                    )) {
                         permission.performRequest()
                     }
                     .buttonStyle(.borderedProminent)

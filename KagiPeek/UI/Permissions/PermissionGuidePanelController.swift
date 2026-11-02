@@ -2,61 +2,118 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// The iScroll-style drag guide: a horizontal non-activating bar that hugs the System
-/// Settings window's bottom-right corner, follows that window as it moves, and carries
-/// the app icon the user drops into the permission list.
+/// Drives the guide panel's scale during the entrance. The window frame animates on the
+/// AppKit side; the scale lives in SwiftUI because a layer transform on a non-layer-backed
+/// hosting view is a fight with the layout engine.
+@MainActor
+final class PermissionGuideAnimation: ObservableObject {
+    @Published var scale: CGFloat = 1
+}
+
+/// The macOS permission drag guide: a horizontal non-activating bar that floats inside the
+/// System Settings window, under the list, carrying the app icon the user drops into that
+/// list.
 ///
 /// The bar never becomes key, so dragging the icon out of it is one gesture — System
-/// Settings stays frontmost for the whole drop. It dismisses itself on the first of:
-/// the grant landing, the Settings window going away, the close button, or a fresh
-/// `present` replacing the guide for the other permission.
+/// Settings stays frontmost for the whole drop.
+///
+/// Modelled on LobeHub's desktop guide (`feat/macos-permission-drag-guide`, PR #20932):
+/// the panel is a small state machine, not a static hint. It reports the four ways the flow
+/// goes wrong — Settings closed, the user navigated away, the password prompt was
+/// cancelled — instead of repeating a drag instruction the user cannot act on, and it flies
+/// in from the KagiPeek window along an arc so the panel is visibly *from* the thing that
+/// was clicked.
 @MainActor
 final class PermissionGuidePanelController {
     /// The anchored follow loop runs at screen-cadence: fast enough that the panel visibly
     /// tracks a dragged Settings window, slow enough to be a rounding error on CPU.
     private static let tickInterval: TimeInterval = 0.25
-    /// System Settings can take a few seconds to launch and open its window; give up
-    /// quietly after this many ticks so a broken pane URL never leaves an invisible timer.
-    private static let settingsWaitTicks = 24
-    /// Once visible, tolerate this many consecutive "no Settings window" ticks (sheets,
-    /// Spaces transitions) before concluding Settings was closed and letting go.
-    private static let settingsLostTicks = 12
-    /// How long the granted state stays up before the guide fades out.
-    private static let grantedLinger: TimeInterval = 0.9
+    /// System Settings can take a few seconds to launch and open its window; give up quietly
+    /// after this many ticks so a broken pane URL never leaves an invisible timer.
+    private static let settingsWaitTicks = 40
+    /// Once visible, tolerate this many consecutive "no Settings window" ticks (Spaces
+    /// transitions, a sheet taking the list with it) before concluding Settings was closed.
+    private static let settingsLostTicks = 8
+    /// How long the granted state stays up before the guide closes itself.
+    private static let grantedLinger: TimeInterval = 1.2
+    private static let flightInterval: TimeInterval = 1.0 / 60.0
+    /// How many ticks a pane mismatch has to hold before the panel admits the user left.
+    private static let paneMismatchTicks = 4
 
     private var panel: PermissionGuidePanel?
     private var trackingTimer: Timer?
+    private var flightTimer: Timer?
     private var currentPermission: AppPermission?
+    private var localization: Localization?
+    private var phase: PermissionGuidePhase = .dragging
+    private let animation = PermissionGuideAnimation()
+
     private var grantSink: AnyCancellable?
     private var grantedWork: DispatchWorkItem?
     private var waitingTicks = 0
     private var lostTicks = 0
+    private var promptWasUp = false
+    private var paneMismatchTicks = 0
+    private var hasAnchored = false
+    private var targetOrigin: CGPoint?
+    private var flightOrigin: CGPoint?
+    private var flightStartedAt: Date?
+
+    private var reduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
 
     deinit {
         trackingTimer?.invalidate()
+        flightTimer?.invalidate()
         grantedWork?.cancel()
     }
+
+    // MARK: - Lifecycle
 
     func present(_ permission: AppPermission, localization: Localization) {
         guard !permission.isGranted else { return }
         currentPermission = permission
+        self.localization = localization
+        phase = .dragging
         waitingTicks = 0
         lostTicks = 0
+        promptWasUp = false
+        paneMismatchTicks = 0
+        hasAnchored = false
+        targetOrigin = nil
+        flightOrigin = nil
         grantedWork?.cancel()
         grantedWork = nil
+        animation.scale = 1
 
-        rebuildContent(permission: permission, localization: localization)
+        permission.setGuideStatus(.waiting)
+        rebuildContent()
         observeGrant(of: permission)
         startTracking()
     }
 
+    /// Closes the guide. `interrupted` is the honest half: a guide that was dismissed before
+    /// the grant landed leaves the permission row saying "continue", not "waiting" forever.
     func dismiss() {
+        dismiss(interrupted: true)
+    }
+
+    private func dismiss(interrupted: Bool) {
         trackingTimer?.invalidate()
         trackingTimer = nil
+        stopFlight()
         grantSink = nil
         grantedWork?.cancel()
         grantedWork = nil
+
+        if interrupted, let permission = currentPermission, !permission.isGranted {
+            permission.setGuideStatus(.interrupted)
+        }
         currentPermission = nil
+        flightOrigin = nil
+        targetOrigin = nil
+
         guard let panel, panel.isVisible else { return }
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.18
@@ -69,36 +126,46 @@ final class PermissionGuidePanelController {
 
     // MARK: - Content
 
-    private func rebuildContent(permission: AppPermission, localization: Localization) {
+    private func rebuildContent() {
+        guard let permission = currentPermission, let localization else { return }
         let panel = panel ?? makePanel()
         self.panel = panel
 
-        let root = PermissionGuideView(permission: permission) { [weak self] in
-            self?.dismiss()
-        }
+        let root = PermissionGuideView(
+            permission: permission,
+            animation: animation,
+            phase: phase,
+            onClose: { [weak self] in self?.dismiss(interrupted: true) },
+            onAction: { [weak self] action in self?.run(action) }
+        )
         .environmentObject(localization)
 
         let hosting = NSHostingView(rootView: root)
         hosting.translatesAutoresizingMaskIntoConstraints = false
 
-        if let old = panel.contentView as? NSVisualEffectView {
-            old.subviews.forEach { $0.removeFromSuperview() }
-            old.addSubview(hosting)
-            NSLayoutConstraint.activate([
-                hosting.leadingAnchor.constraint(equalTo: old.leadingAnchor),
-                hosting.trailingAnchor.constraint(equalTo: old.trailingAnchor),
-                hosting.topAnchor.constraint(equalTo: old.topAnchor),
-                hosting.bottomAnchor.constraint(equalTo: old.bottomAnchor)
-            ])
-            // The SwiftUI tree fixes the width; its intrinsic height decides the panel's,
-            // so the panel hugs the (localized) text on every language.
-            panel.setContentSize(NSSize(width: PermissionGuideView.width, height: hosting.fittingSize.height))
+        guard let old = panel.contentView as? NSVisualEffectView else { return }
+        old.subviews.forEach { $0.removeFromSuperview() }
+        old.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.leadingAnchor.constraint(equalTo: old.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: old.trailingAnchor),
+            hosting.topAnchor.constraint(equalTo: old.topAnchor),
+            hosting.bottomAnchor.constraint(equalTo: old.bottomAnchor)
+        ])
+        // The SwiftUI tree fixes the width; its intrinsic height decides the panel's, so the
+        // panel hugs the (localized) text on every language and every phase. Laying out
+        // first matters: `fittingSize` on a tree that has never been laid out reports the
+        // size of an empty view, which collapsed the panel to the default rect.
+        hosting.layoutSubtreeIfNeeded()
+        let height = max(hosting.fittingSize.height, PermissionGuideView.minHeight)
+        if panel.frame.size != NSSize(width: PermissionGuideView.width, height: height) {
+            panel.setContentSize(NSSize(width: PermissionGuideView.width, height: height))
         }
     }
 
     private func makePanel() -> PermissionGuidePanel {
         let panel = PermissionGuidePanel(
-            contentRect: NSRect(x: 0, y: 0, width: PermissionGuideView.width, height: 76),
+            contentRect: NSRect(x: 0, y: 0, width: PermissionGuideView.width, height: PermissionGuideView.minHeight),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -122,6 +189,24 @@ final class PermissionGuidePanelController {
         return panel
     }
 
+    /// The permission's button in the panel: reopening Settings and going back to the list
+    /// are the same deep link — the copy differs because the reason does.
+    private func run(_ action: PermissionGuideAction) {
+        switch action {
+        case .openSettings, .goBack:
+            currentPermission?.openSettingsPane()
+        }
+    }
+
+    // MARK: - State machine
+
+    private func apply(_ event: PermissionGuideEvent) {
+        let next = PermissionGuideState.next(phase, on: event)
+        guard next != phase else { return }
+        phase = next
+        rebuildContent()
+    }
+
     // MARK: - Grant detection
 
     private func observeGrant(of permission: AppPermission) {
@@ -133,12 +218,23 @@ final class PermissionGuidePanelController {
             }
     }
 
-    /// The view flips itself into its granted state (it observes the same permission);
-    /// the controller only stops tracking and schedules the fade-out.
+    /// The view flips itself into its granted state (it observes the same permission); the
+    /// controller stops tracking, waits out the linger, closes, and hands the front back to
+    /// KagiPeek — the grant happened inside System Settings, so without the explicit
+    /// activation the user is left staring at a settings window with no next step.
     private func permissionGranted() {
+        guard phase != .granted else { return }
         trackingTimer?.invalidate()
         trackingTimer = nil
-        let work = DispatchWorkItem { [weak self] in self?.dismiss() }
+        stopFlight()
+        animation.scale = 1
+        currentPermission?.setGuideStatus(.idle)
+        apply(.granted)
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.dismiss(interrupted: false)
+            NSApp.activate(ignoringOtherApps: true)
+        }
         grantedWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.grantedLinger, execute: work)
     }
@@ -166,36 +262,125 @@ final class PermissionGuidePanelController {
             return
         }
 
-        guard let settingsFrame = SettingsWindowLocator.settingsWindowFrame() else {
-            if panel.isVisible {
-                lostTicks += 1
-                if lostTicks >= Self.settingsLostTicks { dismiss() }
-            } else {
-                waitingTicks += 1
-                if waitingTicks >= Self.settingsWaitTicks { dismiss() }
-            }
+        let windows = SettingsWindowLocator.settingsWindows()
+        guard let main = windows.first else {
+            handleSettingsGone(panel: panel)
             return
         }
         lostTicks = 0
+        if !hasAnchored {
+            hasAnchored = true
+            // The window the guide has been waiting for: fly to it.
+            flightOrigin = flightOrigin ?? kagiPeekAnchor()
+        } else if phase == .settingsClosed {
+            apply(.settingsAppeared)
+        }
 
-        let visibleFrame = SettingsWindowLocator.screenVisibleFrame(forSettingsFrame: settingsFrame)
-        let origin = PermissionGuidePlacement.anchoredOrigin(
+        detectPrompt(windows: windows)
+        detectPaneChange()
+
+        let visibleFrame = SettingsWindowLocator.screenVisibleFrame(forSettingsFrame: main)
+        targetOrigin = anchoredOrigin(panelSize: panel.frame.size, settingsFrame: main, visibleFrame: visibleFrame)
+        if flightTimer == nil { followTarget(panel: panel) }
+    }
+
+    /// No Settings window on screen. Before the first one appeared that is just a slow
+    /// launch; afterwards it is news, and the panel moves to the middle of the screen and
+    /// offers to reopen — LobeHub's fallback for the same dead end.
+    private func handleSettingsGone(panel: PermissionGuidePanel) {
+        guard hasAnchored else {
+            waitingTicks += 1
+            if waitingTicks >= Self.settingsWaitTicks { dismiss(interrupted: true) }
+            return
+        }
+        lostTicks += 1
+        if lostTicks >= Self.settingsLostTicks, phase != .settingsClosed {
+            apply(.settingsLost)
+        }
+        guard phase == .settingsClosed else { return }
+        targetOrigin = PermissionGuidePlacement.screenCenterOrigin(
             panelSize: panel.frame.size,
+            visibleFrame: SettingsWindowLocator.mainScreenVisibleFrame
+        )
+        if flightTimer == nil { followTarget(panel: panel) }
+    }
+
+    /// A password / Touch ID prompt is a second Settings window over the main one: its
+    /// appearance is "waiting for confirmation", and its disappearance without a grant is
+    /// the cancellation the panel has to admit to.
+    private func detectPrompt(windows: [NSRect]) {
+        let isUp = SettingsWindowLocator.showsConfirmationPrompt(windows: windows)
+        guard isUp != promptWasUp else { return }
+        promptWasUp = isUp
+        apply(isUp ? .sheetShown : .sheetDismissed)
+    }
+
+    /// "You left this page" waits for the mismatch to hold, because a deep link lands before
+    /// Settings has navigated: the pane it reports is still the previous one for the first
+    /// ticks, and flashing "you left" at the exact moment the list is opening would be a lie
+    /// about the most important second of the flow.
+    private func detectPaneChange() {
+        guard let onPrivacy = SettingsPaneProbe.privacyPageShown(
+            inPaneURL: SettingsWindowLocator.currentPaneURL()
+        )
+        else { return }
+
+        guard !onPrivacy else {
+            paneMismatchTicks = 0
+            apply(.paneMatched)
+            return
+        }
+        paneMismatchTicks += 1
+        guard paneMismatchTicks >= Self.paneMismatchTicks else { return }
+        apply(.paneLeft)
+    }
+
+    /// Inside the Settings window, centred under the list, is the placement that makes the
+    /// drop one short move up. A window too small to hold the panel falls back to hugging
+    /// the window from outside, which is what this guide did before.
+    private func anchoredOrigin(panelSize: CGSize, settingsFrame: NSRect, visibleFrame: NSRect) -> CGPoint {
+        let contentArea = PermissionGuidePlacement.contentArea(
+            settingsFrame: settingsFrame,
+            sidebarWidth: SettingsWindowLocator.sidebarWidth() ?? 0
+        )
+        if let inside = PermissionGuidePlacement.insideBottomCenterOrigin(
+            panelSize: panelSize,
+            contentArea: contentArea,
+            visibleFrame: visibleFrame
+        ) {
+            return inside
+        }
+        return PermissionGuidePlacement.anchoredOrigin(
+            panelSize: panelSize,
             settingsFrame: settingsFrame,
             visibleFrame: visibleFrame
         )
-        let target = NSRect(origin: origin, size: panel.frame.size)
+    }
+
+    /// Moves the panel to `targetOrigin`, animating only the moves a person can see.
+    private func followTarget(panel: PermissionGuidePanel) {
+        guard let targetOrigin else { return }
+        let target = NSRect(origin: targetOrigin, size: panel.frame.size)
 
         if panel.isVisible {
             // Sub-pixel jitter from the coordinate flip would animate forever; only chase
             // moves the user can see.
             guard abs(target.origin.x - panel.frame.origin.x) > 0.5
-                || abs(target.origin.y - panel.frame.origin.y) > 0.5 else { return }
+                || abs(target.origin.y - panel.frame.origin.y) > 0.5
+            else { return }
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.2
                 panel.animator().setFrame(target, display: true)
             })
         } else {
+            startEntrance(panel: panel, target: target)
+        }
+    }
+
+    private func startEntrance(panel: PermissionGuidePanel, target: NSRect) {
+        // Reduce Motion: the panel appears where it belongs, with a cross-fade. Flying it
+        // across the screen is exactly the kind of motion the setting exists to stop.
+        guard !reduceMotion, let origin = flightOrigin, origin != target.origin else {
             panel.setFrame(target, display: false)
             panel.alphaValue = 0
             panel.orderFrontRegardless()
@@ -203,7 +388,56 @@ final class PermissionGuidePanelController {
                 context.duration = 0.15
                 panel.animator().alphaValue = 1
             })
+            return
         }
+
+        panel.setFrame(NSRect(origin: origin, size: target.size), display: false)
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+        animation.scale = PermissionGuideFlight.startScale
+        flightStartedAt = Date()
+
+        flightTimer?.invalidate()
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.flightInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickFlight() }
+        }
+        timer.tolerance = Self.flightInterval / 4
+        flightTimer = timer
+    }
+
+    private func tickFlight() {
+        guard let panel, let startedAt = flightStartedAt, let from = flightOrigin, let to = targetOrigin else {
+            stopFlight()
+            return
+        }
+        let elapsed = Date().timeIntervalSince(startedAt)
+        let progress = CGFloat(min(max(elapsed / PermissionGuideFlight.duration, 0), 1))
+        let position = PermissionGuideFlight.point(progress: progress, from: from, to: to)
+        panel.setFrame(NSRect(origin: position, size: panel.frame.size), display: true)
+        animation.scale = PermissionGuideFlight.scale(progress: progress)
+
+        if progress >= 1 {
+            stopFlight()
+            panel.setFrame(NSRect(origin: to, size: panel.frame.size), display: true)
+            animation.scale = 1
+        }
+    }
+
+    private func stopFlight() {
+        flightTimer?.invalidate()
+        flightTimer = nil
+        flightStartedAt = nil
+    }
+
+    /// Where the panel flies out of: the largest visible KagiPeek window, which is the one
+    /// the user just clicked in. Nil when nothing of ours is on screen, in which case the
+    /// panel simply fades in.
+    private func kagiPeekAnchor() -> CGPoint? {
+        let candidate = NSApp.windows
+            .filter { $0.isVisible && $0.level == .normal && $0.frame.width > 80 }
+            .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+        guard let frame = candidate?.frame else { return nil }
+        return CGPoint(x: frame.midX, y: frame.midY)
     }
 }
 
@@ -214,60 +448,128 @@ final class PermissionGuidePanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// The guide bar's content: the draggable app icon on the left, the permission and the
-/// drag instruction beside it, and the remove-then-add hint underneath — everything on
-/// one strip so the bar stays out of the way of the list it points at.
+/// The guide bar's content: the draggable app icon on the left, the phase's message beside
+/// it, and either the drop target's own action or the close button on the right.
+///
+/// The bar is one strip so it stays out of the way of the list it points at, and its text is
+/// allowed to wrap rather than truncate: the recovery messages are the whole point of the
+/// panel, and an ellipsis there is worse than a taller panel.
 private struct PermissionGuideView: View {
-    static let width: CGFloat = 460
+    static let width: CGFloat = 520
+    static let minHeight: CGFloat = 76
 
     @EnvironmentObject private var localization: Localization
     @ObservedObject var permission: AppPermission
+    @ObservedObject var animation: PermissionGuideAnimation
+    let phase: PermissionGuidePhase
     let onClose: () -> Void
+    let onAction: (PermissionGuideAction) -> Void
 
     private var tint: Color {
         switch permission.iconColorName {
         case "blue": return .blue
         case "orange": return .orange
+        case "red": return .red
         default: return .accentColor
         }
     }
 
+    private var action: PermissionGuideAction? {
+        PermissionGuideState.action(for: phase)
+    }
+
     var body: some View {
         Group {
-            if permission.isGranted {
-                Label(localization.text(.permissionGuideGranted), systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(.green)
+            if phase == .granted {
+                grantedLabel
             } else {
-                HStack(spacing: 12) {
-                    icon
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(localization.text(permission.titleKey))
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(tint)
-                                .lineLimit(1)
-                            Text(localization.text(.permissionGuideDrag))
-                                .font(.system(size: 12.5, weight: .medium))
-                                .lineLimit(1)
-                        }
-                        Text(localization.text(.permissionGuideStaleHint))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 4)
-                    closeButton
-                }
+                strip
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(width: Self.width)
-        // The bar's height is fixed when the instructions are laid out; the granted
-        // state is smaller, so it centers in the space instead of hanging to one side.
+        .scaleEffect(animation.scale, anchor: .center)
+        // The bar's height is fixed when the instructions are laid out; the granted state is
+        // smaller, so it centers in the space instead of hanging to one side.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var grantedLabel: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(localization.text(.permissionGuideGranted))
+                    .font(.system(size: 13.5, weight: .semibold))
+                Text(localization.text(.permissionGuideGrantedHint))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var strip: some View {
+        HStack(spacing: 12) {
+            leadingGlyph
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(localization.text(headlineKey))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(localization.text(PermissionGuideState.detailKey(for: phase)))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if PermissionGuideState.showsDragSource(phase) {
+                    Text(localization.text(.permissionGuideStaleHint))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 4)
+
+            if let action {
+                Button(localization.text(PermissionGuideState.actionKey(for: action))) {
+                    onAction(action)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+            closeButton
+        }
+    }
+
+    private var headlineKey: L10nKey {
+        PermissionGuideState.headlineKey(for: phase, permissionTitle: permission.titleKey)
+    }
+
+    /// The drag source while a drop is possible, and a plain status glyph when it is not —
+    /// offering something to drag with no list to drag it into is what made the old flow
+    /// feel broken.
+    @ViewBuilder
+    private var leadingGlyph: some View {
+        if PermissionGuideState.showsDragSource(phase) {
+            DragAppIcon(side: 40, cue: .dragTarget)
+        } else {
+            Image(systemName: statusGlyphName)
+                .font(.system(size: 19, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var statusGlyphName: String {
+        switch phase {
+        case .settingsClosed: return "macwindow.badge.plus"
+        case .leftPane: return "arrow.uturn.backward.circle"
+        default: return permission.iconName
+        }
     }
 
     private var closeButton: some View {
@@ -280,19 +582,5 @@ private struct PermissionGuideView: View {
         }
         .buttonStyle(IconButtonStyle(hoverFill: .white.opacity(0.14), size: 22, cornerRadius: 6))
         .help(localization.text(.permissionGuideClose))
-    }
-
-    /// The drag source, with the same hand cue iScroll paints next to its icon so the
-    /// affordance reads before any text does.
-    private var icon: some View {
-        DragAppIcon(side: 44)
-            .overlay(alignment: .bottomTrailing) {
-                Image(systemName: "hand.draw.fill")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white)
-                    .padding(3)
-                    .background(Circle().fill(tint))
-                    .offset(x: 4, y: 4)
-            }
     }
 }

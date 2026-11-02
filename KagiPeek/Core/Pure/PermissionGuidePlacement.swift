@@ -49,4 +49,54 @@ enum PermissionGuidePlacement {
         let clampedY = min(max(y, visibleFrame.minY), visibleFrame.maxY - panelSize.height)
         return CGPoint(x: clampedX, y: clampedY)
     }
+
+    /// The part of the Settings window that holds the list, i.e. the window without its
+    /// sidebar. LobeHub centres its guide on this rect rather than on the whole window, so
+    /// the icon sits under the list it belongs to instead of under the sidebar.
+    static func contentArea(settingsFrame: CGRect, sidebarWidth: CGFloat) -> CGRect {
+        // A nonsense sidebar width (a zero, a stale frame wider than the window) must not
+        // produce a negative content area — fall back to the whole window.
+        guard sidebarWidth > 0, sidebarWidth < settingsFrame.width else { return settingsFrame }
+        return CGRect(
+            x: settingsFrame.minX + sidebarWidth,
+            y: settingsFrame.minY,
+            width: settingsFrame.width - sidebarWidth,
+            height: settingsFrame.height
+        )
+    }
+
+    /// Where the guide sits when it floats *inside* the Settings window: horizontally
+    /// centred on the content area, hugging its bottom edge, so the drag is one short move
+    /// up into the list.
+    ///
+    /// Nil when the content area is too short to hold the panel — a tiny Settings window
+    /// (or a very tall panel after localisation) belongs below the window instead, which is
+    /// what `anchoredOrigin` is for.
+    static func insideBottomCenterOrigin(
+        panelSize: CGSize,
+        contentArea: CGRect,
+        visibleFrame: CGRect,
+        margin: CGFloat = margin
+    ) -> CGPoint? {
+        guard contentArea.height >= panelSize.height + margin * 2,
+              contentArea.width >= panelSize.width + margin * 2
+        else { return nil }
+
+        let x = contentArea.midX - panelSize.width / 2
+        let y = contentArea.minY + margin
+
+        let clampedX = min(max(x, visibleFrame.minX), visibleFrame.maxX - panelSize.width)
+        let clampedY = min(max(y, visibleFrame.minY), visibleFrame.maxY - panelSize.height)
+        return CGPoint(x: clampedX, y: clampedY)
+    }
+
+    /// The panel centred on the screen a Settings window used to be on. This is the
+    /// "Settings was closed" position: with no window to hug, centring on the screen is the
+    /// only placement that does not point at nothing.
+    static func screenCenterOrigin(panelSize: CGSize, visibleFrame: CGRect) -> CGPoint {
+        CGPoint(
+            x: visibleFrame.midX - panelSize.width / 2,
+            y: visibleFrame.midY - panelSize.height / 2
+        )
+    }
 }

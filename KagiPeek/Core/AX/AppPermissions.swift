@@ -21,10 +21,34 @@ final class AppPermission: ObservableObject, Identifiable {
     let detailKeys: [L10nKey]
     let isRequired: Bool
     let settingsURL: URL?
+    /// Whether asking for this permission through the system API adds the app to the list
+    /// **switched off**.
+    ///
+    /// Accessibility is that case: `AXIsProcessTrustedWithOptions(prompt:)` registers the
+    /// app before the user has done anything, and a registered-but-off entry is exactly the
+    /// state the drag-instruction cannot fix — dragging it in again is how you end up with
+    /// the "already listed but the switch won't stick" support question. LobeHub's desktop
+    /// guide dropped the pre-registration for the same reason, so the guided flow opens
+    /// System Settings and lets the drop both add *and* enable the entry.
+    let promptPreRegisters: Bool
 
     @Published private(set) var isGranted: Bool
 
+    /// What the permission row should say about the drag guide, so the row can report
+    /// "waiting" while the panel is up and "continue" once it closed without a grant.
+    @Published private(set) var guideStatus: GuideStatus = .idle
+
+    enum GuideStatus: Equatable {
+        /// No guide has been opened for this permission in this session.
+        case idle
+        /// The guide is on screen; the row is waiting for the user, not for a click.
+        case waiting
+        /// The guide was closed before the grant landed; the row offers to continue.
+        case interrupted
+    }
+
     var onChange: ((Bool) -> Void)?
+
 
     /// Fired after the matching System Settings pane has been opened — by both
     /// `performRequest()` and `openSettingsPane()` — so the UI can anchor a drag guide
@@ -43,6 +67,7 @@ final class AppPermission: ObservableObject, Identifiable {
         detailKeys: [L10nKey],
         isRequired: Bool,
         settingsURL: URL?,
+        promptPreRegisters: Bool = false,
         check: @escaping () -> Bool,
         requestPrompt: @escaping () -> Bool
     ) {
@@ -53,6 +78,7 @@ final class AppPermission: ObservableObject, Identifiable {
         self.detailKeys = detailKeys
         self.isRequired = isRequired
         self.settingsURL = settingsURL
+        self.promptPreRegisters = promptPreRegisters
         self.check = check
         self.requestPrompt = requestPrompt
         self.isGranted = check()
@@ -62,22 +88,41 @@ final class AppPermission: ObservableObject, Identifiable {
         let granted = check()
         guard granted != isGranted else { return }
         isGranted = granted
-        if granted { stopPolling() }
+        if granted {
+            stopPolling()
+            guideStatus = .idle
+        }
         onChange?(granted)
+    }
+
+    func setGuideStatus(_ status: GuideStatus) {
+        guard guideStatus != status else { return }
+        guideStatus = status
     }
 
     /// Fire the system prompt *and* open the matching System Settings pane, so the flow can
     /// be recovered if the user closes System Settings without granting.
+    ///
+    /// A permission whose prompt pre-registers the app skips the prompt: opening the pane
+    /// and letting the guide's drag do the work is the only path that leaves the entry
+    /// enabled, and it is the same fix LobeHub shipped for Accessibility.
     func performRequest() {
         startPolling()
-        _ = requestPrompt()
+        if !promptPreRegisters {
+            _ = requestPrompt()
+        }
         openSettingsPane()
     }
 
+    /// Opens the pane and raises Settings.
+    ///
+    /// The raise is explicit because a deep link does not bring an already-running Settings
+    /// forward — without it the guide floats over whatever the user was looking at.
     func openSettingsPane() {
         if let settingsURL {
             NSWorkspace.shared.open(settingsURL)
         }
+        SettingsWindowLocator.activateSettings()
         onSettingsPaneOpened?()
     }
 
@@ -131,6 +176,7 @@ final class AppPermissions: ObservableObject {
             ],
             isRequired: true,
             settingsURL: PermissionCenter.accessibilitySettingsURL,
+            promptPreRegisters: true,
             check: { previewDenied ? false : AXIsProcessTrusted() },
             requestPrompt: {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary

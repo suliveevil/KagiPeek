@@ -87,4 +87,72 @@ final class PermissionGuidePlacementTests: XCTestCase {
         )
         XCTAssertEqual(below.y, 500 - 20 - 170)
     }
+
+    // MARK: - Content area
+
+    func testContentAreaDropsTheSidebar() {
+        let settings = CGRect(x: 100, y: 500, width: 800, height: 600)
+        let content = PermissionGuidePlacement.contentArea(settingsFrame: settings, sidebarWidth: 232)
+        XCTAssertEqual(content.minX, 332)
+        XCTAssertEqual(content.width, 568)
+        XCTAssertEqual(content.height, 600)
+    }
+
+    func testUnknownSidebarWidthFallsBackToTheWholeWindow() {
+        let settings = CGRect(x: 100, y: 500, width: 800, height: 600)
+        XCTAssertEqual(
+            PermissionGuidePlacement.contentArea(settingsFrame: settings, sidebarWidth: 0),
+            settings
+        )
+        // A stale frame wider than the window must not produce a negative content area.
+        XCTAssertEqual(
+            PermissionGuidePlacement.contentArea(settingsFrame: settings, sidebarWidth: 900),
+            settings
+        )
+    }
+
+    // MARK: - Inside the window
+
+    func testCentresUnderTheListAndHugsItsBottomEdge() {
+        let settings = CGRect(x: 100, y: 500, width: 800, height: 600)
+        let content = PermissionGuidePlacement.contentArea(settingsFrame: settings, sidebarWidth: 232)
+        let origin = PermissionGuidePlacement.insideBottomCenterOrigin(
+            panelSize: panelSize,
+            contentArea: content,
+            visibleFrame: visibleFrame
+        )
+        XCTAssertEqual(origin?.x, content.midX - panelSize.width / 2)
+        XCTAssertEqual(origin?.y, content.minY + PermissionGuidePlacement.margin)
+    }
+
+    func testTooSmallAWindowHasNoInsidePosition() {
+        let settings = CGRect(x: 100, y: 500, width: 400, height: 120)
+        let content = PermissionGuidePlacement.contentArea(settingsFrame: settings, sidebarWidth: 232)
+        XCTAssertNil(
+            PermissionGuidePlacement.insideBottomCenterOrigin(
+                panelSize: panelSize, contentArea: content, visibleFrame: visibleFrame
+            )
+        )
+    }
+
+    func testInsidePositionIsClampedToTheVisibleFrame() {
+        // A Settings window mostly off the left screen edge: the centred position would fall
+        // outside the visible frame and has to be clamped in.
+        let settings = CGRect(x: -700, y: 500, width: 800, height: 600)
+        let content = PermissionGuidePlacement.contentArea(settingsFrame: settings, sidebarWidth: 232)
+        let origin = PermissionGuidePlacement.insideBottomCenterOrigin(
+            panelSize: panelSize, contentArea: content, visibleFrame: visibleFrame
+        )
+        XCTAssertEqual(origin?.x, visibleFrame.minX)
+    }
+
+    // MARK: - Settings gone
+
+    func testScreenCentreIsTheMiddleOfTheVisibleFrame() {
+        let origin = PermissionGuidePlacement.screenCenterOrigin(
+            panelSize: panelSize, visibleFrame: visibleFrame
+        )
+        XCTAssertEqual(origin.x, visibleFrame.midX - panelSize.width / 2)
+        XCTAssertEqual(origin.y, visibleFrame.midY - panelSize.height / 2)
+    }
 }

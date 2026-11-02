@@ -47,7 +47,12 @@ enum L10nKey: String, CaseIterable, Sendable {
     case permissionAccessibilityDetail1, permissionAccessibilityDetail2, permissionAccessibilityDetail3
     case permissionInputMonitoringDetail1, permissionInputMonitoringDetail2
     case permissionGuideDrag, permissionGuideStaleHint
-    case permissionGuideGranted, permissionGuideClose
+    case permissionGuideGranted, permissionGuideGrantedHint, permissionGuideClose
+    case permissionGuideWaiting, permissionGuideWaitingHint
+    case permissionGuideSettingsClosed, permissionGuideSettingsClosedHint, permissionGuideOpenSettings
+    case permissionGuideLeftPane, permissionGuideLeftPaneHint, permissionGuideGoBack
+    case permissionGuideCancelled, permissionGuideCancelledHint
+    case permissionWaitingForAccess, permissionContinueGrant
 
     // Trigger
     case triggerTitle, triggerMode, triggerHoldModifiers, triggerDoubleTap, triggerHotkey, triggerOff
@@ -333,20 +338,72 @@ enum L10n {
             "也可以把这里的 KagiPeek 图标直接拖进系统设置的列表里。"
         ),
         .permissionGuideDrag: (
-            "Drag KagiPeek into the list above",
-            "把上面的 KagiPeek 图标拖进列表"
+            "Drag the icon into the list above",
+            "把图标拖进上面的列表"
         ),
         .permissionGuideStaleHint: (
-            "Already listed but the switch won't stick? Remove it with −, drop the icon in again, and switch it on.",
-            "若列表里已有 KagiPeek 但开关无效：先用 − 移除，再拖入并打开。"
+            "Already listed but the switch won't stick? Remove it with −, then drop the icon in again.",
+            "列表里已有 KagiPeek 但开关无效？先用 − 移除，再重新拖入。"
         ),
         .permissionGuideGranted: (
             "Permission granted",
             "已授权"
         ),
+        .permissionGuideGrantedHint: (
+            "KagiPeek is coming back to the front.",
+            "KagiPeek 正在回到前台。"
+        ),
         .permissionGuideClose: (
             "Close the guide",
             "关闭引导"
+        ),
+        .permissionGuideWaiting: (
+            "Waiting for confirmation",
+            "等待系统确认"
+        ),
+        .permissionGuideWaitingHint: (
+            "Finish the password or Touch ID prompt.",
+            "请完成密码或触控 ID 验证。"
+        ),
+        .permissionGuideSettingsClosed: (
+            "System Settings was closed",
+            "系统设置被关闭了"
+        ),
+        .permissionGuideSettingsClosedHint: (
+            "Reopen it, then drag the icon into the list.",
+            "重新打开后继续把图标拖进列表。"
+        ),
+        .permissionGuideOpenSettings: (
+            "Open Settings",
+            "打开系统设置"
+        ),
+        .permissionGuideLeftPane: (
+            "You left this page",
+            "你已离开这个页面"
+        ),
+        .permissionGuideLeftPaneHint: (
+            "Go back to the privacy list to drop the icon.",
+            "回到隐私列表才能拖入图标。"
+        ),
+        .permissionGuideGoBack: (
+            "Go back",
+            "回到该页面"
+        ),
+        .permissionGuideCancelled: (
+            "Cancelled",
+            "已取消"
+        ),
+        .permissionGuideCancelledHint: (
+            "Drag the icon in again to retry.",
+            "再拖一次图标即可重试。"
+        ),
+        .permissionWaitingForAccess: (
+            "Waiting for authorization",
+            "等待授权"
+        ),
+        .permissionContinueGrant: (
+            "Continue",
+            "继续授权"
         ),
         .permissionSecureInput: (
             "Secure keyboard entry is active — hints are paused.",
