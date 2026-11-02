@@ -6,7 +6,18 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let settingsStore: SettingsStore
     let usageStore: UsageStore
-    lazy var engine = ShortcutEngine(settingsStore: settingsStore, usageStore: usageStore)
+    /// The only place that knows which concrete windows exist. The engine asks for the
+    /// protocols in `Core/Ports`; this is where they are built and handed over, in the one
+    /// direction the dependency rule allows (App → Core).
+    lazy var engine = ShortcutEngine(settingsStore: settingsStore, usageStore: usageStore) { engine in
+        EnginePresenters(
+            panel: SurfacePanelController(engine: engine),
+            notices: HUDPanelController(),
+            settings: SettingsWindowController(engine: engine),
+            permissions: PermissionsWindowController(engine: engine),
+            guide: PermissionGuidePanelController()
+        )
+    }
 
     private var statusItemController: StatusItemController?
     private var backgroundActivity: NSObjectProtocol?

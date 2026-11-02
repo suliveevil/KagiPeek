@@ -564,3 +564,11 @@ private struct PermissionGuideView: View {
         .help(localization.text(.permissionGuideClose))
     }
 }
+
+/// The port the engine drives (`Core/Ports/PresentationPorts.swift`). The guide keeps no
+/// reference to the engine, so the localization travels with the call.
+extension PermissionGuidePanelController: PermissionGuidePresenting {
+    func presentPermissionGuide(_ permission: AppPermission, localization: Localization) {
+        present(permission, localization: localization)
+    }
+}

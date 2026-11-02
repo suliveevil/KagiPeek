@@ -46,3 +46,9 @@ final class SettingsWindowController {
         self.window = window
     }
 }
+
+/// The port the engine drives (`Core/Ports/PresentationPorts.swift`). The controller's own
+/// name for this is `show()`, which says nothing about what gets shown; the port says it.
+extension SettingsWindowController: SettingsPresenting {
+    func showSettings() { show() }
+}

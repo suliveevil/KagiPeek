@@ -2,8 +2,11 @@ import AppKit
 
 /// Short-lived toast shown after a shortcut completes, equivalent to which-key's
 /// "command executed" feedback.
+///
+/// Conforms to `NoticePresenting` (`Core/Ports/PresentationPorts.swift`): the engine says
+/// "show this" and knows nothing about panels or labels.
 @MainActor
-final class HUDPanelController {
+final class HUDPanelController: NoticePresenting {
     private let panel: NSPanel
     private let label = NSTextField(labelWithString: "")
     private var hideWorkItem: DispatchWorkItem?

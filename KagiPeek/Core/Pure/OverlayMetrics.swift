@@ -23,8 +23,30 @@ enum OverlayMetrics {
     /// Vertical padding (10×2) + header (56 + 6) + footer (34) + 2pt of slack.
     static let chromeHeight: CGFloat = 20 + 62 + 34 + 2
 
+    /// The grid stride used to count how many columns a *screen* holds when the panel covers
+    /// it. Deliberately not `columnWidth + columnSpacing`: that is the natural width of one
+    /// column at cheat-sheet density (248 pt), while a screen-filling page can afford a
+    /// three-hundred-point column and fits more rows per column. Using one number for both
+    /// made the fill-screen page shorter than the window it was drawn in.
+    static let denseColumnStride: CGFloat = 300
+    /// What the screen keeps for itself — menu bar, Dock and the panel's own chrome — before
+    /// any row is counted.
+    static let screenVerticalReserve: CGFloat = 150
+
     /// Gap between adjacent grid columns, kept in sync with `RowLayout.columnSpacing`.
     static let columnSpacing: CGFloat = 18
+
+    /// How many rows one page holds when the panel fills the screen: the page grows with the
+    /// display instead of sticking to the small-window limit.
+    ///
+    /// Pure, and asserted in a test, because "does the fill-screen panel show everything" is
+    /// invisible in a screenshot (the screenshot is taken at the size it produced) and
+    /// obvious in an assertion.
+    static func fillScreenPageSize(visibleFrame: CGSize, maxItemsPerPage: Int) -> Int {
+        let columns = max(1, min(4, Int((visibleFrame.width - padding * 2) / denseColumnStride)))
+        let usableRows = max(1, Int((visibleFrame.height - screenVerticalReserve) / rowHeight))
+        return max(maxItemsPerPage, columns * usableRows)
+    }
 
     /// Cheat-sheet density: one column per grid stride, capped at four. The stride includes
     /// the inter-column gap so the count and the natural width use the same arithmetic.

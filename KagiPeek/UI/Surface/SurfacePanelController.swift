@@ -14,8 +14,12 @@ final class SurfacePanel: NSPanel {
 /// The shortcut panel and the search palette are mutually exclusive *and* share a single
 /// NSPanel: switching swaps the hosting content, the size and whether the window may take
 /// keyboard focus. There is never a second floating window.
+///
+/// Conforms to `PanelPresenting` (`Core/Ports/PresentationPorts.swift`) by having the same
+/// method names: the engine drives this window through that protocol, and does not know it
+/// exists.
 @MainActor
-final class SurfacePanelController {
+final class SurfacePanelController: PanelPresenting {
     enum Mode {
         case hidden
         case panel

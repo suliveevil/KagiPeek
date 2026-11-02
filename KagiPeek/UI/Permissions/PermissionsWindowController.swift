@@ -50,3 +50,8 @@ final class PermissionsWindowController {
         window = panel
     }
 }
+
+/// The port the engine drives (`Core/Ports/PresentationPorts.swift`).
+extension PermissionsWindowController: PermissionsPresenting {
+    func showPermissions() { show() }
+}

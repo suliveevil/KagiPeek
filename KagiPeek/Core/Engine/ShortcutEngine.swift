@@ -24,6 +24,9 @@ final class ShortcutEngine: ObservableObject {
     /// The panel session phase, defined in pure code so `KeyEventRouter` can read it
     /// without importing the engine.
     typealias Phase = EnginePhase
+    /// Given the engine, return the windows it drives. The App layer writes this closure, so
+    /// the controllers can keep taking `engine: self` without Core importing them.
+    typealias PresenterFactory = @MainActor (ShortcutEngine) -> EnginePresenters
 
     // MARK: - State
 
@@ -44,11 +47,13 @@ final class ShortcutEngine: ObservableObject {
     private let catalogLoader = CatalogLoader()
     private let appDirectory = AppDirectory()
     let updateChecker = UpdateChecker()
-    private lazy var surface = SurfacePanelController(engine: self)
-    private lazy var hud = HUDPanelController()
-    private lazy var permissionsWindow = PermissionsWindowController(engine: self)
-    private lazy var permissionGuide = PermissionGuidePanelController()
-    private lazy var settingsWindow = SettingsWindowController(engine: self)
+    /// The windows the engine drives, built on first use by the factory the App layer supplied.
+    ///
+    /// Lazy, and built through `makePresenters`, for one reason: the controllers take the
+    /// engine in their own initialisers. A factory closure that receives `self` is the way to
+    /// break that cycle without Core naming any of them — see `Core/Ports`.
+    private lazy var presenters: EnginePresenters = makePresenters(self)
+    private let makePresenters: PresenterFactory
     private lazy var shortcutTester = ShortcutTester(
         appToRestore: { [weak self] in self?.lastExternalFrontmost },
         onListeningChanged: { [weak self] listening in
@@ -92,9 +97,14 @@ final class ShortcutEngine: ObservableObject {
 
     // MARK: - Lifecycle
 
-    init(settingsStore: SettingsStore, usageStore: UsageStore) {
+    init(
+        settingsStore: SettingsStore,
+        usageStore: UsageStore,
+        presenters makePresenters: @escaping PresenterFactory
+    ) {
         self.settingsStore = settingsStore
         self.usageStore = usageStore
+        self.makePresenters = makePresenters
         state.settings = settingsStore.settings
         localization.update(preference: settingsStore.settings.language)
         state.defaultTitle = localization.text(.appName)
@@ -182,7 +192,7 @@ final class ShortcutEngine: ObservableObject {
         for permission in permissions.all {
             permission.onSettingsPaneOpened = { [weak self, weak permission] in
                 guard let self, let permission else { return }
-                permissionGuide.present(permission, localization: localization)
+                presenters.guide.presentPermissionGuide(permission, localization: localization)
             }
         }
         refreshPermissions()
@@ -402,12 +412,12 @@ final class ShortcutEngine: ObservableObject {
 
     func showPermissionsWindow() {
         dismissEverything()
-        permissionsWindow.show()
+        presenters.permissions.showPermissions()
     }
 
 
     func bringPermissionsWindowForward() {
-        permissionsWindow.show()
+        presenters.permissions.showPermissions()
     }
 
     private func startMonitor() {
@@ -471,7 +481,7 @@ final class ShortcutEngine: ObservableObject {
                 scheduleMonitorRetry()
             } else {
                 state.statusMessage = localization.text(.errorEventTapStalledPermanent)
-                hud.showNotice(text: localization.text(.errorEventTapStalledPermanent))
+                presenters.notices.showNotice(text: localization.text(.errorEventTapStalledPermanent))
                 Diag.error(.tap, "tap torn down again after a retry: automatic recovery stopped to keep the input stream free")
             }
         }
@@ -518,7 +528,7 @@ final class ShortcutEngine: ObservableObject {
         state.isCatalogLoading = true
         if state.panel.isVisible {
             state.panel.isScanning = true
-            surface.presentPanel(state: state.panel, settings: state.settings)
+            presenters.panel.presentPanel(state: state.panel, settings: state.settings)
         }
         // Scans run on a background queue with a concurrency of two, so a slow scan for the
         // previous app can finish after a fast one for the current app. Only the newest
@@ -662,7 +672,7 @@ final class ShortcutEngine: ObservableObject {
             // Only when the panel was actually up: the user just saw it vanish. A toast while
             // they type a password elsewhere would point at the password field.
             if state.phase == .active {
-                hud.showNotice(text: localization.text(.permissionSecureInput))
+                presenters.notices.showNotice(text: localization.text(.permissionSecureInput))
             }
             dismissPanel()
             return
@@ -895,7 +905,7 @@ final class ShortcutEngine: ObservableObject {
             "replaying composed \(KeyFormatter.render(probe, style: .symbols), privacy: .public) into the front app"
         )
         if state.settings.showExecutedHUD {
-            hud.show(
+            presenters.notices.show(
                 chord: KeyFormatter.render(probe, style: state.settings.keyStyle),
                 title: item.title
             )
@@ -1053,7 +1063,7 @@ final class ShortcutEngine: ObservableObject {
         state.panel = .hidden
         updateKeyCapture()
         publishInputState()
-        surface.presentPanel(state: state.panel, settings: state.settings)
+        presenters.panel.presentPanel(state: state.panel, settings: state.settings)
         // One run loop later: `showSearch()` closes the panel on its way to opening the
         // search palette, and pulling the pointer back out from under a surface that is
         // about to want it would be worse than leaving it where it is.
@@ -1102,7 +1112,7 @@ final class ShortcutEngine: ObservableObject {
     private func dismissEverything() {
         dismissPanel()
         state.search.isVisible = false
-        surface.close()
+        presenters.panel.close()
     }
 
     /// Closes whichever surface is showing; used before opening Settings.
@@ -1148,14 +1158,17 @@ final class ShortcutEngine: ObservableObject {
     // MARK: - Panel content
 
     /// In fill-screen mode the panel can show everything at once, so the page grows with the
-    /// screen instead of sticking to the small-window row limit.
+    /// screen instead of sticking to the small-window row limit. The arithmetic is pure
+    /// (`OverlayMetrics`) and holds no `Theme` values: how rows are counted must not move
+    /// when a corner radius does.
     private var panelPageSize: Int {
         guard state.settings.panelPlacement == .fillScreen, let screen = NSScreen.main else {
             return max(1, state.settings.maxItemsPerPage)
         }
-        let columns = max(1, min(4, Int((screen.visibleFrame.width - Theme.padding * 2) / 300)))
-        let usableRows = max(1, Int((screen.visibleFrame.height - 150) / Theme.rowHeight))
-        return max(state.settings.maxItemsPerPage, columns * usableRows)
+        return OverlayMetrics.fillScreenPageSize(
+            visibleFrame: screen.visibleFrame.size,
+            maxItemsPerPage: state.settings.maxItemsPerPage
+        )
     }
 
     /// How many rows and headings the panel window must be sized for: the widest list this
@@ -1285,7 +1298,7 @@ final class ShortcutEngine: ObservableObject {
         state.panel.showsFavoritesOnly = state.showsFavoritesOnly
         state.panel.usedBuiltInCatalog = state.usedBuiltInCatalog
         state.panel.isPinned = state.phase == .active
-        surface.presentPanel(state: state.panel, settings: state.settings)
+        presenters.panel.presentPanel(state: state.panel, settings: state.settings)
     }
 
     /// Hits in ranked order; shared by rendering and by "jump to the page of this row".
@@ -1513,7 +1526,7 @@ final class ShortcutEngine: ObservableObject {
         let text = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
         // Copying an empty string would wipe the pasteboard and report success.
         guard !text.isEmpty else {
-            hud.show(chord: "!", title: localization.text(.panelNothingToCopy))
+            presenters.notices.show(chord: "!", title: localization.text(.panelNothingToCopy))
             return
         }
         copyToPasteboard(text)
@@ -1527,19 +1540,19 @@ final class ShortcutEngine: ObservableObject {
         // A command with no shortcut has nothing to put on the pasteboard; saying "copied"
         // after clearing it would be a lie the user only notices later.
         guard !text.isEmpty else {
-            hud.show(chord: "!", title: localization.text(.panelNothingToCopy))
+            presenters.notices.show(chord: "!", title: localization.text(.panelNothingToCopy))
             return
         }
         guard copyToPasteboard(text) else {
-            hud.show(chord: "!", title: localization.text(.panelCopyFailed))
+            presenters.notices.show(chord: "!", title: localization.text(.panelCopyFailed))
             return
         }
-        hud.show(chord: text, title: localization.text(.panelCopied))
+        presenters.notices.show(chord: text, title: localization.text(.panelCopied))
     }
 
     func showSettings() {
         dismissEverything()
-        settingsWindow.show()
+        presenters.settings.showSettings()
     }
 
     func nextPage() {
@@ -1637,7 +1650,7 @@ final class ShortcutEngine: ObservableObject {
                 // The panel has to show the toast too: the setting
                 // promises a confirmation and a run that vanishes without one reads as a failure.
                 if state.settings.showExecutedHUD {
-                    hud.show(
+                    presenters.notices.show(
                         chord: item.chord.isEmpty ? KeyFormatter.noShortcutPlaceholder : rendered,
                         title: item.title
                     )
@@ -1667,7 +1680,7 @@ final class ShortcutEngine: ObservableObject {
             // The panel has to show the toast too: the setting
             // promises a confirmation and a run that vanishes without one reads as a failure.
             if state.settings.showExecutedHUD {
-                hud.show(chord: rendered, title: item.title)
+                presenters.notices.show(chord: rendered, title: item.title)
             }
             DispatchQueue.main.async {
                 ShortcutInjector.post(item.chord, delay: 0.12)
@@ -1679,7 +1692,7 @@ final class ShortcutEngine: ObservableObject {
             dismissPanel()
             AppLog.input.info("replaying system hotkey into the front app")
             if state.settings.showExecutedHUD {
-                hud.show(chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle), title: system.title)
+                presenters.notices.show(chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle), title: system.title)
             }
             DispatchQueue.main.async {
                 ShortcutInjector.post(system.chord, delay: 0.12)
@@ -2177,7 +2190,7 @@ final class ShortcutEngine: ObservableObject {
         guard state.search.isVisible else { return }
         Diag.info(.ui, "search: `/` returns to the shortcut panel")
         state.search.isVisible = false
-        surface.closeSearch()
+        presenters.panel.closeSearch()
         activatePanel()
     }
 
@@ -2199,12 +2212,12 @@ final class ShortcutEngine: ObservableObject {
         state.searchFocusToken += 1
         refreshSearch()
         state.search.isVisible = true
-        surface.presentSearch()
+        presenters.panel.presentSearch()
     }
 
     func hideSearch() {
         state.search.isVisible = false
-        surface.closeSearch()
+        presenters.panel.closeSearch()
     }
 
     func toggleSearch() {
@@ -2240,7 +2253,7 @@ final class ShortcutEngine: ObservableObject {
         // With a scope, the app to run in is the one being searched — it is usually *not* in
         // front, because the palette took the keyboard from whatever was.
         let scoped = state.searchScopeProcessID.flatMap { NSRunningApplication(processIdentifier: $0) }
-        let target = scoped ?? surface.searchTargetApplication ?? NSWorkspace.shared.frontmostApplication
+        let target = scoped ?? presenters.panel.searchTargetApplication ?? NSWorkspace.shared.frontmostApplication
         hideSearch()
         if let scoped, !scoped.isActive {
             // Bring it forward first, then trigger: a menu press into a background app and a
@@ -2522,7 +2535,7 @@ final class ShortcutEngine: ObservableObject {
     }
 
     func showHUD(chord: String, title: String) {
-        hud.show(chord: chord, title: title)
+        presenters.notices.show(chord: chord, title: title)
     }
 
     // MARK: - Diagnostics
@@ -2762,7 +2775,7 @@ final class ShortcutEngine: ObservableObject {
             // The palette must recognise its own field, or `/` would bounce straight back.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 guard let self else { return }
-                Diag.info(.ui, "toggle: palette focus=\(self.surface.keyFocusDescription)")
+                Diag.info(.ui, "toggle: palette focus=\(self.presenters.panel.keyFocusDescription)")
             }
         case "search-scoped":
             // Documents the scoped palette: the title, icon and list belong to the chosen app,
