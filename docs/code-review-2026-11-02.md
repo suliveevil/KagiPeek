@@ -31,13 +31,25 @@
 | `@Observable` / `ObservableObject` | 0 / 10 | 未用 Observation 框架 |
 | `SWIFT_VERSION` | 5.0，无 `SWIFT_STRICT_CONCURRENCY` | 迁移未启动 |
 
+**同表在 2026-11-02 晚（批次 3/4 + Swift 6 迁移后）的实测值**，便于以后判断是否变差：
+
+| 指标 | 新值 | 变化说明 |
+|---|---|---|
+| 摘要第 1 条（依赖倒置） | **已修** | 五个出站端口 + `PresenterFactory`；`Core/` 对 `UI/` 的 28 个类型 0 引用；`Core/` 独立 `-typecheck` 通过 |
+| 摘要第 2 条（assumeIsolated） | 31 → **27 调用点**（另 4 处是注释）→ **24** | 3 处改为静态保证；剩余 24 处为 SDK 签名所强制，见 P0-2 |
+| 摘要第 3 条（无界队列） | **已修** | 有界邮箱 + 整批单次跳转，丢弃计数进诊断 |
+| `MainActor.assumeIsolated` | 24 | 不再是阻塞点：迁移已完成 |
+| `@unchecked Sendable` | 3 | `FileLogStore`/`KeyboardMonitor`/`ActionRecorder`，各自已有锁或串行队列，契约写在注释里 |
+| `SWIFT_VERSION` | **6.0 + `complete`** | 三条构建路径一致，Debug/Release 均 0 诊断；537 纯测试通过 |
+| `Core/` 可独立编译 | **是** | 111 文件、Swift 6、`complete`、0 诊断，不依赖任何 UI 文件 |
+
 ---
 
 ## 1. 问题清单（按严重程度）
 
 ### P0 — 结构性缺陷，会直接导致不可用或不可诊断
 
-#### P0-1　依赖方向倒置：Core 依赖 UI，且成环
+#### P0-1　依赖方向倒置：Core 依赖 UI，且成环　✅ 已修
 
 - 位置：`KagiPeek/Core/Engine/ShortcutEngine.swift:5`（`import SwiftUI`）、`:47-51`（`lazy var surface/hud/permissionsWindow/permissionGuide/settingsWindow`）、`:1102-1103`（`Theme.padding` / `Theme.rowHeight`）、`:2530`（`SettingsTab`）、`:2622`（`SettingsView`）
 - 症状：
@@ -51,7 +63,16 @@
   3. `startPreview`（148 行截图夹具）整体移到 `PreviewScenarios.swift`，只在 `#if DEBUG` 或独立文件里存在。
 - 注意：这是**唯一需要 Xcode 才能安全做**的改动，见第 4 节。
 
-#### P0-2　31 处 `MainActor.assumeIsolated` 把隔离写成运行期断言
+**✅ 已修（2026-11-02，批次 3/4）并已验证：**
+
+- `Core/Ports/PresentationPorts.swift`：五个出站端口（`PanelPresenting`/`NoticePresenting`/`SettingsPresenting`/`PermissionsPresenting`/`PermissionGuidePresenting`）+ `EnginePresenters` 值类型。引擎只认协议，`App/AppDelegate.swift:12-20` 是唯一构造具体窗口的地方。
+- 引擎的接线方式改为**注入工厂闭包**：`typealias PresenterFactory = @MainActor (ShortcutEngine) -> EnginePresenters`，`private lazy var presenters = makePresenters(self)`。运行时对象图仍是双向的（控制器点关闭时要回调引擎），消失的是**编译期**认知——那才是引擎无法独立构建、无法单测的原因。
+- `panelPageSize` 改读 `OverlayMetrics.fillScreenPageSize(visibleFrame:maxItemsPerPage:)`（`Core/Pure`，纯函数 + 断言），不再读 UI 主题常量。
+- `startPreview`（148 行截图夹具）整体移到 `App/PreviewScenarios.swift` 的 `extension ShortcutEngine`。刻意不加 `#if DEBUG`：截图取自用户手上的 Release 构建。
+- 引擎文件已无 `import SwiftUI`。
+- **验证（决定性）**：枚举 `UI/` 的 28 个顶层类型，逐个在 `Core/` 内做词边界检索 → **0 处引用**。并且 `Core/` 的 111 个文件在 **Swift 6 + `complete`** 下 `-typecheck` 独立通过、0 诊断，不需要任何一个 UI 文件——评审时这一步是失败的。
+
+#### P0-2　31 处 `MainActor.assumeIsolated` 把隔离写成运行期断言　✅ 已解决（27 调用点 → 24，均为强制）
 
 - 位置（计数）：`ShortcutEngine` 8、`CatalogLoader` 4、`StatusItemController` 3、`ShortcutTester` 3、`AppPermissions` 3、`SurfacePanelController` 2、`PermissionGuidePanelController` 2、`AppContextService` 2、`SettingsStore`/`UpdateChecker`/`AppDirectory`/`AppDelegate` 各 1
 - **实测分类（2026-11-02 补查，推翻了初稿的"随时会 trap"）**：31 处无一落在无保证的线程上——
@@ -66,7 +87,20 @@
   2. 有 `queue: .main` 的地方改成 `@MainActor` 闭包或 `Task { @MainActor in }`，让类型系统接手这个保证；`Queue.main` 与 `MainActor` 的等价关系不该由注释维护。
   3. 最后才开 `complete` + `SWIFT_VERSION = 6`。
 
-#### P0-3　事件投递队列无界：主线程 wedge 后一次性回放
+**✅ 已解决（2026-11-02）：迁移已完成，`assumeIsolated` 从 31 处降到 24 处，且这 24 处是结构性强制的，不是遗漏。**
+
+- 迁移按上述三步走完：`targeted` → `complete` → `SWIFT_VERSION = 6.0`。三条构建路径（Xcode target、`scripts/build_swiftc.sh`、`Package.swift` 的 Pure target）现在编译同一种语言，实测 **0 error 0 warning**。
+- **31 → 27**：初稿把 4 处**注释**也算了进去（`HUDPanelController` 与 `CatalogLoader` 已改成 hop、`PermissionGuidePanelController` 已改成 `isolated deinit`，三处只剩说明文字在提这个名字）。真实调用点是 27 处。
+- **27 → 24**：其中 3 处（`ShortcutEngine` 的 `onListeningChanged`、`state.searchChangeHandler`、`permissions.onChange`）是**非 `@Sendable` 的普通闭包**，挂在 `@MainActor` 类型上。在 main-actor 默认隔离下，赋值端与调用端都会被推断为主 actor，编译器就是保证 → 断言直接删掉，构建仍然干净。这正是不建议里第 2 条想要的结果，只是达成方式不同：不必改成 `Task { @MainActor in }`（那会引入一次异步跳转），靠默认隔离即可静态成立。
+- **剩下 24 处全部结构性强制**，接收端签名决定了闭包装不进主 actor：
+  - 9 处 `addObserver(queue: .main)` / `DistributedNotificationCenter` —— 参数要求 `@Sendable`；
+  - 4 处 `Timer`（`scheduledTimer` / `Timer(timeInterval:)` 的 block 是 `@Sendable`）；
+  - 2 处 `NSEvent` 本地/全局监视器 —— 除了 `@Sendable`，其 handler **必须同步返回 `NSEvent?`**，连 hop 都做不到；
+  - 4 处 Combine `.sink` / `DispatchWorkItem` / `DispatchQueue.main.async`；
+  - 5 处 tap 回调（引擎 3 处经有界邮箱在 `DispatchQueue.main.async` 上投递；`ShortcutTester` 2 处是 `CGEventTapCallBack` 的 C 函数指针，定义上非隔离）。
+- 结论：`assumeIsolated` 在这些位置**不是被压下去的警告，而是唯一能写的拼写**——它把"这个队列就是主 actor 的执行器"这句 SDK 层面的事实，变成了每次运行都检查一次的不变式。第 4 节里"归零"那条验收标准因此作废，替换为"`complete` 下 0 error，且每处 `assumeIsolated` 都能说出它的保证来自哪一行 SDK 契约"。
+
+#### P0-3　事件投递队列无界：主线程 wedge 后一次性回放　✅ 已修
 
 - 位置：`KagiPeek/Core/Input/KeyboardMonitor.swift:609-616`（`emit` 内 `DispatchQueue.main.async { handler?(event) }`）
 - 症状：这是把输入链路移出主线程（`dbafe89`）的正确代价，但代价没有被约束。主线程卡 30 秒、期间用户敲了 300 个键 → 恢复瞬间这 300 个事件按序涌入引擎，面板会疯狂开关、和弦状态被一串过期事件污染。
@@ -75,7 +109,7 @@
   1. 加**有界邮箱**（容量 ~64）与丢弃策略：溢出时优先丢 `.flagsChanged` 与 `isRepeat` 的按键，保留最新状态；计数器写进 `Diag`，让"发生过丢弃"可观测。
   2. 因为引擎只关心"当前状态"，还可以按 kind 合并（连续多个 `.flagsChanged` 只留最后一个）。这是**纯逻辑**，可以放进 `Core/Pure` 单测。
 
-#### P0-4　错误处理：诊断能力在最需要时会静默失败
+#### P0-4　错误处理：诊断能力在最需要时会静默失败　✅ 已修
 
 - 位置：`Core/Services/CrashReporter.swift`（15 处 `try?`）、`Core/Services/ActionRecorder.swift`（6 处）、`Core/Pure/Sanitizer.swift:56`（`try!`）
 - 症状：崩溃上报与录制的写入失败被 `try?` 吞掉，于是"用户报告卡死"时，恰恰最该有记录的两条链路可能什么都没写。`Sanitizer.swift:56` 的 `try!` 在正则表被改错时会**上线即崩**。
@@ -109,7 +143,7 @@
 | `MenuScanner.swift:50` `scan` | 87 | 抽 `scanMenuBarItem(at:)`，三层嵌套降为两层 |
 | `OverlayView.swift:600` `rowView` | 83 | 拆行主体 + 行内动作菜单 |
 
-#### P1-7　两套权限轮询并存，职责重叠
+#### P1-7　两套权限轮询并存，职责重叠　✅ 已修
 
 - 位置：`Core/AX/AppPermissions.swift:129`（每权限 3s，仅在缺失时跑）、`:263` `startRevocationWatch`（全局 5s）
 - 症状：两者都能发现"授权恢复"，且日志分不清是谁先发现（历史上已因此误判过一次"自愈"）。两套定时器也意味着两倍的唤醒。
@@ -199,7 +233,7 @@ P0-2 第一步：`SWIFT_STRICT_CONCURRENCY = targeted` 同时开在 Xcode target
 3. **删除授权不再冻机**（五次事故的回归）：日志应出现 `accessibility revoked` → tap 拆除；或最多一次重装后 `event tap torn down`，**输入全程可用**。
 4. **事件邮箱不丢关键状态**：主线程卡顿恢复后，面板状态应等于"最后一个事件"而非"回放整串"；丢弃计数可在诊断里看到。
 5. **无障碍**：VoiceOver 走一遍面板行（应有"标题 + 快捷键 + 是否可用"）、设置页每个控件。
-6. **Swift 6**：`SWIFT_STRICT_CONCURRENCY=complete` 下 0 error；`assumeIsolated` 归零。
+6. **Swift 6**：`SWIFT_STRICT_CONCURRENCY=complete` 下 0 error（✅ 达成，2026-11-02）；`assumeIsolated` **不归零**——剩下 24 处为 SDK 签名所强制，验收标准改为"每处都能指出保证来自哪一行 SDK 契约"（详见 P0-2）。
 7. **构建产物**：`install.sh` 后 `codesign --verify --strict` 通过、`KagiPeekCommit` 与 HEAD 一致、辅助功能授权未被重置（稳定签名）。
 8. **回归基线**：`KeySwallowRulesTests`(11) + `TapDiagnosticsTests`(4) + `TapHealthTests` + `InputWatchdogTests` + `ComposedSwallowTests` 全绿；`install.sh` 能构建。
 
@@ -207,6 +241,10 @@ P0-2 第一步：`SWIFT_STRICT_CONCURRENCY = targeted` 同时开在 Xcode target
 
 ## 5. 本次无法完成的部分（如实记录）
 
-- **无法构建与安装**：本机 Xcode 只剩 692 KB 占位下载，`/Applications/KagiPeek.app` 也已不存在；Command Line Tools 缺 `libSwiftUIMacros.dylib`，任何含 `@State` 的文件都无法展开。因此批次 3 的全部内容、以及批次 1 中涉及 UI 的改动，本次**只出方案不动手**。
+- **~~无法构建与安装~~（已解除）**：本机 Xcode 只剩 692 KB 占位下载，`/Applications/KagiPeek.app` 也已不存在；Command Line Tools 缺 `libSwiftUIMacros.dylib`，任何含 `@State` 的文件都无法展开。因此批次 3 的全部内容、以及批次 1 中涉及 UI 的改动，本次**只出方案不动手**。
+  - **后续：Xcode 已恢复（`/Applications/Xcode.app`），上面三条限制全部消失。** 批次 3/4 已动手完成并装到 `/Applications`。
+  - 遗留的环境坑只有一条：本机 `sandbox-exec` 被拒，导致 xcodebuild 的 `swift-plugin-server` 展开 `@State` 宏时随机报 "malformed response"。`scripts/install.sh` 因此有 `build_swiftc.sh` 回退路径（用 `-load-plugin-library` 直接加载宏插件），重试或走回退即可，不是代码问题。
 - 已验证的：`Core/Pure + Core/Input + Core/AX + Core/Services + Core/Storage` 类型检查 0 错误；全项目 `-parse` 0 错误；两个新纯类型的 27 条断言全部通过（XCTest 不可用，用一次性可执行探针执行）。
 - 未验证的：`ShortcutEngine` 与全部 UI 文件本轮没有任何编译证据；`handleKeyDown` 等长函数的行为等价性没有测试兜底。
+  - **后续：已验证。** 537 条纯逻辑测试通过（XCTest 恢复可用）；Debug 与 Release 双配置在 Swift 6 + `complete` 下 0 诊断；`Core/` 111 文件独立 `-typecheck` 通过；Release 已安装、启动、跑过 `panel`/`search` 预览与正常启动，日志无 crash。
+  - 仍无测试兜底的：长函数拆分后的**行为等价性**依旧靠人工比对与预览验证，没有针对引擎的自动化测试（P3-17 未做）。
