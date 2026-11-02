@@ -438,6 +438,7 @@ N4 让 `diagnosticsReport()` 抛错、两个调用方都改为可见失败 —�
 
 **仍未解决的大项**：P1-5 引擎 God class（2,530 行 / 19 段）。它比上面任何一条都重，
 但也最不适合连续小批做——需要一次专门的切分设计，建议单独开一轮。
+→ **那份设计已写，见 `docs/engine-split-design.md`；诊断已修正、切片 1 已完成，见第 6 节。**
 
 ---
 
@@ -484,7 +485,22 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
 | ├ 吞真错误的 | 57 | **54** | −3 | **P0-4 真正关心的就是这个数** |
 | └ `try? await Task.sleep` | 5 | **5** | — | 丢的是取消不是错误，不计入 |
 
-### 5.3 前两轮的原始记录（口径不同，仅供溯源）
+### 5.3 第三轮后（同一脚本重测两棵树：`80ac2cd` → 工作区）
+
+| 指标 | 第三轮前 `80ac2cd` | 第三轮后 | 变化 | 说明 |
+|---|---|---|---|---|
+| 应用文件 / 行数 | 131 / 21,573 | **133 / 21,753** | +2 / +180 | 新增 `DiagnosticsReportBuilder`(100) + `ScanState`(30) − 引擎(−20) − `MenuScanner`(−25) |
+| 测试文件 / 行数 | 71 / 6,104 | **72 / 6,216** | +1 / +112 | `DiagnosticsReportBuilderTests` 6 个测试 |
+| Core 文件 | 113 | **115** | +2 | 同上两个新文件 |
+| 最大文件 | `ShortcutEngine` 2,533 | **2,513** | −20 | 切片 1（详见第 6 节与设计文档） |
+| >80 行的函数 | 2 | **2** | — | 引擎内 **0 个**（134 个函数，中位 8 行，最长 57） |
+| `try?` 合计 | 59 | **56** | −3 | |
+| ├ 吞真错误的 | 54 | **51** | −3 | **P0-4 真正关心的就是这个数**。逐文件核对：−3 **全部来自 N11**（`DiagnosticsExporter` 4 → 1）。N13 是一处 `try?` 换成另一处（净 0），那条的要点不在计数；切片 1 是 0。 |
+| └ `try? await Task.sleep` | 5 | **5** | — | 丢的是取消不是错误，不计入 |
+| `try!` | 3 | **3** | — | **全在测试里**（`MenuCacheRoundTripTests` 2、`LocalizationTests` 1），应用代码 **0**。 |
+| | | | | 测试里 `try!` 是正当的：构造失败就该让该条测试崩，而不是静默通过。上一轮记的「`try!` = 0」是**只数了应用代码**。 |
+
+### 5.4 前两轮的原始记录（口径不同，仅供溯源）
 
 | 指标 | 第一轮基线 `bd8b926` | 第二轮 `83a1b03` | 批次 A 后 |
 |---|---|---|---|
@@ -528,3 +544,94 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
 
 | `SWIFT_VERSION` | 5.0 | **6.0 + `complete`** | 三条路径 0 诊断，539 测试通过 |
 | `Core/` 独立 `-typecheck` | 失败 | **通过（0 诊断）** | 113 个文件；但用的是自有 UI 类型口径，漏 AppKit（见 N1） |
+
+---
+
+## 6. 第三轮（2026-11-03 续）
+
+批次 D 留下的一条 + 顺着 `try?` 清单查出来的三处静默失败 + P1-5 的重新定级。
+
+### N11（P1）　✅ 已修（`570bb22`）　N4 的兄弟路径：不完整的诊断归档不说自己缺了什么
+
+- 位置：`Core/Services/DiagnosticsExporter.swift:93`（`copyContents`）
+- 症状：`guard let contents = try? contentsOfDirectory(...) else { return [] }` —— 日志目录读不出来
+  就返回空列表。用户拿到一个没有日志的诊断包，和"这个 App 本来就没日志"长得一模一样。
+  下一层还有一个同样的洞：`copyItem` 失败时 `continue`，单个文件静默丢失。
+- 依据：Clean Code「不要吞掉错误」；与 N4 同一类病（N4 已把它记在"留给第三轮"）。
+- **做法**：`copyContents` 返回 `FolderCopy`（`copied` / `skipped` / `failure`），
+  `SessionInfo` 增加 `logFilesError` / `crashFilesError`，沿用 N4 的 `settingsError` 约定——
+  部分成功仍值得附上，所以不失败导出，但理由跟着文件一起走。
+  顺带把目标文件的 `try? removeItem` 改成 `try` + `catch CocoaError.fileNoSuchFile`：
+  清不掉旧文件就该说出来，而不是让 `ditto` 跑进一个没准备好的目标。
+- **验证（三条路径全用真实文件系统故障，不是桩）**：`chmod 000` 日志目录 →
+  `logFilesError = "folder could not be listed: …"`；`chmod 000` 单个文件 →
+  `logFilesError = "kagipeek-2026-11-02.log: …"`；正常 → 2 个文件、两个 error 字段都缺省。
+- **一个顺带发现，它决定了理由该写在哪**：目录不可读那次运行**在日志里一行都没留下**
+  （`FileLogStore` 写的是同一个目录）。**正是这个故障模式会连日志一起带走**，
+  所以理由必须进 JSON 报告，不能只进日志。这不是双保险，是唯一还活着的通道。
+
+### N12（P1）　✅ 已修（`2423860`）　脱敏规则静默失效时，没有任何东西会知道
+
+- 位置：`Core/Pure/Sanitizer.swift:85-90`
+- 症状：`Sanitizer.failedPatterns` 存在、被填充、被
+  `SanitizerRuleCompilationTests.testEveryRuleCompiles` 断言为空——但**全项目没有任何代码读它**。
+  注释声称"the diagnostics export surfaces it"，不成立；注释里那个符号名
+  `rulesThatFailedToCompile` **根本不存在**。
+  于是真实的失效模式是：一条正则写错 → 那条脱敏规则静默停用 → 日志带着本该被抹掉的内容落到盘上
+  （并随着诊断包离开机器），而唯一知情的东西是一个早已针对另一个构建跑过的测试。
+- 这是本轮唯一一条**安全相关**的发现，也是唯一一条"机制齐全但没人接线"的。
+- **做法**：接到三个通道，因为每个都补上了别的通道的缺口 ——
+  归档的 `session-info.json`（唯一能离开机器、活过本次会话的东西）、
+  应用内报告的 `sanitizerFailedPatterns`、启动时一行 `W [start]`（报告只在有人想到要导出时才产生）。
+  同时改正注释里的符号名和那句不成立的断言。
+- **验证**：故意写坏一条正则（`\b[0-9a-fA-F]{32,}\b(`）并**真的装那一份构建**，
+  得到 `W [start] redaction rules not applied: …`、报告里 `["\\b[0-9a-fA-F]{32,}\\b("]`、
+  且 `testEveryRuleCompiles` 报出同一个 pattern。正则已恢复，警告消失、字段回到 `[]`。
+
+### N13（P1）　✅ 已修（`2800947`）　崩溃留下的那个文件会用"省略"说谎
+
+- 位置一：`Core/Pure/CrashLogFormatter.swift:91` —— 兜底 `return "{}"`，
+  注释称其为死路径（"this struct is fully Codable with value types"）。**它不是死的**：
+  `occurredAt` 是 `Double`，而 `JSONEncoder` 对非有限浮点数的默认策略是 `.throw`，
+  一个 NaN 日期就能触发。`{}` 能解析、看起来完整、且什么都没说——读者会以为这次崩溃本来就没带信息。
+  → 改为返回说明失败原因的合法 JSON（经 `JSONSerialization` 生成，理由是被转义的而非拼接的），
+  并补测试：`Date(timeIntervalSince1970: .nan)` 即可触发，对 `"{}"` 会失败。
+- 位置二：`Core/Services/CrashReporter.swift:317` —— `catch { // Nothing left to fall back to }`，
+  而**同一个文件 50 行之下**（`:358`）对同一个失败已经记了 `Diag.warning`。
+  给出的理由是"这里跑在未捕获异常处理器里"，但 `handleException` 紧接着就 `logs.flushNow`
+  —— 写在这里的日志行**确实会落盘**。不记，App 就同时吞掉了异常和"吞掉了异常"这件事。
+- 依据：Clean Code「不要吞掉错误」；同一文件内两种相反的处理本身就是信号。
+
+### P1-5 重新定级：症状属实，处方不成立
+
+复审写的是「引擎 God class（2,530 行 / 19 段），需要一次专门的切分设计」。
+那份设计已写在 **`docs/engine-split-design.md`**，结论是：
+
+| | 复审写的 | 测出来的（`2800947`） |
+|---|---|---|
+| 症状 | 2,530 行 / 19 段 | 行数属实；2,536 行里 70% 是代码 |
+| 诊断 | God class（做了太多事） | **协调器**：134 个函数，中位 8 行，最长 57，**> 80 行的 0 个** |
+| 处方 | 按段 Extract Class | 对占代码量 47% 的那四段不成立 |
+
+关键数字：19 段里只有 **5 个 `EngineState` 字段**和 **6 个动词**是共享的；段与段之间几乎不直接
+说话，它们都只跟这个很小的核心说。把这四段搬进新文件，新文件照样要读写同一批字段——
+**行数搬家，耦合不动**。
+
+真正的缺陷是**边界的性质**：19 个 MARK 段是注释约定而非结构，`private` 在这个类里不提供任何隔离。
+
+- **已做（`c336096` + `8469003`）**：切片 1 = `Diagnostics` 段 —— 全表唯一 `state.` 写 = 0 的一段，
+  搬走在结构上不可能改变行为。装配进了 `Core/Pure/DiagnosticsReportBuilder`（22 字段 `Input`），
+  引擎只保留"命名这些值"。**重点不是离开引擎的那 23 行，而是这条路径此前只能端到端验证、
+  现在有 6 个单元测试**。等价性量化：自检 JSON 仍是 29 键无增减、settings 截图逐字节相同、
+  面板指标逐字相同。546 测试（+6）。
+- **顺带（`c336096`）**：`ScanState` 从 `Core/AX/MenuScanner.swift` 移到 `Core/Pure`。
+  它被 5 个跨层文件按裸名引用，住在生产者文件里让每个读者都依赖那个文件；
+  更关键的是——**测试 target 只编译 `Core/Pure`（`Package.swift:13`）**，
+  所以它在原位置永远拿不到单元测试，无论它本身多纯。这条边界是本轮才发现的，见设计文档第 7 节。
+- **未做**：其余 18 段的顺序与判据在设计文档第 5 节；前置条件是先收窄共享核心（`prefix` /
+  `phase` / `pending`），否则搬那四段只会得到四个互相引用的新文件。
+
+**"清单是待查项、不是结论"这条规则在本轮又救了三次**：`Sanitizer` 那处 `try?` 看起来和 N4 同类，
+读了才发现它有 `failedPatterns` 和测试兜底（真正的缺陷是没人接线，不是吞错误）；
+`CrashLogFormatter` 那处注释自称死路径，读了才发现 NaN 能触发；`CrashReporter:317` 的沉默
+看起来合理（异常处理器里），读了才发现下一行就有 `flushNow`。
