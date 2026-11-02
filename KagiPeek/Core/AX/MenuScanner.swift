@@ -69,7 +69,7 @@ nonisolated enum MenuScanner {
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, 0.35)
 
-        guard let menuBar = elementAttribute(kAXMenuBarAttribute, of: application) else {
+        guard let menuBar = AXValueReader.element(kAXMenuBarAttribute, of: application) else {
             // "The app has no menu bar" and "the menu bar could not be read" look the same in
             // an empty panel; only one of them is a system limitation worth reporting.
             Diag.warning(.scan, "menu-bar attribute missing (pid=\(pid), bundle=\(bundleID ?? "?"))")
@@ -84,7 +84,7 @@ nonisolated enum MenuScanner {
         items.reserveCapacity(256)
         elements.reserveCapacity(256)
 
-        for (barIndex, menuBarItem) in children(of: menuBar).enumerated() {
+        for (barIndex, menuBarItem) in AXValueReader.children(of: menuBar).enumerated() {
             readMenuBarItem(
                 menuBarItem,
                 barIndex: barIndex,
@@ -122,12 +122,12 @@ nonisolated enum MenuScanner {
         items: inout [BindingItem],
         elements: inout [String: AXUIElement]
     ) {
-        let topLevelTitle = stringAttribute(kAXTitleAttribute, of: menuBarItem) ?? ""
+        let topLevelTitle = AXValueReader.string(kAXTitleAttribute, of: menuBarItem) ?? ""
         // The Apple menu belongs to the system, not to the app in front: its items ("About
         // This Mac", "Sleep", …) are not this app's commands and would pad every list with
         // entries the user cannot act on meaningfully. The setting turns it back on.
         if topLevelTitle == "Apple", !showAppleMenu { return }
-        for (menuIndex, menu) in children(of: menuBarItem).enumerated() {
+        for (menuIndex, menu) in AXValueReader.children(of: menuBarItem).enumerated() {
             readMenu(
                 menu,
                 barIndex: barIndex,
@@ -154,7 +154,7 @@ nonisolated enum MenuScanner {
         // `History`, `Bookmarks` and their like are menus of data: they hold one row per
         // visited page or saved link. Read only the command prefix at the top of such a
         // menu, and treat everything else as content.
-        let menuChildren = children(of: menu)
+        let menuChildren = AXValueReader.children(of: menu)
         // A menu whose name says it is a list of the user's data — a browser's `Bookmarks`
         // or `History` — is filtered by name. That is exact, where the shortcut sample can
         // only guess: `Bookmarks` opens with real commands (⌘D, ⌥⌘B), so a sample finds
@@ -201,15 +201,15 @@ nonisolated enum MenuScanner {
         guard !indices.isEmpty else { return nil }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, 0.35)
-        guard let menuBar = elementAttribute(kAXMenuBarAttribute, of: application) else { return nil }
+        guard let menuBar = AXValueReader.element(kAXMenuBarAttribute, of: application) else { return nil }
         var element = menuBar
         for index in indices {
-            let siblings = children(of: element)
+            let siblings = AXValueReader.children(of: element)
             guard siblings.indices.contains(index) else { return nil }
             element = siblings[index]
         }
         if let expectingTitle {
-            let title = (stringAttribute(kAXTitleAttribute, of: element) ?? "")
+            let title = (AXValueReader.string(kAXTitleAttribute, of: element) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard title == expectingTitle else { return nil }
         }
@@ -250,9 +250,9 @@ nonisolated enum MenuScanner {
     ) {
         guard depth <= maxDepth, items.count < maxItems else { return }
 
-        let title = (stringAttribute(kAXTitleAttribute, of: element) ?? "")
+        let title = (AXValueReader.string(kAXTitleAttribute, of: element) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let submenu = children(of: element)
+        let submenu = AXValueReader.children(of: element)
         let chord = shortcutChord(of: element)
 
         // A leaf with no shortcut is still a command the user can trigger — by pressing
@@ -260,7 +260,7 @@ nonisolated enum MenuScanner {
         // dropped. A *parent* item (it has children: "Open Recent", "Services") is not a
         // command and is only walked, unless it also carries a shortcut of its own.
         if !title.isEmpty, chord != nil || (keepsShortcutless && submenu.isEmpty) {
-            let enabled = boolAttribute(kAXEnabledAttribute, of: element, fallback: true)
+            let enabled = AXValueReader.bool(kAXEnabledAttribute, of: element, fallback: true)
             let binding = BindingItem(
                 chord: chord ?? .empty,
                 title: title,
@@ -304,9 +304,9 @@ nonisolated enum MenuScanner {
     // MARK: - Shortcut decoding
 
     private static func shortcutChord(of element: AXUIElement) -> KeyChord? {
-        let character = stringAttribute(kAXMenuItemCmdCharAttribute, of: element)
-        let virtualKey = intAttribute(kAXMenuItemCmdVirtualKeyAttribute, of: element)
-        let modifierBits = intAttribute(kAXMenuItemCmdModifiersAttribute, of: element) ?? 0
+        let character = AXValueReader.string(kAXMenuItemCmdCharAttribute, of: element)
+        let virtualKey = AXValueReader.int(kAXMenuItemCmdVirtualKeyAttribute, of: element)
+        let modifierBits = AXValueReader.int(kAXMenuItemCmdModifiersAttribute, of: element) ?? 0
 
         guard character != nil || virtualKey != nil else { return nil }
 
@@ -336,61 +336,4 @@ nonisolated enum MenuScanner {
         return KeyChord.combo(modifiers, primary, alternates: alternates)
     }
 
-    // MARK: - AX plumbing
-
-    private static func attribute(_ name: String, of element: AXUIElement) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
-            return nil
-        }
-        guard let value else { return nil }
-        if CFGetTypeID(value) == CFNullGetTypeID() { return nil }
-        return value
-    }
-
-    private static func elementAttribute(_ name: String, of element: AXUIElement) -> AXUIElement? {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        return unsafeDowncast(value, to: AXUIElement.self)
-    }
-
-    private static func stringAttribute(_ name: String, of element: AXUIElement) -> String? {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == CFStringGetTypeID() else {
-            return nil
-        }
-        return value as? String
-    }
-
-    private static func intAttribute(_ name: String, of element: AXUIElement) -> Int? {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == CFNumberGetTypeID() else {
-            return nil
-        }
-        return (value as? NSNumber)?.intValue
-    }
-
-    private static func boolAttribute(_ name: String, of element: AXUIElement, fallback: Bool) -> Bool {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == CFBooleanGetTypeID() else {
-            return fallback
-        }
-        return CFBooleanGetValue(unsafeDowncast(value, to: CFBoolean.self))
-    }
-
-    private static func children(of element: AXUIElement) -> [AXUIElement] {
-        guard let value = attribute(kAXChildrenAttribute, of: element), CFGetTypeID(value) == CFArrayGetTypeID() else {
-            return []
-        }
-        let array = unsafeDowncast(value, to: CFArray.self)
-        let count = CFArrayGetCount(array)
-        guard count > 0 else { return [] }
-        var result: [AXUIElement] = []
-        result.reserveCapacity(count)
-        for index in 0..<count {
-            guard let raw = CFArrayGetValueAtIndex(array, index) else { continue }
-            let child = unsafeBitCast(raw, to: CFTypeRef.self)
-            guard CFGetTypeID(child) == AXUIElementGetTypeID() else { continue }
-            result.append(unsafeDowncast(child, to: AXUIElement.self))
-        }
-        return result
-    }
 }

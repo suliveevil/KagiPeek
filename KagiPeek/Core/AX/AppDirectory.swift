@@ -17,23 +17,21 @@ struct AppEntry: Identifiable, Hashable {
 @MainActor
 final class AppDirectory: ObservableObject {
     @Published private(set) var apps: [AppEntry] = []
-    private var observers: [NSObjectProtocol] = []
+    private let observation = WorkspaceObservation()
 
     func start() {
-        guard observers.isEmpty else { return }
-        let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
-            })
+        guard !observation.isRunning else { return }
+        observation.observe([
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification
+        ]) { [weak self] in
+            self?.refresh()
         }
         refresh()
     }
 
     func stop() {
-        let center = NSWorkspace.shared.notificationCenter
-        observers.forEach { center.removeObserver($0) }
-        observers.removeAll()
+        observation.stop()
     }
 
     func refresh() {

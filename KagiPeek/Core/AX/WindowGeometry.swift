@@ -7,14 +7,14 @@ enum WindowGeometry {
     static func focusedWindowFrame(pid: pid_t) -> CGRect? {
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, 0.2)
-        guard let window = elementAttribute(kAXFocusedWindowAttribute, of: application) else { return nil }
+        guard let window = AXValueReader.element(kAXFocusedWindowAttribute, of: application) else { return nil }
         return frame(of: window)
     }
 
     static func focusedElementFrame(pid: pid_t) -> CGRect? {
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, 0.2)
-        guard let element = elementAttribute(kAXFocusedUIElementAttribute, of: application) else { return nil }
+        guard let element = AXValueReader.element(kAXFocusedUIElementAttribute, of: application) else { return nil }
         return frame(of: element)
     }
 
@@ -33,43 +33,10 @@ enum WindowGeometry {
     }
 
     private static func frame(of element: AXUIElement) -> CGRect? {
-        guard let position = pointAttribute(kAXPositionAttribute, of: element),
-              let size = sizeAttribute(kAXSizeAttribute, of: element) else {
+        guard let position = AXValueReader.point(kAXPositionAttribute, of: element),
+              let size = AXValueReader.size(kAXSizeAttribute, of: element) else {
             return nil
         }
         return CGRect(origin: position, size: size)
-    }
-
-    private static func pointAttribute(_ name: String, of element: AXUIElement) -> CGPoint? {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == AXValueGetTypeID() else {
-            return nil
-        }
-        var point = CGPoint.zero
-        guard AXValueGetValue(unsafeDowncast(value, to: AXValue.self), .cgPoint, &point) else { return nil }
-        return point
-    }
-
-    private static func sizeAttribute(_ name: String, of element: AXUIElement) -> CGSize? {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == AXValueGetTypeID() else {
-            return nil
-        }
-        var size = CGSize.zero
-        guard AXValueGetValue(unsafeDowncast(value, to: AXValue.self), .cgSize, &size) else { return nil }
-        return size
-    }
-
-    private static func attribute(_ name: String, of element: AXUIElement) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
-            return nil
-        }
-        return value
-    }
-
-    private static func elementAttribute(_ name: String, of element: AXUIElement) -> AXUIElement? {
-        guard let value = attribute(name, of: element), CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            return nil
-        }
-        return unsafeDowncast(value, to: AXUIElement.self)
     }
 }

@@ -25,39 +25,26 @@ final class AppContextService {
     /// Called when an app launches or terminates (menu cache invalidation).
     var onAppsChanged: (@MainActor () -> Void)?
 
-    private var observers: [NSObjectProtocol] = []
+    private let observation = WorkspaceObservation()
     private var lastIdentity: String?
     private var lastPID: pid_t?
 
     func start() {
-        guard observers.isEmpty else { return }
-        let center = NSWorkspace.shared.notificationCenter
-
-        observers.append(center.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.refresh()
-            }
-        })
-
-        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    self?.onAppsChanged?()
-                }
-            })
+        guard !observation.isRunning else { return }
+        observation.observe(NSWorkspace.didActivateApplicationNotification) { [weak self] in
+            self?.refresh()
         }
-
+        observation.observe([
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification
+        ]) { [weak self] in
+            self?.onAppsChanged?()
+        }
         refresh()
     }
 
     func stop() {
-        let center = NSWorkspace.shared.notificationCenter
-        observers.forEach { center.removeObserver($0) }
-        observers.removeAll()
+        observation.stop()
     }
 
     func refresh() {
