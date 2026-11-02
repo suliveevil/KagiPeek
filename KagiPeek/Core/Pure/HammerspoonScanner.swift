@@ -13,13 +13,12 @@ import Foundation
 nonisolated enum HammerspoonScanner {
 
     static func scan(homeDirectory: URL, fileManager: FileManager = .default) -> [ConfigBinding] {
-        guard let path = ConfigFileScanner.firstExistingPath(
-            ConfigTool.hammerspoon.relativeSearchPaths,
+        ConfigFileScanner.scanTextConfig(
+            searchPaths: ConfigTool.hammerspoon.relativeSearchPaths,
             homeDirectory: homeDirectory,
-            fileManager: fileManager
-        ) else { return [] }
-        guard let text = ConfigFileScanner.readText(atPath: path, fileManager: fileManager) else { return [] }
-        return bindings(from: text)
+            fileManager: fileManager,
+            parse: bindings(from:)
+        )
     }
 
     static func bindings(from source: String) -> [ConfigBinding] {

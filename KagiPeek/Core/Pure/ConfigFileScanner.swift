@@ -139,6 +139,23 @@ nonisolated enum ConfigFileScanner {
         return String(data: data, encoding: .utf8)
     }
 
+    /// The shared "find the tool's first config path → read it as text → hand it to the
+    /// parser" skeleton used by the text-based scanners. A missing file or an unreadable one
+    /// both produce an empty list, exactly as the inline `guard` chain did at each call site.
+    static func scanTextConfig(
+        searchPaths: [String],
+        homeDirectory: URL,
+        fileManager: FileManager = .default,
+        parse: (String) -> [ConfigBinding]
+    ) -> [ConfigBinding] {
+        guard let path = firstExistingPath(
+            searchPaths,
+            homeDirectory: homeDirectory,
+            fileManager: fileManager
+        ), let text = readText(atPath: path, fileManager: fileManager) else { return [] }
+        return parse(text)
+    }
+
     /// Decodes a property list, tolerating a file that is not one.
     static func propertyList(from data: Data) -> Any? {
         try? PropertyListSerialization.propertyList(from: data, format: nil)

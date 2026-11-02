@@ -11,13 +11,12 @@ import Foundation
 nonisolated enum SkhdScanner {
 
     static func scan(homeDirectory: URL, fileManager: FileManager = .default) -> [ConfigBinding] {
-        guard let path = ConfigFileScanner.firstExistingPath(
-            ConfigTool.skhd.relativeSearchPaths,
+        ConfigFileScanner.scanTextConfig(
+            searchPaths: ConfigTool.skhd.relativeSearchPaths,
             homeDirectory: homeDirectory,
-            fileManager: fileManager
-        ) else { return [] }
-        guard let text = ConfigFileScanner.readText(atPath: path, fileManager: fileManager) else { return [] }
-        return bindings(from: text)
+            fileManager: fileManager,
+            parse: bindings(from:)
+        )
     }
 
     static func bindings(from text: String) -> [ConfigBinding] {
