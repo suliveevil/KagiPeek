@@ -115,8 +115,13 @@ final class PermissionGuidePanelController {
             context.duration = 0.18
             panel.animator().alphaValue = 0
         }, completionHandler: {
-            panel.orderOut(nil)
-            panel.alphaValue = 1
+            // The handler is `@Sendable` and runs unisolated as far as the type system knows;
+            // `Task { @MainActor }` states where the work runs instead of asserting where the
+            // callback was made.
+            Task { @MainActor in
+                panel.orderOut(nil)
+                panel.alphaValue = 1
+            }
         })
     }
 

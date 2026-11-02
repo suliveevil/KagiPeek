@@ -40,9 +40,14 @@ final class UpdateChecker: ObservableObject {
         let started = Date()
         Diag.debug(.net, "update-check request host=api.github.com path=/repos/\(repository)/releases/latest")
         task = session.dataTask(with: request) { [weak self] data, response, error in
+            // Bind `self` once, in the callback's own scope: a `weak self` in the capture
+            // list is a mutable binding, and handing a mutable binding to the main queue is a
+            // `Sendable` error in the Swift 6 language mode even though the value never
+            // changes.
+            guard let self else { return }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    self?.handle(
+                    self.handle(
                         data: data,
                         response: response,
                         error: error,

@@ -54,9 +54,14 @@ OPT="-Onone -g"
 [ "$CONFIG" = "Release" ] && OPT="-O -whole-module-optimization"
 
 echo "==> Compiling ($CONFIG, arm64)"
+# `-strict-concurrency=targeted` matches `SWIFT_STRICT_CONCURRENCY` in the Xcode target, so
+# this path reports what the other one reports instead of compiling a different language.
+# The project is warning-free at this level; `complete` is not, and turning it on here would
+# drown the real new warnings in the 107 known ones (see docs/code-review-2026-11-02.md).
 # shellcheck disable=SC2086
 "$TC/swiftc" $OPT -o "$APP/Contents/MacOS/KagiPeek" \
     -sdk "$SDK" -target arm64-apple-macos14.0 -swift-version 5 \
+    -Xfrontend -strict-concurrency=targeted \
     -load-plugin-library "$PLUG/libSwiftUIMacros.dylib" \
     -load-plugin-library "$PLUG/libSwiftMacros.dylib" \
     -load-plugin-library "$PLUG/libObservationMacros.dylib" \

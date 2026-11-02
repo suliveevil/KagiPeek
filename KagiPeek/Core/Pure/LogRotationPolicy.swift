@@ -27,7 +27,10 @@ enum LogRotationPolicy {
     static let dailyFileLimitBytes = 5 * 1024 * 1024
 
     private static let formatterLock = NSLock()
-    private static var formatters: [String: DateFormatter] = [:]
+    /// `DateFormatter` is not `Sendable`, and the file log formats dates from its own queue,
+    /// so the cache is shared mutable state on purpose. `nonisolated(unsafe)` says so where
+    /// the compiler can see it; the lock below is what makes it true.
+    nonisolated(unsafe) private static var formatters: [String: DateFormatter] = [:]
 
     private static func formatter(for timeZone: TimeZone) -> DateFormatter {
         formatterLock.lock()

@@ -79,7 +79,13 @@ final class HUDPanelController: NoticePresenting {
                 context.duration = 0.22
                 self.panel.animator().alphaValue = 0
             }, completionHandler: {
-                self.panel.orderOut(nil)
+                // The completion handler is `@Sendable` and nonisolated in the SDK, so it
+                // cannot touch the panel directly any more. Hop instead of asserting: a
+                // `Task` is a promise about where the work runs, an `assumeIsolated` is only
+                // a promise about where it happened to be called.
+                Task { @MainActor in
+                    self.panel.orderOut(nil)
+                }
             })
         }
         hideWorkItem = work

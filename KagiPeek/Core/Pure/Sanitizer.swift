@@ -51,6 +51,24 @@ enum Sanitizer {
         )
     ]
 
+    /// The rules, compiled once, together with the patterns that would not compile.
+    ///
+    /// One initialiser produces both, so the "which patterns failed" answer is part of the
+    /// same immutable value as the rules themselves — a separate `static var` written from
+    /// inside another static's initialiser is shared mutable state, and under strict
+    /// concurrency it is an error rather than a quirk.
+    private static let compilation: (rules: [(regex: NSRegularExpression, template: String)], failed: [String]) = {
+        var failed: [String] = []
+        let compiled = rules.compactMap { rule -> (NSRegularExpression, String)? in
+            guard let regex = try? NSRegularExpression(pattern: rule.pattern) else {
+                failed.append(rule.pattern)
+                return nil
+            }
+            return (regex, rule.template)
+        }
+        return (compiled, failed)
+    }()
+
     /// The compiled rules, paired with the template they replace with.
     ///
     /// Compiled with `compactMap` rather than `try!`: a malformed pattern is a typo in this
@@ -62,16 +80,10 @@ enum Sanitizer {
     ///
     /// A skipped rule is *not* silent: `rulesThatFailedToCompile` names the pattern, and the
     /// diagnostics export surfaces it.
-    private static let compiled: [(regex: NSRegularExpression, template: String)] = rules.compactMap { rule in
-        guard let regex = try? NSRegularExpression(pattern: rule.pattern) else {
-            failedPatterns.append(rule.pattern)
-            return nil
-        }
-        return (regex, rule.template)
-    }
+    private static let compiled = compilation.rules
 
     /// Patterns that did not compile. Empty in any build where the tests have run.
-    private(set) static var failedPatterns: [String] = []
+    static var failedPatterns: [String] { compilation.failed }
 
     // MARK: - API
 
