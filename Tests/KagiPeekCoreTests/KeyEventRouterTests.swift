@@ -39,16 +39,22 @@ final class KeyEventRouterTests: XCTestCase {
         items: [BindingItem] = []
     ) -> KeyDownAction {
         KeyEventRouter.route(
-            keyCode: keyCode,
-            key: key,
-            modifiers: modifiers,
-            isRepeat: isRepeat,
-            phase: phase,
-            settings: settings,
-            panel: panel,
-            prefix: prefix,
-            pending: pending,
-            items: items
+            KeyEvent(
+                kind: .keyDown,
+                modifiers: modifiers,
+                key: key,
+                keyCode: keyCode,
+                isRepeat: isRepeat,
+                happenedAt: Date()
+            ),
+            in: RoutingContext(
+                phase: phase,
+                settings: settings,
+                panel: panel,
+                prefix: prefix,
+                pending: pending,
+                items: items
+            )
         )
     }
 

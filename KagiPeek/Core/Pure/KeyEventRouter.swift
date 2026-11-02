@@ -51,41 +51,43 @@ nonisolated enum KeyDownAction: Equatable {
     case noMatch(heldModifiers: ModifierSet)
 }
 
+/// Everything a key-down is decided against, apart from the event itself.
+///
+/// The engine reads all six of these off its own state; the router takes them as one value
+/// because four functions in this file want the same six, which is the test a parameter
+/// object has to pass to be worth its own type. It lives here rather than next to the
+/// engine's state so the router keeps depending inward: it must not learn the type the
+/// engine stores its state in.
+nonisolated struct RoutingContext {
+    let phase: EnginePhase
+    let settings: AppSettingsSnapshot
+    /// The current panel snapshot; its *held* modifiers and latched order are read, which
+    /// is the narrowing set the event is measured against.
+    let panel: PanelState
+    let prefix: KeyChord
+    /// What the panel is contributing to a stroke (held + latched), read only by chord
+    /// composition.
+    let pending: PendingModifiers
+    /// The catalog the stroke is resolved against.
+    let items: [BindingItem]
+}
+
 /// Decides what a key-down means, with no side effects.
 ///
 /// Mirrors the order the engine walked inline, so routing and execution cannot drift:
 /// hotkeys are asked first (they answer in any phase), then the phase decides whether the
 /// panel is listening, and inside `.active` the panel's own keys are consumed before a
 /// stroke is composed.
+///
+/// Only the identity fields of `event` are read — `kind`, `happenedAt` and `characters`
+/// play no part in the decision.
 nonisolated enum KeyEventRouter {
-    /// - Parameters:
-    ///   - panel: the current panel snapshot; its *held* modifiers and latched order are
-    ///     read, which is the narrowing set the event is measured against.
-    ///   - pending: what the panel is contributing to a stroke (held + latched), read only
-    ///     by chord composition.
-    ///   - items: the catalog the stroke is resolved against.
-    static func route(
-        keyCode: UInt16,
-        key: KeyToken?,
-        modifiers: ModifierSet,
-        isRepeat: Bool,
-        phase: EnginePhase,
-        settings: AppSettingsSnapshot,
-        panel: PanelState,
-        prefix: KeyChord,
-        pending: PendingModifiers,
-        items: [BindingItem]
-    ) -> KeyDownAction {
-        if let choice = hotkey(
-            keyCode: keyCode,
-            key: key,
-            modifiers: modifiers,
-            settings: settings
-        ) {
+    static func route(_ event: KeyEvent, in context: RoutingContext) -> KeyDownAction {
+        if let choice = hotkey(event, settings: context.settings) {
             return .hotkey(choice)
         }
 
-        switch phase {
+        switch context.phase {
         case .idle:
             return .none
         case .armed:
@@ -93,112 +95,165 @@ nonisolated enum KeyEventRouter {
             // not about to open the panel.
             return .cancelArm
         case .active:
-            // Escape is matched on the key code and before the token guard: it must work
-            // even when the tap decoded no character for it, which is exactly what a
-            // virtual keyboard does when Caps Lock is remapped to Esc.
-            if keyCode == KeyCode.escape {
-                return .dismiss
+            return routeActiveKey(event, in: context)
+        }
+    }
+
+    /// What the panel made of a key it was asked about.
+    ///
+    /// Deliberately not `KeyDownAction?`: `KeyDownAction` has a `none` case of its own, so
+    /// inside an Optional-returning function a bare `.none` compiles as `Optional.none` —
+    /// "the panel makes no claim" — when the author meant "the panel consumed this key and
+    /// the answer is: do nothing". It compiles, it runs, and it has no warning unless the
+    /// value sits in a ternary. That is exactly how the first cut of this split turned a
+    /// terminal ⌫ into a fall-through, so the two meanings get two cases they cannot be
+    /// mistaken for each other in.
+    private enum OwnedKey {
+        /// The panel consumed the key; this is what it means.
+        case action(KeyDownAction)
+        /// The panel makes no claim on this key: it belongs to a stroke.
+        case notOurs
+    }
+
+    /// The keys the panel claims for itself, then the stroke whatever is left composes.
+    ///
+    /// Every question below is terminal: the first one that answers wins and the rest are
+    /// never asked. That is what keeps this in the order the engine walked it in.
+    private static func routeActiveKey(
+        _ event: KeyEvent,
+        in context: RoutingContext
+    ) -> KeyDownAction {
+        // Escape is matched on the key code and before the token guard: it must work even
+        // when the tap decoded no character for it, which is exactly what a virtual
+        // keyboard does when Caps Lock is remapped to Esc.
+        if event.keyCode == KeyCode.escape {
+            return .dismiss
+        }
+        guard let key = event.key else { return .none }
+
+        switch ownedKey(event, key: key, in: context) {
+        case .action(let action):
+            return action
+        case .notOurs:
+            break
+        }
+
+        // A repeat that got this far is a shortcut key being held down. Composing it again
+        // would replay the same stroke on every tick of the key repeat.
+        if event.isRepeat { return .none }
+
+        return composedStroke(event, key: key, in: context)
+    }
+
+    /// The panel's own keys: `/`, navigation, paging, the row keys and ⌫.
+    ///
+    /// `.notOurs` is the common answer — most keys are strokes, not panel keys.
+    private static func ownedKey(
+        _ event: KeyEvent,
+        key: KeyToken,
+        in context: RoutingContext
+    ) -> OwnedKey {
+        // `/` is the panel's one text entry: it swaps the list for the search palette,
+        // which is where typing belongs.
+        if event.keyCode == KeyCode.slash, event.modifiers.isEmpty {
+            return .action(.showSearch)
+        }
+
+        // While the list is narrowed the user is holding modifiers, so every event carries
+        // them. They are not part of the key the user meant — they are the filter — so they
+        // are stripped before the key is identified. Without this, ↓ does not move the
+        // selection and ⌃N is not a navigation key while ⌘ is down.
+        let pressed = event.modifiers.subtracting(context.panel.heldModifiers)
+
+        if let direction = NavigationKey.direction(keyCode: event.keyCode, modifiers: pressed) {
+            switch direction {
+            case .up: return .action(.moveSelection(-1))
+            case .down: return .action(.moveSelection(1))
+            case .left: return .action(.page(-1))
+            case .right: return .action(.page(1))
             }
-            guard let key else { return .none }
+        }
 
-            // `/` is the panel's one text entry: it swaps the list for the search palette,
-            // which is where typing belongs.
-            if keyCode == KeyCode.slash, modifiers.isEmpty {
-                return .showSearch
+        if let step = NavigationKey.pageStep(keyCode: event.keyCode, modifiers: pressed) {
+            return .action(.page(step))
+        }
+
+        // A held key repeats: moving through the list with ↓ is useful, running the same
+        // shortcut ten times in a row is not.
+        if let action = RowKeyRouter.action(
+            for: event.keyCode,
+            modifiers: event.modifiers,
+            held: context.panel.heldModifiers,
+            run: context.settings.runRowKey,
+            copy: context.settings.copyRowKey
+        ) {
+            return .action(event.isRepeat ? .none : .performRow(action))
+        }
+
+        if event.modifiers.isEmpty, key == .backspace {
+            // ⌫ undoes a tick before it pops a level: the tick is the newer, more visible
+            // thing the user did, so it is the first thing to be undone. With nothing left
+            // to undo the key is spent, and it has to be spent *here* rather than fall
+            // through: there is no stroke for chord composition to build.
+            if !context.panel.latchedOrder.isEmpty { return .action(.undoLatched) }
+            if !context.prefix.isEmpty { return .action(.goUpLevel) }
+            return .action(.none)
+        }
+
+        return .notOurs
+    }
+
+    /// The last question: does this key complete, descend or miss a shortcut in the catalog?
+    private static func composedStroke(
+        _ event: KeyEvent,
+        key: KeyToken,
+        in context: RoutingContext
+    ) -> KeyDownAction {
+        let resolution = ChordComposition.resolve(
+            prefix: context.prefix,
+            physical: event.modifiers,
+            pending: context.pending,
+            key: key,
+            in: context.items
+        )
+        switch resolution.outcome {
+        case .complete(let item):
+            // A composed stroke means the tap swallowed the physical key, so the panel owes
+            // the app the assembled chord; an uncomposed one already *is* the shortcut and
+            // the front app performs it.
+            if resolution.composed {
+                return .replayComposed(item: item, probe: resolution.probe)
             }
-
-            // While the list is narrowed the user is holding modifiers, so every event
-            // carries them. They are not part of the key the user meant — they are the
-            // filter — so they are stripped before the key is identified. Without this,
-            // ↓ does not move the selection and ⌃N is not a navigation key while ⌘ is down.
-            let pressed = modifiers.subtracting(panel.heldModifiers)
-
-            if let direction = NavigationKey.direction(keyCode: keyCode, modifiers: pressed) {
-                switch direction {
-                case .up: return .moveSelection(-1)
-                case .down: return .moveSelection(1)
-                case .left: return .page(-1)
-                case .right: return .page(1)
-                }
-            }
-
-            if let step = NavigationKey.pageStep(keyCode: keyCode, modifiers: pressed) {
-                return .page(step)
-            }
-
-            // A held key repeats: moving through the list with ↓ is useful, running the
-            // same shortcut ten times in a row is not.
-            if let action = RowKeyRouter.action(
-                for: keyCode,
-                modifiers: modifiers,
-                held: panel.heldModifiers,
-                run: settings.runRowKey,
-                copy: settings.copyRowKey
-            ) {
-                return isRepeat ? .none : .performRow(action)
-            }
-
-            if modifiers.isEmpty, key == .backspace {
-                // ⌫ undoes a tick before it pops a level: the tick is the newer, more
-                // visible thing the user did, so it is the first thing to be undone.
-                if !panel.latchedOrder.isEmpty { return .undoLatched }
-                if !prefix.isEmpty { return .goUpLevel }
-                return .none
-            }
-
-            if isRepeat { return .none }
-
-            let resolution = ChordComposition.resolve(
-                prefix: prefix,
-                physical: modifiers,
-                pending: pending,
-                key: key,
-                in: items
-            )
-            switch resolution.outcome {
-            case .complete(let item):
-                // A composed stroke means the tap swallowed the physical key, so the panel
-                // owes the app the assembled chord; an uncomposed one already *is* the
-                // shortcut and the front app performs it.
-                if resolution.composed {
-                    return .replayComposed(item: item, probe: resolution.probe)
-                }
-                return .passThrough(item: item, probe: resolution.probe)
-            case .descend:
-                return .descend(probe: resolution.probe)
-            case .noMatch:
-                return .noMatch(heldModifiers: modifiers)
-            }
+            return .passThrough(item: item, probe: resolution.probe)
+        case .descend:
+            return .descend(probe: resolution.probe)
+        case .noMatch:
+            return .noMatch(heldModifiers: event.modifiers)
         }
     }
 
     /// The first configured hotkey the event matches, in the order the engine applies them.
-    static func hotkey(
-        keyCode: UInt16,
-        key: KeyToken?,
-        modifiers: ModifierSet,
-        settings: AppSettingsSnapshot
-    ) -> HotkeyChoice? {
+    static func hotkey(_ event: KeyEvent, settings: AppSettingsSnapshot) -> HotkeyChoice? {
         if HotkeyMatcher.matches(
-            keyCode: keyCode,
-            modifiers: modifiers,
-            key: key,
+            keyCode: event.keyCode,
+            modifiers: event.modifiers,
+            key: event.key,
             spec: settings.panelHotkey
         ) {
             return .panel
         }
         if HotkeyMatcher.matches(
-            keyCode: keyCode,
-            modifiers: modifiers,
-            key: key,
+            keyCode: event.keyCode,
+            modifiers: event.modifiers,
+            key: event.key,
             spec: settings.searchHotkey
         ) {
             return .search
         }
         if HotkeyMatcher.matches(
-            keyCode: keyCode,
-            modifiers: modifiers,
-            key: key,
+            keyCode: event.keyCode,
+            modifiers: event.modifiers,
+            key: event.key,
             spec: settings.switchHotkey
         ) {
             return .switcher

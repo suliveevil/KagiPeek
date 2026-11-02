@@ -821,16 +821,15 @@ final class ShortcutEngine: ObservableObject {
     /// then chord composition. `handleKeyDown` only executes what this returns.
     private func routeKeyDown(_ event: KeyEvent) -> KeyDownAction {
         KeyEventRouter.route(
-            keyCode: event.keyCode,
-            key: event.key,
-            modifiers: event.modifiers,
-            isRepeat: event.isRepeat,
-            phase: state.phase,
-            settings: state.settings,
-            panel: state.panel,
-            prefix: state.prefix,
-            pending: state.pending,
-            items: state.catalog.items
+            event,
+            in: RoutingContext(
+                phase: state.phase,
+                settings: state.settings,
+                panel: state.panel,
+                prefix: state.prefix,
+                pending: state.pending,
+                items: state.catalog.items
+            )
         )
     }
 
