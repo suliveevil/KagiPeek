@@ -101,17 +101,8 @@ struct DragAppIcon: View {
                     .accessibilityHidden(true)
             }
 
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
+            AppIconDragSource(side: side, bundleURL: Bundle.main.bundleURL)
                 .frame(width: side, height: side)
-                .clipShape(RoundedRectangle(cornerRadius: side * 0.23, style: .continuous))
-                .onDrag {
-                    // Not `NSItemProvider(contentsOf:)`: it advertises the app-bundle type
-                    // and then fails to load it, because a bundle is a directory. The drop
-                    // is still accepted — the password prompt appears, the user
-                    // authenticates — and the list stays empty. See `PermissionDragItem`.
-                    PermissionDragItem.provider(forAppAt: Bundle.main.bundleURL)
-                }
                 .help("Drag into System Settings")
         }
         .overlay(alignment: .topTrailing) {

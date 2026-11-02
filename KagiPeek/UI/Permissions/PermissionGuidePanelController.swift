@@ -172,6 +172,7 @@ final class PermissionGuidePanelController {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
         panel.isMovableByWindowBackground = false
 
         let effect = NSVisualEffectView()
