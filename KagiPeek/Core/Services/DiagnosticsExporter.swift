@@ -31,6 +31,15 @@ nonisolated enum DiagnosticsExporter {
         var settingsSummary: [String: String]
         var logFiles: [String]
         var crashFiles: [String]
+        /// Why `logFiles` is not everything that was on disk: the folder could not be read, or
+        /// a file was found but could not be copied. **Absent** when nothing is missing.
+        ///
+        /// Both fields follow the `settingsError` convention from the report the About tab
+        /// builds: a partial report is still worth attaching, so these never fail the export —
+        /// they just make sure "we could not read your logs" is legible to the person reading
+        /// the attachment, instead of looking like an app that simply had no logs.
+        var logFilesError: String?
+        var crashFilesError: String?
     }
 
     static func defaultFileName(now: Date = Date()) -> String {
@@ -51,8 +60,8 @@ nonisolated enum DiagnosticsExporter {
 
         let logsFolder = DataDirectory.url(for: "logs")
         let crashFolder = DataDirectory.url(for: "crash")
-        let logFiles = copyContents(of: logsFolder, into: bundle.appendingPathComponent("logs", isDirectory: true))
-        let crashFiles = copyContents(of: crashFolder, into: bundle.appendingPathComponent("crash", isDirectory: true))
+        let logCopy = copyContents(of: logsFolder, into: bundle.appendingPathComponent("logs", isDirectory: true))
+        let crashCopy = copyContents(of: crashFolder, into: bundle.appendingPathComponent("crash", isDirectory: true))
 
         let info = SessionInfo(
             generatedAt: ISO8601DateFormatter().string(from: now),
@@ -67,8 +76,10 @@ nonisolated enum DiagnosticsExporter {
             diagnosticsEnabled: settings.diagnosticsEnabled,
             verboseEnabled: settings.verboseDiagnostics,
             settingsSummary: summary(of: settings),
-            logFiles: logFiles,
-            crashFiles: crashFiles
+            logFiles: logCopy.copied,
+            crashFiles: crashCopy.copied,
+            logFilesError: logCopy.note,
+            crashFilesError: crashCopy.note
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -77,23 +88,61 @@ nonisolated enum DiagnosticsExporter {
             options: [.atomic]
         )
 
-        Diag.info(.export, "exporting diagnostics: \(logFiles.count) log files, \(crashFiles.count) crash files")
+        Diag.info(.export, "exporting diagnostics: \(logCopy.copied.count) log files, \(crashCopy.copied.count) crash files")
+        // The archive is the only thing the user takes away, so what is missing goes in the log
+        // too: a dropped file is invisible there, and this is the line a bug report quotes.
+        if let note = logCopy.note { Diag.warning(.export, "logs folder incomplete: \(note)") }
+        if let note = crashCopy.note { Diag.warning(.export, "crash folder incomplete: \(note)") }
 
-        if fileManager.fileExists(atPath: destination.path) {
-            try? fileManager.removeItem(at: destination)
+        do {
+            try fileManager.removeItem(at: destination)
+        } catch CocoaError.fileNoSuchFile {
+            // The normal case: `ditto` is about to create it.
         }
         try runDitto(from: bundle, to: destination)
     }
 
     // MARK: - Internals
 
-    private static func copyContents(of source: URL, into destination: URL) -> [String] {
-        let fileManager = FileManager.default
-        try? fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
-        guard let contents = try? fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) else {
-            return []
-        }
+    /// What copying one folder contributed to the archive.
+    ///
+    /// `copied` is what the archive actually holds; the other two fields are what it does not.
+    /// They exist to separate two situations that used to look identical to whoever receives
+    /// the report: a folder that was genuinely empty, and a folder whose contents we never got.
+    private struct FolderCopy {
         var copied: [String] = []
+        /// Files that were found but could not be copied, each with the reason.
+        var skipped: [(name: String, reason: String)] = []
+        /// Why this folder contributed nothing: the destination could not be created, or the
+        /// source could not be listed. `nil` means the folder was read, so an empty `copied`
+        /// really does mean it was empty.
+        var failure: String?
+
+        /// One sentence for `session-info.json`; `nil` when nothing is missing.
+        var note: String? {
+            var parts: [String] = []
+            if let failure { parts.append(failure) }
+            for skip in skipped { parts.append("\(skip.name): \(skip.reason)") }
+            return parts.isEmpty ? nil : parts.joined(separator: "; ")
+        }
+    }
+
+    private static func copyContents(of source: URL, into destination: URL) -> FolderCopy {
+        let fileManager = FileManager.default
+        var result = FolderCopy()
+        do {
+            try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        } catch {
+            result.failure = "destination folder could not be created: \(error.localizedDescription)"
+            return result
+        }
+        let contents: [URL]
+        do {
+            contents = try fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+        } catch {
+            result.failure = "folder could not be listed: \(error.localizedDescription)"
+            return result
+        }
         for file in contents where !file.hasDirectoryPath {
             // The sentinel belongs to the session doing the exporting, an unfinished fragment
             // is a crash the next launch will complete, and the action mirror is already
@@ -105,13 +154,16 @@ nonisolated enum DiagnosticsExporter {
             let target = destination.appendingPathComponent(name)
             do {
                 try fileManager.copyItem(at: file, to: target)
-                copied.append(name)
+                result.copied.append(name)
             } catch {
-                // A file locked by another process is not worth failing the export over.
-                continue
+                // A file locked by another process is not worth failing the export over, but it
+                // is worth writing down: an archive that quietly lacks a log file is worse than
+                // no archive, because the reader will not know to distrust it.
+                result.skipped.append((name, error.localizedDescription))
             }
         }
-        return copied.sorted()
+        result.copied.sort()
+        return result
     }
 
     private static func summary(of settings: AppSettingsSnapshot) -> [String: String] {
