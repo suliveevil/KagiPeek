@@ -377,8 +377,8 @@ enum L10n {
             "打开系统设置"
         ),
         .permissionGuideCancelled: (
-            "Cancelled",
-            "已取消"
+            "Not authorized yet",
+            "还没有授权成功"
         ),
         .permissionGuideCancelledHint: (
             "Drag the icon in again to retry.",

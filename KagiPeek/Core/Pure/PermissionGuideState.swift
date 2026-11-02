@@ -23,6 +23,10 @@ enum PermissionGuidePhase: String, Equatable, Sendable {
     /// System Settings went away before the grant landed.
     case settingsClosed
     /// The password / Touch ID prompt was dismissed without a grant.
+    ///
+    /// macOS does not say *why* it went away, so the copy does not claim a cancellation: an
+    /// authenticated drop whose payload could not be read ends here too, and that is worth a
+    /// retry rather than an accusation.
     case cancelled
 }
 
