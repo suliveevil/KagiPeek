@@ -14,11 +14,21 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 CONFIG="${1:-Release}"
-X="/Applications/Xcode-beta.app/Contents/Developer"
-[ -d "$X" ] || X="/Applications/Xcode.app/Contents/Developer"
+X="${KAGIPEEK_XCODE:-/Applications/Xcode-beta.app/Contents/Developer}"
+[ -d "$X" ] || X="${KAGIPEEK_XCODE:-/Applications/Xcode.app/Contents/Developer}"
 SDK="$X/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 TC="$X/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 PLUG="$X/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins"
+
+# Fail as "no Xcode", not as "swiftc: No such file or directory": the second message sends
+# you looking for a compiler bug when the actual problem is that the toolchain is not
+# installed, and the Command Line Tools are not a substitute (they ship without
+# libSwiftUIMacros, so every `@State` in the UI fails to expand).
+if [ ! -x "$TC/swiftc" ]; then
+    echo "error: no Xcode developer directory at $X" >&2
+    echo "       install Xcode, or point KAGIPEEK_XCODE at one" >&2
+    exit 1
+fi
 
 OUT="${KAGIPEEK_OUT:-$ROOT/build/manual}"
 APP="$OUT/KagiPeek.app"
