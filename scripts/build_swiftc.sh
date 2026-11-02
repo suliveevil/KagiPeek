@@ -32,7 +32,20 @@ fi
 
 OUT="${KAGIPEEK_OUT:-$ROOT/build/manual}"
 APP="$OUT/KagiPeek.app"
-TEMPLATE="${KAGIPEEK_PLIST_SOURCE:-/Applications/KagiPeek.app/Contents/Info.plist}"
+
+# The template comes from the repository first. It used to come only from
+# /Applications/KagiPeek.app — a previously installed copy — which made the build depend on its
+# own output: with the app deleted, nothing could be built at all (2026-11-02). The installed
+# copy stays as a last resort for anyone who has one and no checkout-level template.
+TEMPLATE="${KAGIPEEK_PLIST_SOURCE:-}"
+if [ -z "$TEMPLATE" ]; then
+    for candidate in "$ROOT/scripts/Info.plist" "/Applications/KagiPeek.app/Contents/Info.plist"; do
+        if [ -f "$candidate" ]; then
+            TEMPLATE="$candidate"
+            break
+        fi
+    done
+fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -56,8 +69,21 @@ else
     echo "error: no Info.plist template; pass KAGIPEEK_PLIST_SOURCE" >&2
     exit 1
 fi
-cp "$(dirname "$TEMPLATE")/Resources/Assets.car" "$APP/Contents/Resources/" 2>/dev/null || true
-cp "$(dirname "$TEMPLATE")/Resources/AppIcon.icns" "$APP/Contents/Resources/" 2>/dev/null || true
+# Icons are compiled from the catalog in the repository rather than copied from next to the
+# plist template: the template may now live in scripts/, and inheriting whichever icons the
+# last installed copy happened to carry is how a stale icon survives a redesign. actool ships
+# with Xcode, which this path already requires for the SDK and the toolchain.
+CATALOG="$ROOT/KagiPeek/Assets.xcassets"
+if [ -d "$CATALOG" ]; then
+    echo "==> Compiling the asset catalog"
+    xcrun actool --compile "$APP/Contents/Resources" \
+        --platform macosx --minimum-deployment-target 14.0 \
+        --app-icon AppIcon \
+        --output-partial-info-plist "$OUT/asset-partial.plist" \
+        "$CATALOG" >/dev/null || {
+        echo "warning: actool failed; the app will build without an icon" >&2
+    }
+fi
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 # The About page shows this commit; it has to be in the plist before signing.

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    The bundle's Info.plist for the swiftc build path.
+
+    It lives in the repository because the fallback build used to read the template from
+    /Applications/KagiPeek.app — a previously *installed* copy. That made the build depend on
+    its own output: delete the app and nothing can be built, which is exactly what happened on
+    2026-11-02. The values mirror the project settings (MARKETING_VERSION 2.2.0,
+    CURRENT_PROJECT_VERSION 220, LSUIElement, minimum macOS 14.0); keep them in step when the
+    version changes. The xcodebuild path does not read this file — it generates the plist from
+    those same settings — so there is one source of truth per path and both are stated here.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh-Hans</string>
+	<key>CFBundleDisplayName</key>
+	<string>KagiPeek</string>
+	<key>CFBundleExecutable</key>
+	<string>KagiPeek</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.voltline.kagipeek</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>KagiPeek</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.2.0</string>
+	<key>CFBundleVersion</key>
+	<string>220</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string></string>
+</dict>
+</plist>
