@@ -2,31 +2,6 @@ import AppKit
 import ApplicationServices
 import os
 
-/// Why a scan produced what it did.
-///
-/// Menu-Bar-Search's `initState` (`.apiDisabled` / `.noValue`): an empty list and a read
-/// that never happened look identical to the user, so the reason travels with the result
-/// and the surfaces can say which one it was.
-nonisolated enum ScanState: Equatable, Sendable {
-    /// Menus were read.
-    case ok
-    /// The app exposes no menu bar, or one without any command.
-    case noMenus
-    /// Accessibility is not trusted: nothing could be read at all, not even to find out
-    /// whether the app has menus.
-    case permissionDenied
-
-    /// Stable spelling for the file log, so a grep for `state=` gives a countable answer
-    /// instead of a Swift debug description.
-    var diagnosticCode: String {
-        switch self {
-        case .ok: return "ok"
-        case .noMenus: return "noMenus"
-        case .permissionDenied: return "permissionDenied"
-        }
-    }
-}
-
 /// Result of walking one app's menu bar.
 ///
 /// `nonisolated`: built on the background AX-walk queue and read back on the main actor.
