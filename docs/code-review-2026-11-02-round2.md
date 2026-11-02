@@ -17,7 +17,7 @@
 | P0-1 依赖倒置 | ✅ 已修 | `Core/` 对自有 `UI/` 类型 0 引用；111 文件独立 `-typecheck` 通过 | **基本完成，有一处残留**（见 N1） |
 | P0-2 assumeIsolated | ✅ 已解决 | 24 处，均为 SDK 签名强制 | ✅ 完成 |
 | P0-3 无界队列 | ✅ 已修 | `InputMailbox` 有界 + 丢弃计数 + resync，有单测 | ✅ 完成 |
-| P0-4 吞错误 | ✅ 已修 | `try!` 已消除；但 `try?` 仍有 59 处，输入链路 10 处 | **部分完成**（见 N4） |
+| P0-4 吞错误 | ✅ 已修 | `try!` 已消除（应用代码 0，测试 3）；`try?` 62 → 59，其中**吞真错误的 57 → 54** | **部分完成**：诊断导出那条已闭环（N4），其余 54 处未动 |
 | P1-5 God class | 无标记 | 引擎 2,530 行 / **19 个 MARK 段**（基线 2,775 / 20） | **未做** |
 | P1-6 长函数 | 无标记 | 9 → **3** 个 | **大部分完成** |
 | P1-7 双轮询 | ✅ 已修 | 单一定时器 | ✅ 完成 |
@@ -182,7 +182,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
   panel 预览 `app=57 system=79 page=1/6 rows=24` 与拆分前逐字相同；search 预览
   `items=136 results=136 first=Cut` 相同且截图 **78474 字节完全一致**。
 
-### N4（P1）　P0-4 残留：诊断导出失败时**完全静默**，而同一个函数里写文件失败却会弹提示
+### N4（P1）　✅ 已修（批次 D）　P0-4 残留：诊断导出失败时**完全静默**，而同一个函数里写文件失败却会弹提示
 
 - 位置：`UI/Settings/SettingsView.swift:1019-1026`
 
@@ -204,6 +204,46 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 - 依据：Clean Code「不要吞掉错误」。
 - 建议：`diagnosticsReport()` 改为 `throws` 并让三处 `try?` 各自说明失败原因；
   调用方沿用已有的 `catch` 分支弹 HUD。改完这条，P0-4 才算真正闭环。
+
+- **实际做法**（比建议多改了一处调用方，见下）：
+  1. `diagnosticsReport()` → `throws -> Data`。**三处 `try?` 各归各位**：
+     - `JSONSerialization.data(withJSONObject: payload)` 变成 `try` 向外抛 —— 报告本身
+       序列化不了就是没有报告，这条必须让调用方知道。
+     - settings 快照那两处（`JSONEncoder().encode` + `jsonObject(with:)`）收进一个
+       `do/catch`，失败时把原因写进报告里：**`payload["settingsError"]`**。
+       它是一段**增益**而不是必要条件——没有 settings 的报告仍然值得附上，
+       所以不该因为它而整体失败；但"静默丢掉一段"正是编码器坏了却没人发现的方式。
+       这样**没有吞掉任何东西**：原因跟着文件一起被附上。
+  2. `SettingsView.exportDiagnostics()` 两种失败现在走同一条路（本条的症状就是它们不一致）：
+     `Diag.error` 记原因 + HUD 提示。**HUD 文案复用了同文件另一条导出路径已在用的
+     `.diagnosticsExportFailed`（"Export failed: %@"）**，连弦号 `!` 都一样。（差点又新造一个键——
+     那个键本来就带 `%@` 占位符，比我想造的更合适。）
+     日志那行不是和 HUD 重复：**这条路径失败时没有任何文件产生**，日志是唯一留下的痕迹，
+     而 HUD 会消失、什么东西都留不下。
+  3. **`AppDelegate.writeSelfTestAndExit()` 是第二个调用方，比 SettingsView 更糟**：
+     报告为 nil 时它 `engine.stop()` + `terminate` **直接退出，一句话不说，也不 flush**
+     —— 自检失败看起来和自检通过一模一样。改成单个 `do/catch`：
+     构建与写盘都在里面，退出与 flush 变成**无条件**的（原来失败分支会跳过 flush）。
+
+- **验证**：`KAGIPEEK_SELFTEST=1` 正是改动的那条路径，跑通了端到端——
+  日志 `selftest written to …/kagipeek-selftest.json`，产出的 JSON 有效、28 个顶层键、
+  **含 `settings` 段、无 `settingsError`**（正常路径）。
+  settings 预览截图与改动前**逐字节相同**（这个场景是确定的，见 N6 更正）。
+  539 测试全绿、Core 独立 typecheck 0 诊断、`build_swiftc.sh` 0 error 0 warning。
+  失败分支无法自动触发（要弹保存面板），只能靠代码审查确认。
+- **这一条闭环了，但 P0-4 没有**：吞真错误的 `try?` 从 **57 降到 54**（只少了本条这三处）。
+  第一轮 P0-4 的原话是「诊断能力在最需要时会静默失败」——**这一条已闭环**；
+  其余 54 处分布在 `CrashReporter` 12、`ActionRecorder` 6、`PreviewScenarios` 6、
+  `FileLogStore` 5、`MenuScanCache` 4、`DiagnosticsExporter` 4、配置扫描器 7、存储 3、测试 3。
+  **注意：`Core/Input` 里一处都没有**（只有 2 处 `try? await Task.sleep`，丢的是取消不是错误），
+  所以第一轮"输入链路里禁止 `try?`"那条约定**已经是满足的**——
+  前两轮说的"输入链路仍有 10 处"是错的，那 10 处从来不在输入链路里。
+- **留给第三轮的一条**：`DiagnosticsExporter`（设置页"诊断"标签那条导出路径，与本条改的
+  `diagnosticsReport()` 是**两条不同的路径**）内部仍有 4 处 `try?`。其中 3 处是
+  `try? fileManager.removeItem/createDirectory`（清理暂存目录，失败不该让导出失败，站得住），
+  但 `:93` 的 `guard let contents = try? contentsOfDirectory(...) else { return [] }` 是
+  **和本条同一类病**：目录读不出来就返回空列表，用户拿到一个"空的"诊断包而不知道少了东西。
+  本轮没动它——它要改的不只是这一行，还有那条路径对"部分成功"的整体表达。
 
 ### N5（P2）　✅ 无需改动 —— 本条的判定本身是错的：`@available(*, unavailable)` 从来就在
 
@@ -253,12 +293,19 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
     `Unmanaged<AnyObject>.fromOpaque(slot).takeUnretainedValue()`。位宽相同、语义等价，
     但 `unsafeBitCast` 把指针当对象引用重新解释，而 CFArray 存的就是对象指针本身——
     `Unmanaged` 才是表达这件事的 API。全项目 `unsafeBitCast` 因此归零（只剩 6 处 `unsafeDowncast`）。
-- **验证**（AX 层没有测试网，只能靠预览：`scripts/build_swiftc.sh` → `install.sh` → 三个预览场景）：
+- **验证**（AX 层没有测试网，只能靠预览：`scripts/build_swiftc.sh` → `install.sh` → 预览场景）：
   - 日志指标逐字一致：`panel sequence: app=57 system=79 page=1/6 rows=24`、
     `search: scope=frontmost items=136 results=136 first=Cut`、`config scan: 201 shortcuts`；
     扫描仍报 `menus=true, state=ok`（Safari 182 项），说明 `children(of:)` 的改写没打断菜单遍历。
-  - **三张预览截图与改动前逐字节相同**（MD5 全部相等）：panel / search / settings。
-    这是比"数字一致"更强的证据——像素级无变化。
+  - 截图字节级相同：**settings 与 search 两张成立**（见下条更正）。
+- **⚠️ 更正：本条原写"三张截图与改动前逐字节相同"，其中 panel 那张不算证据。**
+  后来才发现**面板截图本身不确定**——用**改动前**那份构建（`KagiPeek.previous.app`）连跑两次，
+  两次 MD5 也不同（41668162 / fd44be26，243112 / 242092 字节）。原因是截图在
+  `activatePanel()` 之后 1.2s 拍（`PreviewScenarios.swift:246`），而面板有入场动画，
+  抓到哪一帧取决于当时机器在忙什么。日志里的 `panel sequence` 却是三次完全一致的。
+  **教训**：这是第 5 节那句话的第五个实例——**先看仪器可不可靠，再看读数**。
+  三个场景已实测分类：**settings 与 search 确定**（同版本连跑 MD5 相同，可用来做字节级比对），
+  **panel 不确定**（只能看日志指标）。第三轮请按这个清单选证据。
 - **未动的一处，附理由**：`UI/MenuBar/StatusItemController.swift:120-139` 也有一个
   `observers` 数组，但它**混用两个通知中心**（`NSWorkspace` 的 wake + `NotificationCenter.default`
   的屏幕参数变化），`uninstall()` 要从两个中心各移除一次。它不是同一块重复的第三份，
@@ -380,8 +427,11 @@ N2 删掉 `LogRotationPolicy` 的 formatter 缓存（用整数补零拼文件名
 `AXValueReader` 与 `WorkspaceObservation`。验证方式见 N6 条目：三张预览截图与改动前
 **逐字节相同**，日志指标逐字一致。批次外顺带修了 `Diag.configure` 缺失的 `defer`。
 
-**批次 D（收口）**
-N4 让 `diagnosticsReport()` 抛错、调用方沿用已有 HUD 分支 —— 做完这条 P0-4 才闭环。
+**批次 D（收口）**　✅ **已完成**
+N4 让 `diagnosticsReport()` 抛错、两个调用方都改为可见失败 —— 第一轮 P0-4 里
+「诊断能力静默失败」这一条闭环了。**注意它不等于 P0-4 全部闭环**：吞真错误的 `try?`
+还剩 54 处（`CrashReporter` 12 为首；`Core/Input` 是 0），本轮没动。
+`DiagnosticsExporter` 那条兄弟路径另有一处同类问题，已记在 N4 条目里留给第三轮。
 
 **建议不做**：N8（`EngineState` 的 `NSImage`）、N10 的 44pt 部分、P2-15 的 Observation 迁移。
 三条都是"改了更干净但换不来行为收益"，记账即可。
@@ -417,14 +467,24 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
 | `nonisolated(unsafe)` | 18（重测） | **17** | −1 | N2；剩下的 17 处全在 `CrashReporter`（信号处理器，正当） |
 | `unsafeBitCast` | 1 | **0** ✅ | −1 | N6 顺带；只剩 6 处 `unsafeDowncast` |
 | `lock()` / `unlock()` | 15 / 15 | **14 / 14** | −1 | N2；另补齐了 `Diag.configure` 缺失的 `defer` |
-| `try?` | 65（重测） | **65** | — | 未动；输入链路仍有 10（P0-4 待收口） |
+| `try?` | **62**（重测，口径已修） | **62** | — | 见下方 `try?` 计数修正；**吞真错误的 57 处**（另 5 处是 `try? await Task.sleep`） |
 | `try!` | 3（重测） | **3** | — | 3 处全在测试里，应用代码 0（见下方口径说明） |
 | `@unchecked Sendable` | 6（重测） | **6** | — | 各有锁或串行队列，契约写在注释里 |
 | `ObservableObject` / `@Observable` | 10 / 0 | **10 / 0** | — | 未动（P2-15 建议不做） |
 | `.contentShape` | 7 | **7** | — | 未动（见 N10） |
 | `.frame(width:/height:)` | 41 | **41** | — | 未动 |
 
-### 5.2 前两轮的原始记录（口径不同，仅供溯源）
+### 5.2 批次 D 后（同一脚本重测，只列发生变化的）
+
+| 指标 | 批次 B+C 后 | 批次 D 后 | 变化 | 说明 |
+|---|---|---|---|---|
+| 应用文件 / 行数 | 131 / 21,558 | **131 / 21,573** | +15 | N4 只改 4 个文件（引擎/设置/AppDelegate/无新增） |
+| 最大文件 | `ShortcutEngine` 2,526 | **2,533** | +7 | `diagnosticsReport()` 多了一个 `do/catch` 与注释 |
+| `try?` | 62 | **59** | −3 | N4：`diagnosticsReport()` 里三处 `try?` 全部消失 |
+| ├ 吞真错误的 | 57 | **54** | −3 | **P0-4 真正关心的就是这个数** |
+| └ `try? await Task.sleep` | 5 | **5** | — | 丢的是取消不是错误，不计入 |
+
+### 5.3 前两轮的原始记录（口径不同，仅供溯源）
 
 | 指标 | 第一轮基线 `bd8b926` | 第二轮 `83a1b03` | 批次 A 后 |
 |---|---|---|---|
@@ -451,6 +511,20 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
 **"量化"不等于"看过"**：N5（以为 `fatalError` 没处理）和 N2 的"唯一一处手工配对"都是数了标识符
 就下结论、没回到代码读一遍而写错的。凡是要据此下"没做 / 退化了 / 只有一处"结论的，
 必须先读那一行；`scripts/code-metrics.py` 给的是待查清单，不是结论。
+
+**正则也会咬人（本轮第五、第六例）**：
+- `try?` 的正则 `try\?` 会把 **`monitorRetry?.cancel()`** 里那个 `try?` 子串算进去
+  （`Re` + `try?`）。必须写 `\btry\?`。修正后批次 A 的数字从 65 变成 62。
+- `try? await Task.sleep(...)` 和"吞掉一个错误"不是一回事：`Task.sleep` 只在取消时抛，
+  丢掉它是句法噪音，**不是 P0-4 说的"吞错误"**。所以脚本把它单独列出来，
+  判断 P0-4 的进展要看"吞真错误的 54 处"，不是 59 处。
+
+**先看仪器可不可靠，再看读数（本轮第七例，也是最贵的一例）**：本轮一度把
+"三张预览截图与改动前逐字节相同"当成最强等价证据。**面板那张不是证据**——
+用改动前那份构建连跑两次，两次 MD5 也不同（截图在入场动画结束前 1.2s 拍的，见 N6 更正）。
+三个场景已实测：**settings 与 search 确定**（同版本连跑 MD5 相同，可做字节比对），
+**panel 不确定**（只能看日志指标）。同理，用截图做等价性判断之前，
+先拿**同一份构建**跑两遍，看它自己跟自己比不比得上。
 
 | `SWIFT_VERSION` | 5.0 | **6.0 + `complete`** | 三条路径 0 诊断，539 测试通过 |
 | `Core/` 独立 `-typecheck` | 失败 | **通过（0 诊断）** | 113 个文件；但用的是自有 UI 类型口径，漏 AppKit（见 N1） |

@@ -86,7 +86,14 @@ print(f"functions >80 lines   : {len(lf)}  {sorted(lf, reverse=True)}")
 print(f"max file              : {mx.replace(root + '/', '')} "
       f"{len(open(mx).read().splitlines())}")
 print(f"Core dup >=5-line blk : {dup_blocks(core)}")
-for name, pat in [("try?", r'try\?'), ("try!", r'try!'),
+for name, pat in [
+    # `\b` matters: without it, `monitorRetry?.cancel()` matches the bare `try?` inside the
+    # identifier. `try? await Task.sleep(...)` is counted separately because it discards
+    # cancellation, not an error -- it is not what P0-4 is about.
+    ("try?", r'\btry\?'),
+    ("try? (swallowing a real error)", r'\btry\?(?!\s*await\s+Task\.sleep)'),
+    ("try? await Task.sleep", r'\btry\?\s*await\s+Task\.sleep'),
+    ("try!", r'try!'),
                   ("MainActor.assumeIsolated", r'MainActor\.assumeIsolated'),
                   ("@unchecked Sendable", r'@unchecked\s+Sendable'),
                   ("nonisolated(unsafe)", r'nonisolated\(unsafe\)'),
