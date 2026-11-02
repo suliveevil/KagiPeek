@@ -2478,7 +2478,12 @@ final class ShortcutEngine: ObservableObject {
     /// One JSON report for a bug report: what the app can see, what it persisted, and the
     /// command that prints the matching log lines. Nothing is uploaded; the user saves the
     /// file and decides who gets it.
-    func diagnosticsReport() -> Data? {
+    ///
+    /// Throws when the report itself cannot be serialized. The settings snapshot is the one
+    /// exception: it is an enrichment, so a failure there is recorded *inside* the report
+    /// (`settingsError`) rather than failing it — a report without settings is still worth
+    /// attaching, but dropping the section in silence is how a broken encoder goes unnoticed.
+    func diagnosticsReport() throws -> Data {
         let info = Bundle.main.infoDictionary
         var payload: [String: Any] = [
             "generatedAt": ISO8601DateFormatter().string(from: Date()),
@@ -2517,10 +2522,12 @@ final class ShortcutEngine: ObservableObject {
             "windowTitles": NSApp.windows.filter(\.isVisible).map(\.title),
             "logCommand": "log show --last 10m --predicate 'subsystem == \"\(Bundle.main.bundleIdentifier ?? "")\"'"
         ]
-        if let data = try? JSONEncoder().encode(settingsStore.settings),
-           let object = try? JSONSerialization.jsonObject(with: data) {
-            payload["settings"] = object
+        do {
+            let encoded = try JSONEncoder().encode(settingsStore.settings)
+            payload["settings"] = try JSONSerialization.jsonObject(with: encoded)
+        } catch {
+            payload["settingsError"] = String(describing: error)
         }
-        return try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        return try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
     }
 }

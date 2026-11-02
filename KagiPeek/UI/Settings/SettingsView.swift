@@ -1016,13 +1016,21 @@ struct SettingsView: View {
 
     /// Writes the same report the About tab shows, plus the settings snapshot, to a file the
     /// user can attach to a bug report.
+    ///
+    /// Both failures now end the same way. They used not to: a failed serialization returned
+    /// `nil` and the button just looked dead, while the failed write right below it showed a
+    /// HUD. The wording and the HUD chord match the other export path in this file.
+    ///
+    /// The log line is not redundant with the HUD: when this fails there is **no file**, so
+    /// the log is the only durable trace. A HUD disappears and leaves nothing to attach.
     private func exportDiagnostics() {
-        guard let data = engine.diagnosticsReport() else { return }
-        guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
         do {
+            let data = try engine.diagnosticsReport()
+            guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
             try data.write(to: url, options: [.atomic])
         } catch {
-            engine.showHUD(chord: "!", title: error.localizedDescription)
+            Diag.error(.ui, "diagnostics export failed: \(error.localizedDescription)")
+            engine.showHUD(chord: "!", title: localization.format(.diagnosticsExportFailed, error.localizedDescription))
         }
     }
 

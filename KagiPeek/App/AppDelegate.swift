@@ -112,19 +112,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Diagnostic mode: reports what the installed app can actually see, then quits.
+    ///
+    /// The exit is unconditional and always flushes. It used to bail out early when the
+    /// report could not be built — quitting without a word, and without flushing, which
+    /// made a failed self-test look like a clean run.
     private func writeSelfTestAndExit() {
-        guard let data = engine.diagnosticsReport() else {
-            engine.stop()
-            NSApp.terminate(nil)
-            return
-        }
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("kagipeek-selftest.json")
         do {
+            let data = try engine.diagnosticsReport()
+            let url = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("kagipeek-selftest.json")
             try data.write(to: url, options: [.atomic])
             Diag.info(.ui, "selftest written to \(url.path)")
         } catch {
-            Diag.error(.ui, "selftest could not be written: \(error.localizedDescription)")
+            Diag.error(.ui, "selftest failed: \(error.localizedDescription)")
         }
         engine.stop()
         settingsStore.flush()
