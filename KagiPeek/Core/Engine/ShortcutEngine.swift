@@ -52,7 +52,10 @@ final class ShortcutEngine: ObservableObject {
     private lazy var shortcutTester = ShortcutTester(
         appToRestore: { [weak self] in self?.lastExternalFrontmost },
         onListeningChanged: { [weak self] listening in
-            MainActor.assumeIsolated { self?.state.isTestingShortcut = listening }
+            MainActor.assumeIsolated {
+                self?.state.isTestingShortcut = listening
+                self?.publishInputState()
+            }
         }
     )
 
@@ -255,6 +258,7 @@ final class ShortcutEngine: ObservableObject {
         if state.panel.isVisible {
             rebuildPanel()
         }
+        publishInputState()
     }
 
     /// Which settings changed, by name only. Values are deliberately left out: the exclusion
@@ -404,9 +408,9 @@ final class ShortcutEngine: ObservableObject {
         monitor.onEvent = { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
         }
-        monitor.shouldSwallow = { [weak self] event in
-            MainActor.assumeIsolated { self?.shouldSwallowComposed(event) ?? false }
-        }
+        // The composed-stroke swallow decision no longer calls the engine: the tap answers
+        // it on its own thread from `publishInputState()`. A synchronous main-actor call
+        // inside the tap callback is what let a wedged main thread freeze the keyboard.
         // The tap can decide that it is not worth keeping. It stops itself first — the one
         // thing that must never happen is an installed tap that cannot answer, because every
         // key and click in the session then waits out its timeout.
@@ -511,6 +515,7 @@ final class ShortcutEngine: ObservableObject {
             self.state.panel.isScanning = false
             self.state.searchCorpus = nil
             self.state.orderedHitsCache = nil
+            self.publishInputState()
             self.evaluateExclusion()
             if self.state.panel.isVisible {
                 self.rebuildPanel()
@@ -565,6 +570,7 @@ final class ShortcutEngine: ObservableObject {
         state.usedBuiltInCatalog = false
         state.scanState = .ok
         state.orderedHitsCache = nil
+        publishInputState()
         state.rowBudgetCache = nil
         state.searchCorpus = nil
         state.conflicts = []
@@ -588,6 +594,10 @@ final class ShortcutEngine: ObservableObject {
     // MARK: - Input
 
     private func handle(_ event: KeyEvent) {
+        // The tap decides the next event from what is published here: every branch above
+        // and below mutates the composed-stroke state, so the snapshot leaves with the
+        // handler whatever path it took.
+        defer { publishInputState() }
         if let target = state.recordingTarget, handleRecording(event, target: target) {
             return
         }
@@ -845,43 +855,29 @@ final class ShortcutEngine: ObservableObject {
     }
 
 
-    /// Whether the tap must consume this key because the panel supplied part of the chord.
+    /// Publishes everything the tap thread needs to answer "swallow or pass?" on its own —
+    /// the decision itself lives in `ComposedSwallow.decide` and runs where the event
+    /// arrives. The decision's rules (⌫ while composing, the panel's own navigation keys,
+    /// then `ChordComposition`) are documented there, and the tap reading the same pure
+    /// call the key handler makes is what keeps the two from running a shortcut twice.
     ///
-    /// This runs for every key press of the session, so the cheap refusal comes first: no
-    /// ticked modifiers means no composed stroke is possible and the answer is always no.
-    /// Everything after that is `ChordComposition`'s decision — the same pure call the key
-    /// handler makes, so the tap and the handler cannot disagree and run the shortcut twice.
-    ///
-    /// Two refusals come before that, both about keys the panel would consume as *itself*
-    /// rather than as a stroke:
-    ///
-    /// - **⌫ while composing.** It undoes a tick, so the panel owns it. Letting it reach the
-    ///   front app as well would delete a character the user never aimed at.
-    /// - **navigation, paging, the row keys, `/` and Escape.** With a ticked modifier these
-    ///   arrive carrying nothing, so `⌥;` is a real binding and the composition below would
-    ///   swallow the `;` as its first stroke — while the engine pages the list. The tap reads
-    ///   `PanelKeyIntake`, the same list the handler walks, so the two cannot diverge.
-    private func shouldSwallowComposed(_ event: KeyEvent) -> Bool {
-        guard !state.isTestingShortcut else { return false }
-        guard !state.panel.latchedModifiers.isEmpty else { return false }
-        guard state.panel.isVisible, state.phase == .active else { return false }
-        guard let key = event.key else { return false }
-        if event.modifiers.isEmpty, key == .backspace { return true }
-        if PanelKeyIntake.isConsumedBeforeComposition(
-            keyCode: event.keyCode,
-            modifiers: event.modifiers,
-            held: state.panel.heldModifiers,
-            run: state.settings.runRowKey,
-            copy: state.settings.copyRowKey
-        ) { return false }
-        let resolution = ChordComposition.resolve(
+    /// Called after every mutation that touches the published fields; the tap reading a
+    /// snapshot one event stale is one wrong answer about one keystroke, while a
+    /// synchronous main-thread call was a frozen keyboard, so the direction of staleness is
+    /// chosen deliberately.
+    private func publishInputState() {
+        let snapshot = ComposedSwallowState(
+            isTestingShortcut: state.isTestingShortcut,
+            panelIsActive: state.panel.isVisible && state.phase == .active,
+            hasLatchedModifiers: !state.panel.latchedModifiers.isEmpty,
             prefix: state.prefix,
-            physical: event.modifiers,
             pending: state.pending,
-            key: key,
-            in: state.catalog.items
+            heldModifiers: state.panel.heldModifiers,
+            runRowKey: state.settings.runRowKey,
+            copyRowKey: state.settings.copyRowKey,
+            catalogItems: state.catalog.items
         )
-        return resolution.shouldSwallow
+        monitor.updateComposedSwallowState(snapshot)
     }
 
     private func applyHotkeySwallowing() {
@@ -959,6 +955,7 @@ final class ShortcutEngine: ObservableObject {
         state.panel.isScanning = state.isCatalogLoading
         rebuildPanel()
         updateKeyCapture()
+        publishInputState()
     }
 
     func dismissPanel() {
@@ -971,6 +968,7 @@ final class ShortcutEngine: ObservableObject {
         state.modifierTap.reset()
         state.panel = .hidden
         updateKeyCapture()
+        publishInputState()
         surface.presentPanel(state: state.panel, settings: state.settings)
         // One run loop later: `showSearch()` closes the panel on its way to opening the
         // search palette, and pulling the pointer back out from under a surface that is
@@ -1345,6 +1343,7 @@ final class ShortcutEngine: ObservableObject {
         state.panel.latchedModifiers = next.latched
         state.panel.latchedOrder = next.order
         refreshAfterLatchedChange()
+        publishInputState()
     }
 
     /// Undoes one tick, the most recent one first.
@@ -1356,6 +1355,7 @@ final class ShortcutEngine: ObservableObject {
         ) else { return false }
         state.panel.latchedModifiers = next.latched
         state.panel.latchedOrder = next.order
+        publishInputState()
         return true
     }
 
@@ -2576,6 +2576,7 @@ final class ShortcutEngine: ObservableObject {
         )
         state.catalogSize = items.count
         recomputeConflicts(for: items)
+        publishInputState()
         // The screenshot has no running apps to scan; show the sample set on the conflicts
         // page instead of an empty one.
         state.crossAppConflicts = state.conflicts.map { $0.scoped(to: $0.appBundleIDs.sorted().first) }

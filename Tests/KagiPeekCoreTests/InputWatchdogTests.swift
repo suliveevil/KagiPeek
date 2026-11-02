@@ -6,10 +6,10 @@ import XCTest
 /// must arrive through — still answering at all. Measured 2026-11-02: three disables
 /// logged, then silence, then a power-button reset; the counter had no way to know the
 /// callback had stopped running.
-final class MainThreadWatchdogTests: XCTestCase {
+final class InputWatchdogTests: XCTestCase {
 
     func testHealthyPingsDoNothing() {
-        var watchdog = MainThreadWatchdog()
+        var watchdog = InputWatchdog()
         XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
         XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
         XCTAssertFalse(watchdog.tapDetached)
@@ -18,14 +18,14 @@ final class MainThreadWatchdogTests: XCTestCase {
     /// One missed ping is a heavy main-thread moment, not a wedge: two consecutive missed
     /// pings are the shortest run that is certainly a stall.
     func testOneMissedPingIsNotEnough() {
-        var watchdog = MainThreadWatchdog()
+        var watchdog = InputWatchdog()
         XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
         XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .none)
         XCTAssertFalse(watchdog.tapDetached)
     }
 
     func testTwoMissedPingsDetachTheTap() {
-        var watchdog = MainThreadWatchdog()
+        var watchdog = InputWatchdog()
         _ = watchdog.tick(mainAcknowledged: false)
         XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .detachTap)
         XCTAssertTrue(watchdog.tapDetached)
@@ -34,7 +34,7 @@ final class MainThreadWatchdogTests: XCTestCase {
     /// The measured failure: silence continues after the detach. It must not flap — one
     /// detach decision, held until the main thread answers.
     func testContinuedSilenceAfterTheDetachDoesNotDetachAgain() {
-        var watchdog = MainThreadWatchdog()
+        var watchdog = InputWatchdog()
         _ = watchdog.tick(mainAcknowledged: false)
         XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .detachTap)
         XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .none)
@@ -45,7 +45,7 @@ final class MainThreadWatchdogTests: XCTestCase {
     /// Recovery is the point of the whole exercise: the input stream was freed by the
     /// detach, and the tap goes back the moment the main thread answers.
     func testAnAnsweredPingReattachesTheTap() {
-        var watchdog = MainThreadWatchdog()
+        var watchdog = InputWatchdog()
         _ = watchdog.tick(mainAcknowledged: false)
         _ = watchdog.tick(mainAcknowledged: false)
         XCTAssertTrue(watchdog.tapDetached)
@@ -56,7 +56,7 @@ final class MainThreadWatchdogTests: XCTestCase {
     }
 
     func testResetForgetsTheStall() {
-        var watchdog = MainThreadWatchdog()
+        var watchdog = InputWatchdog()
         _ = watchdog.tick(mainAcknowledged: false)
         _ = watchdog.tick(mainAcknowledged: false)
         XCTAssertTrue(watchdog.tapDetached)
