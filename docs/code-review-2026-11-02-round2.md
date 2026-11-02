@@ -23,7 +23,7 @@
 | P1-7 双轮询 | ✅ 已修 | 单一定时器 | ✅ 完成 |
 | P1-8 11 参数 | ✅ 已修 | `PermissionPresentation` + `PermissionPolicy` | ✅ 完成 |
 | P1-9 双日志门面 | ✅ 已修 | `AppLog.swift` 已删除（git 确认） | ✅ 完成 |
-| P1-10 `fatalError` | 无标记 | `AppIconDragSource.swift:55` 仍在 | **未做**（见 N5） |
+| P1-10 `fatalError` | 无标记 | `AppIconDragSource.swift:53-56` 已有 `@available(*, unavailable)` | ✅ **本条的"未做"判定被证伪**（见 N5 更正） |
 | P2-11 注释体量 | 无标记 | `KeyboardMonitor` 27.8%（非"接近一半"），事故年表已压成 1 行 | **已不成问题**（原描述被证伪） |
 | P2-12 命名一致性 | ✅ 已修 | — | ✅ 完成 |
 | P2-13 无障碍 | 无标记 | `8586235` 已修：图标按钮补标签、装饰图标隐藏 | ✅ **已完成，文档漏标**（原度量方法错误，见第 3 节） |
@@ -82,7 +82,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
   （`settings-0.json` = 680×600 / "KagiPeek Settings"，与代码请求的尺寸一致——若保活失效，
   窗口会在布局前就被释放）；`panel` 预览 `app=57 system=79 page=1/6 rows=24` 与基线逐字相同。
 
-### N2（P1）　`Core/Pure` 里有一个带锁的全局可变缓存，而且锁与 `nonisolated(unsafe)` 互相矛盾
+### N2（P1）　✅ 已修（`f0a74b8`）　`Core/Pure` 里有一个带锁的全局可变缓存，而且锁与 `nonisolated(unsafe)` 互相矛盾
 
 - 位置：`Core/Pure/LogRotationPolicy.swift:29-45`
 
@@ -110,7 +110,15 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
      于是它的实际效果只是**关掉编译器检查**：以后任何不持锁访问 `formatters` 的写法都能顺利编译通过。
      锁的契约从「编译器可验证」退化成「注释里写着」。
   4. 附带的风格问题：项目约定是只用 `withLock`、不写 `lock()/defer { unlock() }` 配对
-     （理由是漏一个 unlock 就是死锁）。这是全项目唯一一处手工配对。
+     （理由是漏一个 unlock 就是死锁）。LogRotationPolicy 是 **Pure 层唯一一处**手工配对。
+     > **更正（批次 C 复核）**：第二轮写的「全项目唯一一处手工配对」是错的，和 N5 同一类错误——
+     > 数了标识符就下结论，没有核实。实测全项目有 **15 处**手工 `lock()/unlock()` 配对
+     > （`RingBuffer` 5、`CatalogLoader` 4、`Diag` 4、`KeyboardMonitor` 的 `withLock` 定义 1、
+     > `LogRotationPolicy` 1）。删掉 LogRotationPolicy 那处后剩 **14 处**。
+     > 这条的分量因此要下调：它不再是「唯一的破例」，而是「15 处里唯一同时戴着
+     > `nonisolated(unsafe)` 的那一处」——真正的问题仍是上面第 3 条。
+     > 顺带发现 `Diag.configure` 是这 14 处里**唯一没有 `defer`** 的一处（同文件另外三处都有），
+     > 已在本轮补齐。
 - 依据：Clean Architecture（内层不应有可变共享状态）；Pragmatic Programmer「不要依赖巧合」。
 - 建议（按优选顺序）：
   1. **删掉缓存，而不是修好它**。这个缓存存在的全部理由是格式化 `yyyy-MM-dd`，
@@ -118,6 +126,17 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
      用整数补零拼文件名即可，整个锁 + 缓存 + `nonisolated(unsafe)` 一起消失，Pure 层恢复纯净。
   2. 若必须保留 `DateFormatter`，照 `Diag.State` 的既有做法收进一个不可变的 `State` 盒，
      用 `withLock`，并去掉 `nonisolated(unsafe)`。
+
+- **实际做法**：选了方案 1。锁、`formatters` 缓存、`formatter(for:)` 一起删除，
+  代之以两个纯函数 `dayStamp(for:timeZone:)` 与 `date(fromDayStamp:timeZone:)`——
+  用 `calendar.dateComponents` 拿整数再 `String(format: "%04d-%02d-%02d")`，
+  和同文件 `filesToPrune` 已经在用的路子一致。`fileName(for:)` 改调 `dayStamp`，
+  `date(fromFileName:)` 改调 `date(fromDayStamp:)`，两者互为正逆。
+  `date(fromDayStamp:)` 额外做了一次**回读校验**（拆出来的年月日再问一次日历，
+  对不上就返回 `nil`）：拼字符串这条路没有 `DateFormatter` 替我们拒绝
+  `2026-02-31` 这种日期，回读是唯一能挡住它的地方。
+  补了 2 个测试（补零、以及"不存在的日子被拒绝"），537 → 539。
+  Pure 层恢复无共享可变状态；`nonisolated(unsafe)` 在全项目只剩 `CrashReporter` 的 17 处。
 
 ### N3（P1）　✅ 已修（`9334117`）　`KeyEventRouter.route`：80 行代码 + 10 个参数，且在 Pure 层、已有 23 个测试
 
@@ -210,7 +229,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
   这里则是数了标识符却没读它所在的行。**"量化"不等于"看过"** ——
   凡是要据此下"没做/退化了"结论的，必须回到代码本身读一遍。
 
-### N6（P2）　跨文件重复块从 2 处涨到 6 处——新增代码是复制出来的
+### N6（P2）　✅ 已修（批次 C）　跨文件重复块——新增代码是复制出来的
 
 - 位置（两处真重复，值得动手）：
   1. **AX 取值梯子写了两遍**：`Core/AX/MenuScanner.swift` 与 `Core/AX/WindowGeometry.swift`
@@ -221,8 +240,32 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
      `start()` 的 `guard observers.isEmpty` + `stop()` 的 `observers.forEach { center.removeObserver($0) }`。
 - 另四处是委托包装或结构体字面量，不算重复，不必动。
 - 依据：R2 *Duplicated Code*；Pragmatic Programmer DRY /「一个事实只有一个来源」。
-- 建议：抽 `AXValueReader`（取值梯子）与 `WorkspaceObservation`（token 持有者，顺带让 `start/stop` 对称）。
-  两者都是小抽取，AX 层无测试网，改动要配合预览验证。
+- **实际做法**：
+  - 新增 `Core/AX/AXValueReader.swift`（`nonisolated enum`）：梯子只留一份，
+    `MenuScanner` 的 13 个调用点与 `WindowGeometry` 的 4 个改指过来。
+    两处旧梯子的实现已经**漂移**过——`MenuScanner` 有 `CFNull` 守卫，`WindowGeometry` 没有；
+    保留带守卫的那份（空值本来也会在下一步类型检查里被拒，行为等价）。
+    `boolAttribute` 一开始被误判为死代码（漏看了 `MenuScanner.swift:263`），复核后保留。
+  - 新增 `Core/AX/WorkspaceObservation.swift`（`@MainActor final class`）：两个服务各自的
+    `start()` 收成 `guard !observation.isRunning` + `observe(...) { … }`，`stop()` 收成一行。
+    `MainActor.assumeIsolated` 的调用点因此从 3 处降到 1 处。
+  - **顺带**：`children(of:)` 里 `unsafeBitCast(raw, to: CFTypeRef.self)` 改成
+    `Unmanaged<AnyObject>.fromOpaque(slot).takeUnretainedValue()`。位宽相同、语义等价，
+    但 `unsafeBitCast` 把指针当对象引用重新解释，而 CFArray 存的就是对象指针本身——
+    `Unmanaged` 才是表达这件事的 API。全项目 `unsafeBitCast` 因此归零（只剩 6 处 `unsafeDowncast`）。
+- **验证**（AX 层没有测试网，只能靠预览：`scripts/build_swiftc.sh` → `install.sh` → 三个预览场景）：
+  - 日志指标逐字一致：`panel sequence: app=57 system=79 page=1/6 rows=24`、
+    `search: scope=frontmost items=136 results=136 first=Cut`、`config scan: 201 shortcuts`；
+    扫描仍报 `menus=true, state=ok`（Safari 182 项），说明 `children(of:)` 的改写没打断菜单遍历。
+  - **三张预览截图与改动前逐字节相同**（MD5 全部相等）：panel / search / settings。
+    这是比"数字一致"更强的证据——像素级无变化。
+- **未动的一处，附理由**：`UI/MenuBar/StatusItemController.swift:120-139` 也有一个
+  `observers` 数组，但它**混用两个通知中心**（`NSWorkspace` 的 wake + `NotificationCenter.default`
+  的屏幕参数变化），`uninstall()` 要从两个中心各移除一次。它不是同一块重复的第三份，
+  而是另一种形态；要收进来就得把 `WorkspaceObservation` 泛化成「任意中心 + 可组合拆卸」，
+  而 wake / 屏幕变化这两条路径现在没有预览或测试能覆盖。**成本大于收益，先记账**。
+- 结果：Core 跨文件 ≥5 行重复块 **8 → 4**（口径见第 5 节），消失的正好是上面两处；
+  留下的 4 处就是本条判定为"不算重复"的那四处。
 
 ### N7（P2）　`Core/Pure` 有一个文件 `import SQLite3`
 
@@ -332,9 +375,10 @@ N1 把 `previewWindow` 移回夹具 —— 引擎那行已删，`Core/` 里的 A
 （只剩 `NSWorkspace` 系统服务，见 N1）。N5 经核实**无需改动**：`@available(*, unavailable)`
 从来就在，`fatalError` 是 `required init?` 必须有的不可达兜底（详见 N5 的更正）。
 
-**批次 C（小抽取，需预览验证）**
-N2 删掉 `LogRotationPolicy` 的 formatter 缓存（用整数补零拼文件名）→ N6 抽 `AXValueReader` 与
-`WorkspaceObservation`。
+**批次 C（小抽取，需预览验证）**　✅ **已完成**
+N2 删掉 `LogRotationPolicy` 的 formatter 缓存（用整数补零拼文件名，`f0a74b8`）→ N6 抽
+`AXValueReader` 与 `WorkspaceObservation`。验证方式见 N6 条目：三张预览截图与改动前
+**逐字节相同**，日志指标逐字一致。批次外顺带修了 `Diag.configure` 缺失的 `defer`。
 
 **批次 D（收口）**
 N4 让 `diagnosticsReport()` 抛错、调用方沿用已有 HUD 分支 —— 做完这条 P0-4 才闭环。
@@ -349,29 +393,64 @@ N4 让 `diagnosticsReport()` 抛错、调用方沿用已有 HUD 分支 —— �
 
 ## 5. 量化基线（供第三轮比对）
 
-| 指标 | 第一轮基线 `bd8b926` | 第二轮 `83a1b03` | 批次 A 后 `e410fe5` | 说明 |
+### 5.1 批次 B+C 后（同一脚本重测：应用 + 测试，先剥注释）
+
+口径统一之后才可比：**右两列由 `scripts/code-metrics.py` 对两棵提交树跑同一个脚本得出**，
+前三列是前两轮各自的手工统计，**不要跨口径相减**。
+
+```
+python3 scripts/code-metrics.py .                              # 当前工作树
+git archive e410fe5 | tar -x -C /tmp/tree-A
+python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提交
+```
+
+| 指标 | 批次 A 后 `e410fe5` | 批次 B+C 后 | 变化 | 说明 |
 |---|---|---|---|---|
-| 应用文件 / 行数 | 126 / 20,542 | 129 / 21,431 | **129 / 21,485** | 批次 A 只动 Pure 与引擎各一处 |
-| 测试文件 / 行数 | 42 / 5,857 | 43 / 6,028 | **71 / 6,090** | N9：1 个 1,105 行文件 → 29 个一类一文件 |
-| 函数总数 / 中位长度 | 711 / 6 行 | 752 / 8 行 | **755 / 9 行** | 中位变长是拆分的正常产物 |
-| >80 行的函数 | 9 | 3 | **2** ✅ | `startPreview` 149 / `CatalogLoader.scan` 81（`route` 已拆，见 N3） |
-| 最大文件 | `ShortcutEngine` 2,775 | 2,530 | **2,529** | 仍 19 个 MARK 段（P1-5 未动） |
-| 测试构建警告 | — | 16 | **0** ✅ | `e410fe5`；应用构建自 Swift 6 迁移起就是 0 |
-| Core 跨文件 5 行重复块 | 2 | 6 | **6** | 未动（N6 待做） |
-| `try?` | 64 | 59 | **59** | 未动；输入链路仍有 10（P0-4 待收口） |
-| `try!` | 1 | 0 | **0** ✅ | 见下方计数口径说明 |
-| `MainActor.assumeIsolated` | 31（字符串匹配） | 24（真实调用点） | **24** | 未动；均为 SDK 签名强制 |
-| `@unchecked Sendable` | 0 | 8 | **8** | 5 个类型，各有锁或串行队列，契约写在注释里 |
-| `nonisolated(unsafe)` | — | 23 | **23** | CrashReporter 20（信号处理器，正当）+ LogRotationPolicy 2（**不正当**，见 N2）+ UI 1 |
-| `ObservableObject` / `@Observable` | 10 / 0 | 10 / 0 | **10 / 0** | 未动 |
-| `accessibilityHint` | 0 | 0 | **0** | 但 P2-13 的真实缺口（图标按钮/装饰图标）已修 |
-| `.contentShape` | 7 | 7 | **7** | 未动（见 N10） |
-| `.frame(width:/height:)` | 41 | 41 | **41** | 未动 |
+| 应用文件 / 行数 | 129 / 21,485 | **131 / 21,558** | +2 / +73 | 新增 `AXValueReader`、`WorkspaceObservation` |
+| 测试文件 / 行数 | 71 / 6,090 | **71 / 6,104** | +14 | N2 补了 2 个 `dayStamp` 测试 |
+| `Core/` 文件数 | 111 | **113** | +2 | 两个新类型都落在 `Core/AX/` |
+| 测试数 | 537 | **539** | +2 | 全绿；测试构建 0 警告 |
+| >80 行的函数 | 2 | **2** | — | 仍是 `startPreview` 149 / `CatalogLoader.scan` 81 |
+| 最大文件 | `ShortcutEngine` 2,529 | **2,526** | −3 | 仍 19 个 MARK 段（P1-5 未动） |
+| **Core 跨文件 ≥5 行重复块** | 8（重测） | **4** ✅ | −4 | N6；消失的正是两处真重复（详见 N6） |
+| `MainActor.assumeIsolated` | 24 | **22** | −2 | N6：3 处手写 → `WorkspaceObservation` 里 1 处 |
+| `nonisolated(unsafe)` | 18（重测） | **17** | −1 | N2；剩下的 17 处全在 `CrashReporter`（信号处理器，正当） |
+| `unsafeBitCast` | 1 | **0** ✅ | −1 | N6 顺带；只剩 6 处 `unsafeDowncast` |
+| `lock()` / `unlock()` | 15 / 15 | **14 / 14** | −1 | N2；另补齐了 `Diag.configure` 缺失的 `defer` |
+| `try?` | 65（重测） | **65** | — | 未动；输入链路仍有 10（P0-4 待收口） |
+| `try!` | 3（重测） | **3** | — | 3 处全在测试里，应用代码 0（见下方口径说明） |
+| `@unchecked Sendable` | 6（重测） | **6** | — | 各有锁或串行队列，契约写在注释里 |
+| `ObservableObject` / `@Observable` | 10 / 0 | **10 / 0** | — | 未动（P2-15 建议不做） |
+| `.contentShape` | 7 | **7** | — | 未动（见 N10） |
+| `.frame(width:/height:)` | 41 | **41** | — | 未动 |
+
+### 5.2 前两轮的原始记录（口径不同，仅供溯源）
+
+| 指标 | 第一轮基线 `bd8b926` | 第二轮 `83a1b03` | 批次 A 后 |
+|---|---|---|---|
+| 应用文件 / 行数 | 126 / 20,542 | 129 / 21,431 | 129 / 21,485 |
+| 测试文件 / 行数 | 42 / 5,857 | 43 / 6,028 | 71 / 6,090 |
+| >80 行的函数 | 9 | 3 | 2 |
+| 最大文件 | `ShortcutEngine` 2,775 | 2,530 | 2,529 |
+| 测试构建警告 | — | 16 | 0 |
+| Core 跨文件 5 行重复块 | 2 | 6 | 6 |
+| `try?` | 64 | 59 | 59 |
+| `accessibilityHint` | 0 | 0 | 0 |
+
+**两次口径差异的账**：第二轮写 `nonisolated(unsafe)` = 23（CrashReporter 20 + LogRotationPolicy 2
++ UI 1），同一脚本重测 `e410fe5` 得 18（CrashReporter 17 + LogRotationPolicy 1）；
+`try?` 59 vs 65、`try!` 0 vs 3 同理。差在文件集合（是否含测试）与是否剥注释。
+**前两轮的数字不要和 5.1 的表相减**；要么用脚本重测，要么只用同一张表内部比。
 
 **计数口径（第三轮别再踩）**：本轮统计 `try!` 得到 2、`assumeIsolated` 得到 29，一度以为两者都回退了。
 实际是正则把**注释里的提及**也算进去了 —— 那 2 处 `try!` 是 `Sanitizer.swift:78-79` 在解释
-"为什么这里不用 `try!`"，真实代码 0 处；29 处 `assumeIsolated` 里有 5 处是注释，真实调用点仍是 24。
+"为什么这里不用 `try!`"；29 处 `assumeIsolated` 里有 5 处是注释。
 **统计代码气味时必须先剥掉行内注释**（`re.sub(r'//.*$', '', line)` 后再匹配），否则每轮都会
 凭空"恶化"几条。这正是第 2 节想防的同一类错误，写报告的人自己也踩了。
-| `SWIFT_VERSION` | 5.0 | **6.0 + `complete`** | 三条路径 0 诊断，537 测试通过 |
-| `Core/` 独立 `-typecheck` | 失败 | **通过（0 诊断）** | 但用的是自有 UI 类型口径，漏 AppKit（见 N1） |
+
+**"量化"不等于"看过"**：N5（以为 `fatalError` 没处理）和 N2 的"唯一一处手工配对"都是数了标识符
+就下结论、没回到代码读一遍而写错的。凡是要据此下"没做 / 退化了 / 只有一处"结论的，
+必须先读那一行；`scripts/code-metrics.py` 给的是待查清单，不是结论。
+
+| `SWIFT_VERSION` | 5.0 | **6.0 + `complete`** | 三条路径 0 诊断，539 测试通过 |
+| `Core/` 独立 `-typecheck` | 失败 | **通过（0 诊断）** | 113 个文件；但用的是自有 UI 类型口径，漏 AppKit（见 N1） |
