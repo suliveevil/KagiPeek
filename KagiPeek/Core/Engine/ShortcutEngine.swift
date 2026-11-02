@@ -681,71 +681,82 @@ final class ShortcutEngine: ObservableObject {
 
         switch state.phase {
         case .active:
-            // A lone hyper press (⌃⌥⇧⌘) is the user's "Escape" key: do not narrow the
-            // panel to a prefix no menu could match; close it on a clean release instead.
-            // The gesture is a pure state machine (`HyperEscape`), tested on its own.
-            switch state.hyperEscape.process(modifiers: modifiers, now: event.happenedAt) {
-            case .arm:
-                state.modifierTap.reset()
-                state.panel.heldModifiers = modifiers
-                rebuildPanel()
-                return
-            case .releaseDismiss:
-                dismissPanel()
-                return
-            case .clear, .none:
-                break
-            }
-
-            // Modifiers held while the panel is open narrow it, which-key style (the core
-            // behaviour: hold ⌘ and only the ⌘ shortcuts are left). A lone ⇧ never counts —
-            // it also arrives while typing capital letters.
-            let held = modifiers == [.shift] ? ModifierSet() : modifiers
-            state.panel.heldModifiers = held
-            // A tap — press and let go quickly, with nothing typed in between — sticks: it
-            // ticks the modifier instead of narrowing only while the finger is down, so
-            // ⌥ ⌘ C can be typed one key at a time and each tap narrows on top of the last.
-            // Holding still narrows temporarily. The difference is the point: holding is
-            // looking, tapping is composing.
-            if let tapped = state.modifierTap.flagsChanged(
-                held,
-                previous: previous,
-                now: event.happenedAt,
-                window: Self.modifierTapWindow
-            ) {
-                toggleLatched(tapped)
-                return
-            }
-            // Only a modifier-only prefix is re-seeded. A real chord prefix (⌘K of ⌘K ⌘C)
-            // must survive the modifier being released between strokes, which is what used
-            // to drop the user back to the top level mid-chord.
-            //
-            // The seed is what the user is composing, not just what is down: a ticked ⌥ keeps
-            // narrowing after the physical key is let go. Latched modifiers are deliberately
-            // *not* cleared here — pressing a physical modifier while a sequence is being
-            // composed is the normal case, not a reason to abandon it.
-            if state.prefix.isEmpty || state.prefix.isModifierOnly {
-                let effective = state.pending.effective
-                state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
-            }
-            state.panel.pageIndex = 0
-            // Deliberately no `selectionIndex = -1` here. Narrowing is exactly the case where
-            // the user is about to press Return, and a narrowed panel often has one row left:
-            // clearing the selection here is what made Return do nothing.
-            rebuildPanel()
-            updateKeyCapture()
+            narrowWithHeldModifiers(modifiers, previous: previous, event: event)
         case .idle, .armed:
-            guard state.settings.triggerMode == .holdModifiers else { return }
-            if modifiers.isEmpty || modifiers == [.shift] {
-                cancelArm()
-                if state.phase == .armed {
-                    state.phase = .idle
-                    state.prefix = .empty
-                }
-                return
-            }
-            armShow()
+            considerArming(with: modifiers)
         }
+    }
+
+    /// Held or tapped modifiers while the panel is open: escape, latch, narrow.
+    ///
+    /// This is the which-key behaviour at the centre of the app — hold ⌘ and only the ⌘
+    /// shortcuts are left — plus the two gestures layered on it: a lone hyper press closes
+    /// the panel, and a quick tap ticks a modifier so ⌥ ⌘ C can be typed one key at a time.
+    private func narrowWithHeldModifiers(_ modifiers: ModifierSet, previous: ModifierSet, event: KeyEvent) {
+        // A lone hyper press (⌃⌥⇧⌘) is the user's "Escape" key: do not narrow the panel to a
+        // prefix no menu could match; close it on a clean release instead. The gesture is a
+        // pure state machine (`HyperEscape`), tested on its own.
+        switch state.hyperEscape.process(modifiers: modifiers, now: event.happenedAt) {
+        case .arm:
+            state.modifierTap.reset()
+            state.panel.heldModifiers = modifiers
+            rebuildPanel()
+            return
+        case .releaseDismiss:
+            dismissPanel()
+            return
+        case .clear, .none:
+            break
+        }
+
+        // A lone ⇧ never counts — it also arrives while typing capital letters.
+        let held = modifiers == [.shift] ? ModifierSet() : modifiers
+        state.panel.heldModifiers = held
+        // A tap — press and let go quickly, with nothing typed in between — sticks: it ticks
+        // the modifier instead of narrowing only while the finger is down. Holding still
+        // narrows temporarily. The difference is the point: holding is looking, tapping is
+        // composing.
+        if let tapped = state.modifierTap.flagsChanged(
+            held,
+            previous: previous,
+            now: event.happenedAt,
+            window: Self.modifierTapWindow
+        ) {
+            toggleLatched(tapped)
+            return
+        }
+        // Only a modifier-only prefix is re-seeded. A real chord prefix (⌘K of ⌘K ⌘C) must
+        // survive the modifier being released between strokes, which is what used to drop the
+        // user back to the top level mid-chord.
+        //
+        // The seed is what the user is composing, not just what is down: a ticked ⌥ keeps
+        // narrowing after the physical key is let go. Latched modifiers are deliberately
+        // *not* cleared here — pressing a physical modifier while a sequence is being
+        // composed is the normal case, not a reason to abandon it.
+        if state.prefix.isEmpty || state.prefix.isModifierOnly {
+            let effective = state.pending.effective
+            state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
+        }
+        state.panel.pageIndex = 0
+        // Deliberately no `selectionIndex = -1` here. Narrowing is exactly the case where the
+        // user is about to press Return, and a narrowed panel often has one row left: clearing
+        // the selection here is what made Return do nothing.
+        rebuildPanel()
+        updateKeyCapture()
+    }
+
+    /// Hold-to-open, and the release that cancels it before the panel ever appears.
+    private func considerArming(with modifiers: ModifierSet) {
+        guard state.settings.triggerMode == .holdModifiers else { return }
+        if modifiers.isEmpty || modifiers == [.shift] {
+            cancelArm()
+            if state.phase == .armed {
+                state.phase = .idle
+                state.prefix = .empty
+            }
+            return
+        }
+        armShow()
     }
 
     /// Secure input is the one system restriction that turns KagiPeek off silently: the OS
@@ -769,10 +780,16 @@ final class ShortcutEngine: ObservableObject {
             return
         }
 
-        // The decision is made in pure code (`KeyEventRouter`), exactly as the walk used to
-        // run: hotkeys first (they answer in any phase), then the phase, then the panel's
-        // own keys, then chord composition. This method only executes side effects.
-        let action = KeyEventRouter.route(
+        let action = routeKeyDown(event)
+        noteGestureUse(action, event: event)
+        perform(action, event: event)
+    }
+
+    /// The decision is made in pure code (`KeyEventRouter`), exactly as the walk used to run:
+    /// hotkeys first (they answer in any phase), then the phase, then the panel's own keys,
+    /// then chord composition. `handleKeyDown` only executes what this returns.
+    private func routeKeyDown(_ event: KeyEvent) -> KeyDownAction {
+        KeyEventRouter.route(
             keyCode: event.keyCode,
             key: event.key,
             modifiers: event.modifiers,
@@ -784,19 +801,25 @@ final class ShortcutEngine: ObservableObject {
             pending: state.pending,
             items: state.catalog.items
         )
+    }
 
-        // A key the panel consumed while a hyper is armed marks the hyper as used, so a
-        // clean release no longer counts as Escape. The guard mirrors the old inline code:
-        // only a key with a token, while the panel is active, and not Escape itself.
+    /// Two gestures watch the keys that pass through here.
+    ///
+    /// A key the panel consumed while a hyper is armed marks the hyper as used, so a clean
+    /// release no longer counts as Escape. A key pressed while a modifier is down means the
+    /// modifier was part of a shortcut, not a tap to be ticked.
+    private func noteGestureUse(_ action: KeyDownAction, event: KeyEvent) {
         if state.phase == .active, event.key != nil, action != .dismiss, state.hyperEscape.armedAt != nil {
             state.hyperEscape.noteKeyUsed()
         }
-        // A key pressed while a modifier is down means the modifier was part of a shortcut,
-        // not a tap to be ticked.
         if state.phase == .active {
             state.modifierTap.noteKeyPress()
         }
+    }
 
+    /// Executes the router's answer. One case, one effect; anything longer than a line is
+    /// named after what the user sees happen.
+    private func perform(_ action: KeyDownAction, event: KeyEvent) {
         switch action {
         case .hotkey(let choice):
             switch choice {
@@ -807,9 +830,7 @@ final class ShortcutEngine: ObservableObject {
         case .none:
             break
         case .cancelArm:
-            cancelArm()
-            state.phase = .idle
-            state.prefix = .empty
+            abandonArm()
         case .dismiss:
             dismissPanel()
         case .showSearch:
@@ -817,66 +838,97 @@ final class ShortcutEngine: ObservableObject {
         case .moveSelection(let delta):
             moveSelection(delta)
         case .page(let step):
-            if step > 0 { nextPage() } else { previousPage() }
+            turnPage(step)
         case .performRow(let rowAction):
             performSelectedPanelRow(action: rowAction)
         case .undoLatched:
-            // The router answers from `latchedOrder`, so this usually pops; the fallback
-            // keeps the old behaviour if the tick vanished in between.
-            if popLatched() {
-                refreshAfterLatchedChange()
-            } else if !state.prefix.isEmpty {
-                goUpOneLevel()
-            }
+            undoLatchedOrGoUp()
         case .goUpLevel:
             goUpOneLevel()
         case .passThrough(let item, let probe):
-            // Nothing was assembled: the physical event already *is* the shortcut, so the
-            // front app performs it. Flash the row and let the key through.
-            Diag.debug(.inject, """
-                passthrough: chord=\(KeyFormatter.render(probe, style: .symbols)) \
-                reason=uncomposed title=\(Sanitizer.clamp(item.title))
-                """)
-            complete(item, probe: probe)
+            passThrough(item, probe: probe)
         case .replayComposed(let item, let probe):
-            // The tap swallowed this key, so the panel owes the app the shortcut: replay
-            // the assembled chord — ⌥⌘C, not C — the same way clicking a row does.
-            usageStore.record(usageKey: item.usageKey)
-            dismissPanel()
-            AppLog.input.info(
-                "replaying composed \(KeyFormatter.render(probe, style: .symbols), privacy: .public) into the front app"
-            )
-            if state.settings.showExecutedHUD {
-                hud.show(
-                    chord: KeyFormatter.render(probe, style: state.settings.keyStyle),
-                    title: item.title
-                )
-            }
-            DispatchQueue.main.async {
-                ShortcutInjector.post(probe, delay: 0.12)
-            }
+            replayComposed(item, probe: probe)
         case .descend(let probe):
-            state.prefix = probe
-            // The ticked modifiers have been folded into this stroke; keeping them would
-            // apply them a second time to the next one.
-            state.panel.latchedModifiers = []
-            state.panel.latchedOrder = []
-            state.panel.pageIndex = 0
-            state.panel.selectionIndex = -1
-            rebuildPanel()
-            updateKeyCapture()
+            descend(probe)
         case .noMatch(let heldModifiers):
-            // Keep the panel open, and keep the ticks: the user is mid-sequence and has
-            // not made a mistake yet. A bare key with no match is not swallowed, so the
-            // app receives it and nothing is lost.
-            Diag.debug(.tap, """
-                nomatch: prefix=\(KeyFormatter.render(state.prefix, style: .symbols)) \
-                key=\(event.key?.raw ?? "-") latched=\(state.panel.latchedModifiers.rawValue)
-                """)
-            state.panel.heldModifiers = heldModifiers
-            rebuildPanel()
+            noteNoMatch(held: heldModifiers, event: event)
         }
     }
+
+    private func abandonArm() {
+        cancelArm()
+        state.phase = .idle
+        state.prefix = .empty
+    }
+
+    private func turnPage(_ step: Int) {
+        if step > 0 { nextPage() } else { previousPage() }
+    }
+
+    /// The router answers from `latchedOrder`, so this usually pops; the fallback keeps the
+    /// old behaviour if the tick vanished in between.
+    private func undoLatchedOrGoUp() {
+        if popLatched() {
+            refreshAfterLatchedChange()
+        } else if !state.prefix.isEmpty {
+            goUpOneLevel()
+        }
+    }
+
+    /// Nothing was assembled: the physical event already *is* the shortcut, so the front app
+    /// performs it. Flash the row and let the key through.
+    private func passThrough(_ item: BindingItem, probe: KeyChord) {
+        Diag.debug(.inject, """
+            passthrough: chord=\(KeyFormatter.render(probe, style: .symbols)) \
+            reason=uncomposed title=\(Sanitizer.clamp(item.title))
+            """)
+        complete(item, probe: probe)
+    }
+
+    /// The tap swallowed this key, so the panel owes the app the shortcut: replay the
+    /// assembled chord — ⌥⌘C, not C — the same way clicking a row does.
+    private func replayComposed(_ item: BindingItem, probe: KeyChord) {
+        usageStore.record(usageKey: item.usageKey)
+        dismissPanel()
+        AppLog.input.info(
+            "replaying composed \(KeyFormatter.render(probe, style: .symbols), privacy: .public) into the front app"
+        )
+        if state.settings.showExecutedHUD {
+            hud.show(
+                chord: KeyFormatter.render(probe, style: state.settings.keyStyle),
+                title: item.title
+            )
+        }
+        DispatchQueue.main.async {
+            ShortcutInjector.post(probe, delay: 0.12)
+        }
+    }
+
+    private func descend(_ probe: KeyChord) {
+        state.prefix = probe
+        // The ticked modifiers have been folded into this stroke; keeping them would apply
+        // them a second time to the next one.
+        state.panel.latchedModifiers = []
+        state.panel.latchedOrder = []
+        state.panel.pageIndex = 0
+        state.panel.selectionIndex = -1
+        rebuildPanel()
+        updateKeyCapture()
+    }
+
+    /// Keep the panel open, and keep the ticks: the user is mid-sequence and has not made a
+    /// mistake yet. A bare key with no match is not swallowed, so the app receives it and
+    /// nothing is lost.
+    private func noteNoMatch(held: ModifierSet, event: KeyEvent) {
+        Diag.debug(.tap, """
+            nomatch: prefix=\(KeyFormatter.render(state.prefix, style: .symbols)) \
+            key=\(event.key?.raw ?? "-") latched=\(state.panel.latchedModifiers.rawValue)
+            """)
+        state.panel.heldModifiers = held
+        rebuildPanel()
+    }
+
     /// Karabiner's "hyper tap → Escape" rule usually emits Escape on key-up, so the tap
     /// consumes Esc releases as well and closes the panel from either direction.
     private func handleKeyUp(_ event: KeyEvent) {

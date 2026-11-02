@@ -90,6 +90,20 @@ private struct OverlayHeaderView: View {
 
     private func headerContent(layout: HeaderLayout) -> some View {
         HStack(spacing: 10) {
+            headerIdentity(layout: layout)
+            Spacer(minLength: 6)
+            if isSearch {
+                searchField(layout: layout)
+            }
+            Spacer(minLength: 6)
+            headerActions(layout: layout)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    /// What the list belongs to — plus the way back when the palette is the visible surface.
+    private func headerIdentity(layout: HeaderLayout) -> some View {
+        HStack(spacing: 10) {
             // The palette is a second view of the same window, so it gets a way back. `/`
             // does the same thing, but only while the search field is not taking text — and
             // it usually is.
@@ -104,16 +118,17 @@ private struct OverlayHeaderView: View {
                 .accessibilityLabel(localization.text(.searchBackToPanel))
             }
             appIdentity(layout: layout)
+        }
+    }
 
-            Spacer(minLength: 6)
-            // The panel has no text field of its own any more: `/` opens the palette, which
-            // is where typing belongs. A second, quieter search box in the panel only asked
-            // the user to guess which one to use.
-            if isSearch {
-                searchField(layout: layout)
-            }
-            Spacer(minLength: 6)
-
+    /// The quiet glyphs at the trailing edge: what is being looked at, then how to narrow it,
+    /// then the two controls that leave this list.
+    ///
+    /// The search box itself is not here: the panel has no text field of its own any more —
+    /// `/` opens the palette, which is where typing belongs. A second, quieter search box in
+    /// the panel only asked the user to guess which one to use.
+    private func headerActions(layout: HeaderLayout) -> some View {
+        HStack(spacing: 10) {
             // Looking at another app and exporting what you see belong in the palette: it is
             // where the question is actually asked.
             if isSearch, layout != .minimal {
@@ -152,29 +167,7 @@ private struct OverlayHeaderView: View {
             .help(localization.text(.panelSettings))
             .accessibilityLabel(localization.text(.panelSettings))
 
-            if state.panel.isScanning {
-                ProgressView().controlSize(.small).tint(palette.secondaryText)
-            }
-            if state.panel.hasConflicts {
-                // Informational, not a control: at full size and full orange it was the
-                // loudest thing in a row of quiet glyphs the user *can* click.
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Theme.warning.opacity(0.75))
-                    .help(localization.text(.overlayConflictHint))
-                    .accessibilityLabel(localization.text(.overlayConflictHint))
-            }
-
-            if layout.showsCount {
-                // A bare "136" next to a warning triangle read as "136 conflicts"; the
-                // panel's own total and the conflicts list then disagreed.
-                Text(isSearch
-                     ? "\(state.search.results.count)"
-                     : localization.format(.overlayCountFormat, state.panel.totalCount))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(palette.secondaryText)
-                    .monospacedDigit()
-            }
+            statusIndicators(layout: layout)
 
             Button(action: dismissCurrentSurface) {
                 Image(systemName: "xmark")
@@ -185,7 +178,34 @@ private struct OverlayHeaderView: View {
             .help(localization.text(.panelClose))
             .accessibilityLabel(localization.text(.panelClose))
         }
-        .padding(.horizontal, 16)
+    }
+
+    /// Reports, not controls: a scan in flight, conflicts found, and how many rows there are.
+    /// They sit between the controls and the close button, and none of them takes a click.
+    @ViewBuilder
+    private func statusIndicators(layout: HeaderLayout) -> some View {
+        if state.panel.isScanning {
+            ProgressView().controlSize(.small).tint(palette.secondaryText)
+        }
+        if state.panel.hasConflicts {
+            // Informational, not a control: at full size and full orange it was the loudest
+            // thing in a row of quiet glyphs the user *can* click.
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.warning.opacity(0.75))
+                .help(localization.text(.overlayConflictHint))
+                .accessibilityLabel(localization.text(.overlayConflictHint))
+        }
+        if layout.showsCount {
+            // A bare "136" next to a warning triangle read as "136 conflicts"; the panel's
+            // own total and the conflicts list then disagreed.
+            Text(isSearch
+                 ? "\(state.search.results.count)"
+                 : localization.format(.overlayCountFormat, state.panel.totalCount))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(palette.secondaryText)
+                .monospacedDigit()
+        }
     }
 
     /// Checkable ⌃ ⌥ ⇧ ⌘ chips: a sticky way to narrow by modifier.
@@ -601,15 +621,41 @@ private struct OverlayPanelContentView: View {
         // A dimmed row carries index -1, exactly like the "nothing selected" marker, so
         // comparing the two lit up every dimmed row. Only a real position can be selected.
         let isSelected = row.index >= 0 && state.panel.selectionIndex == row.index
-        let isHovered = hoveredRowID == row.id
-        let fill: Color = {
-            if row.isCompleted { return Color.accentColor.opacity(Theme.completedRowEmphasis) }
-            if pressedRowID == row.id { return Color.accentColor.opacity(Theme.pressedRowEmphasis) }
-            if isSelected { return palette.selection }
-            if isHovered { return palette.hover }
-            return .clear
-        }()
-        return HStack(spacing: Theme.rowColumnGap) {
+        return rowColumns(row, layout: layout)
+            .padding(.horizontal, Theme.rowHorizontalPadding)
+            .frame(height: Theme.rowHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(rowFill(row, isSelected: isSelected))
+            )
+            // The selection marker sits in the row's own gutter: appearing and disappearing
+            // must never reflow the title or the keycap.
+            .overlay(alignment: .leading) { selectionMarker(isSelected) }
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(rowAccessibilityLabel(row)))
+            .accessibilityValue(Text(row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { engine.performPanelRow(rowID: row.id, action: .execute) }
+            .onHover { inside in
+                hoveredRowID = inside ? row.id : (hoveredRowID == row.id ? nil : hoveredRowID)
+                if inside {
+                    engine.select(rowID: row.id)
+                }
+            }
+            .onTapGesture {
+                press(row.id)
+                // A click means "run": the run key's action, whatever key that ends up being.
+                engine.performPanelRow(rowID: row.id, action: .execute)
+            }
+            .animation(.easeOut(duration: 0.14), value: isSelected)
+            .contextMenu { rowMenu(row) }
+    }
+
+    /// The columns in the order the settings ask for: the chord is either the first thing on
+    /// the row or the last, and the menu path travels with it.
+    private func rowColumns(_ row: PanelRow, layout: RowLayout.Metrics) -> some View {
+        HStack(spacing: Theme.rowColumnGap) {
             if settings.keyPosition == .left {
                 keyLabel(row, width: layout.keyWidth, alignment: .leading)
             }
@@ -633,52 +679,41 @@ private struct OverlayPanelContentView: View {
                 }
             }
         }
-        .padding(.horizontal, Theme.rowHorizontalPadding)
-        .frame(height: Theme.rowHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(fill)
-        )
-        // The selection marker sits in the row's own gutter: appearing and disappearing
-        // must never reflow the title or the keycap.
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                .fill(Color.accentColor)
-                .frame(width: 2.5, height: 12)
-                .padding(.leading, 2)
-                .scaleEffect(x: 1, y: isSelected ? 1 : 0.2, anchor: .center)
-                .opacity(isSelected ? 1 : 0)
-                .decorative()
+    }
+
+    /// What just happened beats where the pointer is: a completed row stays lit, a press
+    /// flashes, and only then do selection and hover get a colour.
+    private func rowFill(_ row: PanelRow, isSelected: Bool) -> Color {
+        if row.isCompleted { return Color.accentColor.opacity(Theme.completedRowEmphasis) }
+        if pressedRowID == row.id { return Color.accentColor.opacity(Theme.pressedRowEmphasis) }
+        if isSelected { return palette.selection }
+        if hoveredRowID == row.id { return palette.hover }
+        return .clear
+    }
+
+    private func selectionMarker(_ isSelected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+            .fill(Color.accentColor)
+            .frame(width: 2.5, height: 12)
+            .padding(.leading, 2)
+            .scaleEffect(x: 1, y: isSelected ? 1 : 0.2, anchor: .center)
+            .opacity(isSelected ? 1 : 0)
+            .decorative()
+    }
+
+    /// The right-click menu. Pinning, copying and the settings window: the row cannot offer
+    /// anything the panel itself does not, but these are the three worth a right-click.
+    @ViewBuilder
+    private func rowMenu(_ row: PanelRow) -> some View {
+        Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
+            engine.toggleFavorite(rowID: row.id)
         }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(rowAccessibilityLabel(row)))
-        .accessibilityValue(Text(row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction { engine.performPanelRow(rowID: row.id, action: .execute) }
-        .onHover { inside in
-            hoveredRowID = inside ? row.id : (hoveredRowID == row.id ? nil : hoveredRowID)
-            if inside {
-                engine.select(rowID: row.id)
-            }
+        Button(localization.text(.panelCopyShortcut)) {
+            engine.copyShortcut(rowID: row.id)
         }
-        .onTapGesture {
-            press(row.id)
-            // A click means "run": the run key's action, whatever key that ends up being.
-            engine.performPanelRow(rowID: row.id, action: .execute)
-        }
-        .animation(.easeOut(duration: 0.14), value: isSelected)
-        .contextMenu {
-            Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
-                engine.toggleFavorite(rowID: row.id)
-            }
-            Button(localization.text(.panelCopyShortcut)) {
-                engine.copyShortcut(rowID: row.id)
-            }
-            Divider()
-            Button(localization.text(.panelSettings)) {
-                engine.showSettings()
-            }
+        Divider()
+        Button(localization.text(.panelSettings)) {
+            engine.showSettings()
         }
     }
 

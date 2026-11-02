@@ -75,50 +75,14 @@ enum MenuScanner {
         elements.reserveCapacity(256)
 
         for (barIndex, menuBarItem) in children(of: menuBar).enumerated() {
-            let topLevelTitle = stringAttribute(kAXTitleAttribute, of: menuBarItem) ?? ""
-            // The Apple menu belongs to the system, not to the app in front: its items
-            // ("About This Mac", "Sleep", …) are not this app's commands and would pad
-            // every list with entries the user cannot act on meaningfully. The setting
-            // turns it back on; the bar index stays counted either way, so menu paths —
-            // and the disk cache keyed on them — do not shift when the setting flips.
-            if topLevelTitle == "Apple", !showAppleMenu { continue }
-            for (menuIndex, menu) in children(of: menuBarItem).enumerated() {
-                // `History`, `Bookmarks` and their like are menus of data: they hold one row
-                // per visited page or saved link. Read only the command prefix at the top of
-                // such a menu, and treat everything else as content.
-                let menuChildren = children(of: menu)
-                // A menu whose name says it is a list of the user's data — a browser's
-                // `Bookmarks` or `History` — is filtered by name. That is exact, where the
-                // shortcut sample can only guess: `Bookmarks` opens with real commands
-                // (⌘D, ⌥⌘B), so a sample finds shortcuts and would keep the fifty links
-                // that follow them.
-                // Top level decides by name, then by size — never by sampling. A top menu
-                // is a command menu until it is known otherwise: `Develop` has 27 children
-                // whose first ones carry no shortcut, and sampling would have dropped its
-                // eighteen shortcutless commands.
-                let decision = MenuContentPolicy.isDataMenu(title: topLevelTitle)
-                    ? MenuContentPolicy.decideDataMenuByTitle(childCount: menuChildren.count)
-                    : MenuContentPolicy.decideOpenMenu(childCount: menuChildren.count)
-                if decision.looksLikeContent {
-                    let menuTitle = Sanitizer.clamp(topLevelTitle.isEmpty ? "?" : topLevelTitle)
-                    Diag.info(.scan, """
-                        menu ·\(menuTitle) is a list of data (\(menuChildren.count) children), \
-                        reading \(decision.childrenToVisit), keeping shortcuts only
-                        """)
-                }
-                for (itemIndex, item) in menuChildren.prefix(decision.childrenToVisit).enumerated() {
-                    collect(
-                        item,
-                        path: topLevelTitle.isEmpty ? [] : [topLevelTitle],
-                        depth: 0,
-                        axPath: [barIndex, menuIndex, itemIndex],
-                        bundleID: bundleID,
-                        keepsShortcutless: decision.keepsShortcutlessChildren,
-                        items: &items,
-                        elements: &elements
-                    )
-                }
-            }
+            readMenuBarItem(
+                menuBarItem,
+                barIndex: barIndex,
+                showAppleMenu: showAppleMenu,
+                bundleID: bundleID,
+                items: &items,
+                elements: &elements
+            )
         }
 
         if items.count >= maxItems {
@@ -134,6 +98,83 @@ enum MenuScanner {
             duration: Date().timeIntervalSince(started),
             state: items.isEmpty ? .noMenus : .ok
         )
+    }
+
+    /// One top-level title of the menu bar ("File", "Edit", "Apple") and the menus under it.
+    ///
+    /// The bar index stays counted even for a skipped Apple menu, so menu paths — and the
+    /// disk cache keyed on them — do not shift when `showAppleMenu` flips.
+    private static func readMenuBarItem(
+        _ menuBarItem: AXUIElement,
+        barIndex: Int,
+        showAppleMenu: Bool,
+        bundleID: String?,
+        items: inout [BindingItem],
+        elements: inout [String: AXUIElement]
+    ) {
+        let topLevelTitle = stringAttribute(kAXTitleAttribute, of: menuBarItem) ?? ""
+        // The Apple menu belongs to the system, not to the app in front: its items ("About
+        // This Mac", "Sleep", …) are not this app's commands and would pad every list with
+        // entries the user cannot act on meaningfully. The setting turns it back on.
+        if topLevelTitle == "Apple", !showAppleMenu { return }
+        for (menuIndex, menu) in children(of: menuBarItem).enumerated() {
+            readMenu(
+                menu,
+                barIndex: barIndex,
+                menuIndex: menuIndex,
+                topLevelTitle: topLevelTitle,
+                bundleID: bundleID,
+                items: &items,
+                elements: &elements
+            )
+        }
+    }
+
+    /// One dropdown and the commands inside it — the level where "is this a menu of data?"
+    /// has to be answered before a single item is read.
+    private static func readMenu(
+        _ menu: AXUIElement,
+        barIndex: Int,
+        menuIndex: Int,
+        topLevelTitle: String,
+        bundleID: String?,
+        items: inout [BindingItem],
+        elements: inout [String: AXUIElement]
+    ) {
+        // `History`, `Bookmarks` and their like are menus of data: they hold one row per
+        // visited page or saved link. Read only the command prefix at the top of such a
+        // menu, and treat everything else as content.
+        let menuChildren = children(of: menu)
+        // A menu whose name says it is a list of the user's data — a browser's `Bookmarks`
+        // or `History` — is filtered by name. That is exact, where the shortcut sample can
+        // only guess: `Bookmarks` opens with real commands (⌘D, ⌥⌘B), so a sample finds
+        // shortcuts and would keep the fifty links that follow them.
+        // Top level decides by name, then by size — never by sampling. A top menu is a
+        // command menu until it is known otherwise: `Develop` has 27 children whose first
+        // ones carry no shortcut, and sampling would have dropped its eighteen shortcutless
+        // commands.
+        let decision = MenuContentPolicy.isDataMenu(title: topLevelTitle)
+            ? MenuContentPolicy.decideDataMenuByTitle(childCount: menuChildren.count)
+            : MenuContentPolicy.decideOpenMenu(childCount: menuChildren.count)
+        if decision.looksLikeContent {
+            let menuTitle = Sanitizer.clamp(topLevelTitle.isEmpty ? "?" : topLevelTitle)
+            Diag.info(.scan, """
+                menu ·\(menuTitle) is a list of data (\(menuChildren.count) children), \
+                reading \(decision.childrenToVisit), keeping shortcuts only
+                """)
+        }
+        for (itemIndex, item) in menuChildren.prefix(decision.childrenToVisit).enumerated() {
+            collect(
+                item,
+                path: topLevelTitle.isEmpty ? [] : [topLevelTitle],
+                depth: 0,
+                axPath: [barIndex, menuIndex, itemIndex],
+                bundleID: bundleID,
+                keepsShortcutless: decision.keepsShortcutlessChildren,
+                items: &items,
+                elements: &elements
+            )
+        }
     }
 
     // MARK: - Path resolution
