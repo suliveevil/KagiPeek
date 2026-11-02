@@ -159,6 +159,7 @@ final class AppPermissions: ObservableObject {
     var onChange: (() -> Void)?
 
     private var systemChangeObserver: (any NSObjectProtocol)?
+    private var revocationTimer: Timer?
 
     var all: [AppPermission] { [accessibility, inputMonitoring] }
     var required: [AppPermission] { all.filter(\.isRequired) }
@@ -244,6 +245,33 @@ final class AppPermissions: ObservableObject {
             DistributedNotificationCenter.default().removeObserver(systemChangeObserver)
         }
         systemChangeObserver = nil
+    }
+
+    /// Watches for a permission being *taken away*.
+    ///
+    /// `startPolling()` is the other half and cannot do this job: it runs only while a
+    /// permission is missing, and it stops the moment one is granted — which is exactly the
+    /// state a revocation starts from. The distributed notification above is undocumented
+    /// and, measured on macOS 27, did not arrive when the entry was removed with Settings
+    /// frontmost; the activation and wake refreshes miss it too, because a menu-bar app is
+    /// not frontmost while the user is in Settings. The gap is not cosmetic: a revoked
+    /// Accessibility leaves the event tap installed and unanswerable, and every keypress in
+    /// the session then waits out the tap's timeout.
+    ///
+    /// What runs here is two local boolean checks every five seconds — a grant costs nothing
+    /// to confirm and nothing happens when it is unchanged.
+    func startRevocationWatch() {
+        guard revocationTimer == nil else { return }
+        let timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshAll() }
+        }
+        timer.tolerance = 2.0
+        revocationTimer = timer
+    }
+
+    func stopRevocationWatch() {
+        revocationTimer?.invalidate()
+        revocationTimer = nil
     }
 
     func refreshAll() {

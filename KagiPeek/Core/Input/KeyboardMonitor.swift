@@ -51,6 +51,21 @@ final class KeyboardMonitor {
     /// Called on the main thread for every key-down; return true to consume the event.
     var shouldSwallow: ((KeyEvent) -> Bool)?
 
+    /// Why a tap that the system disabled is being taken down instead of put back.
+    enum TeardownReason: String {
+        /// The process no longer holds Accessibility, so the tap can never be re-armed.
+        case permissionLost
+        /// It was disabled repeatedly with nothing getting through in between.
+        case unresponsive
+    }
+
+    /// Fired after `stop()` was called from inside the tap callback, so the owner can say so.
+    var onTeardown: ((TeardownReason) -> Void)?
+
+    /// Whether the process still holds Accessibility. Injected so the trust branch can be
+    /// driven without touching TCC.
+    var hasAccessibility: () -> Bool = { PermissionCenter.hasAccessibility }
+
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var isRunning = false
@@ -74,6 +89,12 @@ final class KeyboardMonitor {
     /// stroke makes this certain — the panel dismisses itself on the key-down, so by the
     /// release there is no tick left to recognise and the event would slip through.
     private var swallowedKeyDownCode: UInt16?
+
+    /// How many times the tap has been put back without an event getting through in between.
+    private var health = TapHealth()
+    /// A re-enable that is waiting out its backoff, so a burst of disables does not pile up
+    /// attempts and burn the whole budget in one stalled second.
+    private var pendingReEnable: DispatchWorkItem?
 
     static func identifier(keyCode: UInt16, modifiers: ModifierSet) -> UInt32 {
         UInt32(keyCode) << 8 | UInt32(truncatingIfNeeded: modifiers.rawValue & 0xFF)
@@ -144,6 +165,11 @@ final class KeyboardMonitor {
         guard tap == nil else { return }
         guard PermissionCenter.hasAccessibility else { throw KeyboardMonitorError.accessibilityDenied }
 
+        // A fresh tap has no failure history.
+        health.reset()
+        pendingReEnable?.cancel()
+        pendingReEnable = nil
+
         // Assembled statement-by-statement: one long `|` chain — even with typed bases —
         // exceeds the type-check budget of Xcode 16.4 (the CI toolchain), while the
         // split form compiles quickly everywhere.
@@ -190,6 +216,8 @@ final class KeyboardMonitor {
     }
 
     func stop() {
+        pendingReEnable?.cancel()
+        pendingReEnable = nil
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -203,9 +231,70 @@ final class KeyboardMonitor {
 
     var isActive: Bool { isRunning }
 
+    // MARK: - Recovery
+
+    /// The system disabled the tap. Put it back — but never in a loop that costs the user
+    /// their keyboard.
+    ///
+    /// A disabled tap is harmless: the next event goes straight to the front app. A tap that
+    /// is re-enabled in front of a callback that still cannot run is not — every event then
+    /// waits out the tap's timeout first. So the pause is the fix, and giving up is the last
+    /// resort that keeps input moving at the price of this session's shortcuts.
+    private func handleDisable(reason: String) {
+        guard isRunning, let tap else { return }
+        // Already waiting out a pause: the tap is off and further notifications describe the
+        // same failure, not a new one.
+        guard pendingReEnable == nil else { return }
+
+        let trusted = hasAccessibility()
+        let recovery = health.recordDisable(trusted: trusted)
+
+        let detail = "event tap disabled by the system (\(reason)); "
+            + "attempt \(health.consecutiveDisables), trusted=\(trusted)"
+        AppLog.input.notice("event tap disabled by the system")
+        Diag.warning(.tap, detail + " — " + Self.describe(recovery))
+
+        // The panel releases whatever it was holding: keys pressed during the stall are gone.
+        emit(KeyEvent(kind: .interruption, modifiers: [], key: nil, keyCode: 0, isRepeat: false, happenedAt: Date()))
+
+        switch recovery {
+        case let .reEnable(delay):
+            guard delay > 0 else {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                return
+            }
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.isRunning else { return }
+                self.pendingReEnable = nil
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            pendingReEnable = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+
+        case .tearDown:
+            let why: TeardownReason = trusted ? .unresponsive : .permissionLost
+            stop()
+            health.reset()
+            Diag.error(.tap, "event tap torn down (\(why.rawValue)): " + detail)
+            onTeardown?(why)
+        }
+    }
+
+    private static func describe(_ recovery: TapRecovery) -> String {
+        switch recovery {
+        case let .reEnable(delay): return "re-enabling in \(delay)s"
+        case .tearDown: return "giving up"
+        }
+    }
+
     // MARK: - Callback
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type != .tapDisabledByTimeout, type != .tapDisabledByUserInput {
+            // This event got through, which is the only proof that matters: whatever went
+            // wrong before, the tap is answering now.
+            health.recordEvent()
+        }
         switch type {
         case .flagsChanged:
             emit(KeyEvent(
@@ -272,12 +361,7 @@ final class KeyboardMonitor {
             return handleMouseUp(event)
 
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            AppLog.input.notice("event tap disabled by the system; re-enabling")
-            Diag.warning(.tap, "event tap disabled by the system (\(type == .tapDisabledByTimeout ? "timeout" : "user input")); re-enabling")
-            emit(KeyEvent(kind: .interruption, modifiers: [], key: nil, keyCode: 0, isRepeat: false, happenedAt: Date()))
-            if let tap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-            }
+            handleDisable(reason: type == .tapDisabledByTimeout ? "timeout" : "user input")
             return Unmanaged.passUnretained(event)
 
         default:

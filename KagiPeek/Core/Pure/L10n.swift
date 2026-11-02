@@ -177,7 +177,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     case updateCheck, updateAvailable, updateNone, updateFailed, updateOpen
 
     // Errors
-    case errorEventTap, errorNoAccessibility
+    case errorEventTap, errorNoAccessibility, errorEventTapStalled
 }
 
 enum L10n {
@@ -833,6 +833,12 @@ enum L10n {
         .errorNoAccessibility: (
             "Accessibility access is required.",
             "需要辅助功能权限。"
+        ),
+        // Says what the user can see, not what went wrong inside: the listener stops being
+        // useful, so shortcuts pause — and unlike a frozen keyboard, that is visible.
+        .errorEventTapStalled: (
+            "Shortcuts are paused: the system kept cancelling the key listener. This retries on its own.",
+            "快捷键已暂停：系统反复取消了按键监听，稍后会自动重试。"
         )
     ]
 }

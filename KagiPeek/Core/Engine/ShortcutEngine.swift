@@ -69,6 +69,9 @@ final class ShortcutEngine: ObservableObject {
     private static let modifierTapWindow: TimeInterval = 0.35
     private var activationObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
+    /// A tap that tore itself down is rebuilt later, not immediately: rebuilding it into the
+    /// same stall would repeat the whole episode within a second.
+    private var monitorRetry: DispatchWorkItem?
     private var cancellables: Set<AnyCancellable> = []
     private var isStarted = false
     private var isPreviewing = false
@@ -159,6 +162,9 @@ final class ShortcutEngine: ObservableObject {
 
         permissions.startPolling()
         permissions.startObservingSystemChanges()
+        // Revocation is the only change that has no reliable report — and the one that used
+        // to freeze the machine, because the tap outlived its permission.
+        permissions.startRevocationWatch()
         // Every path that opens a Settings pane — the grant buttons, the standalone
         // "Open Settings" buttons — funnels through the same hook, so the drag guide
         // anchors to the Settings window no matter which surface started the request.
@@ -190,11 +196,14 @@ final class ShortcutEngine: ObservableObject {
         state.liveTestPollingTask?.cancel()
         state.configScanTask?.cancel()
         state.crossAppRefreshTask?.cancel()
+        monitorRetry?.cancel()
+        monitorRetry = nil
         monitor.stop()
         appContext.stop()
         appDirectory.stop()
         permissions.stopPolling()
         permissions.stopObservingSystemChanges()
+        permissions.stopRevocationWatch()
         state.isListening = false
         dismissEverything()
     }
@@ -398,6 +407,12 @@ final class ShortcutEngine: ObservableObject {
         monitor.shouldSwallow = { [weak self] event in
             MainActor.assumeIsolated { self?.shouldSwallowComposed(event) ?? false }
         }
+        // The tap can decide that it is not worth keeping. It stops itself first — the one
+        // thing that must never happen is an installed tap that cannot answer, because every
+        // key and click in the session then waits out its timeout.
+        monitor.onTeardown = { [weak self] reason in
+            MainActor.assumeIsolated { self?.tapToreItselfDown(reason) }
+        }
         do {
             try monitor.start()
             state.isListening = true
@@ -416,8 +431,41 @@ final class ShortcutEngine: ObservableObject {
         }
     }
 
-    // MARK: - Catalog
+    /// The monitor stopped itself because the tap could not be kept alive.
+    ///
+    /// Two different problems land here. Losing Accessibility is the user's own action and
+    /// has a UI of its own, so the state is refreshed and the permissions window is the
+    /// answer. An unresponsive tap means the machine stopped servicing callbacks for long
+    /// enough that retrying made things worse; global shortcuts stay off until a later
+    /// attempt succeeds, which is the honest trade — a paused shortcut is visible, a frozen
+    /// keyboard is not.
+    private func tapToreItselfDown(_ reason: KeyboardMonitor.TeardownReason) {
+        state.isListening = false
+        switch reason {
+        case .permissionLost:
+            refreshPermissions()
+        case .unresponsive:
+            state.statusMessage = localization.text(.errorEventTapStalled)
+            scheduleMonitorRetry()
+        }
+    }
 
+    /// One delayed attempt, not a loop: each rebuild costs the same six chances the tap just
+    /// spent, and a machine that cannot answer taps will not answer this one either.
+    private func scheduleMonitorRetry() {
+        monitorRetry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.monitorRetry = nil
+            guard !self.monitor.isActive, self.permissions.accessibility.isGranted else { return }
+            Diag.info(.tap, "retrying the event tap after a teardown")
+            self.startMonitor()
+        }
+        monitorRetry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60, execute: work)
+    }
+
+    // MARK: - Catalog
     func reloadCatalog(force: Bool = true) {
         guard !isPreviewing else { return }
         guard let app = appContext.frontmost else {
