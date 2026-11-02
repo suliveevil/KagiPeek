@@ -2,11 +2,44 @@ import AppKit
 import Combine
 import Foundation
 
+/// How a permission is drawn: a title, an icon, and the concrete things it enables.
+///
+/// A value of its own because these four travel together and never vary independently — the
+/// permission card and the drag guide both read all four, and an eleven-argument initialiser
+/// was the reason nobody could tell which half of them was presentation and which was policy.
+struct PermissionPresentation {
+    let titleKey: L10nKey
+    let iconName: String
+    let iconColorName: String
+    let detailKeys: [L10nKey]
+}
+
+/// What the app does about a permission: whether it is required, where the switch lives, and
+/// whether asking for it through the system API adds the app to the list **switched off**.
+///
+/// Accessibility is that last case: `AXIsProcessTrustedWithOptions(prompt:)` registers the
+/// app before the user has done anything, and a registered-but-off entry is exactly the state
+/// the drag instruction cannot fix — dragging it in again is how you end up with the "already
+/// listed but the switch won't stick" support question. LobeHub's desktop guide dropped the
+/// pre-registration for the same reason, so the guided flow opens System Settings and lets the
+/// drop both add *and* enable the entry.
+struct PermissionPolicy {
+    let isRequired: Bool
+    let settingsURL: URL?
+    let promptPreRegisters: Bool
+
+    init(isRequired: Bool, settingsURL: URL?, promptPreRegisters: Bool = false) {
+        self.isRequired = isRequired
+        self.settingsURL = settingsURL
+        self.promptPreRegisters = promptPreRegisters
+    }
+}
+
 /// One system permission KagiPeek may need.
 ///
 /// Modelled after the permission cards in Thaw (thaw-app/Thaw): a title, an icon, the
 /// concrete things the permission enables, whether it is required, the exact settings pane,
-/// and a 3-second poll that stops as soon as the grant is detected.
+/// and a poll that stops as soon as the grant is detected.
 @MainActor
 final class AppPermission: ObservableObject, Identifiable {
     enum Identifier: String {
@@ -15,22 +48,8 @@ final class AppPermission: ObservableObject, Identifiable {
     }
 
     let id: Identifier
-    let titleKey: L10nKey
-    let iconName: String
-    let iconColorName: String
-    let detailKeys: [L10nKey]
-    let isRequired: Bool
-    let settingsURL: URL?
-    /// Whether asking for this permission through the system API adds the app to the list
-    /// **switched off**.
-    ///
-    /// Accessibility is that case: `AXIsProcessTrustedWithOptions(prompt:)` registers the
-    /// app before the user has done anything, and a registered-but-off entry is exactly the
-    /// state the drag-instruction cannot fix — dragging it in again is how you end up with
-    /// the "already listed but the switch won't stick" support question. LobeHub's desktop
-    /// guide dropped the pre-registration for the same reason, so the guided flow opens
-    /// System Settings and lets the drop both add *and* enable the entry.
-    let promptPreRegisters: Bool
+    let presentation: PermissionPresentation
+    let policy: PermissionPolicy
 
     @Published private(set) var isGranted: Bool
 
@@ -60,24 +79,14 @@ final class AppPermission: ObservableObject, Identifiable {
 
     init(
         id: Identifier,
-        titleKey: L10nKey,
-        iconName: String,
-        iconColorName: String,
-        detailKeys: [L10nKey],
-        isRequired: Bool,
-        settingsURL: URL?,
-        promptPreRegisters: Bool = false,
+        presentation: PermissionPresentation,
+        policy: PermissionPolicy,
         check: @escaping () -> Bool,
         requestPrompt: @escaping () -> Bool
     ) {
         self.id = id
-        self.titleKey = titleKey
-        self.iconName = iconName
-        self.iconColorName = iconColorName
-        self.detailKeys = detailKeys
-        self.isRequired = isRequired
-        self.settingsURL = settingsURL
-        self.promptPreRegisters = promptPreRegisters
+        self.presentation = presentation
+        self.policy = policy
         self.check = check
         self.requestPrompt = requestPrompt
         self.isGranted = check()
@@ -111,7 +120,7 @@ final class AppPermission: ObservableObject, Identifiable {
     /// and letting the guide's drag do the work is the only path that leaves the entry
     /// enabled, and it is the same fix LobeHub shipped for Accessibility.
     func performRequest() {
-        if !promptPreRegisters {
+        if !policy.promptPreRegisters {
             _ = requestPrompt()
         }
         openSettingsPane()
@@ -122,8 +131,8 @@ final class AppPermission: ObservableObject, Identifiable {
     /// The raise is explicit because a deep link does not bring an already-running Settings
     /// forward — without it the guide floats over whatever the user was looking at.
     func openSettingsPane() {
-        if let settingsURL {
-            NSWorkspace.shared.open(settingsURL)
+        if let url = policy.settingsURL {
+            NSWorkspace.shared.open(url)
         }
         SettingsWindowLocator.activateSettings()
         onSettingsPaneOpened?()
@@ -155,22 +164,26 @@ final class AppPermissions: ObservableObject {
     private var pollTimer: Timer?
 
     var all: [AppPermission] { [accessibility, inputMonitoring] }
-    var required: [AppPermission] { all.filter(\.isRequired) }
+    var required: [AppPermission] { all.filter(\.policy.isRequired) }
 
     init(previewDenied: Bool = false) {
         accessibility = AppPermission(
             id: .accessibility,
-            titleKey: .permissionAccessibility,
-            iconName: "accessibility",
-            iconColorName: "blue",
-            detailKeys: [
-                .permissionAccessibilityDetail1,
-                .permissionAccessibilityDetail2,
-                .permissionAccessibilityDetail3
-            ],
-            isRequired: true,
-            settingsURL: PermissionCenter.accessibilitySettingsURL,
-            promptPreRegisters: true,
+            presentation: PermissionPresentation(
+                titleKey: .permissionAccessibility,
+                iconName: "accessibility",
+                iconColorName: "blue",
+                detailKeys: [
+                    .permissionAccessibilityDetail1,
+                    .permissionAccessibilityDetail2,
+                    .permissionAccessibilityDetail3
+                ]
+            ),
+            policy: PermissionPolicy(
+                isRequired: true,
+                settingsURL: PermissionCenter.accessibilitySettingsURL,
+                promptPreRegisters: true
+            ),
             check: { previewDenied ? false : AXIsProcessTrusted() },
             requestPrompt: {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -180,15 +193,19 @@ final class AppPermissions: ObservableObject {
 
         inputMonitoring = AppPermission(
             id: .inputMonitoring,
-            titleKey: .permissionInputMonitoring,
-            iconName: "keyboard",
-            iconColorName: "orange",
-            detailKeys: [
-                .permissionInputMonitoringDetail1,
-                .permissionInputMonitoringDetail2
-            ],
-            isRequired: false,
-            settingsURL: PermissionCenter.inputMonitoringSettingsURL,
+            presentation: PermissionPresentation(
+                titleKey: .permissionInputMonitoring,
+                iconName: "keyboard",
+                iconColorName: "orange",
+                detailKeys: [
+                    .permissionInputMonitoringDetail1,
+                    .permissionInputMonitoringDetail2
+                ]
+            ),
+            policy: PermissionPolicy(
+                isRequired: false,
+                settingsURL: PermissionCenter.inputMonitoringSettingsURL
+            ),
             check: { previewDenied ? false : CGPreflightListenEventAccess() },
             requestPrompt: { CGRequestListenEventAccess() }
         )

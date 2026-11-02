@@ -449,7 +449,7 @@ private struct PermissionGuideView: View {
     let onAction: (PermissionGuideAction) -> Void
 
     private var tint: Color {
-        switch permission.iconColorName {
+        switch permission.presentation.iconColorName {
         case "blue": return .blue
         case "orange": return .orange
         case "red": return .red
@@ -528,7 +528,7 @@ private struct PermissionGuideView: View {
     }
 
     private var headlineKey: L10nKey {
-        PermissionGuideState.headlineKey(for: phase, permissionTitle: permission.titleKey)
+        PermissionGuideState.headlineKey(for: phase, permissionTitle: permission.presentation.titleKey)
     }
 
     /// The drag source while a drop is possible, and a plain status glyph when it is not —
@@ -549,7 +549,7 @@ private struct PermissionGuideView: View {
     }
 
     private var statusGlyphName: String {
-        phase == .settingsClosed ? "macwindow.badge.plus" : permission.iconName
+        phase == .settingsClosed ? "macwindow.badge.plus" : permission.presentation.iconName
     }
 
     private var closeButton: some View {

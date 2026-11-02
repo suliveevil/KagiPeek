@@ -70,7 +70,7 @@ private struct PermissionCardView: View {
     @EnvironmentObject private var localization: Localization
 
     private var tint: Color {
-        switch permission.iconColorName {
+        switch permission.presentation.iconColorName {
         case "blue": return .blue
         case "orange": return .orange
         case "red": return .red
@@ -81,12 +81,12 @@ private struct PermissionCardView: View {
     /// The card's reasons as one flowing line; two lines of it fit the strip, and the
     /// full text rides along as a tooltip so nothing is lost to the tighter layout.
     private var details: String {
-        permission.detailKeys.map { localization.text($0) }.joined(separator: "  ·  ")
+        permission.presentation.detailKeys.map { localization.text($0) }.joined(separator: "  ·  ")
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: permission.iconName)
+            Image(systemName: permission.presentation.iconName)
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: 30)
@@ -96,14 +96,14 @@ private struct PermissionCardView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
-                    Text(localization.text(permission.titleKey))
+                    Text(localization.text(permission.presentation.titleKey))
                         .font(.system(size: 13, weight: .semibold))
-                    Text(localization.text(permission.isRequired ? .permissionRequiredBadge : .permissionOptionalBadge))
+                    Text(localization.text(permission.policy.isRequired ? .permissionRequiredBadge : .permissionOptionalBadge))
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Capsule().fill(permission.isRequired ? Color.orange.opacity(0.16) : Color.secondary.opacity(0.12)))
-                        .foregroundStyle(permission.isRequired ? .orange : .secondary)
+                        .background(Capsule().fill(permission.policy.isRequired ? Color.orange.opacity(0.16) : Color.secondary.opacity(0.12)))
+                        .foregroundStyle(permission.policy.isRequired ? .orange : .secondary)
                 }
                 Text(details)
                     .font(.caption)
