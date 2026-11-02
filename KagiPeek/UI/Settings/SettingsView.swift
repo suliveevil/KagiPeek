@@ -274,6 +274,10 @@ struct SettingsView: View {
                                     Image(systemName: "minus.circle")
                                 }
                                 .buttonStyle(.borderless)
+                                // `.help` is a tooltip for the mouse; VoiceOver never reads
+                                // it. An icon-only button needs its own label or it is
+                                // announced as "minus circle".
+                                .accessibilityLabel(localization.text(.generalRemoveApp))
                                 .help(localization.text(.generalRemoveApp))
                             }
                         }

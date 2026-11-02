@@ -90,6 +90,9 @@ private struct PermissionCardView: View {
                 .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: 30)
+                // Decorative: the row's title sits next to it. Without this VoiceOver reads
+                // the symbol's own name ("checkmark.shield") before the thing that matters.
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
