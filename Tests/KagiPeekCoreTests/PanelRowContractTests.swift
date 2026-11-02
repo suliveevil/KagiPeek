@@ -375,7 +375,7 @@ final class ModifierSetSubtractionTests: XCTestCase {
     /// `subtracting` 是值语义：返回新集合，不动接收者。行键路由要拿剥掉之后的结果和
     /// 原始 modifiers 各匹配一次，如果这一步把原值改没了，第二次匹配就永远失败。
     func testSubtractionDoesNotMutateTheReceiver() {
-        var held: ModifierSet = [.command, .option]
+        let held: ModifierSet = [.command, .option]
         let stripped = held.subtracting([.command])
         XCTAssertEqual(stripped, mods(.option))
         XCTAssertEqual(held, mods(.command, .option))

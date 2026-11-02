@@ -95,7 +95,7 @@ final class TapHealthTests: XCTestCase {
 
     func testResetForgetsTheHistory() {
         var health = TapHealth()
-        var t = Date(timeIntervalSince1970: 0)
+        let t = Date(timeIntervalSince1970: 0)
         _ = health.recordDisable(trusted: true, now: t)
         _ = health.recordDisable(trusted: true, now: t)
         health.reset()

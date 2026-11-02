@@ -46,7 +46,7 @@ final class InputMailboxTests: XCTestCase {
         var box = InputMailbox()
         for _ in 0..<InputMailbox.capacity {
             XCTAssertFalse(box.isFull)
-            box.post(event())
+            _ = box.post(event())
         }
         XCTAssertTrue(box.isFull)
         XCTAssertFalse(box.post(event()), "a full buffer must not ask for a drain")
@@ -61,8 +61,8 @@ final class InputMailboxTests: XCTestCase {
 
     func testDroppingOwesExactlyOneResetAtTheEndOfTheNextBatch() {
         var box = InputMailbox()
-        for _ in 0..<InputMailbox.capacity { box.post(event()) }
-        for _ in 0..<10 { box.post(event()) }   // ten more, all dropped
+        for _ in 0..<InputMailbox.capacity { _ = box.post(event()) }
+        for _ in 0..<10 { _ = box.post(event()) }   // ten more, all dropped
 
         let (events, dropped) = box.drain()
         XCTAssertEqual(dropped, 10)
@@ -78,7 +78,7 @@ final class InputMailboxTests: XCTestCase {
 
     func testNoResetIsInventedWhenNothingWasDropped() {
         var box = InputMailbox()
-        box.post(event())
+        _ = box.post(event())
         let (events, _) = box.drain()
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events.last?.kind, .keyDown)
@@ -86,19 +86,19 @@ final class InputMailboxTests: XCTestCase {
 
     func testCapacityIsFreedByADrainSoTheNextBurstFits() {
         var box = InputMailbox()
-        for _ in 0..<InputMailbox.capacity { box.post(event()) }
+        for _ in 0..<InputMailbox.capacity { _ = box.post(event()) }
         _ = box.drain()
         XCTAssertFalse(box.isFull)
         for _ in 0..<InputMailbox.capacity {
             XCTAssertFalse(box.isFull, "the drain must actually release the room")
-            box.post(event())
+            _ = box.post(event())
         }
     }
 
     func testResetForgetsTheQueueAndTheDebt() {
         var box = InputMailbox()
-        for _ in 0..<InputMailbox.capacity { box.post(event()) }
-        box.post(event())   // owes a reset
+        for _ in 0..<InputMailbox.capacity { _ = box.post(event()) }
+        _ = box.post(event())   // owes a reset
         box.reset()
 
         XCTAssertFalse(box.owesReset)
