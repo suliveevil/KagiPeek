@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where the hint panel is placed.
-enum PanelPlacement: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum PanelPlacement: String, Codable, CaseIterable, Hashable, Sendable {
     /// Centered over the front window, at least as large as the window in both dimensions.
     case coverWindow
     /// User-defined size, centered on the screen.

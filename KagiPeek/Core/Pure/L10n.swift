@@ -1,7 +1,7 @@
 import Foundation
 
 /// User interface language.
-enum AppLanguage: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum AppLanguage: String, Codable, CaseIterable, Hashable, Sendable {
     case system
     case english
     case chinese
@@ -16,7 +16,7 @@ enum AppLanguage: String, Codable, CaseIterable, Hashable, Sendable {
 }
 
 /// Every user-visible string in the app.
-enum L10nKey: String, CaseIterable, Sendable {
+nonisolated enum L10nKey: String, CaseIterable, Sendable {
     // Application / menu bar
     case appName, menuSearch, menuPanel, menuSettings, menuPause, menuResume, menuQuit
     case statusReady, statusPaused, statusNoPermission, statusScanning
@@ -180,7 +180,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     case errorEventTap, errorNoAccessibility, errorEventTapStalled, errorEventTapStalledPermanent
 }
 
-enum L10n {
+nonisolated enum L10n {
     /// Resolves `.system` to a concrete language using the user's preferred languages.
     static func resolvedLanguage(
         _ preference: AppLanguage,

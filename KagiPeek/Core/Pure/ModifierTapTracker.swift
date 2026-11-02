@@ -15,7 +15,7 @@ import Foundation
 /// only if it came soon enough and no other key was pressed while the modifier was down.
 /// Anything slower is a hold, and a modifier that was used *with* a key was never a tap at
 /// all — it was half of a shortcut.
-struct ModifierTapTracker: Equatable, Sendable {
+nonisolated struct ModifierTapTracker: Equatable, Sendable {
     /// When the current press began; nil while no press is being tracked.
     private(set) var startedAt: Date?
     /// Every modifier seen since the press began, so ⌥⌘ rolled across two events still

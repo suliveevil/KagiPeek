@@ -53,15 +53,20 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 OPT="-Onone -g"
 [ "$CONFIG" = "Release" ] && OPT="-O -whole-module-optimization"
 
-echo "==> Compiling ($CONFIG, arm64)"
-# `-strict-concurrency=targeted` matches `SWIFT_STRICT_CONCURRENCY` in the Xcode target, so
-# this path reports what the other one reports instead of compiling a different language.
-# The project is warning-free at this level; `complete` is not, and turning it on here would
-# drown the real new warnings in the 107 known ones (see docs/code-review-2026-11-02.md).
+echo "==> Compiling ($CONFIG, arm64, Swift 6)"
+# These flags mirror the Xcode target exactly: `SWIFT_VERSION = 6.0`,
+# `SWIFT_STRICT_CONCURRENCY = complete`, `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` and
+# `SWIFT_APPROACHABLE_CONCURRENCY = YES` (whose two relevant upcoming features are spelled
+# out below). Both build paths compile the same language and report the same diagnostics —
+# the project is warning-free at `complete`, so a new warning here is a new warning there.
 # shellcheck disable=SC2086
 "$TC/swiftc" $OPT -o "$APP/Contents/MacOS/KagiPeek" \
-    -sdk "$SDK" -target arm64-apple-macos14.0 -swift-version 5 \
-    -Xfrontend -strict-concurrency=targeted \
+    -sdk "$SDK" -target arm64-apple-macos14.0 -swift-version 6 \
+    -default-isolation MainActor \
+    -Xfrontend -strict-concurrency=complete \
+    -enable-upcoming-feature NonisolatedNonsendingByDefault \
+    -enable-upcoming-feature MemberImportVisibility \
+    -enable-upcoming-feature InferIsolatedConformances \
     -load-plugin-library "$PLUG/libSwiftUIMacros.dylib" \
     -load-plugin-library "$PLUG/libSwiftMacros.dylib" \
     -load-plugin-library "$PLUG/libObservationMacros.dylib" \

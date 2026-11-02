@@ -7,7 +7,13 @@ import Foundation
 /// collected files is copy them into a zip the user chooses to share or not. Redaction already
 /// happened at the write boundary (`FileLogStore`), so what is copied here is what a log line
 /// already contains.
-enum DiagnosticsExporter {
+///
+/// Explicitly `nonisolated`: `export` runs on a background queue on purpose (a slow network
+/// destination must not freeze the settings window), and every dependency here —
+/// `DataDirectory`, `PermissionCenter`, `DeviceInfo`, `Diag` — is thread-agnostic too. With
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unmarked enum would make `export`
+/// main-actor-isolated and the background call an error.
+nonisolated enum DiagnosticsExporter {
     struct SessionInfo: Codable {
         var generatedAt: String
         var appVersion: String

@@ -15,7 +15,7 @@ import Foundation
 ///   in the table and keeps the shortcut as its label; a wrong name is worse than none.
 /// - **Window and app shortcuts are included** (⌘M, ⌘⌥M, ⌘`, ⌘Tab): macOS registers them as
 ///   symbolic hotkeys too, which is why they appear in this list at all.
-enum SystemHotkeyNames {
+nonisolated enum SystemHotkeyNames {
     struct Entry {
         let modifiers: ModifierSet
         let key: String

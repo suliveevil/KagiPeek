@@ -1,13 +1,13 @@
 import Foundation
 
-enum KeyEventKind {
+nonisolated enum KeyEventKind {
     case flagsChanged
     case keyDown
     case keyUp
     case interruption
 }
 
-struct KeyEvent {
+nonisolated struct KeyEvent {
     let kind: KeyEventKind
     let modifiers: ModifierSet
     /// nil when the event carries no mappable key (pure modifier change, or an exotic key).

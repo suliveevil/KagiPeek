@@ -7,7 +7,7 @@ import Foundation
 /// of them as independent booleans — a third boolean in one place that a second place
 /// forgot is exactly the drift booleans invite. One value means a cache key can hold the
 /// whole policy and a rebuild reads a single source of truth.
-struct FavoritesPolicy: Equatable {
+nonisolated struct FavoritesPolicy: Equatable {
     /// The user narrowed the panel/palette to favorites only (the star toggle).
     var showsFavoritesOnly: Bool = false
     /// Settings: favorite rows come before the rest in the final order.

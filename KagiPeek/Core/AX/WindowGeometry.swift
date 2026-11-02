@@ -45,7 +45,7 @@ enum WindowGeometry {
             return nil
         }
         var point = CGPoint.zero
-        guard AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgPoint, &point) else { return nil }
+        guard AXValueGetValue(unsafeDowncast(value, to: AXValue.self), .cgPoint, &point) else { return nil }
         return point
     }
 
@@ -54,7 +54,7 @@ enum WindowGeometry {
             return nil
         }
         var size = CGSize.zero
-        guard AXValueGetValue(unsafeBitCast(value, to: AXValue.self), .cgSize, &size) else { return nil }
+        guard AXValueGetValue(unsafeDowncast(value, to: AXValue.self), .cgSize, &size) else { return nil }
         return size
     }
 
@@ -70,6 +70,6 @@ enum WindowGeometry {
         guard let value = attribute(name, of: element), CFGetTypeID(value) == AXUIElementGetTypeID() else {
             return nil
         }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        return unsafeDowncast(value, to: AXUIElement.self)
     }
 }

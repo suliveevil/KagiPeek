@@ -5,7 +5,7 @@ import Foundation
 /// The order is load-bearing: `panelHotkey` is the first question asked, then the search
 /// palette's, then the panel/switcher one — the engine used to ask them in exactly this
 /// order inline, and two hotkeys sharing a chord answer to the first.
-enum HotkeyChoice: Equatable {
+nonisolated enum HotkeyChoice: Equatable {
     case panel
     case search
     case switcher
@@ -19,7 +19,7 @@ enum HotkeyChoice: Equatable {
 /// untestable. The walk is pure: it reads the event, the phase, the settings, the panel and
 /// the catalog and returns one decision. The engine executes the side effects; the router
 /// makes the choice.
-enum KeyDownAction: Equatable {
+nonisolated enum KeyDownAction: Equatable {
     /// A configured global hotkey matched; toggle the named surface.
     case hotkey(HotkeyChoice)
     /// Nothing to do: the panel is idle, the press is a repeat of a row key, or the event
@@ -57,7 +57,7 @@ enum KeyDownAction: Equatable {
 /// hotkeys are asked first (they answer in any phase), then the phase decides whether the
 /// panel is listening, and inside `.active` the panel's own keys are consumed before a
 /// stroke is composed.
-enum KeyEventRouter {
+nonisolated enum KeyEventRouter {
     /// - Parameters:
     ///   - panel: the current panel snapshot; its *held* modifiers and latched order are
     ///     read, which is the narrowing set the event is measured against.

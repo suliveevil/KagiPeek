@@ -6,7 +6,7 @@ import Foundation
 // covers system-level shortcuts that never show up in an app menu (screenshots, Spotlight,
 // text-editing Emacs bindings) and is used when an app exposes no menu bar at all.
 
-enum BuiltInGroup: String, CaseIterable, Sendable {
+nonisolated enum BuiltInGroup: String, CaseIterable, Sendable {
     case system, finder, textEditing, screenshot, browser
 
     var titleKey: L10nKey {
@@ -20,7 +20,7 @@ enum BuiltInGroup: String, CaseIterable, Sendable {
     }
 }
 
-struct BuiltInEntry: Sendable {
+nonisolated struct BuiltInEntry: Sendable {
     let descriptor: String
     let titleZH: String
     let titleEN: String
@@ -28,7 +28,7 @@ struct BuiltInEntry: Sendable {
     let bundleID: String?
 }
 
-enum BuiltInCatalog {
+nonisolated enum BuiltInCatalog {
     static let entries: [BuiltInEntry] = [
         .init(descriptor: "cmd+x", titleZH: "剪切", titleEN: "Cut", group: .system, bundleID: nil),
         .init(descriptor: "cmd+c", titleZH: "拷贝", titleEN: "Copy", group: .system, bundleID: nil),

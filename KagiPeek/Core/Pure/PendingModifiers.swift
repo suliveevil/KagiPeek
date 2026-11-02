@@ -19,7 +19,7 @@ import Foundation
 /// plus the latched set. Merging them into one set is what would make a latched ⌥
 /// indistinguishable from a held one — and then "does this key need swallowing?" has no
 /// answer.
-struct PendingModifiers: Equatable, Sendable {
+nonisolated struct PendingModifiers: Equatable, Sendable {
     /// Physically held; transient.
     var held: ModifierSet = []
     /// Ticked in the title bar; sticky until the sequence completes or is cancelled.

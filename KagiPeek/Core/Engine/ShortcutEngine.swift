@@ -66,11 +66,13 @@ final class ShortcutEngine: ObservableObject {
     )
     private lazy var shortcutTester = ShortcutTester(
         appToRestore: { [weak self] in self?.lastExternalFrontmost },
+        // No `assumeIsolated`: `onListeningChanged` is a plain (non-`Sendable`) closure owned
+        // by the `@MainActor` `ShortcutTester`, so under main-actor default isolation both the
+        // literal here and its two call sites are statically main-actor — the compiler is the
+        // guarantee, not a runtime assertion.
         onListeningChanged: { [weak self] listening in
-            MainActor.assumeIsolated {
-                self?.state.isTestingShortcut = listening
-                self?.publishInputState()
-            }
+            self?.state.isTestingShortcut = listening
+            self?.publishInputState()
         }
     )
 
@@ -122,12 +124,15 @@ final class ShortcutEngine: ObservableObject {
         state.settings = settingsStore.settings
         localization.update(preference: settingsStore.settings.language)
         state.defaultTitle = localization.text(.appName)
+        // Plain non-`Sendable` closure properties of `@MainActor` types (`EngineState`,
+        // `AppPermissions`): main-actor isolation is inferred at both the assignment and the
+        // call, so no assertion is needed.
         state.searchChangeHandler = { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshSearch() }
+            self?.refreshSearch()
         }
 
         permissions.onChange = { [weak self] in
-            MainActor.assumeIsolated { self?.permissionStateChanged() }
+            self?.permissionStateChanged()
         }
 
         settingsStore.$settings
@@ -138,7 +143,10 @@ final class ShortcutEngine: ObservableObject {
             .store(in: &cancellables)
     }
 
-    deinit {
+    /// `isolated deinit` (SE-0371): the engine is `@MainActor` and these two observer
+    /// tokens are non-`Sendable`. Teardown belongs on the actor that registered them;
+    /// inheriting its isolation is the type-checked way to say so.
+    isolated deinit {
         if let activationObserver {
             NotificationCenter.default.removeObserver(activationObserver)
         }
@@ -164,7 +172,10 @@ final class ShortcutEngine: ObservableObject {
         // A click the tap swallowed closes the panel: it was aimed at the panel's own
         // dismissal, and the app behind it must not see it.
         monitor.onOutsideMousePress = { [weak self] in
-            self?.dismissPanel()
+            // Same hop as `onEvent`/`onTeardown` below: the handler is a `@Sendable`
+            // closure, so its body is nonisolated even though `KeyboardMonitor` always
+            // delivers it on the main queue. The assertion names that guarantee.
+            MainActor.assumeIsolated { self?.dismissPanel() }
         }
         appContext.onAppsChanged = { [weak self] in
             // An app launching or quitting says nothing about another app's menus, and the
@@ -548,14 +559,16 @@ final class ShortcutEngine: ObservableObject {
         // request is allowed to publish.
         state.catalogGeneration &+= 1
         let generation = state.catalogGeneration
-        catalogLoader.load(
-            app: app,
-            language: state.settings.language,
-            includeBuiltIn: state.settings.includeBuiltInCatalog,
-            showAppleMenu: state.settings.showAppleMenu,
-            force: force
-        ) { [weak self] snapshot in
-            guard let self, !self.isPreviewing else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let snapshot = await self.catalogLoader.load(
+                app: app,
+                language: self.state.settings.language,
+                includeBuiltIn: self.state.settings.includeBuiltInCatalog,
+                showAppleMenu: self.state.settings.showAppleMenu,
+                force: force
+            )
+            guard !self.isPreviewing else { return }
             guard generation == self.state.catalogGeneration else {
                 Diag.debug(.scan, "dropping stale scan for \(snapshot.appIdentity)")
                 return
@@ -576,13 +589,9 @@ final class ShortcutEngine: ObservableObject {
                 self.rebuildPanel()
             }
             self.refreshSearch()
-            Diag.info(.scan, """
-                scanned \(snapshot.appIdentity): \
-                \(snapshot.items.count) items, menus \(snapshot.hasMenuBar), \
-                built-in \(snapshot.usedBuiltInCatalog)
-                """)
-            // The file-log counterpart is what a user can actually send: same facts, but
-            // written where a bug report can reach them.
+            // One line, both sinks: the count, whether there was a menu bar at all, and — the
+            // part a "my shortcuts are missing" report needs — why the scan produced what it
+            // did. This used to be two near-identical lines, one per sink.
             Diag.info(.scan, """
                 scanned \(snapshot.appIdentity): \(snapshot.items.count) items, \
                 menus=\(snapshot.hasMenuBar), built-in=\(snapshot.usedBuiltInCatalog), \
@@ -1850,13 +1859,15 @@ final class ShortcutEngine: ObservableObject {
             name: app.name,
             icon: app.icon
         )
-        catalogLoader.load(
-            app: target,
-            language: state.settings.language,
-            includeBuiltIn: false,
-            showAppleMenu: state.settings.showAppleMenu,
-            force: false
-        ) { snapshot in
+        Task { [weak self] in
+            guard let self else { return }
+            let snapshot = await self.catalogLoader.load(
+                app: target,
+                language: self.state.settings.language,
+                includeBuiltIn: false,
+                showAppleMenu: self.state.settings.showAppleMenu,
+                force: false
+            )
             completion(snapshot.items.map(\.title))
         }
     }
@@ -2174,14 +2185,16 @@ final class ShortcutEngine: ObservableObject {
         state.search.usedBuiltInCatalog = false
         refreshSearch()
         // Cache first: switching scope should feel like flipping a page, not like a scan.
-        catalogLoader.load(
-            app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
-            language: state.settings.language,
-            includeBuiltIn: false,
-            showAppleMenu: state.settings.showAppleMenu,
-            force: false
-        ) { [weak self] snapshot in
-            guard let self, self.state.search.scopeAppID == appID else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let snapshot = await self.catalogLoader.load(
+                app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
+                language: self.state.settings.language,
+                includeBuiltIn: false,
+                showAppleMenu: self.state.settings.showAppleMenu,
+                force: false
+            )
+            guard self.state.search.scopeAppID == appID else { return }
             self.state.search.scopeItems = snapshot.items
             self.state.searchScopeCatalog = snapshot
             self.state.searchCorpus = nil

@@ -6,7 +6,7 @@ import Foundation
 /// `handleModifiers`. The gesture is a state machine: a lone hyper press arms it, a key
 /// pressed meanwhile marks it used, and a clean release within the window dismisses the
 /// panel. Held longer — or used — it is just a modifier set that narrows the list.
-struct HyperEscape: Equatable {
+nonisolated struct HyperEscape: Equatable {
     enum Outcome: Equatable {
         /// A lone hyper press started; the panel narrows to it.
         case arm

@@ -1,7 +1,7 @@
 import Foundation
 
 /// One row of the panel's combined sequence, tagged with the section it belongs to.
-struct PanelEntry: Identifiable, Equatable, Sendable {
+nonisolated struct PanelEntry: Identifiable, Equatable, Sendable {
     let hit: PrefixHit
     /// True for the system's own hotkeys, which form the second section.
     let isSystem: Bool
@@ -19,7 +19,7 @@ struct PanelEntry: Identifiable, Equatable, Sendable {
 /// Pagination runs over this combined sequence. The boundary is therefore crossed exactly once,
 /// at the end of the app's list: a page either belongs to the app's section, contains the
 /// boundary, or belongs to the system's.
-enum PanelSections {
+nonisolated enum PanelSections {
     /// Wraps system hotkeys as panel rows.
     ///
     /// They are single chords with no prefix to complete, so `nextKey` is nil and

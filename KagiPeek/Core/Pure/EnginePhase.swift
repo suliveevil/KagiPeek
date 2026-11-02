@@ -9,7 +9,7 @@ import Foundation
 /// Pure so the key handlers can be routed without the AppKit engine: whether a key means
 /// "dismiss", "navigate" or "compose" is a function of the phase, and the side effects
 /// belong to whoever holds the state.
-enum EnginePhase: Equatable {
+nonisolated enum EnginePhase: Equatable {
     case idle
     case armed
     case active

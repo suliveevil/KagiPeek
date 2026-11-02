@@ -2,7 +2,7 @@ import Foundation
 
 /// One rule for whether a row may be acted on. The panel and the palette both use it so a
 /// disabled menu item cannot be executed from one surface after being blocked in the other.
-enum RowEligibility {
+nonisolated enum RowEligibility {
     static func canActivate(isEnabled: Bool) -> Bool {
         isEnabled
     }
@@ -10,7 +10,7 @@ enum RowEligibility {
 
 /// Coverage of one cross-application conflict scan. A scan that could not read every app is
 /// not evidence of "no conflicts".
-enum ConflictScanState: Equatable, Sendable {
+nonisolated enum ConflictScanState: Equatable, Sendable {
     case idle
     case scanning
     case complete
@@ -25,7 +25,7 @@ enum ConflictScanState: Equatable, Sendable {
 }
 
 /// Why the search palette currently has (or lacks) results.
-enum SearchLoadState: Equatable, Sendable {
+nonisolated enum SearchLoadState: Equatable, Sendable {
     case idle
     case loading
     case ready

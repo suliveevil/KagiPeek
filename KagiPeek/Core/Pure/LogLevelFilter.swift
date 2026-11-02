@@ -6,7 +6,7 @@ import Foundation
 /// row runs) log at debug and stay out of the file unless the user turns verbose logging
 /// on. Failures are always `I/W/E` and never depend on any switch — a log that goes quiet
 /// exactly when things break would be worse than no log.
-enum LogLevelFilter {
+nonisolated enum LogLevelFilter {
     static func shouldLog(level: DiagLevel, verboseEnabled: Bool) -> Bool {
         switch level {
         case .error, .warning, .info:

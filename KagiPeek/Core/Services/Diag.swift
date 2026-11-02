@@ -19,11 +19,36 @@ import os
 /// below are the private detail of the mirror:
 ///
 ///     log show --last 10m --predicate 'subsystem == "com.voltline.kagipeek"'
-enum Diag {
-    private static let lock = NSLock()
-    private static var enabled = true
-    private static var verbose = false
-    private static var store: FileLogStore?
+nonisolated enum Diag {
+    /// The three switches behind one lock, in a `static let` box.
+    ///
+    /// Under Swift 6 a `static var` on a `nonisolated` type is global mutable state and is
+    /// rejected outright — even when a lock makes it correct. The box turns three mutable
+    /// globals into one immutable reference to a value that owns its own lock, so the type
+    /// system can see the safety instead of being told to ignore it. `Diag` must stay
+    /// `nonisolated`: the event-tap thread logs from its callback, and a main-actor hop
+    /// there is precisely what the dedicated tap thread was created to avoid.
+    private final class State: @unchecked Sendable {
+        let lock = NSLock()
+        var enabled = true
+        var verbose = false
+        var store: FileLogStore?
+    }
+
+    private static let state = State()
+    private static var lock: NSLock { state.lock }
+    private static var enabled: Bool {
+        get { state.enabled }
+        set { state.enabled = newValue }
+    }
+    private static var verbose: Bool {
+        get { state.verbose }
+        set { state.verbose = newValue }
+    }
+    private static var store: FileLogStore? {
+        get { state.store }
+        set { state.store = newValue }
+    }
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.voltline.kagipeek"
     /// Menu scanning: which app, how many items, why a catalog was empty or dropped.
     private static let scanLogger = Logger(subsystem: subsystem, category: "scan")
@@ -149,14 +174,21 @@ enum Diag {
 }
 
 /// Hardware and OS facts that belong in every crash report and every launch line.
-enum DeviceInfo {
+///
+/// `nonisolated` because `DiagnosticsExporter` reads these from a background queue and the
+/// crash-report path can reach them from the exception handler; they are pure reads of
+/// `sysctlbyname`, `ProcessInfo` and `Bundle.main.infoDictionary`, with no shared state.
+nonisolated enum DeviceInfo {
     /// The marketing-independent identifier, e.g. `Mac14,2`.
     static var modelIdentifier: String {
         var size = 0
         guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 0 else { return "unknown" }
         var buffer = [CChar](repeating: 0, count: size)
         guard sysctlbyname("hw.model", &buffer, &size, nil, 0) == 0 else { return "unknown" }
-        return String(cString: buffer)
+        // `String(cString:)` is deprecated in the Swift 6 SDK. Decode explicitly up to the
+        // NUL instead of relying on the C-string overload's implicit termination scan.
+        let bytes = buffer.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     static var macOSVersion: String {

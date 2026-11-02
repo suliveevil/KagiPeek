@@ -8,7 +8,12 @@ import Foundation
 ///
 /// A failure inside this type is a no-op, never an error: the log exists to explain problems,
 /// and a logger that can break the app it observes is worse than no logger at all.
-final class FileLogStore {
+nonisolated final class FileLogStore: @unchecked Sendable {
+    /// The one shared instance. `FileLogStore` is safe to share because every mutable
+    /// property below is touched only from the private serial `queue`; `enqueue`, `flushNow`
+    /// and `tail` are the only entry points and none of them touch state off that queue.
+    /// Under Swift 6 a `static let` of a non-`Sendable` class is a global-mutable-state
+    /// error, so the conformance is load-bearing, not decoration.
     static let shared = FileLogStore()
 
     /// Lines held before a flush. Small enough that a crash loses only a handful of entries.

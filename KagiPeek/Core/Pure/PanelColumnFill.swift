@@ -16,7 +16,7 @@ import Foundation
 ///
 /// The panel's arrow keys walk `flatRowIDs` — the page's rows in order — so filling down the
 /// columns makes the keyboard and the eye use the same sequence.
-enum PanelColumnFill {
+nonisolated enum PanelColumnFill {
     /// Splits `rows` into up to `columns` contiguous runs, each holding at most `capacity`
     /// rows, filling the first column before the next.
     ///

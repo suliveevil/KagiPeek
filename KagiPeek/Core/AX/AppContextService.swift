@@ -1,6 +1,6 @@
 import AppKit
 
-struct FrontmostApp {
+nonisolated struct FrontmostApp {
     let pid: pid_t
     let bundleID: String?
     let name: String

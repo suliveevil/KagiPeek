@@ -1,6 +1,6 @@
 import Foundation
 
-enum KeyPosition: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum KeyPosition: String, Codable, CaseIterable, Hashable, Sendable {
     case left
     case right
 
@@ -18,12 +18,12 @@ enum KeyPosition: String, Codable, CaseIterable, Hashable, Sendable {
 /// into the app that should receive it, while "copy" leaves the surface open and only
 /// touches the pasteboard. Which physical key asks for which action is a recorded binding
 /// (`runRowKey` / `copyRowKey`), not a hard-coded Return.
-enum RowAction: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum RowAction: String, Codable, CaseIterable, Hashable, Sendable {
     case execute
     case copy
 }
 
-enum TriggerMode: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum TriggerMode: String, Codable, CaseIterable, Hashable, Sendable {
     case holdModifiers
     case doubleTapCommand
     case hotkey
@@ -45,7 +45,7 @@ enum TriggerMode: String, Codable, CaseIterable, Hashable, Sendable {
 /// and they live with the recorder rather than here: a global hotkey must carry ⌘/⌥/⌃, while
 /// a row key may be a bare Return but never a bare character (that would break chord entry
 /// and filtering). See `ShortcutEngine.handleRecording`.
-struct HotkeySpec: Codable, Hashable, Sendable {
+nonisolated struct HotkeySpec: Codable, Hashable, Sendable {
     var keyCode: UInt16
     var modifiers: ModifierSet
 
@@ -74,7 +74,7 @@ struct HotkeySpec: Codable, Hashable, Sendable {
 }
 
 /// Persisted user settings. Missing keys fall back to defaults so upgrades never break.
-struct AppSettingsSnapshot: Codable, Equatable, Sendable {
+nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var triggerMode: TriggerMode = .holdModifiers
     var holdDelay: Double = 0.5
     var doubleTapWindow: Double = 0.3

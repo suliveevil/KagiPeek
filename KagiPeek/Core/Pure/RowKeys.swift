@@ -4,7 +4,7 @@ import Foundation
 ///
 /// macOS compares menu shortcuts by virtual key code, so these are the identity of a key;
 /// the character it produces depends on the layout and is not a substitute.
-enum KeyCode {
+nonisolated enum KeyCode {
     static let tab: UInt16 = 48
     static let returnKey: UInt16 = 36
     static let keypadEnter: UInt16 = 76
@@ -31,7 +31,7 @@ enum KeyCode {
 }
 
 /// Keys that are the same key to a person but different codes to the system.
-enum KeyAliases {
+nonisolated enum KeyAliases {
     /// Main Return and the keypad Enter. A binding recorded on either one answers to both,
     /// so a laptop keyboard and a full-size one behave the same.
     static func enterCodes(for keyCode: UInt16) -> [UInt16] {
@@ -47,7 +47,7 @@ enum KeyAliases {
 /// The surfaces that carry it used to repeat the same two `if` statements, which meant "run
 /// wins over copy" was a property of statement order in three places. It is a rule of the
 /// contract, so it lives here once and is tested.
-enum RowKeyRouter {
+nonisolated enum RowKeyRouter {
     static func action(
         for keyCode: UInt16,
         modifiers: ModifierSet,

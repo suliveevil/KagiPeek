@@ -6,7 +6,7 @@ import Foundation
 /// inline in `handleModifiers`. The gesture is pure: it reads the modifier stream and the
 /// clock and answers "did this release complete a double-tap?". A test can feed it any
 /// stream of modifier events and pin the windowing behaviour.
-struct CommandDoubleTap: Equatable {
+nonisolated struct CommandDoubleTap: Equatable {
     /// When the current ⌘ press began, while a complete tap is still being formed.
     var commandDownAt: Date? = nil
     /// When the first complete ⌘ tap ended. The second tap must begin within the window.

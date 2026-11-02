@@ -9,7 +9,7 @@ import Foundation
 /// the engine publishes after every state change. A stale snapshot costs one wrong
 /// decision about one keystroke; a synchronous main-thread call costs the whole session's
 /// input. The trade is not close.
-struct ComposedSwallowState {
+nonisolated struct ComposedSwallowState {
     var isTestingShortcut = false
     /// `panel.isVisible && phase == .active`
     var panelIsActive = false
@@ -36,7 +36,7 @@ struct ComposedSwallowState {
 ///   arrive carrying nothing, so `⌥;` is a real binding and the composition below would
 ///   swallow the `;` as its first stroke — while the engine pages the list. The tap reads
 ///   `PanelKeyIntake`, the same list the handler walks, so the two cannot diverge.
-enum ComposedSwallow {
+nonisolated enum ComposedSwallow {
     static func decide(_ state: ComposedSwallowState, event: KeyEvent) -> Bool {
         guard !state.isTestingShortcut else { return false }
         guard state.hasLatchedModifiers else { return false }

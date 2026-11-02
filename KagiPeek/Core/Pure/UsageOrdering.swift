@@ -11,7 +11,7 @@ import Foundation
 /// * `keyOrder` — the panel's chord order: modifiers as printed, then the key;
 /// * `alphabetical` — by command name;
 /// * `frequencyDesc` — most pressed first.
-enum UsageOrdering {
+nonisolated enum UsageOrdering {
     static func entries(_ entries: [UsageEntry], mode: RankMode, now: Date = Date()) -> [UsageEntry] {
         switch mode {
         case .alphabetical:

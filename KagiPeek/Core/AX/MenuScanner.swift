@@ -7,7 +7,7 @@ import os
 /// Menu-Bar-Search's `initState` (`.apiDisabled` / `.noValue`): an empty list and a read
 /// that never happened look identical to the user, so the reason travels with the result
 /// and the surfaces can say which one it was.
-enum ScanState: Equatable, Sendable {
+nonisolated enum ScanState: Equatable, Sendable {
     /// Menus were read.
     case ok
     /// The app exposes no menu bar, or one without any command.
@@ -28,7 +28,12 @@ enum ScanState: Equatable, Sendable {
 }
 
 /// Result of walking one app's menu bar.
-struct ScannedMenu {
+///
+/// `nonisolated`: built on the background AX-walk queue and read back on the main actor.
+/// The `AXUIElement` values are deliberately *not* `Sendable` — they are opaque CF types
+/// that are only used by their owning scan — but marking the enclosing value nonisolated
+/// is what lets the walk construct it without a main-actor hop.
+nonisolated struct ScannedMenu {
     var items: [BindingItem]
     /// Binding id → actionable menu item, used by the search panel to press a command.
     var elements: [String: AXUIElement]
@@ -36,14 +41,20 @@ struct ScannedMenu {
     var duration: TimeInterval
     var state: ScanState
 
-    static let empty = ScannedMenu(items: [], elements: [:], hasMenuBar: false, duration: 0, state: .noMenus)
+    /// Computed, not stored: a `static let` of this non-`Sendable` value (it holds
+    /// `AXUIElement`s) is global shared state under Swift 6. Nothing here is worth caching —
+    /// it is two empty collections and four scalars, rebuilt on the few call sites that need
+    /// an empty answer.
+    static var empty: ScannedMenu {
+        ScannedMenu(items: [], elements: [:], hasMenuBar: false, duration: 0, state: .noMenus)
+    }
 }
 
 /// Reads every menu item of an app through the Accessibility API.
 ///
 /// Runs on a background queue. AX calls can hang on a busy app, so the application element
 /// gets a short messaging timeout and the walk is depth- and size-capped.
-enum MenuScanner {
+nonisolated enum MenuScanner {
     private static let maxItems = 2_500
     private static let maxDepth = 7
 
@@ -341,7 +352,7 @@ enum MenuScanner {
         guard let value = attribute(name, of: element), CFGetTypeID(value) == AXUIElementGetTypeID() else {
             return nil
         }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        return unsafeDowncast(value, to: AXUIElement.self)
     }
 
     private static func stringAttribute(_ name: String, of element: AXUIElement) -> String? {
@@ -362,14 +373,14 @@ enum MenuScanner {
         guard let value = attribute(name, of: element), CFGetTypeID(value) == CFBooleanGetTypeID() else {
             return fallback
         }
-        return CFBooleanGetValue(unsafeBitCast(value, to: CFBoolean.self))
+        return CFBooleanGetValue(unsafeDowncast(value, to: CFBoolean.self))
     }
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
         guard let value = attribute(kAXChildrenAttribute, of: element), CFGetTypeID(value) == CFArrayGetTypeID() else {
             return []
         }
-        let array = unsafeBitCast(value, to: CFArray.self)
+        let array = unsafeDowncast(value, to: CFArray.self)
         let count = CFArrayGetCount(array)
         guard count > 0 else { return [] }
         var result: [AXUIElement] = []
@@ -378,7 +389,7 @@ enum MenuScanner {
             guard let raw = CFArrayGetValueAtIndex(array, index) else { continue }
             let child = unsafeBitCast(raw, to: CFTypeRef.self)
             guard CFGetTypeID(child) == AXUIElementGetTypeID() else { continue }
-            result.append(unsafeBitCast(child, to: AXUIElement.self))
+            result.append(unsafeDowncast(child, to: AXUIElement.self))
         }
         return result
     }

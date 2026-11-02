@@ -7,7 +7,7 @@ import Foundation
 /// favourites toggle, the subtitle and the app name, and finally the search field shrinks —
 /// while the settings and close buttons never leave. The thresholds are pure arithmetic, so
 /// they live here instead of inside the view and can be tested.
-enum HeaderLayout {
+nonisolated enum HeaderLayout {
     case full
     case tight
     case minimal

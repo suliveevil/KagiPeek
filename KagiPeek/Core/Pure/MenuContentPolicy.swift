@@ -13,7 +13,11 @@ import Foundation
 /// has none, however deep it sits. Reading eight children's shortcuts is cheap enough to do
 /// per node, and it separates the two cleanly: on that Safari scan it took the catalog from
 /// 2 184 rows to 144, keeping every real command (including the ones without a shortcut).
-enum MenuContentPolicy {
+///
+/// `nonisolated`: pure arithmetic over a child count, called from the background AX walk.
+/// With `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unmarked enum would put every one
+/// of these decisions behind the main actor.
+nonisolated enum MenuContentPolicy {
     /// A flat menu with more children than this is a list of data, whatever its sample says.
     /// Real command menus peak around 176 (CotEditor `格式`); the data menus were 1 396 and
     /// 2 344 before nesting was taken into account.

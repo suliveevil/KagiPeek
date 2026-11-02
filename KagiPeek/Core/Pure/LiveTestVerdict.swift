@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Deliberately free of AppKit: the taps gather this and hand it over, so deciding what it
 /// means is a value-in, value-out function that a test can exercise without a keyboard.
-struct LiveTestObservation: Equatable, Sendable {
+nonisolated struct LiveTestObservation: Equatable, Sendable {
     /// The combo that was actually pressed, which is not always the one being tested.
     var chord: KeyChord
     /// Whether the press reached the far end of the event tap chain.

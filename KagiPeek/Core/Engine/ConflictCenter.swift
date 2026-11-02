@@ -184,17 +184,14 @@ final class ConflictCenter {
 
     /// Catalog of one running app, cache first (`force: false`).
     private func catalogItems(for app: AppEntry) async -> (items: [BindingItem], state: ScanState) {
-        await withCheckedContinuation { continuation in
-            catalogLoader.load(
-                app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
-                language: state.settings.language,
-                includeBuiltIn: false,
-                showAppleMenu: state.settings.showAppleMenu,
-                force: false
-            ) { snapshot in
-                continuation.resume(returning: (snapshot.items, snapshot.state))
-            }
-        }
+        let snapshot = await catalogLoader.load(
+            app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
+            language: state.settings.language,
+            includeBuiltIn: false,
+            showAppleMenu: state.settings.showAppleMenu,
+            force: false
+        )
+        return (snapshot.items, snapshot.state)
     }
 }
 

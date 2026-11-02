@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Moved out of `ShortcutTester` so the session machine (and the XCTest suite) can see it
 /// without importing AppKit.
-enum ShortcutTestState: Equatable, Sendable {
+nonisolated enum ShortcutTestState: Equatable, Sendable {
     case idle
     /// Cannot test right now, with the reason in user-facing words.
     case unavailable(String)
@@ -28,7 +28,7 @@ enum ShortcutTestState: Equatable, Sendable {
 /// is, and how the state machine transitions. That lets the orchestration be exercised
 /// without a keyboard — the two halves meet only at the events below (`keyAtHead`,
 /// `keyAtTail`, `appActivated`, `tick`, `settle`).
-struct ShortcutTestSession {
+nonisolated struct ShortcutTestSession {
 
     /// How long to listen before giving up. Long enough to switch apps and press something
     /// deliberately, short enough that a forgotten test expires on its own.

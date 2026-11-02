@@ -75,14 +75,19 @@ final class AppPermission: ObservableObject, Identifiable {
     var onSettingsPaneOpened: (() -> Void)?
 
     private let check: () -> Bool
-    private let requestPrompt: () -> Bool
+    /// `nil` for a permission whose prompt is deliberately never fired (Accessibility, where
+    /// `promptPreRegisters` is true). Optional rather than a closure that returns `false`:
+    /// the absence *is* the policy, and it keeps the one reference to
+    /// `kAXTrustedCheckOptionPrompt` — an SDK global declared `var`, hence unsafe under
+    /// Swift 6 — out of a code path that can never run.
+    private let requestPrompt: (() -> Bool)?
 
     init(
         id: Identifier,
         presentation: PermissionPresentation,
         policy: PermissionPolicy,
         check: @escaping () -> Bool,
-        requestPrompt: @escaping () -> Bool
+        requestPrompt: (() -> Bool)? = nil
     ) {
         self.id = id
         self.presentation = presentation
@@ -121,7 +126,7 @@ final class AppPermission: ObservableObject, Identifiable {
     /// enabled, and it is the same fix LobeHub shipped for Accessibility.
     func performRequest() {
         if !policy.promptPreRegisters {
-            _ = requestPrompt()
+            _ = requestPrompt?()
         }
         openSettingsPane()
     }
@@ -184,11 +189,10 @@ final class AppPermissions: ObservableObject {
                 settingsURL: PermissionCenter.accessibilitySettingsURL,
                 promptPreRegisters: true
             ),
-            check: { previewDenied ? false : AXIsProcessTrusted() },
-            requestPrompt: {
-                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-                return AXIsProcessTrustedWithOptions(options)
-            }
+            // No `requestPrompt`: `promptPreRegisters` is true, so the system prompt is
+            // never fired. Opening the pane and letting the drag guide add *and* enable the
+            // entry is the only path that does not leave a registered-but-off row behind.
+            check: { previewDenied ? false : AXIsProcessTrusted() }
         )
 
         inputMonitoring = AppPermission(

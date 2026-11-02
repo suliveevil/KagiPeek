@@ -5,7 +5,7 @@ import Foundation
 /// `appBundleID` is nil for a rule that applies everywhere. The same title is not the same
 /// command in two apps — every app has “Settings…”, while “Reload Page” belongs to a browser —
 /// so a rule that names an app only matches inside that app.
-struct IgnoredCommand: Codable, Hashable, Sendable, Identifiable {
+nonisolated struct IgnoredCommand: Codable, Hashable, Sendable, Identifiable {
     var title: String
     /// nil = applies to every app.
     var appBundleID: String?
@@ -18,7 +18,7 @@ struct IgnoredCommand: Codable, Hashable, Sendable, Identifiable {
     var scopeKey: String { appBundleID ?? "*" }
 }
 
-enum IgnoredCommands {
+nonisolated enum IgnoredCommands {
     /// Whether a command should be hidden.
     ///
     /// Title matching is case-insensitive because menu titles come from many sources (an

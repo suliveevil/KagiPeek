@@ -60,7 +60,13 @@ final class PermissionGuidePanelController {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    deinit {
+    /// `isolated deinit` (SE-0371, Swift 6.2): this controller is `@MainActor`, and the
+    /// timers and work item it owns are non-`Sendable`. A plain deinit is nonisolated and
+    /// Swift 6 rejects reading those properties there. Inheriting the actor's isolation
+    /// makes teardown run on the main actor — which is also where the timers were scheduled —
+    /// instead of asserting it with `assumeIsolated` or hiding the properties behind
+    /// `nonisolated(unsafe)`.
+    isolated deinit {
         trackingTimer?.invalidate()
         flightTimer?.invalidate()
         grantedWork?.cancel()

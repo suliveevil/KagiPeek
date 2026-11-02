@@ -7,7 +7,7 @@ import Foundation
 /// Deliberately free of AppKit and SwiftUI: the height the panel window takes is a number
 /// that can be asserted in a test, and "does narrowing resize the window" is exactly the
 /// kind of regression that is invisible in a screenshot but obvious in an assertion.
-enum OverlayMetrics {
+nonisolated enum OverlayMetrics {
     static let columnWidth: CGFloat = 248
     static let rowHeight: CGFloat = 30
     static let padding: CGFloat = 14

@@ -3,7 +3,7 @@ import Foundation
 /// Search corpus built once per catalog so typing stays cheap: titles (latin and pinyin),
 /// pinyin initials, menu path levels, chords, key names and modifier names are all
 /// precomputed.
-struct SearchCorpus {
+nonisolated struct SearchCorpus {
     struct Document {
         let item: BindingItem
         let titleHaystacks: [String]
@@ -189,7 +189,7 @@ struct SearchCorpus {
 }
 
 /// Chinese → pinyin forms used by the search corpus.
-enum Pinyin {
+nonisolated enum Pinyin {
     static func forms(of text: String) -> [String] {
         guard text.unicodeScalars.contains(where: { $0.value > 0x2E80 }) else { return [] }
         guard let latin = text.applyingTransform(.mandarinToLatin, reverse: false) else { return [] }

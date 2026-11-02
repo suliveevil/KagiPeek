@@ -1,7 +1,7 @@
 import Foundation
 
 /// One row of the panel: "press this key next to get that".
-struct PrefixHit: Identifiable, Equatable, Sendable {
+nonisolated struct PrefixHit: Identifiable, Equatable, Sendable {
     let item: BindingItem
     /// The key to press next, or nil for a command that has no keyboard shortcut at all:
     /// the row is real and clickable — pressing the menu item performs it — there is just
@@ -20,7 +20,7 @@ struct PrefixHit: Identifiable, Equatable, Sendable {
 }
 
 /// Turns "what the user has typed so far" into panel rows and execution decisions.
-enum PrefixResolver {
+nonisolated enum PrefixResolver {
     /// All bindings reachable from `prefix`, one row per binding.
     static func hits(
         for prefix: KeyChord,

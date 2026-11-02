@@ -1,6 +1,6 @@
 import Foundation
 
-struct UsageRecord: Codable, Hashable, Sendable {
+nonisolated struct UsageRecord: Codable, Hashable, Sendable {
     var count: Int
     var lastUsed: Date
 }
@@ -15,7 +15,7 @@ struct UsageRecord: Codable, Hashable, Sendable {
 /// - `review` ordered by "least recently used first". It was a second, weaker way to ask for
 ///   the same thing `smart` already answers with decayed usefulness, and the whole review
 ///   idea is gone rather than left as a sorting option nothing else in the app refers to.
-enum RankMode: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum RankMode: String, Codable, CaseIterable, Hashable, Sendable {
     /// Recent and frequent first, by decayed usefulness.
     case smart
     case frequencyDesc
@@ -46,7 +46,7 @@ enum RankMode: String, Codable, CaseIterable, Hashable, Sendable {
 }
 
 /// Usage maths shared with the statistics ordering.
-enum Ranker {
+nonisolated enum Ranker {
     /// Exponentially decayed press count with a 60-day half-life-ish curve.
     static func decayedUsefulness(_ record: UsageRecord?, now: Date) -> Double {
         guard let record else { return 0 }

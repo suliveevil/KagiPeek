@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Capacity is small (30 user actions), so the storage is a plain array where the oldest
 /// entry is dropped on overflow — obvious to read, and O(n) with n = 30 is not a cost.
-final class RingBuffer<T> {
+nonisolated final class RingBuffer<T> {
     let capacity: Int
     private var items: [T] = []
     private let lock = NSLock()

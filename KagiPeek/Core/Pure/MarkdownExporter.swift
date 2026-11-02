@@ -1,7 +1,7 @@
 import Foundation
 
 /// Renders a shortcut sheet as Markdown, for the search palette's export.
-enum MarkdownExporter {
+nonisolated enum MarkdownExporter {
     static func render(
         appName: String,
         items: [BindingItem],

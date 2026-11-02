@@ -1,7 +1,7 @@
 import Foundation
 
 /// What to do with an event tap the system has just disabled.
-enum TapRecovery: Equatable {
+nonisolated enum TapRecovery: Equatable {
     /// Turn it back on, optionally after a pause.
     case reEnable(after: TimeInterval)
     /// Leave it off.
@@ -31,7 +31,7 @@ enum TapRecovery: Equatable {
 /// stall. One re-enable is the whole budget: enough for a genuine one-off hiccup, and the
 /// second disable inside the recovery window means the tap cannot serve, so it is removed
 /// from the input stream instead of put back in front of it.
-struct TapHealth {
+nonisolated struct TapHealth {
     /// Pause before the one re-enable this type allows.
     ///
     /// Zero on purpose: a single hiccup while the machine is busy is normal, and turning it

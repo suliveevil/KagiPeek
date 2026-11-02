@@ -1,7 +1,7 @@
 import Foundation
 
 /// One log file on disk, as the rotation policy sees it.
-struct LogFileEntry: Equatable, Sendable {
+nonisolated struct LogFileEntry: Equatable, Sendable {
     /// File name including extension: `kagipeek-2026-10-23.log`.
     var name: String
     /// The day the file belongs to (parsed from the name).
@@ -15,7 +15,7 @@ struct LogFileEntry: Equatable, Sendable {
 /// midnight is what "按日期滚动" means to the person reading the log. The time zone is a
 /// parameter (defaulting to the current one) so tests can pin it instead of depending on
 /// where the machine happens to be. `now` is injected in the style of `MenuCachePolicy`.
-enum LogRotationPolicy {
+nonisolated enum LogRotationPolicy {
     static let filePrefix = "kagipeek-"
     static let fileExtension = "log"
 

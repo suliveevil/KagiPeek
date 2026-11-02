@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Plain numbers rather than `CGRect` so this rule can be asserted without a graphics
 /// library in the room.
-struct ScreenRect: Equatable, Sendable {
+nonisolated struct ScreenRect: Equatable, Sendable {
     var x: Double
     var y: Double
     var width: Double
@@ -25,7 +25,7 @@ struct ScreenRect: Equatable, Sendable {
 /// the menu bar, the Dock, the desktop, another app's window — and swallowing it would make
 /// the panel feel like it had frozen the screen. So the rule is a place, not a state: inside
 /// the front app's window, outside the panel.
-enum OutsideClickPolicy {
+nonisolated enum OutsideClickPolicy {
     static func shouldSwallow(
         point: (x: Double, y: Double),
         panel: ScreenRect,

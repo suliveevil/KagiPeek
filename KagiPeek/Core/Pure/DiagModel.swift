@@ -1,7 +1,7 @@
 import Foundation
 
 /// Diagnostic log levels, ordered from most verbose to most severe.
-enum DiagLevel: Int, CaseIterable, Comparable, Sendable {
+nonisolated enum DiagLevel: Int, CaseIterable, Comparable, Sendable {
     case verbose = 0
     case debug = 1
     case info = 2
@@ -24,7 +24,7 @@ enum DiagLevel: Int, CaseIterable, Comparable, Sendable {
 
 /// The grep keyword every file log line carries. The raw value *is* the keyword, so
 /// `[tap]`-style searches line up with `DiagTag.tap` without a mapping table.
-enum DiagTag: String, CaseIterable, Sendable {
+nonisolated enum DiagTag: String, CaseIterable, Sendable {
     case start
     case perm
     case tap
@@ -46,7 +46,7 @@ enum DiagTag: String, CaseIterable, Sendable {
 ///
 /// Only what the action *was* and which app it was aimed at — never menu item content,
 /// typed characters or filter text. Those are the user's, not the log's.
-struct ActionRecord: Codable, Equatable, Sendable {
+nonisolated struct ActionRecord: Codable, Equatable, Sendable {
     /// Seconds since 1970. A number rather than a `Date` so the same value means the same
     /// thing in the on-disk mirror, in the crash report and in a grep.
     var ts: TimeInterval

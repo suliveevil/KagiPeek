@@ -8,7 +8,7 @@ import os
 /// The cache lives in `Application Support/KagiPeek/menu-cache`. Unlike settings and
 /// statistics it is derived data — every entry can be reproduced by a scan — so an
 /// unreadable file is dropped instead of preserved.
-struct MenuScanCache {
+nonisolated struct MenuScanCache {
     struct Entry: Codable {
         var items: [BindingItem]
         var scannedAt: Date

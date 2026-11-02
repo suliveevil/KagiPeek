@@ -204,15 +204,22 @@ final class ShortcutTester {
             // because this runs once per app activation and the hop would reorder it behind
             // whatever else is queued. (The previous comment here said "hop explicitly",
             // which is the opposite of what the line does.)
-            MainActor.assumeIsolated { self?.appActivated(notification) }
+            //
+            // Only the two Sendable strings cross into the `assumeIsolated` closure. Under
+            // Swift 6.2 that closure is `sending`, and a whole `Notification` is not
+            // `Sendable` — passing it in is a region-isolation error. The values the state
+            // machine actually needs are extracted here, on the delivering thread.
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            let bundleID = app.bundleIdentifier
+            let name = app.localizedName
+            MainActor.assumeIsolated { self?.appActivated(bundleID: bundleID, name: name) }
         }
     }
 
-    private func appActivated(_ notification: Notification) {
-        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+    private func appActivated(bundleID: String?, name: String?) {
         machine.appActivated(
-            bundleID: app.bundleIdentifier,
-            name: app.localizedName,
+            bundleID: bundleID,
+            name: name,
             selfBundleID: Bundle.main.bundleIdentifier
         )
     }
@@ -307,8 +314,13 @@ private nonisolated func handleTapEvent(
     guard let userInfo else { return passthrough }
 
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        // Resolve the opaque pointer before crossing into the `sending` closure: a raw
+        // `UnsafeMutableRawPointer` is not `Sendable`, but `ShortcutTester` is a
+        // `@MainActor` class and therefore is. The tap owns this object for its whole life
+        // (`passUnretained` at install), so the reference is valid for the hop.
+        let tester = Unmanaged<ShortcutTester>.fromOpaque(userInfo).takeUnretainedValue()
         MainActor.assumeIsolated {
-            Unmanaged<ShortcutTester>.fromOpaque(userInfo).takeUnretainedValue().reenableTaps()
+            tester.reenableTaps()
         }
         return passthrough
     }
@@ -320,8 +332,8 @@ private nonisolated func handleTapEvent(
     guard let token = KeyMapper.token(forKeyCode: keyCode) else { return passthrough }
     let chord = KeyChord.combo(modifiers, token)
 
+    let tester = Unmanaged<ShortcutTester>.fromOpaque(userInfo).takeUnretainedValue()
     MainActor.assumeIsolated {
-        let tester = Unmanaged<ShortcutTester>.fromOpaque(userInfo).takeUnretainedValue()
         if atHead {
             tester.observeAtHead(chord: chord, hasModifier: !modifiers.isEmpty)
         } else {

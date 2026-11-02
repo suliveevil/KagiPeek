@@ -25,7 +25,7 @@ import Foundation
 ///
 /// All of it is arithmetic on doubles, like `HeaderLayout`, so the thresholds can be tested
 /// without a window.
-enum RowLayout {
+nonisolated enum RowLayout {
     /// Conflict badge (12) + gap (4) + sub-level chevron (8) + gap (4) + favourite star (14).
     ///
     /// Reserved on every row, conflict or not: this is the slot whose appearance used to

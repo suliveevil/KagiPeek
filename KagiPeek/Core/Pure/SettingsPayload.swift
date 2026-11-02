@@ -1,7 +1,7 @@
 import Foundation
 
 /// On-disk envelope for `settings.json`.
-struct SettingsPayload: Codable {
+nonisolated struct SettingsPayload: Codable {
     var schemaVersion: Int
     var settings: AppSettingsSnapshot
 }
@@ -14,7 +14,7 @@ struct SettingsPayload: Codable {
 /// simply ignored and disappears on the next save. There is therefore no rewrite step yet.
 /// The version is still *read*, not only written: that is what tells a future change where
 /// to add its step, and it lets the app report that it upgraded a file from an older build.
-enum SettingsMigrator {
+nonisolated enum SettingsMigrator {
     static let currentVersion = AppSettingsSnapshot.currentSchemaVersion
 
     /// True when the file was written by an older build.

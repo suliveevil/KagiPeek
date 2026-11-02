@@ -199,7 +199,7 @@ nonisolated struct BindingConflict: Identifiable, Equatable, Sendable {
 ///
 /// Independent of the type filter: "show me the ones a tool is blocking" and "show me the
 /// ones that involve Safari" are two questions.
-enum ConflictOwnerFilter: Hashable, Sendable, Identifiable {
+nonisolated enum ConflictOwnerFilter: Hashable, Sendable, Identifiable {
     case all
     case global
     case app(String)
@@ -232,7 +232,7 @@ enum ConflictOwnerFilter: Hashable, Sendable, Identifiable {
 }
 
 /// One row of the type filter: a kind of clash and how many findings it has.
-struct ConflictTypeOption: Identifiable, Equatable, Sendable {
+nonisolated struct ConflictTypeOption: Identifiable, Equatable, Sendable {
     let category: ConflictCategory
     let count: Int
 
@@ -245,7 +245,7 @@ struct ConflictTypeOption: Identifiable, Equatable, Sendable {
 /// ones that involve Safari" — and the page offers both rather than making the user choose
 /// which one to express. Narrowing by *kind* replaces the old severity switch: severity was
 /// only ever a coarse grouping of the same kinds, and the kinds are what the reader acts on.
-struct ConflictFilter: Equatable, Sendable {
+nonisolated struct ConflictFilter: Equatable, Sendable {
     var category: ConflictCategory?
     var owner: ConflictOwnerFilter = .all
 

@@ -13,7 +13,7 @@ import Foundation
 /// `CurrentExtensionURL` in its preference domain neither carries the page in a usable form
 /// nor updates while the app is running. A phase whose detector is always wrong is worse
 /// than no phase at all — it fired for every user, and it hid the drag icon.
-enum PermissionGuidePhase: String, Equatable, Sendable {
+nonisolated enum PermissionGuidePhase: String, Equatable, Sendable {
     /// The panel is up and the icon is waiting to be dragged into the list.
     case dragging
     /// A password / Touch ID prompt is up, or the drag has been made: the grant is in flight.
@@ -31,7 +31,7 @@ enum PermissionGuidePhase: String, Equatable, Sendable {
 }
 
 /// The things the outside world can do to the guide.
-enum PermissionGuideEvent: Equatable, Sendable {
+nonisolated enum PermissionGuideEvent: Equatable, Sendable {
     /// A System Settings window came back (or appeared for the first time).
     case settingsAppeared
     /// No System Settings window is on screen any more.
@@ -46,7 +46,7 @@ enum PermissionGuideEvent: Equatable, Sendable {
 
 /// The one button the panel offers, when the phase needs the user to do something that is
 /// not dragging.
-enum PermissionGuideAction: Equatable, Sendable {
+nonisolated enum PermissionGuideAction: Equatable, Sendable {
     /// Reopen System Settings on the permission's own pane.
     case openSettings
 }
@@ -54,7 +54,7 @@ enum PermissionGuideAction: Equatable, Sendable {
 /// Pure transitions and copy for the guide. Kept out of the controller so the recovery
 /// branches are unit-testable without a live System Settings window — which is exactly the
 /// part that is impossible to exercise by hand.
-enum PermissionGuideState {
+nonisolated enum PermissionGuideState {
     /// The next phase for `phase` when `event` happens.
     ///
     /// `granted` wins everywhere: a grant that lands while the panel is showing a recovery

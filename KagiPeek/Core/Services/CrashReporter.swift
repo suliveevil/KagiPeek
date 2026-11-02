@@ -17,7 +17,20 @@ import Foundation
 /// The sentinel (`logs/session.active`) is what distinguishes "the app crashed" from "the
 /// user force quit / the machine lost power": both leave no clean exit, but only the first
 /// leaves a fragment, and the second is still worth one honest line in the log.
-enum CrashReporter {
+/// `nonisolated` is not a convenience here, it is the model. Every entry point can be
+/// reached from a thread other than main: `install`/`beginSession` at launch, `markCleanExit`
+/// on termination, `handleException` from the NSException handler, and the six signal
+/// handlers from whatever thread took the fault. Under
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unmarked enum would imply the opposite,
+/// and the C function pointers below could not even be formed.
+///
+/// The signal state is `nonisolated(unsafe)` for the same reason the file header states:
+/// a POSIX signal handler may only call async-signal-safe C functions. It cannot take a
+/// lock, hop to an actor, or allocate. These values are written once while arming (before
+/// any handler can fire) and then only read, which is the invariant — no lock can enforce
+/// it from inside a handler, so the type system is told the truth instead of being handed
+/// a false guarantee. Swift 5 merely never checked; Swift 6 does.
+nonisolated enum CrashReporter {
     // MARK: - Paths
 
     private static var crashDirectory: URL { DataDirectory.url(for: "crash") }
@@ -26,33 +39,45 @@ enum CrashReporter {
     private static let logs = FileLogStore.shared
     private static let actions = ActionRecorder.shared
 
-    private static var startedAt = Date()
+    /// "Was the app frontmost when it died" is a best-effort diagnostic, and AppKit's
+    /// `isActive` is main-actor-isolated — a crash handler cannot read it. Rather than
+    /// asserting main-actor isolation from a thread that may not be main, the reader is
+    /// installed once from the main actor at launch and only *called* from the crash path.
+    /// `nonisolated(unsafe)` is the honest spelling: the value is a hint in a report, never
+    /// a correctness dependency, and no lock can make an AppKit query async-signal-safe.
+    private nonisolated(unsafe) static var appActiveReader: () -> Bool = { false }
+
+    /// Written once at launch, read at clean exit and by the exception path. Both are
+    /// `nonisolated` methods, so this is a shared mutable global under Swift 6; the
+    /// `nonisolated(unsafe)` says the write happens before any reader can exist, exactly
+    /// the arming invariant the signal state below relies on.
+    private nonisolated(unsafe) static var startedAt = Date()
 
     // MARK: - Signal state (written at arming, read by the handler)
 
-    private static var partialDescriptor: Int32 = -1
-    private static var partialHandle: FileHandle?
-    private static var partialURL: URL?
-    private static var contextPointer: UnsafeMutablePointer<CChar>?
-    private static var contextLength: Int = 0
-    private static var digitsPointer = UnsafeMutablePointer<CChar>.allocate(capacity: 24)
+    private nonisolated(unsafe) static var partialDescriptor: Int32 = -1
+    private nonisolated(unsafe) static var partialHandle: FileHandle?
+    private nonisolated(unsafe) static var partialURL: URL?
+    private nonisolated(unsafe) static var contextPointer: UnsafeMutablePointer<CChar>?
+    private nonisolated(unsafe) static var contextLength: Int = 0
+    private nonisolated(unsafe) static var digitsPointer = UnsafeMutablePointer<CChar>.allocate(capacity: 24)
     /// Pre-encoded `sig=N\ntime=` per handled signal, so the handler never has to format.
     ///
     /// Six separate values rather than a dictionary: a `Dictionary` lookup is not on the
     /// async-signal-safe list, and this is the one call in the handler a reviewer cannot
     /// prove safe. A `switch` over the signal constants can be.
     fileprivate typealias Preencoded = (pointer: UnsafeMutablePointer<CChar>?, length: Int)
-    private static var abrtText: Preencoded = (nil, 0)
-    private static var segvText: Preencoded = (nil, 0)
-    private static var busText: Preencoded = (nil, 0)
-    private static var illText: Preencoded = (nil, 0)
-    private static var fpeText: Preencoded = (nil, 0)
-    private static var trapText: Preencoded = (nil, 0)
-    private static var fallbackText: Preencoded = (nil, 0)
-    private static var newlinePointer: UnsafeMutablePointer<CChar>?
+    private nonisolated(unsafe) static var abrtText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var segvText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var busText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var illText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var fpeText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var trapText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var fallbackText: Preencoded = (nil, 0)
+    private nonisolated(unsafe) static var newlinePointer: UnsafeMutablePointer<CChar>?
     /// Set once the NSException path has written its own report, so the SIGABRT that follows
     /// does not produce a second, emptier one.
-    private static var exceptionHandled: Int32 = 0
+    private nonisolated(unsafe) static var exceptionHandled: Int32 = 0
 
     private static let reportedSignals: [Int32] = [SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGTRAP]
 
@@ -60,7 +85,12 @@ enum CrashReporter {
 
     /// Called first thing in `AppDelegate.init` — before the settings store touches disk,
     /// which is the earliest window in which the app can crash.
+    ///
+    /// `@MainActor` for exactly one line: installing the AppKit reader. Everything else here
+    /// is deliberately nonisolated, because the handlers it arms run on arbitrary threads.
+    @MainActor
     static func install() {
+        appActiveReader = { NSApplication.shared.isActive }
         DataDirectory.ensureExists()
         try? FileManager.default.createDirectory(at: crashDirectory, withIntermediateDirectories: true)
 
@@ -190,7 +220,7 @@ enum CrashReporter {
             appBuild: appBuild,
             macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
             modelIdentifier: DeviceInfo.modelIdentifier,
-            isAppActive: NSApplication.shared.isActive,
+            isAppActive: appActiveReader(),
             recentActions: actions.snapshot(),
             callStack: exception.callStackSymbols
         )
@@ -359,7 +389,7 @@ enum CrashReporter {
 
 // MARK: - Exception handler
 
-private func kagiUncaughtExceptionHandler(_ exception: NSException) {
+nonisolated private func kagiUncaughtExceptionHandler(_ exception: NSException) {
     CrashReporter.handleException(exception)
 }
 
@@ -370,7 +400,7 @@ private func kagiUncaughtExceptionHandler(_ exception: NSException) {
 /// Everything it needs was prepared before arming: the descriptor is open, the context string
 /// is pre-formatted, each signal's prefix is pre-encoded, and the digit buffer is allocated.
 /// The only value computed here is the timestamp.
-private func crashSignalHandler(_ signalNumber: Int32) {
+nonisolated private func crashSignalHandler(_ signalNumber: Int32) {
     let descriptor = CrashReporter.partialDescriptorForHandler
     if CrashReporter.exceptionHandledForHandler == 0, descriptor >= 0 {
         writeAll(descriptor, CrashReporter.contextPointerForHandler, CrashReporter.contextLengthForHandler)
@@ -396,7 +426,7 @@ private func crashSignalHandler(_ signalNumber: Int32) {
 
 /// Writes the whole buffer, retrying on a short write or an interrupt. A truncated fragment
 /// would parse as damage and turn a real crash into "no crash report".
-private func writeAll(_ descriptor: Int32, _ pointer: UnsafePointer<CChar>?, _ length: Int) {
+nonisolated private func writeAll(_ descriptor: Int32, _ pointer: UnsafePointer<CChar>?, _ length: Int) {
     guard let pointer, length > 0 else { return }
     var offset = 0
     while offset < length {
@@ -411,7 +441,7 @@ private func writeAll(_ descriptor: Int32, _ pointer: UnsafePointer<CChar>?, _ l
     }
 }
 
-private func writeEpochSeconds(_ descriptor: Int32) {
+nonisolated private func writeEpochSeconds(_ descriptor: Int32) {
     let buffer = CrashReporter.digitsForHandler
     var value = Int(time(nil))
     var index = 24
@@ -428,7 +458,7 @@ private func writeEpochSeconds(_ descriptor: Int32) {
     writeAll(descriptor, buffer + index, 24 - index)
 }
 
-extension CrashReporter {
+nonisolated extension CrashReporter {
     // Exposed to the C-style handler above without making the rest of the state public.
     fileprivate static var exceptionHandledForHandler: Int32 { exceptionHandled }
     fileprivate static var partialDescriptorForHandler: Int32 { partialDescriptor }

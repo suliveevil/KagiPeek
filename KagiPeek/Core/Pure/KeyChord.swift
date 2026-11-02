@@ -384,7 +384,7 @@ nonisolated struct KeyChord: Hashable, Codable, Sendable {
     }
 }
 
-extension KeyChord {
+nonisolated extension KeyChord {
     /// True when the stroke the panel is about to show is the last one: pressing it finishes
     /// the shortcut.
     ///
@@ -399,7 +399,7 @@ extension KeyChord {
 }
 
 /// Relationship between a shortcut and the prefix the user has typed.
-enum PrefixRelation: String, Hashable, Sendable {
+nonisolated enum PrefixRelation: String, Hashable, Sendable {
     /// The typed prefix *is* this shortcut.
     case exact
     /// The shortcut starts with the typed prefix and needs more keys (drill down).

@@ -5,7 +5,7 @@ import Foundation
 /// Hyper-key tools (Karabiner, BetterTouchTool, …) can deliver an extra modifier that the
 /// recorder never saw, so a hotkey with three or more modifiers also matches when the event
 /// carries a superset of them.
-enum HotkeyMatcher {
+nonisolated enum HotkeyMatcher {
     static func matches(
         keyCode: UInt16,
         modifiers: ModifierSet,

@@ -11,7 +11,7 @@ import Foundation
 /// What deliberately stays engine-side: the scope's *icon* (`NSImage` is AppKit) and the
 /// scoped app's live catalog / process (AX handles and a click target do not belong in pure
 /// state).
-struct SearchSnapshot {
+nonisolated struct SearchSnapshot {
     var query = ""
     var results: [BindingItem] = []
     var selection = 0

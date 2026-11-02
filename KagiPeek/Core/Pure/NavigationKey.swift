@@ -1,6 +1,6 @@
 import Foundation
 
-enum NavigationDirection: Equatable, Sendable {
+nonisolated enum NavigationDirection: Equatable, Sendable {
     case up
     case down
     case left
@@ -11,7 +11,7 @@ enum NavigationDirection: Equatable, Sendable {
 ///
 /// macOS text views have always bound ⌃F/⌃B/⌃N/⌃P to forward/backward/next/previous,
 /// so KagiPeek accepts them wherever it consumes arrow keys.
-enum NavigationKey {
+nonisolated enum NavigationKey {
     /// Semicolon pages back, single quote pages forward.
     static func pageStep(keyCode: UInt16, modifiers: ModifierSet) -> Int? {
         guard modifiers.isEmpty else { return nil }

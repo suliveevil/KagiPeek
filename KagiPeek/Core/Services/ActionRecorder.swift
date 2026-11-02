@@ -10,7 +10,14 @@ import Foundation
 /// The buffer is mirrored to disk on a short debounce because a signal handler cannot read
 /// Swift memory: by the time the process dies, the last seconds already exist as JSON that
 /// the next launch can pick up.
-final class ActionRecorder {
+///
+/// `nonisolated` + `@unchecked Sendable`: `Diag.action` is called from the event-tap thread
+/// and the crash handler as well as the main actor, and all mutable state below is owned by
+/// one private serial queue (the mirror) or a value-semantic ring buffer. Under
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unmarked class would make `static let
+/// shared` a global-mutable-state error and every call from a non-main thread an isolation
+/// error. The conformance is the same contract as `FileLogStore`: the queue owns the state.
+nonisolated final class ActionRecorder: @unchecked Sendable {
     static let shared = ActionRecorder()
 
     private let capacity = 30

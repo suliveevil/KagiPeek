@@ -1,7 +1,7 @@
 import Foundation
 
 /// Minimal semantic version used by the update checker ("v1.2.0" → 1.2.0).
-struct SemanticVersion: Comparable, Equatable, Sendable, CustomStringConvertible {
+nonisolated struct SemanticVersion: Comparable, Equatable, Sendable, CustomStringConvertible {
     let major: Int
     let minor: Int
     let patch: Int

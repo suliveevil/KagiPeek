@@ -7,7 +7,7 @@ import Foundation
 /// recording the settings it was written under. Two rules are ours: the fingerprint
 /// covers the one setting that shapes a scan, and an entry has an age cap — menus change
 /// while an app runs, so an unbounded cache would serve rows that no longer exist.
-enum MenuCachePolicy {
+nonisolated enum MenuCachePolicy {
     /// Bumped whenever the entry layout changes; entries written by an older build stop
     /// loading, because their fingerprint no longer matches.
     ///

@@ -1,6 +1,6 @@
 import AppKit
 
-extension ModifierSet {
+nonisolated extension ModifierSet {
     /// Bridges an AppKit event's flags to the pure modifier set.
     ///
     /// It lives here rather than in a view: the search palette and the

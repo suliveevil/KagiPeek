@@ -17,7 +17,7 @@ import Foundation
 /// Backspace is deliberately absent. It belongs to the panel only while a sequence is being
 /// composed, where it undoes a tick — see `ShortcutEngine.shouldSwallowComposed`, which owns
 /// that decision because it is the one place that knows a tick exists.
-enum PanelKeyIntake {
+nonisolated enum PanelKeyIntake {
     /// - Parameter held: only the modifiers physically down. A latched set must never be
     ///   passed here: its modifiers are not in the event, so subtracting them would invent
     ///   combinations the user never pressed.

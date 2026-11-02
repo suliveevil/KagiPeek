@@ -2,7 +2,7 @@ import Foundation
 
 /// Everything a crash report knows, gathered at the moment of the crash (or, for signals,
 /// reconstructed at the next launch — a signal handler may only `write()`).
-struct CrashContext {
+nonisolated struct CrashContext {
     /// "nsexception" or "signal".
     var kind: String
     var exceptionName: String?
@@ -20,7 +20,7 @@ struct CrashContext {
 }
 
 /// The durable JSON crash report.
-struct CrashReport: Codable, Equatable {
+nonisolated struct CrashReport: Codable, Equatable {
     /// Report layout version, so a reader can refuse what it cannot parse.
     static let currentFormat = 1
 
@@ -46,7 +46,7 @@ struct CrashReport: Codable, Equatable {
 
 /// Assembles and renders crash reports; parses the minimal `.partial` fragment the signal
 /// handler was able to `write()`.
-enum CrashLogFormatter {
+nonisolated enum CrashLogFormatter {
     /// Signal names for the set CrashReporter installs handlers for. Nonisolated so the
     /// report builder can run outside the main actor.
     nonisolated static func signalName(_ signal: Int32) -> String {

@@ -7,7 +7,7 @@ import Foundation
 /// the physical key event (⌥⌘C typed as "click ⌥, click ⌘, press C"). That changes what has
 /// to happen to the event itself — see `shouldSwallow` — so the decision is made here, in
 /// pure code, where a wrong answer cannot silently double-execute.
-enum ChordComposition {
+nonisolated enum ChordComposition {
     enum Outcome: Equatable {
         /// The pressed stroke finishes a shortcut.
         case complete(BindingItem)
@@ -59,7 +59,7 @@ enum ChordComposition {
     }
 }
 
-extension ChordComposition.Resolution {
+nonisolated extension ChordComposition.Resolution {
     /// Whether the event has to be consumed by the tap.
     ///
     /// Only a composed stroke: an ordinary ⌥⌘C is let through so the front app performs it

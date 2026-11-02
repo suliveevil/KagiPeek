@@ -7,7 +7,7 @@ import Foundation
 /// happens to come last in ⌃⌥⇧⌘ order. Ticking ⌘ and then ⌥ and pressing ⌫ must drop the ⌥.
 ///
 /// Both halves live here so the two places that change them cannot disagree.
-enum LatchedTicks {
+nonisolated enum LatchedTicks {
     /// Ticks or unticks every modifier in `modifiers`, appending newly ticked ones to the end.
     static func toggling(
         _ modifiers: [ModifierSet],

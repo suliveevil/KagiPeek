@@ -12,7 +12,7 @@ import Foundation
 ///
 /// Pure math on plain points: the controller owns the timer, the screen queries and the
 /// Reduce Motion decision.
-enum PermissionGuideFlight {
+nonisolated enum PermissionGuideFlight {
     /// How long the whole entrance takes.
     static let duration: TimeInterval = 0.6
 

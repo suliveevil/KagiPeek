@@ -1,6 +1,10 @@
 import AppKit
 import CoreGraphics
 import os
+// DispatchWorkItem / DispatchQueue's `Sendable` annotations still lag the Swift 6 SDK;
+// without this the compiler reports them as non-Sendable even where a `@Sendable` closure
+// is the correct contract. It suppresses the import's legacy annotations, not our checks.
+@preconcurrency import Dispatch
 
 enum KeyboardMonitorError: LocalizedError {
     case accessibilityDenied
@@ -29,10 +33,17 @@ enum KeyboardMonitorError: LocalizedError {
 /// (`ComposedSwallowState`) instead of a synchronous main-actor call, and events are
 /// handed to the engine asynchronously — a wedged main thread can delay the panel by a
 /// hop, but it can no longer delay the input stream at all.
-final class KeyboardMonitor {
+/// `@unchecked Sendable` is a contract this file already keeps: every mutable property below
+/// is read and written only inside `withLock`, and the four callback properties are assigned
+/// once before `start()` and only read (never written) afterwards, on the tap thread. The
+/// lock is why sharing the instance between the main actor and the dedicated tap thread is
+/// sound; the unchecked conformance is what tells Swift 6 that it is *our* invariant, since
+/// a lock cannot be expressed in the type system. `nonisolated` is load-bearing too: the tap
+/// callback runs on its own thread and must never be tied to the main actor.
+nonisolated final class KeyboardMonitor: @unchecked Sendable {
     /// Called on the **main** thread (via an async hop) for every event; the engine owns
     /// the panel behaviour that follows.
-    var onEvent: ((KeyEvent) -> Void)?
+    var onEvent: (@Sendable (KeyEvent) -> Void)?
 
     /// Why a tap that the system disabled is being taken down instead of put back.
     enum TeardownReason: String {
@@ -43,11 +54,11 @@ final class KeyboardMonitor {
     }
 
     /// Fired after `stop()` was called from inside the tap callback, so the owner can say so.
-    var onTeardown: ((TeardownReason) -> Void)?
+    var onTeardown: (@Sendable (TeardownReason) -> Void)?
 
     /// Whether the process still holds Accessibility. Injected so the trust branch can be
     /// driven without touching TCC.
-    var hasAccessibility: () -> Bool = { PermissionCenter.hasAccessibility }
+    var hasAccessibility: @Sendable () -> Bool = { PermissionCenter.hasAccessibility }
 
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
@@ -184,7 +195,7 @@ final class KeyboardMonitor {
 
     /// Called on the tap thread for a press the tap swallowed; the monitor hops it to the
     /// main thread before invoking, so the owner never sees a foreign queue.
-    var onOutsideMousePress: (() -> Void)?
+    var onOutsideMousePress: (@Sendable () -> Void)?
 
     func start() throws {
         guard tap == nil else { return }

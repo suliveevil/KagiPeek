@@ -7,7 +7,7 @@ import Foundation
 /// never got to say goodbye — a crash (a `.partial` signal report exists) or an unexpected
 /// exit (kill, force quit, power loss: no report exists, and the honest record is that we
 /// know nothing beyond "it never terminated cleanly").
-enum SentinelState: Equatable {
+nonisolated enum SentinelState: Equatable {
     /// Nothing to report; proceed normally.
     case clean
     /// Command: write the sentinel for this session.

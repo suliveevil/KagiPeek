@@ -1,6 +1,6 @@
 import Foundation
 
-struct PanelRow: Identifiable {
+nonisolated struct PanelRow: Identifiable {
     let id: String
     /// The chord as this row shows it, already split into glyphs so the view can emphasise
     /// the modifier the user is holding without re-parsing formatted text. With an empty
@@ -30,7 +30,7 @@ struct PanelRow: Identifiable {
     var keyLabel: String { keySegments.map(\.text).joined() }
 }
 
-struct PanelGroup: Identifiable {
+nonisolated struct PanelGroup: Identifiable {
     let id: String
     let title: String
     let rows: [PanelRow]
@@ -44,7 +44,7 @@ struct PanelGroup: Identifiable {
 
 /// Immutable snapshot the overlay renders. SwiftUI observes the engine, so every field here
 /// is replaced wholesale — no partial state to get out of sync.
-struct PanelState {
+nonisolated struct PanelState {
     var isVisible = false
     var isScanning = false
     var isPinned = false

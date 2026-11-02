@@ -5,7 +5,7 @@ import Foundation
 /// The panel used to have two rebuild paths — the shortcut list and an inline filter — that
 /// constructed rows separately and drifted apart. The filter is gone; what it taught is kept:
 /// one builder, and the rows' shape decided by explicit spec fields.
-enum PanelRowBuilder {
+nonisolated enum PanelRowBuilder {
     struct Spec {
         var id: String
         /// The chord already split into glyphs (see `KeyFormatter.segments`).

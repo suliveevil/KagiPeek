@@ -3,7 +3,7 @@ import Foundation
 /// keyfreq-style statistics, kept free of any storage so it can be unit tested.
 ///
 /// Only binding identifiers, counts and timestamps are stored — never raw key events.
-struct UsageStatistics: Codable, Equatable, Sendable {
+nonisolated struct UsageStatistics: Codable, Equatable, Sendable {
     static let maxRecords = 800
 
     var totalPresses: Int = 0
@@ -69,7 +69,7 @@ struct UsageStatistics: Codable, Equatable, Sendable {
     }
 }
 
-struct AppUsageSummary: Identifiable, Equatable, Sendable {
+nonisolated struct AppUsageSummary: Identifiable, Equatable, Sendable {
     let bundleID: String
     let presses: Int
     let shortcutCount: Int

@@ -18,7 +18,7 @@ import Foundation
 ///   shortcuts start with these" instead of leaving the list where it was.
 /// - **Filter.** `uses(_:allOf:)` answers "does this chord carry all of these modifiers",
 ///   which is the title bar's rule for its ⌃ ⌥ ⇧ ⌘ chips — a second, sticky way to narrow.
-enum PanelOrdering {
+nonisolated enum PanelOrdering {
     /// Lexicographic over the strokes, in the order they are drawn. Two chords that print
     /// the same way are ordered by their remaining strokes, then by nothing (the caller
     /// breaks the tie).

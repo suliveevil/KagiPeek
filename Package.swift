@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -11,10 +11,13 @@ let package = Package(
         .target(
             name: "KagiPeekCore",
             path: "KagiPeek/Core/Pure",
-            // The pure layer is where the migration has to end up, so it is checked first:
-            // a new non-`Sendable` decision type fails here long before it can reach a tap
-            // callback. Same setting as the app target's `SWIFT_STRICT_CONCURRENCY`.
-            swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+            // The pure layer is where the migration ends up, so it is checked first: a new
+            // non-`Sendable` decision type fails here long before it can reach a tap
+            // callback. Swift 6 language mode + `complete` matches both app build paths.
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
         ),
         .testTarget(
             name: "KagiPeekCoreTests",

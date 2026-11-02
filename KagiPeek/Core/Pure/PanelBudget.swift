@@ -5,7 +5,7 @@ import Foundation
 /// The budget is a session-stability device, not a second pagination rule: a narrow list
 /// keeps the frame of the widest list, but an empty or short list must not open a full page
 /// of blank space.
-enum PanelBudget {
+nonisolated enum PanelBudget {
     struct Allocation: Equatable, Sendable {
         var rows: Int
         var headings: Int

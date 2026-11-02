@@ -1,7 +1,7 @@
 import Foundation
 
 /// Look of the floating shortcut panel.
-enum PanelTheme: String, Codable, CaseIterable, Hashable, Sendable {
+nonisolated enum PanelTheme: String, Codable, CaseIterable, Hashable, Sendable {
     case graphite
     case midnight
     case paper

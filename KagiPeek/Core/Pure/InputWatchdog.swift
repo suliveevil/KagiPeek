@@ -16,7 +16,7 @@ import Foundation
 /// *disabled* tap is harmless, events go straight to the front app — and reattached once
 /// the thread answers again. The trade is deliberate: shortcuts go dark for as long as the
 /// wedge lasts, but the keyboard never does.
-struct InputWatchdog: Equatable {
+nonisolated struct InputWatchdog: Equatable {
     enum Action: Equatable {
         case none
         /// The watched thread has stopped answering with the tap enabled: detach it.

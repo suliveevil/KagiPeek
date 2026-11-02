@@ -1,7 +1,7 @@
 import Foundation
 
 /// One line of the per-app statistics list: a shortcut, the command it runs, and how often.
-struct UsageEntry: Identifiable, Equatable, Sendable {
+nonisolated struct UsageEntry: Identifiable, Equatable, Sendable {
     let usageKey: String
     /// nil when the command was never scanned in this session and the disk cache has no
     /// record of it — the count is still true, the title is what is missing.
@@ -20,7 +20,7 @@ struct UsageEntry: Identifiable, Equatable, Sendable {
 /// The records deliberately store only a usage key (owner + chord, never the title), so the
 /// titles come from whatever the scan knows. Keeping this in the pure layer means the join —
 /// and the honesty about what is missing — can be tested without a window.
-enum UsageBreakdown {
+nonisolated enum UsageBreakdown {
     /// - Parameters:
     ///   - bundleID: the owner bucket, as `UsageStatistics.bundleID(fromUsageKey:)` reports it.
     ///   - records: every usage record.

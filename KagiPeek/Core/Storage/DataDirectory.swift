@@ -6,7 +6,13 @@ import os
 /// UserDefaults lives inside the app's preference domain and is easy to lose when the app is
 /// reinstalled under a different signature or bundle identifier, so settings and statistics
 /// live in `~/Library/Application Support/KagiPeek` as plain JSON files with atomic writes.
-enum DataDirectory {
+/// `nonisolated` for the same reason as `PermissionCenter`: this is pure path arithmetic
+/// (`FileManager` lookup + `appendingPathComponent`) with no mutable state, and it is read
+/// from the file-log queue and the crash handler as well as the main thread. Under
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` a default-argument value like
+/// `DataDirectory.url(for: "logs")` in a `nonisolated` type's `init` is otherwise an error:
+/// the default expression would be main-actor-isolated.
+nonisolated enum DataDirectory {
     static let folderName = "KagiPeek"
 
     static var url: URL {

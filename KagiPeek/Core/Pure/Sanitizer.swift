@@ -6,7 +6,11 @@ import Foundation
 /// boundary (`FileLogStore`) — call sites never have to remember to sanitise. The rules are
 /// deliberately conservative: a false positive costs a debugging detail, a false negative
 /// costs the user's token.
-enum Sanitizer {
+///
+/// `nonisolated`: pure string rules, called from the file-log queue, the background AX walk
+/// and the crash handler as well as the main thread. Its state is one immutable value built
+/// at first use (see `compilation`) rather than mutable globals.
+nonisolated enum Sanitizer {
     /// Marker inserted in place of a redacted value.
     static let redactedMarker = "<redacted>"
 

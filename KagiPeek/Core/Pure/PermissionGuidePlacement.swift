@@ -8,7 +8,7 @@ import Foundation
 /// Pure math on plain rects: the AppKit side owns the window lookup and screen queries,
 /// so every rule here — the CG→AppKit flip, below/above stacking, edge clamping — stays
 /// testable without a live System Settings window.
-enum PermissionGuidePlacement {
+nonisolated enum PermissionGuidePlacement {
     /// Gap between the Settings window and the guide panel.
     static let margin: CGFloat = 12
 

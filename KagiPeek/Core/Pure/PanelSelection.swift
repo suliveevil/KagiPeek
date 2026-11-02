@@ -18,7 +18,7 @@ import Foundation
 /// - otherwise the previous row, when it is still there. Selection is deliberately *not*
 ///   invented for a long list: with forty rows on screen, auto-selecting the first one
 ///   would let a stray Return run a shortcut the user never looked at.
-enum PanelSelection {
+nonisolated enum PanelSelection {
     /// - Parameters:
     ///   - previous: the selection before the rebuild. `-1` means "nothing selected".
     ///   - rowCount: how many selectable rows the rebuilt page has.

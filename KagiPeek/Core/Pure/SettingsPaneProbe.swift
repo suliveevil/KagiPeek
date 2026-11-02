@@ -17,7 +17,7 @@ import Foundation
 /// because that phase hid the drag icon it took away the only action the panel exists to
 /// offer. LobeHub detects the same thing from the window title, which needs Screen
 /// Recording, or from a sidebar click; neither is available here, so the phase is gone.
-enum SettingsPaneProbe {
+nonisolated enum SettingsPaneProbe {
     /// The sidebar width in points, from a saved `NSSplitView` frame row.
     ///
     /// The stored string is `"x, y, width, height, NO, NO"`; the first row is the sidebar.

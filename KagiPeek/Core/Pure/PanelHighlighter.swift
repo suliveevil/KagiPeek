@@ -5,7 +5,7 @@ import Foundation
 /// The trigger modifiers are *not* a prefix: the panel keeps every shortcut on screen and
 /// only highlights the rows whose chord starts with the modifiers currently held. Once the
 /// user descends into a chord, every row on that level is part of the shortcut in progress.
-enum PanelHighlighter {
+nonisolated enum PanelHighlighter {
     static func highlightedIDs(
         items: [BindingItem],
         prefix: KeyChord,
