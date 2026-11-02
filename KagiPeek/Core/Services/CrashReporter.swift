@@ -315,7 +315,15 @@ nonisolated enum CrashReporter {
             try FileManager.default.createDirectory(at: crashDirectory, withIntermediateDirectories: true)
             try CrashLogFormatter.render(report).write(to: url, atomically: true, encoding: .utf8)
         } catch {
-            // Nothing left to fall back to at this point.
+            // This runs inside the uncaught-exception handler, which is why it looked like there
+            // was nothing left to fall back to. There is: `handleException` flushes the log
+            // buffer immediately after this call, so a line written here does reach disk.
+            // Without it the app swallows the exception *and* the record of having swallowed it,
+            // and the next launch reports a crash that left no evidence at all.
+            Diag.warning(
+                .crash,
+                "could not write the crash report to \(url.lastPathComponent) (\(error.localizedDescription))"
+            )
         }
     }
 

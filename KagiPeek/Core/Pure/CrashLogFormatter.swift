@@ -88,11 +88,28 @@ nonisolated enum CrashLogFormatter {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         // Dates are stored as epoch seconds (`occurredAt: TimeInterval`), so no date strategy
         // is involved — a reader never has to guess a format.
-        guard let data = try? encoder.encode(report),
+        do {
+            let data = try encoder.encode(report)
+            guard let text = String(data: data, encoding: .utf8) else {
+                return unrenderable("the encoded report was not valid UTF-8")
+            }
+            return text
+        } catch {
+            return unrenderable(error.localizedDescription)
+        }
+    }
+
+    /// Valid JSON that says why the report is missing.
+    ///
+    /// The previous fallback was `{}`, which parses, looks intact, and means nothing: a reader
+    /// concludes the crash simply carried no information, when the truth is that this app
+    /// failed to write down what it knew. The only file a crash leaves behind should not be
+    /// able to lie by omission.
+    private static func unrenderable(_ reason: String) -> String {
+        let payload = ["error": "the crash report could not be serialised: \(reason)"]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let text = String(data: data, encoding: .utf8) else {
-            // A crash report that cannot be serialised is still worth a line on stdout-adjacent
-            // channels; but this struct is fully Codable with value types, so the path is dead.
-            return "{}"
+            return "{\"error\":\"the crash report could not be serialised\"}"
         }
         return text
     }

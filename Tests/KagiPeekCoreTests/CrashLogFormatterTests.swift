@@ -54,6 +54,22 @@ final class CrashLogFormatterTests: XCTestCase {
         XCTAssertEqual(decoded, report)
     }
 
+    func testAnUnserialisableReportSaysSoInsteadOfLookingEmpty() throws {
+        // 这条分支曾被注释称为「死路径」，兜底值是 {}。它不是死的：occurredAt 是 Double，
+        // 而 JSONEncoder 对非有限浮点数的默认策略是 .throw —— 一个 NaN 时间就能触发。
+        // {} 能解析、看起来完整、且什么都没说，读者会以为这次崩溃本来就没带信息。
+        var broken = context()
+        broken.occurredAt = Date(timeIntervalSince1970: .nan)
+        let text = CrashLogFormatter.render(CrashLogFormatter.makeReport(context: broken))
+        XCTAssertNotEqual(text.trimmingCharacters(in: .whitespacesAndNewlines), "{}")
+        let object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+            "兜底值必须是能解析的 JSON 对象，而不是空对象"
+        )
+        let message = try XCTUnwrap(object["error"] as? String)
+        XCTAssertTrue(message.contains("could not be serialised"), "got: \(message)")
+    }
+
     func testLogTailCanBeAttachedLater() {
         let report = CrashLogFormatter.makeReport(context: context(), logTail: ["line one", "line two"])
         XCTAssertEqual(report.logTail, ["line one", "line two"])
