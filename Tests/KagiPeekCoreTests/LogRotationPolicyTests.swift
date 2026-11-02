@@ -32,6 +32,20 @@ final class LogRotationPolicyTests: XCTestCase {
         XCTAssertEqual(parsed.map { calendar.startOfDay(for: $0) }, calendar.startOfDay(for: original))
     }
 
+    func testDayStampZeroPadsSingleDigitMonthAndDay() {
+        // The stamp used to come from a cached `DateFormatter`; it now comes from
+        // `String(format:)`. This is the case that would break if the padding were dropped.
+        XCTAssertEqual(LogRotationPolicy.dayStamp(for: date(2026, 1, 5), timeZone: utc), "2026-01-05")
+    }
+
+    func testAStampForADayThatNeverHappenedIsRejected() {
+        // `Calendar` turns 2026-02-30 into March 2 without complaint, so the policy reads the
+        // components back and compares. A log file named for a day that never happened is
+        // not a file of ours.
+        XCTAssertNil(LogRotationPolicy.date(fromDayStamp: "2026-02-30", timeZone: utc))
+        XCTAssertNil(LogRotationPolicy.date(fromDayStamp: "abcd-ef-gh", timeZone: utc))
+    }
+
     func testForeignFileNamesAreNotLogFiles() {
         XCTAssertNil(LogRotationPolicy.date(fromFileName: "last-actions.json", timeZone: utc))
         XCTAssertNil(LogRotationPolicy.date(fromFileName: "kagipeek-2026-10-23.txt", timeZone: utc))

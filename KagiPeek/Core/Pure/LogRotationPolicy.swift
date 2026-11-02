@@ -15,6 +15,10 @@ nonisolated struct LogFileEntry: Equatable, Sendable {
 /// midnight is what "按日期滚动" means to the person reading the log. The time zone is a
 /// parameter (defaulting to the current one) so tests can pin it instead of depending on
 /// where the machine happens to be. `now` is injected in the style of `MenuCachePolicy`.
+///
+/// Nothing here is shared or mutable: the day is stamped from calendar components, so there
+/// is no formatter to cache and no lock to hold. That is how it should stay — this enum is
+/// called from the file log's own queue, and purity is the only thing making that safe.
 nonisolated enum LogRotationPolicy {
     static let filePrefix = "kagipeek-"
     static let fileExtension = "log"
@@ -26,24 +30,6 @@ nonisolated enum LogRotationPolicy {
     /// A single day's file above this degrades to warnings-and-errors only.
     static let dailyFileLimitBytes = 5 * 1024 * 1024
 
-    private static let formatterLock = NSLock()
-    /// `DateFormatter` is not `Sendable`, and the file log formats dates from its own queue,
-    /// so the cache is shared mutable state on purpose. `nonisolated(unsafe)` says so where
-    /// the compiler can see it; the lock below is what makes it true.
-    nonisolated(unsafe) private static var formatters: [String: DateFormatter] = [:]
-
-    private static func formatter(for timeZone: TimeZone) -> DateFormatter {
-        formatterLock.lock()
-        defer { formatterLock.unlock() }
-        if let existing = formatters[timeZone.identifier] { return existing }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
-        formatters[timeZone.identifier] = formatter
-        return formatter
-    }
-
     private static func calendar(for timeZone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
@@ -52,9 +38,43 @@ nonisolated enum LogRotationPolicy {
 
     // MARK: - Names
 
+    /// `yyyy-MM-dd` for the day containing `date`.
+    ///
+    /// Built from integers rather than a `DateFormatter`. The format is fixed, the calendar
+    /// is already a parameter of everything here, and zero-padding is all the format
+    /// actually needs. The formatter cost this file its purity: `DateFormatter` is not
+    /// `Sendable`, so it had to be cached, and the cache had to be locked, which made
+    /// `LogRotationPolicy` the one type in `Core/Pure` carrying shared mutable state — a
+    /// lock and a `nonisolated(unsafe)` both spent on formatting a day.
+    static func dayStamp(for date: Date, timeZone: TimeZone = .current) -> String {
+        let parts = calendar(for: timeZone).dateComponents([.year, .month, .day], from: date)
+        // A Gregorian calendar always resolves these three for any `Date`; the fallbacks
+        // match the `?? 0` this file already uses when it reads `.day` for the retention age.
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// The day a `yyyy-MM-dd` stamp names, nil when the stamp does not name a real day.
+    ///
+    /// The components are read back off the date that was built and compared: `Calendar`
+    /// will turn 2026-02-30 into March 2 without complaint, and a log file named for a day
+    /// that never happened is not a file of ours. This is at least as strict as the
+    /// non-lenient parser it replaces. No test covers that case either way, so the check is
+    /// here because it is true, not because a test asked for it.
+    static func date(fromDayStamp stamp: String, timeZone: TimeZone = .current) -> Date? {
+        let calendar = calendar(for: timeZone)
+        let parts = stamp.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+              let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2]),
+              let date = calendar.date(from: DateComponents(year: year, month: month, day: day))
+        else { return nil }
+        let readBack = calendar.dateComponents([.year, .month, .day], from: date)
+        return readBack.year == year && readBack.month == month && readBack.day == day ? date : nil
+    }
+
     /// `kagipeek-YYYY-MM-DD.log` for the day containing `date`.
     static func fileName(for date: Date, timeZone: TimeZone = .current) -> String {
-        "\(filePrefix)\(formatter(for: timeZone).string(from: date)).\(fileExtension)"
+        "\(filePrefix)\(dayStamp(for: date, timeZone: timeZone)).\(fileExtension)"
     }
 
     /// The day a log file name encodes, nil when the name does not match the pattern.
@@ -63,7 +83,7 @@ nonisolated enum LogRotationPolicy {
         let stem = name.dropFirst(filePrefix.count)
         let day = stem.dropLast(fileExtension.count + 1)
         guard day.count == 10 else { return nil }
-        return formatter(for: timeZone).date(from: String(day))
+        return date(fromDayStamp: String(day), timeZone: timeZone)
     }
 
     /// Whether `now` has crossed into a day whose file is not `currentFileName`.
