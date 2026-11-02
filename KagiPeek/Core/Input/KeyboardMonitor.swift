@@ -432,7 +432,7 @@ final class KeyboardMonitor {
         // thread while this queue may be mid-tick.
         let (action, ticks) = withLock { () -> (InputWatchdog.Action, Int) in
             var watchdog = self.watchdog
-            let action = watchdog.tick(mainAcknowledged: acknowledged)
+            let action = watchdog.tick(acknowledged: acknowledged)
             self.watchdog = watchdog
             return (action, watchdog.unresponsiveTicks)
         }

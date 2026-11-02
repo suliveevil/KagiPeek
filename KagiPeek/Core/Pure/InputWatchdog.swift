@@ -35,10 +35,12 @@ struct InputWatchdog: Equatable {
 
     /// One tick of the watchdog clock.
     ///
-    /// - Parameter mainAcknowledged: whether the ping issued at the previous tick has been
-    ///   answered by the main thread.
-    mutating func tick(mainAcknowledged: Bool) -> Action {
-        guard mainAcknowledged else {
+    /// - Parameter acknowledged: whether the ping issued at the previous tick came back
+    ///   from the thread the callback runs on. It was called `mainAcknowledged` while the
+    ///   callback lived on the main run loop; the name outlived the design, and a reader who
+    ///   believed it would think a wedged main thread still freezes input.
+    mutating func tick(acknowledged: Bool) -> Action {
+        guard acknowledged else {
             unresponsiveTicks += 1
             guard unresponsiveTicks >= Self.ticksBeforeDetach, !tapDetached else { return .none }
             tapDetached = true

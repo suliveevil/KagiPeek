@@ -10,8 +10,8 @@ final class InputWatchdogTests: XCTestCase {
 
     func testHealthyPingsDoNothing() {
         var watchdog = InputWatchdog()
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
+        XCTAssertEqual(watchdog.tick(acknowledged: true), .none)
+        XCTAssertEqual(watchdog.tick(acknowledged: true), .none)
         XCTAssertFalse(watchdog.tapDetached)
     }
 
@@ -19,15 +19,15 @@ final class InputWatchdogTests: XCTestCase {
     /// pings are the shortest run that is certainly a stall.
     func testOneMissedPingIsNotEnough() {
         var watchdog = InputWatchdog()
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .none)
+        XCTAssertEqual(watchdog.tick(acknowledged: true), .none)
+        XCTAssertEqual(watchdog.tick(acknowledged: false), .none)
         XCTAssertFalse(watchdog.tapDetached)
     }
 
     func testTwoMissedPingsDetachTheTap() {
         var watchdog = InputWatchdog()
-        _ = watchdog.tick(mainAcknowledged: false)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .detachTap)
+        _ = watchdog.tick(acknowledged: false)
+        XCTAssertEqual(watchdog.tick(acknowledged: false), .detachTap)
         XCTAssertTrue(watchdog.tapDetached)
     }
 
@@ -35,10 +35,10 @@ final class InputWatchdogTests: XCTestCase {
     /// detach decision, held until the main thread answers.
     func testContinuedSilenceAfterTheDetachDoesNotDetachAgain() {
         var watchdog = InputWatchdog()
-        _ = watchdog.tick(mainAcknowledged: false)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .detachTap)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .none)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .none)
+        _ = watchdog.tick(acknowledged: false)
+        XCTAssertEqual(watchdog.tick(acknowledged: false), .detachTap)
+        XCTAssertEqual(watchdog.tick(acknowledged: false), .none)
+        XCTAssertEqual(watchdog.tick(acknowledged: false), .none)
         XCTAssertTrue(watchdog.tapDetached)
     }
 
@@ -46,23 +46,23 @@ final class InputWatchdogTests: XCTestCase {
     /// detach, and the tap goes back the moment the main thread answers.
     func testAnAnsweredPingReattachesTheTap() {
         var watchdog = InputWatchdog()
-        _ = watchdog.tick(mainAcknowledged: false)
-        _ = watchdog.tick(mainAcknowledged: false)
+        _ = watchdog.tick(acknowledged: false)
+        _ = watchdog.tick(acknowledged: false)
         XCTAssertTrue(watchdog.tapDetached)
 
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .reattachTap)
+        XCTAssertEqual(watchdog.tick(acknowledged: true), .reattachTap)
         XCTAssertFalse(watchdog.tapDetached)
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: true), .none)
+        XCTAssertEqual(watchdog.tick(acknowledged: true), .none)
     }
 
     func testResetForgetsTheStall() {
         var watchdog = InputWatchdog()
-        _ = watchdog.tick(mainAcknowledged: false)
-        _ = watchdog.tick(mainAcknowledged: false)
+        _ = watchdog.tick(acknowledged: false)
+        _ = watchdog.tick(acknowledged: false)
         XCTAssertTrue(watchdog.tapDetached)
 
         watchdog.reset()
-        XCTAssertEqual(watchdog.tick(mainAcknowledged: false), .none, "one missed ping after a reset starts a new count")
+        XCTAssertEqual(watchdog.tick(acknowledged: false), .none, "one missed ping after a reset starts a new count")
         XCTAssertFalse(watchdog.tapDetached)
     }
 }
