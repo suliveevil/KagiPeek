@@ -5,6 +5,13 @@
 参考原则：《重构：改善既有代码的设计》第 2 版（下文简称 R2）、《Clean Code》、《Clean Architecture》
 （依赖规则）、《The Pragmatic Programmer》、《Migrating to Swift 6》、Apple《macOS 人机界面指南》。
 
+> **复审已做，见 `docs/code-review-2026-11-02-round2.md`。**
+> 那份报告逐条实测了本文 20 个条目的真实状态，结论是：P0 与 P1-7/8/9、P3-18/19 真做完了；
+> P1-5、P1-10、P2-14/15/16 **完全没动**；P0-4、P1-6、P3-17 做了一部分；
+> P2-13 与 P3-19 已做完但本文漏标。本文第 0 节的「201 个 Swift 文件」、
+> 第 104 行起的 P0-3/P0-4（无实施记录）、P2-13 的「1 个 accessibilityLabel」等度量口径均有误，
+> 修正见复审报告第 2 节。
+
 ---
 
 ## 0. 结论摘要
