@@ -62,10 +62,13 @@ nonisolated enum Diag {
     /// Wires the switches and the sink. Called at launch and whenever settings change.
     static func configure(enabled: Bool, verbose: Bool, store: FileLogStore = .shared) {
         lock.lock()
+        // `defer`, like every other guarded block in this file: the three assignments are
+        // straight-line today, but the first `return` someone adds between them would leave
+        // the logger locked — and a locked logger is silent, so nothing would say why.
+        defer { lock.unlock() }
         self.enabled = enabled
         self.verbose = verbose
         self.store = store
-        lock.unlock()
     }
 
     static func applySettings(_ settings: AppSettingsSnapshot) {
