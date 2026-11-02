@@ -53,6 +53,9 @@ final class ShortcutTester {
     private var headTap: CFMachPort?
     private var tailTap: CFMachPort?
     private var runLoopSources: [CFRunLoopSource] = []
+    /// How many times a disabled test tap has been put back during the current test. Reset
+    /// when a test installs its taps; see `reenableTaps`.
+    private var testTapRetries = 0
     private var activationObserver: NSObjectProtocol?
     private var countdownTask: Task<Void, Never>?
     private var settleTask: Task<Void, Never>?
@@ -168,7 +171,22 @@ final class ShortcutTester {
         machine.keyAtTail(chord: chord, now: DispatchTime.now().uptimeNanoseconds)
     }
 
+    /// Puts a disabled test tap back — once.
+    ///
+    /// These are `listenOnly` taps, so they never hold an event and cannot freeze input the
+    /// way the main tap could; the cost of putting one back is churn, not a stalled keyboard.
+    /// That is exactly why it still needs a limit: a tap that keeps timing out is a tap whose
+    /// callbacks are not running, and re-enabling it forever would keep asking the system for
+    /// the same service. After one retry the taps are removed, the countdown finishes on its
+    /// own, and the test reports the honest verdict — no press observed — instead of silently
+    /// listening to nothing.
     fileprivate func reenableTaps() {
+        testTapRetries += 1
+        guard testTapRetries <= 1 else {
+            AppLog.input.error("a test tap kept being disabled; removing it rather than retrying")
+            removeTaps()
+            return
+        }
         for tap in [headTap, tailTap].compactMap({ $0 }) {
             CGEvent.tapEnable(tap: tap, enable: true)
         }
@@ -181,8 +199,11 @@ final class ShortcutTester {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            // Delivered on the main queue, which is a queue guarantee rather than an actor
-            // one, so hop explicitly.
+            // `queue: .main` is a queue guarantee; the main queue is the main actor's
+            // executor, so the assertion below holds. It is asserted rather than hopped
+            // because this runs once per app activation and the hop would reorder it behind
+            // whatever else is queued. (The previous comment here said "hop explicitly",
+            // which is the opposite of what the line does.)
             MainActor.assumeIsolated { self?.appActivated(notification) }
         }
     }
@@ -227,6 +248,7 @@ final class ShortcutTester {
 
         headTap = head
         tailTap = tail
+        testTapRetries = 0
 
         for tap in [head, tail] {
             guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else { continue }

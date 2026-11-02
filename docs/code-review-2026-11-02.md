@@ -51,14 +51,19 @@
   3. `startPreview`（148 行截图夹具）整体移到 `PreviewScenarios.swift`，只在 `#if DEBUG` 或独立文件里存在。
 - 注意：这是**唯一需要 Xcode 才能安全做**的改动，见第 4 节。
 
-#### P0-2　31 处 `MainActor.assumeIsolated` 是运行期断言，不是类型保证
+#### P0-2　31 处 `MainActor.assumeIsolated` 把隔离写成运行期断言
 
 - 位置（计数）：`ShortcutEngine` 8、`CatalogLoader` 4、`StatusItemController` 3、`ShortcutTester` 3、`AppPermissions` 3、`SurfacePanelController` 2、`PermissionGuidePanelController` 2、`AppContextService` 2、`SettingsStore`/`UpdateChecker`/`AppDirectory`/`AppDelegate` 各 1
-- 症状：该 API 在"实际不在主 actor"时**直接崩溃**（不是排队、不是降级）。它把一条本应由编译器保证的不变式降级为人工承诺，一旦某个回调的队列被改（历史上已经发生过：tap 回调从 main 移到独立线程），就会从"偶发卡顿"变成"偶发闪退"。
+- **实测分类（2026-11-02 补查，推翻了初稿的"随时会 trap"）**：31 处无一落在无保证的线程上——
+  - 20 处是 `addObserver(queue: .main)` / `DispatchQueue.main.async` / `RunLoop.main.add` / `asyncAfter`，主队列即主 actor 执行器，**当前安全**；
+  - 2 处是 `NSEvent` 本地/全局监视器，AppKit 只在主线程回调；
+  - 2 处是 `ShortcutTester` 的 tap 回调，挂在 `CFRunLoopGetMain()`，且 tap 是 **`.listenOnly`**（拿事件副本，不阻塞事件流），所以即使主线程 wedge 也不会重演五次卡死；
+  - 其余是 `@Published` 的 Combine sink 等主线程写入点。
+  - 所以它不是当下的崩溃源，**风险是性质上的**：保证来自"这个队列是主队列"，而不是"这个值的类型是 MainActor"。历史上已经发生过一次队列变更（tap 回调迁到独立线程），那次改动会让任何依赖队列的断言静默失效。
 - 依据：*Migrating to Swift 6*（用隔离而非断言表达并发前提）;Pragmatic Programmer「不要依赖巧合」。
 - 建议（迁移路径，不要一次全改）：
-  1. 区分两类：**真在 main**（NSNotification/NSWorkspace 回调）→ 改成 `@MainActor` 闭包或 `Task { @MainActor in ... }`；**不确定**（定时器、后台队列）→ 必须换成显式 hop。
-  2. 打开 `SWIFT_STRICT_CONCURRENCY = targeted`，让编译器逐条指认，而不是靠人审查。
+  1. 先开 `SWIFT_STRICT_CONCURRENCY = targeted` 让编译器列出真实问题，而不是靠人审查 31 处。
+  2. 有 `queue: .main` 的地方改成 `@MainActor` 闭包或 `Task { @MainActor in }`，让类型系统接手这个保证；`Queue.main` 与 `MainActor` 的等价关系不该由注释维护。
   3. 最后才开 `complete` + `SWIFT_VERSION = 6`。
 
 #### P0-3　事件投递队列无界：主线程 wedge 后一次性回放
