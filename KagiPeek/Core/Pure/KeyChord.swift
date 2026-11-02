@@ -184,11 +184,6 @@ nonisolated struct KeyStep: Hashable, Codable, Sendable {
 
     var isModifierOnly: Bool { key == nil }
 
-    func matchesKey(_ token: KeyToken) -> Bool {
-        guard let key else { return false }
-        return key == token || alternates.contains(token)
-    }
-
     /// Exact step identity (ignoring alternates, which are only spellings).
     func matches(_ other: KeyStep) -> Bool {
         guard modifiers == other.modifiers, let lhs = key, let rhs = other.key else { return false }

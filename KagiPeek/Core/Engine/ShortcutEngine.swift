@@ -1663,10 +1663,10 @@ final class ShortcutEngine: ObservableObject {
             // the front app while the panel did nothing at all.
             let held = state.panel.heldModifiers
             func capture(_ keyCode: UInt16, _ modifiers: ModifierSet) {
-                identifiers.insert(KeyboardMonitor.identifier(keyCode: keyCode, modifiers: modifiers))
+                identifiers.insert(KeySwallowRules.identifier(keyCode: keyCode, modifiers: modifiers))
                 if !held.isEmpty {
                     identifiers.insert(
-                        KeyboardMonitor.identifier(keyCode: keyCode, modifiers: modifiers.union(held))
+                        KeySwallowRules.identifier(keyCode: keyCode, modifiers: modifiers.union(held))
                     )
                 }
             }
@@ -1695,7 +1695,7 @@ final class ShortcutEngine: ObservableObject {
             // A bare `/` is the panel's own key: it opens the palette. Without capturing it
             // the app behind would also see it — in a browser that is "quick find", which
             // would then open on top of the palette that just opened.
-            identifiers.insert(KeyboardMonitor.identifier(keyCode: KeyCode.slash, modifiers: []))
+            identifiers.insert(KeySwallowRules.identifier(keyCode: KeyCode.slash, modifiers: []))
         }
         monitor.updateCapturedKeys(identifiers)
         monitor.updateCapturedKeyCodes(capturedKeyCodes)
@@ -2074,11 +2074,6 @@ final class ShortcutEngine: ObservableObject {
             for: chord,
             items: state.catalog.items + externalBindings
         ) { [weak self] bundleID in self?.ownerName(forBundleID: bundleID) }
-    }
-
-    /// Mirrors the tester's countdown into published state so the UI can tick down.
-    func refreshLiveTestState() {
-        state.liveTestState = shortcutTester.state
     }
 
     /// The combo the tester is currently busy with, so a row knows whether the countdown on

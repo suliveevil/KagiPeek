@@ -105,9 +105,3 @@ struct PanelState {
 
     static let hidden = PanelState()
 }
-
-/// Small "executed" toast shown after a shortcut completes.
-struct HUDState {
-    var chord: String
-    var title: String
-}

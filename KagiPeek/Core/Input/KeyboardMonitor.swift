@@ -2,14 +2,6 @@ import AppKit
 import CoreGraphics
 import os
 
-/// A global hotkey that the tap should consume instead of forwarding to the front app.
-struct SwallowRule: Equatable, Sendable {
-    var keyCode: UInt16
-    var modifiers: ModifierSet
-    /// Hyper-key tolerance: accept a superset of the recorded modifiers.
-    var tolerant: Bool
-}
-
 enum KeyboardMonitorError: LocalizedError {
     case accessibilityDenied
     case tapCreationFailed
@@ -65,9 +57,10 @@ final class KeyboardMonitor {
     /// The run loop the tap source is scheduled on — the tap thread's own, never main's.
     private var tapRunLoop: CFRunLoop?
     private let lock = NSLock()
-    private var swallowRules: [SwallowRule] = []
-    private var capturedIdentifiers: Set<UInt32> = []
-    private var capturedKeyCodes: Set<UInt16> = []
+    /// The keystrokes this tap owns: the user's global hotkeys, the panel's navigation keys
+    /// and Escape. One value instead of three parallel collections, so the decision and the
+    /// data it reads cannot drift apart — see `KeySwallowRules`, where it is tested.
+    private var swallowRules = KeySwallowRules()
     private var decodesKeyEvents = false
     /// While a surface owns the pointer, the rects a click has to fall between for the tap to
     /// eat it: inside the front app's window — that is where a stray click changes the
@@ -112,38 +105,37 @@ final class KeyboardMonitor {
     /// reach the callback, a timeout a minute later is a new episode.
     private var lastEnableAt: Date?
 
-    static func identifier(keyCode: UInt16, modifiers: ModifierSet) -> UInt32 {
-        UInt32(keyCode) << 8 | UInt32(truncatingIfNeeded: modifiers.rawValue & 0xFF)
+    /// Runs `body` with the lock held.
+    ///
+    /// One idiom for the shared state, because the file used to mix hand-written pairs with
+    /// `defer` and a missed `unlock` on one path is a deadlock in the input stream — the
+    /// worst place in this program to find out.
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
     }
 
     /// Whether the engine currently needs characters. Decoding runs on the event-tap thread
     /// for every key press in the session, so it is only on while a surface is reading keys
     /// or a binding is being recorded.
     func updateDecodesKeyEvents(_ value: Bool) {
-        lock.lock()
-        decodesKeyEvents = value
-        lock.unlock()
+        withLock { decodesKeyEvents = value }
     }
 
     private var needsCharacters: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return decodesKeyEvents
+        withLock { decodesKeyEvents }
     }
 
     func updateSwallowRules(_ rules: [SwallowRule]) {
-        lock.lock()
-        swallowRules = rules
-        lock.unlock()
+        withLock { swallowRules.rules = rules }
     }
 
     /// The engine's picture of the composed-stroke state, published after every change that
     /// affects the swallow decision. The tap thread reads it instead of calling the engine:
     /// the engine keeps the main actor, the input path keeps its own thread.
     func updateComposedSwallowState(_ state: ComposedSwallowState) {
-        lock.lock()
-        composedSwallowState = state
-        lock.unlock()
+        withLock { composedSwallowState = state }
     }
 
     private var composedSwallowState = ComposedSwallowState()
@@ -151,16 +143,12 @@ final class KeyboardMonitor {
     /// Keys the panel is currently using for navigation (↑↓←→↵Esc). They are consumed
     /// while the panel is pinned so the front app does not also react to them.
     func updateCapturedKeys(_ identifiers: Set<UInt32>) {
-        lock.lock()
-        capturedIdentifiers = identifiers
-        lock.unlock()
+        withLock { swallowRules.capturedIdentifiers = identifiers }
     }
 
     /// Keys consumed regardless of modifiers (used for Esc).
     func updateCapturedKeyCodes(_ keyCodes: Set<UInt16>) {
-        lock.lock()
-        capturedKeyCodes = keyCodes
-        lock.unlock()
+        withLock { swallowRules.capturedKeyCodes = keyCodes }
     }
 
     /// Arms the click that dismisses a surface: pressing inside `appWindowFrame` but outside
@@ -171,14 +159,14 @@ final class KeyboardMonitor {
     /// something else, and eating them would make the panel feel like it had frozen the
     /// screen.
     func updateOutsideMouseSwallow(panelFrame: CGRect?, appWindowFrame: CGRect?) {
-        lock.lock()
-        if let panelFrame, let appWindowFrame {
-            swallowOutside = (Self.screenRect(panelFrame), Self.screenRect(appWindowFrame))
-        } else {
-            swallowOutside = nil
-            swallowedMouseButton = nil
+        withLock {
+            if let panelFrame, let appWindowFrame {
+                swallowOutside = (Self.screenRect(panelFrame), Self.screenRect(appWindowFrame))
+            } else {
+                swallowOutside = nil
+                swallowedMouseButton = nil
+            }
         }
-        lock.unlock()
     }
 
     private static func screenRect(_ rect: CGRect) -> ScreenRect {
@@ -239,10 +227,10 @@ final class KeyboardMonitor {
         enableTap(created)
         isRunning = true
 
-        lock.lock()
-        watchdog.reset()
-        tapDetachedByWatchdog = false
-        lock.unlock()
+        withLock {
+            watchdog.reset()
+            tapDetachedByWatchdog = false
+        }
         startWatchdog()
 
         // The tap's run loop is this thread's own — the point of the whole refactor. The
@@ -257,40 +245,39 @@ final class KeyboardMonitor {
     /// Body of the dedicated tap thread. Blocks until `stop()` calls `CFRunLoopStop`.
     private func tapThreadMain() {
         let runLoop = CFRunLoopGetCurrent()
-        lock.lock()
         // A stop() that raced the launch leaves nothing to schedule: the loop below exits
         // immediately and the thread dies.
-        guard isRunning, let source else {
-            tapRunLoop = nil
-            lock.unlock()
-            return
+        let source = withLock { () -> CFRunLoopSource? in
+            guard isRunning, let source else {
+                tapRunLoop = nil
+                return nil
+            }
+            health.reset()
+            tapRunLoop = runLoop
+            return source
         }
-        health.reset()
-        tapRunLoop = runLoop
-        lock.unlock()
+        guard let source else { return }
 
         CFRunLoopAddSource(runLoop, source, CFRunLoopMode.defaultMode)
         CFRunLoopRun()
         CFRunLoopRemoveSource(runLoop, source, CFRunLoopMode.defaultMode)
 
-        lock.lock()
-        tapRunLoop = nil
-        lock.unlock()
+        withLock { tapRunLoop = nil }
     }
 
     func stop() {
         stopWatchdog()
         pendingReEnable?.cancel()
         pendingReEnable = nil
-        lock.lock()
-        let tapPort = tap
-        let runLoop = tapRunLoop
-        tap = nil
-        source = nil
-        isRunning = false
-        health.reset()
-        lastEnableAt = nil
-        lock.unlock()
+        let (tapPort, runLoop) = withLock { () -> (CFMachPort?, CFRunLoop?) in
+            let ports = (tap, tapRunLoop)
+            tap = nil
+            source = nil
+            isRunning = false
+            health.reset()
+            lastEnableAt = nil
+            return ports
+        }
         if let tapPort {
             CGEvent.tapEnable(tap: tapPort, enable: false)
         }
@@ -313,32 +300,26 @@ final class KeyboardMonitor {
     ///
     /// Runs on the tap thread: disable notifications arrive through the callback, which now
     /// lives off main — so the recovery keeps working while the main thread is wedged.
-    private func handleDisable(reason: String) {
-        lock.lock()
-        let tapPort = tap
-        let running = isRunning
-        let waitingOutPause = pendingReEnable != nil
-        lock.unlock()
-        guard running, let tapPort else { return }
+    private func handleDisable(trigger: TapDiagnostics.Trigger) {
+        guard let tapPort = withLock({ tap }), withLock({ isRunning }) else { return }
         // Already waiting out a pause: the tap is off and further notifications describe the
         // same failure, not a new one.
-        guard !waitingOutPause else { return }
+        guard withLock({ pendingReEnable == nil }) else { return }
 
         let trusted = hasAccessibility()
-        lock.lock()
-        let recovery = health.recordDisable(trusted: trusted)
-        let attempt = health.consecutiveDisables
-        lock.unlock()
-
-        lock.lock()
-        let stoodFor = lastEnableAt.map { Int(Date().timeIntervalSince($0) * 1000) }
-        lock.unlock()
-        let detail = "event tap disabled by the system (\(reason)); "
-            + "attempt \(attempt), trusted=\(trusted), "
-            + "enabled=\(CGEvent.tapIsEnabled(tap: tapPort)), "
-            + "stood_ms=\(stoodFor.map(String.init) ?? "?")"
+        let recovery = withLock { health.recordDisable(trusted: trusted) }
+        let report = TapDiagnostics(
+            trigger: trigger,
+            attempt: withLock { health.consecutiveDisables },
+            trusted: trusted,
+            enabled: CGEvent.tapIsEnabled(tap: tapPort),
+            stoodForMilliseconds: withLock {
+                lastEnableAt.map { Int(Date().timeIntervalSince($0) * 1000) }
+            },
+            recovery: recovery
+        )
         AppLog.input.notice("event tap disabled by the system")
-        Diag.warning(.tap, detail + " — " + Self.describe(recovery))
+        Diag.warning(.tap, report.line)
 
         // The panel releases whatever it was holding: keys pressed during the stall are gone.
         emit(KeyEvent(kind: .interruption, modifiers: [], key: nil, keyCode: 0, isRepeat: false, happenedAt: Date()))
@@ -347,47 +328,17 @@ final class KeyboardMonitor {
         case let .reEnable(delay):
             // The watchdog detached the tap because the tap thread is wedged: putting it
             // back from here would re-create the freeze the watchdog just ended.
-            lock.lock()
-            let detached = tapDetachedByWatchdog
-            lock.unlock()
-            guard !detached else { return }
-
-            guard delay > 0 else {
+            guard !withLock({ tapDetachedByWatchdog }) else { return }
+            if delay > 0 {
+                scheduleReEnable(tapPort, after: delay)
+            } else {
                 enableTap(tapPort)
-                return
-            }
-            // The pause is served on the tap's own run loop: a wedged main thread must not
-            // be able to hold a dead tap installed — or to keep it removed, which is the
-            // harmless direction, but the tap's recovery belongs to the tap's thread.
-            let work = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                self.lock.lock()
-                self.pendingReEnable = nil
-                let stillRunning = self.isRunning
-                self.lock.unlock()
-                guard stillRunning else { return }
-                self.enableTap(tapPort)
-            }
-            lock.lock()
-            pendingReEnable = work
-            let runLoop = tapRunLoop
-            lock.unlock()
-            if let runLoop {
-                CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue) { [weak work] in
-                    work?.perform()
-                }
-                CFRunLoopWakeUp(runLoop)
-                // Safety net: if the run loop never drains the block, the work item is
-                // cancelled with the tap and cannot leak.
-                DispatchQueue.global().asyncAfter(deadline: .now() + delay + 5) { [weak work] in
-                    work?.cancel()
-                }
             }
 
         case .tearDown:
             let why: TeardownReason = trusted ? .unresponsive : .permissionLost
             stop()
-            Diag.error(.tap, "event tap torn down (\(why.rawValue)): " + detail)
+            Diag.error(.tap, "event tap torn down (\(why.rawValue)): " + report.detail)
             let handler = onTeardown
             DispatchQueue.main.async {
                 handler?(why)
@@ -395,19 +346,39 @@ final class KeyboardMonitor {
         }
     }
 
-    /// Turns the tap on and remembers when, so the next disable can say how long it stood.
-    private func enableTap(_ tapPort: CFMachPort) {
-        lock.lock()
-        lastEnableAt = Date()
-        lock.unlock()
-        CGEvent.tapEnable(tap: tapPort, enable: true)
+    /// Waits out the pause on the tap's own run loop.
+    ///
+    /// A wedged main thread must not be able to hold a dead tap installed — the tap's
+    /// recovery belongs to the tap's thread, the same one that answers its events. The safety
+    /// net cancels the work item if the run loop never drains it, so a stopped tap cannot
+    /// leave a pending re-enable behind.
+    private func scheduleReEnable(_ tapPort: CFMachPort, after delay: TimeInterval) {
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            withLock { self.pendingReEnable = nil }
+            guard withLock({ self.isRunning }) else { return }
+            self.enableTap(tapPort)
+        }
+        let runLoop = withLock { () -> CFRunLoop? in
+            pendingReEnable = work
+            return tapRunLoop
+        }
+        guard let runLoop else { return }
+
+        CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue) { [weak work] in
+            work?.perform()
+        }
+        CFRunLoopWakeUp(runLoop)
+        DispatchQueue.global().asyncAfter(deadline: .now() + delay + 5) { [weak work] in
+            work?.cancel()
+        }
     }
 
-    private static func describe(_ recovery: TapRecovery) -> String {
-        switch recovery {
-        case let .reEnable(delay): return "re-enabling in \(delay)s"
-        case .tearDown: return "giving up"
-        }
+    /// Turns the tap on and remembers when, so the next disable can say how long it stood.
+    private func enableTap(_ tapPort: CFMachPort) {
+        let now = Date()
+        withLock { lastEnableAt = now }
+        CGEvent.tapEnable(tap: tapPort, enable: true)
     }
 
     // MARK: - Input watchdog
@@ -426,10 +397,10 @@ final class KeyboardMonitor {
     private func stopWatchdog() {
         watchdogTimer?.cancel()
         watchdogTimer = nil
-        lock.lock()
-        pingAcknowledged = false
-        tapDetachedByWatchdog = false
-        lock.unlock()
+        withLock {
+            pingAcknowledged = false
+            tapDetachedByWatchdog = false
+        }
     }
 
     /// Runs on the watchdog queue. Pings the tap thread once per interval; the answer to
@@ -441,13 +412,11 @@ final class KeyboardMonitor {
     /// job is to make the detachment permanent instead of letting `handleDisable` put a
     /// wedged tap straight back.
     private func watchdogTick() {
-        lock.lock()
-        let acknowledged = pingAcknowledged
-        pingAcknowledged = false
-        let tapPort = tap
-        let running = isRunning
-        let watchedLoop = tapRunLoop
-        lock.unlock()
+        let (acknowledged, tapPort, running, watchedLoop) = withLock {
+            let snapshot = (pingAcknowledged, tap, isRunning, tapRunLoop)
+            pingAcknowledged = false
+            return snapshot
+        }
 
         guard running, let tapPort, let watchedLoop else { return }
 
@@ -455,41 +424,32 @@ final class KeyboardMonitor {
         // draining the callback has been unresponsive for an interval.
         CFRunLoopPerformBlock(watchedLoop, CFRunLoopMode.defaultMode.rawValue) { [weak self] in
             guard let self else { return }
-            self.lock.lock()
-            self.pingAcknowledged = true
-            self.lock.unlock()
+            self.withLock { self.pingAcknowledged = true }
         }
         CFRunLoopWakeUp(watchedLoop)
 
         // The state lives under the shared lock: start()/stop() reset it from the main
         // thread while this queue may be mid-tick.
-        lock.lock()
-        var watchdog = self.watchdog
-        lock.unlock()
-
-        let action = watchdog.tick(mainAcknowledged: acknowledged)
-
-        lock.lock()
-        self.watchdog = watchdog
-        lock.unlock()
+        let (action, ticks) = withLock { () -> (InputWatchdog.Action, Int) in
+            var watchdog = self.watchdog
+            let action = watchdog.tick(mainAcknowledged: acknowledged)
+            self.watchdog = watchdog
+            return (action, watchdog.unresponsiveTicks)
+        }
 
         switch action {
         case .none:
             break
 
         case .detachTap:
-            lock.lock()
-            tapDetachedByWatchdog = true
-            lock.unlock()
+            withLock { tapDetachedByWatchdog = true }
             // From outside the wedged thread: a disabled tap is harmless, so this is what
             // frees the input stream.
             CGEvent.tapEnable(tap: tapPort, enable: false)
-            Diag.error(.tap, "input watchdog: tap thread unresponsive for \(watchdog.unresponsiveTicks) ticks with the tap enabled — detaching the tap to free the input stream")
+            Diag.error(.tap, "input watchdog: tap thread unresponsive for \(ticks) ticks with the tap enabled — detaching the tap to free the input stream")
 
         case .reattachTap:
-            lock.lock()
-            tapDetachedByWatchdog = false
-            lock.unlock()
+            withLock { tapDetachedByWatchdog = false }
             CFRunLoopPerformBlock(watchedLoop, CFRunLoopMode.defaultMode.rawValue) {
                 CGEvent.tapEnable(tap: tapPort, enable: true)
             }
@@ -505,9 +465,7 @@ final class KeyboardMonitor {
             // This event got through, which is the only proof that matters: whatever went
             // wrong before, the tap is answering now. (Locked because stop() also resets
             // the health from the main thread.)
-            lock.lock()
-            health.recordEvent()
-            lock.unlock()
+            withLock { health.recordEvent() }
         }
         switch type {
         case .flagsChanged:
@@ -522,51 +480,26 @@ final class KeyboardMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
-            let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
-            let modifiers = ModifierSet.from(cgEventFlags: event.flags)
-            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-            let unicode = needsCharacters ? Self.unicodeString(from: event) : nil
-            let keyEvent = KeyEvent(
-                kind: .keyDown,
-                modifiers: modifiers,
-                key: unicode.flatMap { KeyMapper.token(keyCode: keyCode, unicode: $0, modifiers: modifiers) },
-                keyCode: keyCode,
-                isRepeat: isRepeat,
-                happenedAt: Date(),
-                characters: unicode
-            )
+            let (keyCode, keyEvent) = describe(event, kind: .keyDown)
             // A repeat of a captured key has to be consumed too: letting it through would
             // move the panel selection and scroll the front app at the same time.
-            let consume = shouldSwallow(keyCode: keyCode, modifiers: modifiers)
+            let consume = shouldSwallow(keyCode: keyCode, modifiers: keyEvent.modifiers)
                 || shouldSwallowComposed(keyEvent)
             if consume { recordSwallowedKeyDown(keyCode) }
             emit(keyEvent)
             return consume ? nil : Unmanaged.passUnretained(event)
 
         case .keyUp:
-            let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
-            let modifiers = ModifierSet.from(cgEventFlags: event.flags)
-            let unicode = needsCharacters ? Self.unicodeString(from: event) : nil
-            let keyEvent = KeyEvent(
-                kind: .keyUp,
-                modifiers: modifiers,
-                key: unicode.flatMap { KeyMapper.token(keyCode: keyCode, unicode: $0, modifiers: modifiers) },
-                keyCode: keyCode,
-                isRepeat: false,
-                happenedAt: Date()
-            )
+            let (keyCode, keyEvent) = describe(event, kind: .keyUp)
             // Consumed on release as well: swallowing the press but not the release would
             // leave the front app holding a key that never came up. The press is remembered
             // by key code because the modifiers may have changed under it.
             let releaseOfSwallowedPress = takeSwallowedKeyDown(keyCode)
-            if shouldSwallow(keyCode: keyCode, modifiers: modifiers)
+            let consume = shouldSwallow(keyCode: keyCode, modifiers: keyEvent.modifiers)
                 || shouldSwallowComposed(keyEvent)
-                || releaseOfSwallowedPress {
-                emit(keyEvent)
-                return nil
-            }
+                || releaseOfSwallowedPress
             emit(keyEvent)
-            return Unmanaged.passUnretained(event)
+            return consume ? nil : Unmanaged.passUnretained(event)
 
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             return handleMouseDown(event)
@@ -575,7 +508,7 @@ final class KeyboardMonitor {
             return handleMouseUp(event)
 
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            handleDisable(reason: type == .tapDisabledByTimeout ? "timeout" : "user input")
+            handleDisable(trigger: type == .tapDisabledByTimeout ? .timeout : .userInput)
             return Unmanaged.passUnretained(event)
 
         default:
@@ -583,13 +516,36 @@ final class KeyboardMonitor {
         }
     }
 
+    /// Reads the fields the engine cares about out of the raw event.
+    ///
+    /// `keyDown` and `keyUp` used to repeat this fourteen-line block verbatim, and the copies
+    /// had already drifted: only one carried the typed characters, and only one read the
+    /// autorepeat flag. Neither difference was a decision — they were both accidents of
+    /// which one was written second, which is the argument for building it in one place.
+    ///
+    /// The typed characters are attached to a press only: a release cannot type.
+    private func describe(_ event: CGEvent, kind: KeyEventKind) -> (keyCode: UInt16, event: KeyEvent) {
+        let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
+        let modifiers = ModifierSet.from(cgEventFlags: event.flags)
+        let unicode = needsCharacters ? Self.unicodeString(from: event) : nil
+        let isPress = kind == .keyDown
+        let keyEvent = KeyEvent(
+            kind: kind,
+            modifiers: modifiers,
+            key: unicode.flatMap { KeyMapper.token(keyCode: keyCode, unicode: $0, modifiers: modifiers) },
+            keyCode: keyCode,
+            isRepeat: isPress && event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+            happenedAt: Date(),
+            characters: isPress ? unicode : nil
+        )
+        return (keyCode, keyEvent)
+    }
+
     /// A press inside the front app's window but outside the surface: close the surface and
     /// eat the click.
     private func handleMouseDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        lock.lock()
         let point = event.location
-        let bounds = swallowOutside
-        lock.unlock()
+        let bounds = withLock { swallowOutside }
         guard let bounds else { return Unmanaged.passUnretained(event) }
         guard OutsideClickPolicy.shouldSwallow(
             point: (x: point.x, y: point.y),
@@ -598,9 +554,7 @@ final class KeyboardMonitor {
         ) else {
             return Unmanaged.passUnretained(event)
         }
-        lock.lock()
-        swallowedMouseButton = event.getIntegerValueField(.mouseEventButtonNumber)
-        lock.unlock()
+        withLock { swallowedMouseButton = event.getIntegerValueField(.mouseEventButtonNumber) }
         // The dismissal belongs to the engine on the main actor; the swallow above already
         // happened, so the hop costs nothing but ordering.
         let handler = onOutsideMousePress
@@ -611,24 +565,19 @@ final class KeyboardMonitor {
     }
 
     private func handleMouseUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        lock.lock()
-        let button = swallowedMouseButton
-        lock.unlock()
-        guard let button else { return Unmanaged.passUnretained(event) }
+        guard let button = withLock({ swallowedMouseButton }) else {
+            return Unmanaged.passUnretained(event)
+        }
         guard button == event.getIntegerValueField(.mouseEventButtonNumber) else {
             return Unmanaged.passUnretained(event)
         }
-        lock.lock()
-        swallowedMouseButton = nil
-        lock.unlock()
+        withLock { swallowedMouseButton = nil }
         return nil
     }
 
     /// Remembers a consumed key-down so its release is consumed as well.
     private func recordSwallowedKeyDown(_ keyCode: UInt16) {
-        lock.lock()
-        swallowedKeyDownCode = keyCode
-        lock.unlock()
+        withLock { swallowedKeyDownCode = keyCode }
     }
 
     /// Whether this key-up is the release of a key-down the tap ate, clearing the memory.
@@ -636,40 +585,25 @@ final class KeyboardMonitor {
     /// Key code only: the modifiers can differ between the two events, and a physical key
     /// cannot be pressed twice without being released in between, so the code is enough.
     private func takeSwallowedKeyDown(_ keyCode: UInt16) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard swallowedKeyDownCode == keyCode else { return false }
-        swallowedKeyDownCode = nil
-        return true
+        withLock {
+            guard swallowedKeyDownCode == keyCode else { return false }
+            swallowedKeyDownCode = nil
+            return true
+        }
     }
 
+    /// The plain half of the decision — hotkeys, navigation keys, Escape. The answer lives
+    /// in `KeySwallowRules`, which is a value type and therefore testable; this method only
+    /// supplies the current rules under the lock.
     private func shouldSwallow(keyCode: UInt16, modifiers: ModifierSet) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        // `capturedKeyCodes` is a separate channel (Esc regardless of modifiers); leaving it
-        // out of this guard would silently disable it whenever the other two sets are empty.
-        guard !swallowRules.isEmpty || !capturedIdentifiers.isEmpty || !capturedKeyCodes.isEmpty else {
-            return false
-        }
-        if capturedKeyCodes.contains(keyCode) { return true }
-        let identifier = Self.identifier(keyCode: keyCode, modifiers: modifiers)
-        if capturedIdentifiers.contains(identifier) { return true }
-        for rule in swallowRules {
-            guard rule.keyCode == keyCode else { continue }
-            if rule.modifiers == modifiers { return true }
-            if rule.tolerant, modifiers.isSuperset(of: rule.modifiers) { return true }
-        }
-        return false
+        withLock { swallowRules.shouldSwallow(keyCode: keyCode, modifiers: modifiers) }
     }
 
     /// The composed-stroke half of the decision, answered on the tap thread from the
     /// snapshot the engine publishes. Never calls the engine: a synchronous main-actor call
     /// here is what let a wedged main thread freeze the whole keyboard.
     private func shouldSwallowComposed(_ event: KeyEvent) -> Bool {
-        lock.lock()
-        let state = composedSwallowState
-        lock.unlock()
-        return ComposedSwallow.decide(state, event: event)
+        ComposedSwallow.decide(withLock { composedSwallowState }, event: event)
     }
 
     private func emit(_ event: KeyEvent) {

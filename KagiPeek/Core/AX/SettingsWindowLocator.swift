@@ -45,12 +45,6 @@ enum SettingsWindowLocator {
         return rects.sorted { $0.width * $0.height > $1.width * $1.height }
     }
 
-    /// The largest on-screen, layer-0 window owned by System Settings, in AppKit screen
-    /// coordinates. Nil when Settings is not running or shows no window.
-    static func settingsWindowFrame() -> NSRect? {
-        settingsWindows().first
-    }
-
     /// Whether one of the Settings windows is a password / Touch ID prompt sitting over the
     /// main window. Used only to tell "waiting for confirmation" apart from "the user
     /// cancelled", so the test is deliberately loose: a second window that is smaller than

@@ -55,11 +55,6 @@ final class FileLogStore {
 
     var folderURL: URL { directory }
 
-    /// The file the next line would go to, for the settings panel and the crash report.
-    func currentFileURL(now: Date = Date()) -> URL {
-        directory.appendingPathComponent(LogRotationPolicy.fileName(for: now, timeZone: timeZone))
-    }
-
     // MARK: - Writing
 
     func enqueue(level: DiagLevel, tag: DiagTag, message: String) {
@@ -143,17 +138,6 @@ final class FileLogStore {
               let text = String(data: data, encoding: .utf8) else { return [] }
         let all = text.split(separator: "\n", omittingEmptySubsequences: true)
         return all.suffix(count).map(String.init)
-    }
-
-    /// Every log file currently on disk, newest first.
-    func existingFiles() -> [URL] {
-        let contents = (try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.fileSizeKey]
-        )) ?? []
-        return contents
-            .filter { $0.pathExtension == LogRotationPolicy.fileExtension }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
     // MARK: - Opening, rolling, pruning (queue only)
