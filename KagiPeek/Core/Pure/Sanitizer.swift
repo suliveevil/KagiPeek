@@ -82,8 +82,10 @@ nonisolated enum Sanitizer {
     /// the runtime tolerance exists only so a broken invariant degrades to "one rule skipped"
     /// instead of a launch crash.
     ///
-    /// A skipped rule is *not* silent: `rulesThatFailedToCompile` names the pattern, and the
-    /// diagnostics export surfaces it.
+    /// A skipped rule is not invisible: `failedPatterns` names the pattern, both diagnostics
+    /// reports carry it (the in-app one as `sanitizerFailedPatterns`, the exported archive in
+    /// `session-info.json`), and launch says so in the log. All three channels are needed
+    /// because a report is only produced when someone thinks to ask for one.
     private static let compiled = compilation.rules
 
     /// Patterns that did not compile. Empty in any build where the tests have run.

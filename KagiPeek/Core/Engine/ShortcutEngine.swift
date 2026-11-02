@@ -2493,6 +2493,9 @@ final class ShortcutEngine: ObservableObject {
             "bundlePath": Bundle.main.bundlePath,
             "macOS": ProcessInfo.processInfo.operatingSystemVersionString,
             "schemaVersion": AppSettingsSnapshot.currentSchemaVersion,
+            // Empty is the only acceptable value: a pattern here is a redaction rule that is
+            // not being applied, so log lines are reaching disk unredacted.
+            "sanitizerFailedPatterns": Sanitizer.failedPatterns,
             "hasAccessibility": state.hasAccessibility,
             "hasInputMonitoring": state.hasInputMonitoring,
             "isListening": state.isListening,

@@ -40,6 +40,13 @@ nonisolated enum DiagnosticsExporter {
         /// the attachment, instead of looking like an app that simply had no logs.
         var logFilesError: String?
         var crashFilesError: String?
+        /// Redaction patterns that did not compile and so are not being applied.
+        ///
+        /// Empty is the only acceptable value. This is here rather than left to the log because
+        /// a non-empty list means log lines are reaching disk — and leaving the machine in this
+        /// archive — with content this table exists to remove, which is the one failure in this
+        /// file that outlives the session.
+        var sanitizerFailedPatterns: [String]
     }
 
     static func defaultFileName(now: Date = Date()) -> String {
@@ -79,7 +86,8 @@ nonisolated enum DiagnosticsExporter {
             logFiles: logCopy.copied,
             crashFiles: crashCopy.copied,
             logFilesError: logCopy.note,
-            crashFilesError: crashCopy.note
+            crashFilesError: crashCopy.note,
+            sanitizerFailedPatterns: Sanitizer.failedPatterns
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

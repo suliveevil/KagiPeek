@@ -39,6 +39,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Reports what the previous session left behind, then writes this session's sentinel.
         CrashReporter.beginSession()
         Diag.info(.start, "launch \(DeviceInfo.summary)")
+        // The redaction table is a security control, and `SanitizerRuleCompilationTests` keeps
+        // it intact on every test pass — but a test cannot speak for a build already shipped.
+        // Say it here, at every launch, because the two reports that also carry this are only
+        // produced when someone thinks to ask for one.
+        let failedRedactions = Sanitizer.failedPatterns
+        if !failedRedactions.isEmpty {
+            Diag.warning(.start, "redaction rules not applied: \(failedRedactions.joined(separator: ", "))")
+        }
         // The language preference is the one setting whose effect is visible before any UI
         // exists, and "I set it to System but the app is in English" is a support question
         // that this line answers on its own.
