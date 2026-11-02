@@ -50,6 +50,9 @@ cp "$(dirname "$TEMPLATE")/Resources/Assets.car" "$APP/Contents/Resources/" 2>/d
 cp "$(dirname "$TEMPLATE")/Resources/AppIcon.icns" "$APP/Contents/Resources/" 2>/dev/null || true
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
+# The About page shows this commit; it has to be in the plist before signing.
+"$ROOT/scripts/stamp_commit.sh" "$APP"
+
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(KagiPeek Local\)"/\1/p' | head -1)"
 if [ -n "$IDENTITY" ]; then
     echo "==> Signing with $IDENTITY"

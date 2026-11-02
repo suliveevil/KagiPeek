@@ -56,6 +56,9 @@ if [ -n "$VERSION" ] && [ "$VERSION" != "$BUILT_VERSION" ]; then
 fi
 VERSION="$BUILT_VERSION"
 
+# The About page shows this commit; it has to be in the plist before signing.
+"$ROOT/scripts/stamp_commit.sh" "$APP"
+
 IDENTITY="${KAGIPEEK_SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
     IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)"

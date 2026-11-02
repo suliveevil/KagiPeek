@@ -1031,8 +1031,14 @@ struct SettingsView: View {
 
     private var appVersion: String {
         let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        // The parentheses carry the commit, stamped into Info.plist at build time
+        // (`scripts/stamp_commit.sh`): a build is only identifiable by what it was built
+        // from, and a monotonic build number says nothing about which source that was.
+        // Bundles built outside the script (an Xcode Run, a downloaded release without the
+        // key) fall back to the build number they do have.
+        let commit = Bundle.main.infoDictionary?["KagiPeekCommit"] as? String
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        return "v\(short) (\(build))"
+        return "v\(short) (\(commit ?? build))"
     }
 }
 
