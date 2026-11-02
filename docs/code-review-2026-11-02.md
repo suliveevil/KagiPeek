@@ -180,10 +180,15 @@ P1-7 合并双轮询 → P1-8 参数对象 → P2-13/14 设置页与权限页无
 **批次 3（已完成 2026-11-02，`c5b9c9d` / `bed5476` / `a48d926`）**
 P1-6 五个长函数按原有接缝拆开（`handleKeyDown` 118→19、`handleModifiers` 94→40、`headerContent` 98→14、`rowView` 83→37、`MenuScanner.scan` 87→56）；P0-1 依赖倒置：`Core/Ports/PresentationPorts.swift` 五个出站端口 + `EnginePresenters`，引擎改为接收 `PresenterFactory` 闭包，`AppDelegate` 成为唯一知道具体窗口的地方；`Localization` 下沉 `Core/Services`；`panelPageSize` 改读 `OverlayMetrics.fillScreenPageSize`（纯函数 + 断言）；`startPreview` 整体移到 `App/PreviewScenarios.swift`，引擎文件去掉 `import SwiftUI`，`Core/` 不再出现任何 UI 类型。
 
-仍未做：P0-2（`assumeIsolated` → 隔离类型）、P1-5 剩余部分（把冲突/统计的持有字段搬走）、P1-8 / P1-9。
 
-**批次 4（持续）**
-P0-2 Swift 6 迁移：开 `targeted` → 清 31 处 `assumeIsolated` →（可选）`ObservableObject` → `@Observable` → 开 `complete`。
+**批次 4（已完成一部分 2026-11-02，`fa02e4a` / `9893723` / `a9bb100` / `23add2b`）**
+P1-8 `AppPermission.init` 11 参数 → `PermissionPresentation` + `PermissionPolicy` 两个参数对象（`init(id:presentation:policy:check:requestPrompt:)`）；P1-9 `AppLog` 删除，43 处调用收敛到 `Diag`（其中 10 处是与相邻 `Diag` 行重复，直接删掉），四个 `Logger` 变成 `Diag` 镜像的私有细节；P1-5 剩余：跨 App 冲突扫描整体移到 `ConflictCenter`（引擎 2611→2430 行，冲突段只剩 4 个一行委托）。
+
+**批次 5（进行中，`23add2b`）**
+P0-2 第一步：`SWIFT_STRICT_CONCURRENCY = targeted` 同时开在 Xcode target、`build_swiftc.sh`、`Package.swift` 三处。当时只有 4 条警告（两个 `NSAnimationContext` 完成回调直接碰面板、`UpdateChecker` 把 `[weak self]` 可变绑定交给主队列），已全部修掉，现在 `targeted` 下 0 警告。
+**实测 `complete` = 107 条**，大头是 `CatalogLoader` 的 `@MainActor (CatalogSnapshot) -> Void` 完成回调跨 `@Sendable` 传递（约 13 条）、`Diag`/`FileLogStore` 的静态可变状态（约 12 条）。下一步就是这批，不是"随手开一下"。
+
+仍未做：31 处 `assumeIsolated` 归零、`complete` 迁移、`ObservableObject` → `@Observable`。
 
 ---
 
