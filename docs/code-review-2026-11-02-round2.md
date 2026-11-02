@@ -41,9 +41,9 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 
 ## 1. 本轮新发现
 
-### N1（P1）　P0-1 只搬走了一半：引擎仍持有一个 `NSWindow`
+### N1（P1）　✅ 已修　P0-1 只搬走了一半：引擎仍持有一个 `NSWindow`
 
-- 位置：`Core/Engine/ShortcutEngine.swift:108`
+- 位置：`Core/Engine/ShortcutEngine.swift:108`（该行已删除）
 
   ```swift
   /// The fixture's own settings window: an `NSWindow` with `isReleasedWhenClosed = false`
@@ -62,6 +62,25 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 - 建议：让夹具自己保留窗口。`PreviewScenarios.swift:132` 是唯一写入点、且**从无读取点**——
   它存在的唯一目的就是保活。在夹具文件里放一个 `private nonisolated(unsafe) static var retainedWindow: NSWindow?`
   （或一个 `PreviewWindowKeeper` 值类型），引擎的这行即可删除。零行为变化，编译期依赖真正断开。
+
+- **实际做法**：引擎那两行（注释 + 属性）已删除；`App/PreviewScenarios.swift` 里新增
+  `private final class PreviewWindowOwner { static let shared = …; var window: NSWindow? }`，
+  写入点改为 `PreviewWindowOwner.shared.window = window`。
+  **没有采用上面建议的 `nonisolated(unsafe) static var`** —— 那正是本项目已决定只留给信号处理器
+  的压制手段（见 MEMORY.md），而这里明明有锁之外的正解：默认隔离就是 MainActor，一个
+  `@MainActor` 类（默认即所得）+ 不可变 `static let` 单例是**类型检查通过**的，不需要任何压制。
+  结构正确优先于压制，这次也照此办理。
+
+- **改完 Core 里的 AppKit 画面**（按"行为类型"口径扫全 `Core/`，共 27 处）：
+  **`NSWindow`/`NSView`/`NSViewController`/`NSHostingView`/`NSPanel` 已全部清零**。
+  剩下的是 25 处 `NSWorkspace`（系统级服务门面：查运行中的 App、`notificationCenter`、打开 URL）
+  + 2 处 `NSApplication`（一个通知名常量 + `CrashReporter` 里由 `@MainActor install()` 装的
+  `isActive` 读取闭包）。**持有 `NSWorkspace.shared` 不等于持有 UI 对象**——它是 AX/应用上下文层
+  本来就必须用的系统服务；`NSImage`/`CGRect`/`NSColor`/`NSScreen` 属数据类型，复审已判定豁免。
+- 验收：Core 独立 `-typecheck` 0 诊断；Debug/Release 均 0 error 0 warning；
+  **专门跑了 `settings` 预览**（正是这条路径），窗口正常创建并出图
+  （`settings-0.json` = 680×600 / "KagiPeek Settings"，与代码请求的尺寸一致——若保活失效，
+  窗口会在布局前就被释放）；`panel` 预览 `app=57 system=79 page=1/6 rows=24` 与基线逐字相同。
 
 ### N2（P1）　`Core/Pure` 里有一个带锁的全局可变缓存，而且锁与 `nonisolated(unsafe)` 互相矛盾
 
@@ -167,11 +186,29 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 - 建议：`diagnosticsReport()` 改为 `throws` 并让三处 `try?` 各自说明失败原因；
   调用方沿用已有的 `catch` 分支弹 HUD。改完这条，P0-4 才算真正闭环。
 
-### N5（P2）　P1-10 未做：`fatalError("init(coder:) is not used")` 仍在
+### N5（P2）　✅ 无需改动 —— 本条的判定本身是错的：`@available(*, unavailable)` 从来就在
 
-- 位置：`UI/Design/AppIconDragSource.swift:55`
-- 现状：第一轮已给出正确建议（标 `@available(*, unavailable)` 让编译器拒绝，而不是运行期 trap），
-  但没动手。属轻微，一行改动。
+- 位置：`UI/Design/AppIconDragSource.swift:53-56`
+- **更正**：本条原文写「第一轮已给出正确建议但没动手」，**这个判定是错的**。
+  数到 `fatalError` 出现 1 次就断定属性缺失，没有读那一行。实际代码是：
+
+  ```swift
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+      fatalError("init(coder:) is not used")
+  }
+  ```
+
+  `git blame` 显示 `@available(*, unavailable)` 与该文件**同一次提交引入**（`1bf1922`），
+  在写第二轮报告的那个提交（`f492250`）里也已经在。也就是说，P1-10 要的编译期拒绝
+  从一开始就到位了。
+- **为什么 `fatalError` 必须留下**：`required init?` 是 `NSCoding` 要求的，**必须有函数体**，
+  写法上无法省略。而 `@available(*, unavailable)` 已经让任何调用点在**编译期**被拒绝，
+  这行 `fatalError` 是不可达的兜底，不是运行期陷阱。**这是正确写法，不要动它。**
+- **教训（本项目第三例同类错误）**：第一轮数 `.accessibilityLabel` 得出"设置页没标签"，
+  实际 SwiftUI 从控件文本自动推导；本轮统计 `try!`/`assumeIsolated` 把注释算了进去（见第 5 节）；
+  这里则是数了标识符却没读它所在的行。**"量化"不等于"看过"** ——
+  凡是要据此下"没做/退化了"结论的，必须回到代码本身读一遍。
 
 ### N6（P2）　跨文件重复块从 2 处涨到 6 处——新增代码是复制出来的
 
@@ -290,8 +327,10 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 N3 拆 `KeyEventRouter.route`（Pure + 23 个测试兜底）→ N9 拆 `KagiPeekCoreTests`（纯文件搬运）
 → 顺带把测试构建的 16 处既有警告清零。（详见 N3 / N9 条目的"实际做法"）
 
-**批次 B（零行为变化，编译期收益）**
-N1 把 `previewWindow` 移回夹具（唯一写入点、无读取点）→ N5 `fatalError` 换 `@available(*, unavailable)`。
+**批次 B（零行为变化，编译期收益）**　✅ **已完成**
+N1 把 `previewWindow` 移回夹具 —— 引擎那行已删，`Core/` 里的 AppKit **行为类型**已清零
+（只剩 `NSWorkspace` 系统服务，见 N1）。N5 经核实**无需改动**：`@available(*, unavailable)`
+从来就在，`fatalError` 是 `required init?` 必须有的不可达兜底（详见 N5 的更正）。
 
 **批次 C（小抽取，需预览验证）**
 N2 删掉 `LogRotationPolicy` 的 formatter 缓存（用整数补零拼文件名）→ N6 抽 `AXValueReader` 与
