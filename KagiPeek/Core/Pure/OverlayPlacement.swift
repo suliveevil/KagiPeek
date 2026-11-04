@@ -28,6 +28,14 @@ nonisolated enum OverlayPlacement {
         )
     }
 
+    /// The cover size for the front window, or the whole visible frame while its frame has
+    /// not arrived yet. The fallback is intentionally not a guess: a shrunken panel left the
+    /// new window partly uncovered until the background read returned.
+    static func coverSize(windowFrame: CGRect?, visible: CGRect, natural: CGSize) -> CGSize {
+        guard let windowFrame else { return visible.size }
+        return coverWindowSize(windowFrame: windowFrame, visible: visible, natural: natural)
+    }
+
     /// The cover height wins over the content height: widening the panel can need fewer
     /// rows, but a panel shorter than the window stops covering it.
     static func coveredHeight(contentHeight: CGFloat, coverHeight: CGFloat, limit: CGFloat) -> CGFloat {
