@@ -50,7 +50,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 | **Persistent panel** | The panel stays until you press Esc or toggle it off. **Holding the trigger key to summon it seeds a prefix**, so the list narrows to the menu items those modifiers can start; the hotkey (⌃⌥⌘K) and the double-tap gesture summon it with an empty prefix, so every menu item is a complete combination (for example ⌘C). Releasing the modifiers widens the list back without closing the panel. |
 | **Which-key narrowing** | While the prefix is modifier-only, menu items shrink to those whose first stroke uses a superset of the held modifiers, each menu item shows the next key, and the surviving menu items are highlighted (the highlighted set and the visible set are the same at that level). Pressing a real key descends into that level. Completing a shortcut emphasises its description for about 0.4 s, then the panel closes. |
 | **Chords** | Multi-stroke shortcuts such as `⌘K ⌘C` descend one level at a time. ⌫ goes back, Esc closes; a breadcrumb shows the current prefix. Pressing a key with no match leaves the panel open. |
-| **Menu grouping** | Each menu item keeps the menu it came from as its middle column, with the app's own menu titles in the app's language. There is no per-menu heading to re-order the list: the shortcut decides the order. |
+| **Menu grouping** | Each menu item keeps the menu it came from as its middle column, with the app's own menu titles in the app's language. There is no per-menu heading to re-order the list: by default the shortcut decides the order, and **Panel order** in Settings can instead keep every top-level menu contiguous. |
 | **Two sections** | The app's menu items come first under its name; macOS's own hotkeys follow under **System hotkeys**, so a chord the system owns is visible next to the one the app owns. |
 | **Pagination** | Long lists are paged with `1/3` and clickable ‹ ›, and the scroll wheel works. The panel never grows past the screen. |
 | **Actionable panel** | ↑/↓ select a menu item, ←/→ page, the run key (Space by default) runs the selected menu item, the copy key (Return by default) copies it, and Esc closes. While no modifier is held these keys are consumed by the panel, so the front app never sees them; a completed shortcut is not consumed, so the app still receives it. Clicking a menu item does what the run key does. Both keys are **recorded** under **Settings → General → Menu item actions**. |
@@ -61,7 +61,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 | **Combo lookup** | Type a combination into search — `cmd shift 4`, `⌘⇧4`, `opt cmd t` — and KagiPeek answers who owns it, or that it is free, instead of returning an empty list that reads as "not scanned". |
 | **Live shortcut test** | **Test this combo** on any conflict row watches one real keypress: two listen-only event taps detect whether another app swallowed the key, and above that layer the verdict falls back to what came to the front. Each result is tagged **confirmed / informative / inconclusive**, so a guess is never presented as a fact. While it listens, every panel behaviour is suspended, so KagiPeek can never be the thing that ate the key. |
 | **Disabled items** | Menu items that the app reports as disabled (`AXEnabled == false`) are greyed out, and can optionally be hidden. |
-| **Ranking** | Sort order decides the statistics page — both the per-app list and the menu items inside an app. **Smart order** is the default (decayed usage frequency, so recently used shortcuts rise and stale ones fade), then Most used first, Key order, and Alphabetical. The panel is always in key order and the palette always in match order; neither follows this setting. |
+| **Ranking** | Sort order decides the statistics page — both the per-app list and the menu items inside an app. **Smart order** is the default (decayed usage frequency, so recently used shortcuts rise and stale ones fade), then Most used first, Key order, and Alphabetical. The panel follows its own **Panel order** setting (by modifier by default, or by menu group), and the palette always follows match order; neither follows this setting. |
 | **Usage statistics** | Counts and last-used times per binding, **grouped by app** (system and built-in menu items appear as *System / built-in*), each app a collapsible row. Stored in `~/Library/Application Support/KagiPeek/usage.json`, capped at 800 entries, resettable. No raw key events or text. |
 | **Search** | A global search palette (default ⌃⌥⌘F), also reachable by pressing `/` in the panel. Results arrive in cards by menu, with a banner when the query spells out a combination. Space-separated terms in any order, `+` as a separator, modifier aliases (com/cmd/cm/⌘, op/alt/⌥, …), full pinyin and pinyin initials for Chinese titles, and word initials for English titles; all terms must match. Return closes the palette and **triggers** the selected menu item in the app you scoped to — pressing the menu item when there is one, replaying the chord otherwise. The palette has no copy action; the panel does. |
 | **Multi-app scope** | The palette's app menu lists the frontmost app and every running regular app, and its header shows the scoped app's icon and name, so the list always says whose shortcuts these are. Choosing another app re-scans and re-ranks for it, and running a menu item activates that app first. The panel still follows the real frontmost app. |
@@ -164,7 +164,7 @@ The full walkthrough, including reset commands and signature-related re-granting
 - **Run or copy.** The run key (Space by default) closes the panel and triggers that menu item in the front app: it presses the menu item itself when the scan kept one — which is also the only way to run a menu item that has no shortcut at all — and replays the chord into the app as a fallback. The copy key (Return by default) writes the chord to the clipboard and leaves the panel open (a menu item with no shortcut copies its menu path instead). Both are **recorded** under **Settings → General → Menu item actions**; the footer always spells out the two keys you actually chose. A menu item with further steps descends a level instead of running, and a disabled menu item is ignored.
 - **Shift reveals targets.** While Shift is held, the first 36 menu items show `0–9` / `a–z` labels; Shift plus that character runs that menu item directly. The label layer exists only in the panel — inside search, Shift still belongs to the text field.
 - **Completing a shortcut.** The menu item is highlighted for about 0.4 s, the panel closes, and the shortcut runs in the app. A key with no match leaves the panel open instead of closing it.
-- **Two cards, and paging.** The app's menu items come first, ordered by the shortcut (shorter chords first, then ⌘ → ⌥ → ⌃ → ⇧, then the key); the system's hotkeys follow under **System hotkeys**. The menu a menu item lives in is the middle column, not a heading. Long lists show `1/3` with clickable ‹ › and respond to the scroll wheel.
+- **Two cards, and paging.** The app's menu items come first, ordered by the shortcut (shorter chords first, then ⌘ → ⌥ → ⌃ → ⇧, then the key) or, when **Panel order** is set to **By menu group**, by top-level menu; the system's hotkeys follow under **System hotkeys**. The menu a menu item lives in is the middle column, not a heading. Long lists show `1/3` with clickable ‹ › and respond to the scroll wheel.
 - **Conflicts and disabled items.** Conflicting menu items carry ⚠︎. Disabled menu items are greyed out unless you choose to hide them.
 - **Long descriptions** are truncated with an ellipsis according to the display setting.
 
@@ -191,7 +191,7 @@ Settings has eight tabs:
 | --- | --- |
 | General | Interface language, launch at login, executed HUD, built-in catalog, **Include the Apple menu in scans**, **Show a Dock icon as well**, **menu item actions** (the two recorded action keys), **excluded apps** (added from a file picker, removed from the list), and **ignored menu items** (one collapsible group per scope: global rules, then one per app). |
 | Trigger | Two independent switches: **Modifier gesture** (hold still / press twice, the trigger key, and the matching delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both can be live, only one can, or both can be off — both off is the pause state. |
-| Appearance | Key style, panel theme, key position, columns, rows per page, description length, disabled items, favourites pinning, whether filters may hide favourites, and **panel placement** (cover the front window, fixed size with width and height, fill the screen, or beside the front window). |
+| Appearance | Key style, panel theme, key position, **panel order** (by modifier, or by menu group), columns, rows per page, description length, disabled items, favourites pinning, whether filters may hide favourites, and **panel placement** (cover the front window, fixed size with width and height, fill the screen, or beside the front window). |
 | Statistics | Sort order and **statistics by app** (presses and shortcut counts, one collapsible section per app), **Show data folder**, **Reset statistics**, and **Restore defaults**. |
 | Conflicts | Third-party **config file sources** first (which files were read, how many bindings each contributed, a rescan), then the conflict list with a **type** filter, a **related app** filter, the scan timestamp, a manual rescan, and a **Test this combo** action on each row. |
 | Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt plus the matching System Settings pane), and the draggable KagiPeek icon. |
@@ -267,7 +267,7 @@ KagiPeek borrows the interaction model, not the implementation.
 | Invocation | Modifier gesture (hold or double-tap), three global hotkeys, or the panel/search switch hotkey | Leader key | Prefix key timeout |
 | Navigation | Persistent panel, complete shortcuts, progressive highlight, chord breadcrumb, ⌫ back, Esc close | Prefix menus | Prefix menus |
 | Display | Floating panel: over the focused window, beside it, or filling the screen | Popup window | Minibuffer or child frame |
-| Ranking | Key order in the panel; Smart order / Most used / Key order / Alphabetical for the statistics page | Configured order | Configured order |
+| Ranking | Key or menu-group order in the panel; Smart order / Most used / Key order / Alphabetical for the statistics page | Configured order | Configured order |
 | Configuration | Settings UI, no config file | Lua tables | Emacs variables |
 | Platform | macOS 14+ | Neovim | Emacs |
 
@@ -282,7 +282,7 @@ At a high level:
 ```
 frontmost app → Accessibility menu scan → ShortcutEngine (20 s memory cache,
                                               ├─→ PanelSections  → panel card 1: the app's menu items
-                                              │                    (PanelOrdering: chord order)
+                                              │                    (PanelSortOrder: chord / menu-group order)
                                               ├─→ SearchCorpus   → search palette (app scope,
                                               │                    grouped into cards by menu)
                                               └─→ ConflictDetector → Settings → Conflicts
@@ -410,7 +410,7 @@ KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility
 | **组合键查询** | 在搜索里直接输入组合键（`cmd shift 4`、`⌘⇧4`、`opt cmd t`），KagiPeek 回答它被谁占用、或者它是空的，而不是返回空列表让人以为没扫描。 |
 | **实时按键测试** | 冲突列表里每一行都可以“测试这个组合键”：按一次，看它到底被谁拿走——两个只读监听点判断是否有其他 App 吞掉了这个键，更高层则回退到“谁被激活”。每条结论标注**已确认 / 有信息量 / 无法判断**，绝不把猜测当成事实。 |
 | **不可用项** | 菜单项当前不可用（`AXEnabled == false`）时灰显，也可设置为隐藏。 |
-| **排序** | 排序方式决定统计页——按 App 的列表和 App 内部的菜单项都是。默认**智能排序**（使用频率随时间衰减，常用条目靠前、陈旧条目自然下沉），还可选高频优先、按键顺序、字母顺序。面板始终按按键顺序、搜索面板始终按匹配度，两者都不受这个设置影响。 |
+| **排序** | 排序方式决定统计页——按 App 的列表和 App 内部的菜单项都是。默认**智能排序**（使用频率随时间衰减，常用条目靠前、陈旧条目自然下沉），还可选高频优先、按键顺序、字母顺序。面板另有自己的**面板排序**（默认按修饰键，也可按菜单栏分组），搜索面板始终按匹配度，两者都不受这个设置影响。 |
 | **使用统计** | 记录每条绑定的使用次数与最近使用时间，并**按 App 分组**（系统与内置条目显示为“系统 / 内置”），每个 App 一行可折叠。保存在 `~/Library/Application Support/KagiPeek/usage.json`，上限 800 条，可重置；不记录原始按键内容。 |
 | **搜索** | 全局搜索面板（默认 ⌃⌥⌘F），也可以在面板里按 `/` 进入。结果按菜单分卡片，查询本身写成一个组合键时上方会给出结论横幅。空格分词、顺序无关，`+` 也可作分隔符；支持修饰键别名（com/cmd/cm/⌘、op/alt/⌥……）、中文全拼与拼音首字母、英文单词首字母，所有词项必须同时命中。Return 关闭面板并在你选定的那个 App 里**执行**选中项：有菜单项就按菜单项，否则回放该组合键。搜索面板没有复制功能；面板有。 |
 | **多 App 范围** | 搜索面板顶部的 App 菜单列出前台 App 与所有正在运行的常规 App，标题处显示当前范围 App 的图标与名字，列表永远说清“这是谁家的快捷键”。换一个 App 会重新扫描并重新排序，执行时会先把那个 App 激活。浮层面板仍跟随真实前台 App。 |
@@ -510,7 +510,7 @@ open KagiPeek.xcodeproj
 - **Shift 显示目标。** 按住 Shift 时，前 36 个菜单项显示 `0–9` / `a–z` 标签；Shift 加对应字符直接执行该菜单项。提示层只存在于面板里——在搜索中，Shift 仍属于输入框。
 - 执行还是复制由按键决定：执行键（默认 Space）关闭面板并把该菜单项的组合键回放给前台 App，复制键（默认 Return）只写入剪贴板、面板保持打开。两个键都可以在 **设置 → 通用 → 菜单项操作** 里录制，底部提示会渲染你实际选的键。还有后续步骤的菜单项会进入下一层而不是执行，不可用的菜单项会被忽略。
 - 完成一条快捷键：该菜单项高亮约 0.4 秒后，面板关闭，快捷键在 App 里执行；没有匹配的按键时面板保持打开，而不是关闭。
-- 两张卡片：App 自己的菜单项在前，按快捷键排序（步数少的在前，再按 ⌘ → ⌥ → ⌃ → ⇧，最后比按键）；系统热键在**系统热键**标题下随后。菜单项所属菜单是中间一列，不是分组标题。菜单项过多时自动分页，底部显示 `1/3` 和可点击的 ‹ ›，鼠标滚轮也可翻页。
+- 两张卡片：App 自己的菜单项在前，按快捷键排序（步数少的在前，再按 ⌘ → ⌥ → ⌃ → ⇧，最后比按键），也可在设置里改成按菜单栏分组；系统热键在**系统热键**标题下随后。菜单项所属菜单是中间一列，不是分组标题。菜单项过多时自动分页，底部显示 `1/3` 和可点击的 ‹ ›，鼠标滚轮也可翻页。
 - 同一组合键被多条绑定占用时，该条右侧显示 ⚠︎。
 - 菜单项不可用时灰显，可按设置隐藏；超长描述按设置截断并加省略号。
 
@@ -537,7 +537,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 | --- | --- |
 | 通用 | 界面语言、开机自启动、执行轻提示、内置目录、**扫描时包含 Apple 菜单**、**同时在 Dock 显示图标**、**菜单项操作**（可录制的执行键与复制键）、**排除的 App**（用文件选择器添加、在列表里删除）、**忽略的菜单项**（按范围折叠：先是全局规则，再是一个 App 一组）。 |
 | 触发 | 「修饰键手势」与「全局快捷键」两个独立开关；手势在按住停顿 / 连按两次、触发键与对应延迟之间设置，快捷键是面板、搜索、切换三条可录制热键。两套都关就是暂停。 |
-| 外观 | 按键显示、面板主题、按键位置、列数、每页行数、描述长度、不可用项、收藏置顶、收藏可被搜索/过滤隐藏，以及**面板位置**（覆盖前台窗口、固定长宽并设置宽高、铺满屏幕、前台窗口旁边）。 |
+| 外观 | 按键显示、面板主题、按键位置、**面板排序**（按修饰键，或按菜单栏分组）、列数、每页行数、描述长度、不可用项、收藏置顶、收藏可被搜索/过滤隐藏，以及**面板位置**（覆盖前台窗口、固定长宽并设置宽高、铺满屏幕、前台窗口旁边）。 |
 | 统计 | 排序方式与**按 App 统计**（次数与快捷键数，每个 App 一节可折叠）、**显示数据目录**、**重置统计**、**恢复默认设置**。 |
 | 冲突 | 先列第三方**配置文件来源**（读了哪些文件、各贡献多少条、重扫按钮），再是冲突列表：**类型**筛选、**相关 App** 筛选、扫描时间、手动重扫，以及每行的**测试这个组合键**。 |
 | 权限 | 辅助功能与输入监控状态、**请求授权**（系统提示 + 直接打开对应系统设置页），以及可拖拽的 KagiPeek 图标。 |
@@ -612,7 +612,7 @@ KagiPeek 借鉴的是交互方式，不是实现。
 | 触发 | 两套独立开关：修饰键手势 / 全局快捷键 | Leader 键 | 前缀键超时 |
 | 导航 | 持久面板、which-key 收窄、chord 面包屑、⌫ 返回、Esc 关闭 | 前缀菜单 | 前缀菜单 |
 | 显示 | 覆盖前台窗口、贴在其旁边或铺满屏幕的浮层 | 弹窗 | minibuffer 或 child frame |
-| 排序 | 面板按按键顺序、搜索按匹配度；统计页可选智能排序 / 高频优先 / 按键 / 字母 | 配置顺序 | 配置顺序 |
+| 排序 | 面板按按键顺序或菜单栏分组、搜索按匹配度；统计页可选智能排序 / 高频优先 / 按键 / 字母 | 配置顺序 | 配置顺序 |
 | 配置 | 设置界面，无配置文件 | Lua 表 | Emacs 变量 |
 | 平台 | macOS 14+ | Neovim | Emacs |
 

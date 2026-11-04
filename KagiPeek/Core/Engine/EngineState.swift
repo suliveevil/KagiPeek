@@ -227,6 +227,8 @@ struct OrderedHitsKey: Equatable {
     /// star toggle or either settings) invalidates the cached order together.
     var favorites: FavoritesPolicy
     var includeDisabled: Bool
+    /// Changing the order changes every position, so the cached sequence must be dropped.
+    var panelOrder: PanelSortOrder
     var ignoredSignature: String
 }
 

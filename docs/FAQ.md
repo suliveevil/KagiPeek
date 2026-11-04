@@ -238,7 +238,7 @@ macOS system shortcuts are read-only here as well: KagiPeek reports collisions w
 
 The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
 
-**It does not order the panel.** The panel is always in key order — ⌘ → ⌥ → ⌃ → ⇧, then the key — because it is a reference card, and "most used" would move a menu item every time you run one. The search palette is always in match order for the same reason.
+**It does not order the panel.** The panel follows its own **Panel order** setting under **Settings → Appearance**: **By modifier** (the default — ⌘ → ⌥ → ⌃ → ⇧, then the key) or **By menu group** (each top-level menu contiguous, with the same shortcut order inside a menu), because it is a reference card and "most used" would move a menu item every time you run one. The search palette is always in match order for the same reason.
 
 All four orders live in **Settings → Statistics → Sort order**: smart order, most used first, key order, and alphabetical. They apply to both lists on that page — the per-app list and the menu items inside an app.
 

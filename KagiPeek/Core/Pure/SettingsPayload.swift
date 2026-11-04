@@ -67,6 +67,9 @@ nonisolated enum SettingsMigrator {
                 settings.triggerKey = .rightCommand
             }
         }
+        // v6 added `panelOrder`. A v5 file has no key, so `decodeIfPresent` already yields
+        // `.byModifier`, the behaviour every earlier build had; there is nothing to rewrite.
+        // The step is listed here so the next reader sees where the boundary sits.
         // The legacy key is never written back: `nil` encodes as absent.
         settings.triggerMode = nil
         return settings.normalized()

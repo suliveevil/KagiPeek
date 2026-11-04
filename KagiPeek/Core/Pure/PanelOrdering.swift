@@ -121,4 +121,64 @@ nonisolated enum PanelOrdering {
     static func sorted(_ items: [BindingItem], emphasizing modifiers: ModifierSet = []) -> [BindingItem] {
         items.sorted { areInIncreasingOrder($0, $1, emphasizing: modifiers) }
     }
+
+    /// Menu-bar order: every top-level menu stays contiguous, in the order the menu bar
+    /// shows them; inside a menu the shortcut order above is unchanged.
+    ///
+    /// The menu's position comes from the first component of `axPath` (the menu-bar index).
+    /// Items with no Accessibility path — built-in and config-file entries — have no
+    /// position, so they follow the ranked menus and fall back to title order among
+    /// themselves. An empty group is "no menu" and sorts last for the same reason.
+    static func sortedByMenuGroup(
+        _ items: [BindingItem],
+        emphasizing modifiers: ModifierSet = []
+    ) -> [BindingItem] {
+        sortedIndicesByMenuGroup(items, emphasizing: modifiers).map { items[$0] }
+    }
+
+    /// The same menu-group order as `sortedByMenuGroup`, as a permutation of indices. The
+    /// panel uses this to order hits whose item is only a field.
+    static func sortedIndicesByMenuGroup(
+        _ items: [BindingItem],
+        emphasizing modifiers: ModifierSet = []
+    ) -> [Int] {
+        let ranks = menuGroupRanks(items)
+        return items.indices.sorted { lhs, rhs in
+            let leftItem = items[lhs]
+            let rightItem = items[rhs]
+            if leftItem.displayGroup != rightItem.displayGroup {
+                let left = groupKey(leftItem.displayGroup, ranks: ranks)
+                let right = groupKey(rightItem.displayGroup, ranks: ranks)
+                if left.level != right.level { return left.level < right.level }
+                if left.isNoMenu != right.isNoMenu { return right.isNoMenu }
+                let byName = leftItem.displayGroup.localizedCaseInsensitiveCompare(rightItem.displayGroup)
+                if byName != .orderedSame { return byName == .orderedAscending }
+                return leftItem.displayGroup < rightItem.displayGroup
+            }
+            return areInIncreasingOrder(leftItem, rightItem, emphasizing: modifiers)
+        }
+    }
+
+    /// A group's place in the list: the menu-bar index when known, otherwise after every
+    /// ranked menu. `isNoMenu` separates "a group with no position" from "no group at all":
+    /// the latter is always last.
+    private static func groupKey(
+        _ group: String,
+        ranks: [String: Int]
+    ) -> (level: Int, isNoMenu: Bool) {
+        guard !group.isEmpty else { return (Int.max, true) }
+        return (ranks[group] ?? Int.max, false)
+    }
+
+    /// Menu-bar index for each top-level menu. The smallest index wins, so every item that
+    /// names the same menu lands in one block even if the scan saw the menu more than once.
+    private static func menuGroupRanks(_ items: [BindingItem]) -> [String: Int] {
+        var ranks: [String: Int] = [:]
+        for item in items where !item.displayGroup.isEmpty {
+            guard let first = item.axPath?.split(separator: ",").first,
+                  let index = Int(first) else { continue }
+            ranks[item.displayGroup] = min(ranks[item.displayGroup] ?? index, index)
+        }
+        return ranks
+    }
 }

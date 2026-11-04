@@ -164,13 +164,7 @@ final class PanelSession {
     /// visible row". Rows that are not on this page simply do not render their label.
     private func hintLabels(for sequence: [PanelEntry]) -> [String: String] {
         guard state.panel.shiftHintActive, state.prefix.isEmpty else { return [:] }
-        var labels: [String: String] = [:]
-        for (index, entry) in sequence.prefix(ShiftHintLayer.capacity).enumerated() {
-            if let label = ShiftHintLayer.label(forIndex: index) {
-                labels[entry.hit.id] = label
-            }
-        }
-        return labels
+        return ShiftHintLayer.labels(for: sequence.map(\.hit.id))
     }
 
     /// One row per entry, described for the builder.
@@ -270,6 +264,7 @@ final class PanelSession {
             scannedAt: state.catalog.scannedAt,
             favorites: state.favoritesPolicy,
             includeDisabled: state.settings.showDisabledItems,
+            panelOrder: state.settings.panelOrder,
             ignoredSignature: ignoredSignature
         )
         if let cached = state.orderedHitsCache, cached.key == cacheKey {
@@ -280,14 +275,17 @@ final class PanelSession {
             in: state.catalog.items,
             includeDisabled: state.settings.showDisabledItems
         ).filter { !state.isIgnored($0.item) }
-        // The panel is ordered by the shortcut itself, not by a score and not by the menu it
-        // came from: ⌘C, ⌘V and ⌘X belong together. The modifiers being composed decide which
+        // The default order is the shortcut itself, not a score and not the menu it came
+        // from: ⌘C, ⌘V and ⌘X belong together. The modifiers being composed decide which
         // block comes first, so pressing ⌘ — or ticking it — answers the question without
-        // hiding the answer for every other modifier.
+        // hiding the answer for every other modifier. "By menu group" keeps each top-level
+        // menu contiguous instead; both orders are pure and return the same items.
         let emphasized = state.pending.effective
-        var sorted = hits.sorted {
-            PanelOrdering.areInIncreasingOrder($0.item, $1.item, emphasizing: emphasized)
-        }
+        var sorted = state.settings.panelOrder.sorted(
+            hits,
+            by: \.item,
+            emphasizing: emphasized
+        )
         sorted = state.favoritesPolicy.favoritesOnly(sorted) { usageStore.isFavorite($0.item.usageKey) }
         sorted = state.favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.item.usageKey) }
         state.orderedHitsCache = (cacheKey, sorted)

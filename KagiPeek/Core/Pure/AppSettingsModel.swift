@@ -181,6 +181,9 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var ignoredCommands: [IgnoredCommand] = []
     var panelTheme: PanelTheme = .system
     var keyPosition: KeyPosition = .right
+    /// How the panel lists menu items: by shortcut (the reference-card default) or grouped
+    /// by top-level menu. Changing it reorders an open panel without rescanning.
+    var panelOrder: PanelSortOrder = .byModifier
     var pinFavoritesToTop: Bool = true
     var favoritesCanBeFiltered: Bool = false
     var runRowKey: HotkeySpec = .runRowDefault
@@ -206,8 +209,9 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// either version still decodes. Version 4 moves the default row keys to Space/Return, so
     /// that one rewrites a value (see `SettingsMigrator`). Version 5 replaces `triggerMode`
     /// with `modifierTriggerEnabled` / `triggerGesture` / `triggerKey`; the old key is read
-    /// and never written back.
-    static let currentSchemaVersion = 5
+    /// and never written back. Version 6 adds `panelOrder`; a v5 file has no key, so the
+    /// default (`byModifier`) applies without a rewrite.
+    static let currentSchemaVersion = 6
 
     init() {}
 
@@ -220,7 +224,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         case panelPlacement, fixedPanelWidth, fixedPanelHeight
         case excludedBundleIDs, launchAtLogin
         case ignoredCommands
-        case panelTheme, keyPosition, pinFavoritesToTop, favoritesCanBeFiltered
+        case panelTheme, keyPosition, panelOrder, pinFavoritesToTop, favoritesCanBeFiltered
         case runRowKey, copyRowKey, scanConfigFiles
         case diagnosticsEnabled, verboseDiagnostics, showDockIcon
     }
@@ -280,6 +284,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         }
         panelTheme = try decode(.panelTheme, fallback.panelTheme)
         keyPosition = try decode(.keyPosition, fallback.keyPosition)
+        panelOrder = try decode(.panelOrder, fallback.panelOrder)
         pinFavoritesToTop = try decode(.pinFavoritesToTop, fallback.pinFavoritesToTop)
         favoritesCanBeFiltered = try decode(.favoritesCanBeFiltered, fallback.favoritesCanBeFiltered)
         runRowKey = try decode(.runRowKey, fallback.runRowKey)
@@ -321,6 +326,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         try container.encode(ignoredCommands, forKey: .ignoredCommands)
         try container.encode(panelTheme, forKey: .panelTheme)
         try container.encode(keyPosition, forKey: .keyPosition)
+        try container.encode(panelOrder, forKey: .panelOrder)
         try container.encode(pinFavoritesToTop, forKey: .pinFavoritesToTop)
         try container.encode(favoritesCanBeFiltered, forKey: .favoritesCanBeFiltered)
         try container.encode(runRowKey, forKey: .runRowKey)

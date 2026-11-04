@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 20:20**（Asia/Shanghai）。
+as of **2026-11-04 20:55**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,12 +8,11 @@ as of **2026-11-04 20:20**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `05e424e`，包含术语统一
-  `05c775f` 与两个 `install.sh` 修复提交 `a31044d`、`05e424e`；本文件提交后 HEAD 会再前移一格。
-- 工作区：README、ARCHITECTURE、FAQ 与本文件的术语收尾改动随本提交一起落盘；提交后应为干净。
-- 未合并分支：无。`refactor/engine-split`、`feature/pagination-wrap`、`docs/status-refactor-3`、
-  `ui/settings-diagnostics-merge` 都已合入 main，引用保留。
-- 远端同步：本地 `main` 领先 `origin/main`（`5b24bde`）4 个提交，**本轮未 push**。
+- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `997b603`（术语收尾）；
+  本轮「面板排序」的代码、测试与文档随本提交一起落盘，提交后 HEAD 会再前移一格。
+- 工作区：面板排序改动随本提交一起落盘；提交后应为干净。
+- 未合并分支：无。本轮的 `feature/panel-sort` 以 fast-forward 合回 `main`，引用保留。
+- 远端同步：本地 `main` 领先 `origin/main`，**本轮未 push**。
 - **第二轮 squash 未执行**：用户指定的起点 `aa23786` 是 `270febe` 的祖先（相差 61 个提交），
   不是 HEAD；按「不是 HEAD 就先停下」的约定只核对了拓扑，没有建 tag、没有 reset、没有
   强推。旧历史仍保留在本地 `backup/pre-squash-20261104-192838`（tag 与 branch，均未推送）。
@@ -40,7 +39,17 @@ as of **2026-11-04 20:20**（Asia/Shanghai）。
   `scripts/backup_app.sh`（备份到 `~/Library/Application Support/KagiPeek/backups/`，
   命名 `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留 5 份）；
   `scripts/install.sh` 改为调用它、拒绝安装 ad-hoc 包、回滚改为从 backups 恢复。
-- `swift test`：636 → 656（新增 20 项，覆盖 RecordingPolicy、SearchScopePlan、PaginationPlan）。
+- **面板排序可切换（`feature/panel-sort`，fast-forward 合回 main）**：外观页在「键位位置」
+  后新增「面板排序 / Panel order」分段控件，两项互斥：`按修饰键 / By modifier`（默认，
+  与旧行为完全一致）与 `按菜单栏分组 / By menu group`。新增 `Core/Pure/PanelSortOrder`：
+  按菜单栏分组以 `axPath` 第一段（菜单栏索引）为组序，同一顶层菜单的菜单项连续出现，组内
+  仍按快捷键；没有 `axPath` 的组排在有索引的组之后，空组最后。Shift 提示层的 `0-9/a-z`
+  每次重建都按屏幕上的显示序列分配，换顺序后同一个键指向新位置上的菜单项，不绑死条目。
+  设置 schema 5→6：v5 文件缺 `panelOrder` 时按默认 `按修饰键` 迁移，手写旧 JSON 与损坏
+  文件回退都走同一条 `decodeIfPresent` 路径；`apply(settings:)` 与 `logSettingsDelta` 同步
+  新增字段，排序缓存键（`OrderedHitsKey`）加入 `panelOrder`，已打开的面板立即重排。
+- `swift test`：656 → 666（新增 10 项，覆盖两种顺序、分组连续性、组序来源、无组/空组
+  兜底、Shift 标签随顺序、默认值与 schema 5→6 迁移、编码与往返、损坏 JSON）。
 - **术语统一为「菜单项」**（提交 `05c775f`）：对象本体统一叫「菜单项 / menu item」，
   「快捷键」只指菜单项的键盘捷径（没有时留空，不再写「无快捷键」），「行 / row」只用于
   布局；数量表达统一为「菜单项数」。改的是 `L10n` 中英两列、`PanelSession` 的无快捷键
@@ -56,15 +65,14 @@ as of **2026-11-04 20:20**（Asia/Shanghai）。
 
 | 命令 | 结果 |
 | --- | --- |
-| `swift test` | `Executed 656 tests, with 0 failures (0 unexpected)`；退出码 0 |
-| `swiftc -typecheck`（术语改动） | 0 诊断 |
-| `scripts/build_swiftc.sh Release` | `==> Commit: 05e424e`、`==> Signing with KagiPeek Local`；`valid on disk` / `satisfies its Designated Requirement` |
+| `swift test`（面板排序） | `Executed 666 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swiftc -typecheck`（面板排序） | 0 诊断 |
+| `scripts/build_swiftc.sh Release` | `==> Signing with KagiPeek Local`；`valid on disk` / `satisfies its Designated Requirement` |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`designated => identifier "com.voltline.kagipeek" and certificate root = H"6c0ac5…a929"` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `VERIFY_OK`（`valid on disk` / `satisfies its Designated Requirement`） |
-| `KagiPeekCommit` / `CFBundleShortVersionString` | `05e424e` / `2.2.0`（版本串显示 `v2.2.0 (05e424e)`） |
-| `pgrep -x KagiPeek` | `37030`（单实例） |
-| `scripts/install.sh` | 成功；真实跑了一次新备份，产出 `KagiPeek-2026-11-04-200843-836e3c3-local.app` |
-| `bash -n scripts/install.sh` / `bash -n scripts/backup_app.sh` | 两者语法通过 |
+| `KagiPeekCommit` / `CFBundleShortVersionString` | 等于安装时的 main HEAD / `2.2.0`（版本串显示 `v2.2.0 (<短哈希>)`） |
+| `pgrep -x KagiPeek` | 单实例（PID 用该命令输出核对） |
+| `scripts/install.sh` | 成功；本次备份路径见该次输出，按命名保留最近 5 份 |
 
 本轮 `scripts/install.sh` 走 `build_release.sh` 的 `xcodebuild` 路径时输出过
 `** BUILD SUCCEEDED **`，与下面「已知环境坑」第 1 条的旧结论不一致；以本轮实际输出为准，
@@ -101,7 +109,8 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
   `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
-  `launchAtLogin=true`、`keyStyle=symbols`、`runRowKey`/`copyRowKey` 仍是 Space/Return。
+  `launchAtLogin=true`、`keyStyle=symbols`、`runRowKey`/`copyRowKey` 仍是 Space/Return；
+  新字段 `panelOrder` 落盘为 `byModifier`（默认值）。
 
 ## 已知环境坑
 

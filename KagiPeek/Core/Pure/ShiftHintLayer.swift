@@ -24,6 +24,21 @@ nonisolated enum ShiftHintLayer {
         return labels[index]
     }
 
+    /// Item id → label, assigned from the panel's current sequence.
+    ///
+    /// Rebuilt from the ordered ids every time the panel is built, so changing the sort
+    /// order moves the labels with the display position instead of pinning a glyph to a
+    /// menu item.
+    static func labels(for ids: [String]) -> [String: String] {
+        var result: [String: String] = [:]
+        for (index, id) in ids.prefix(capacity).enumerated() {
+            if let label = label(forIndex: index) {
+                result[id] = label
+            }
+        }
+        return result
+    }
+
     /// The position a typed character addresses. Case is folded, so Shift+A and Shift+a are
     /// the same position; a multi-character or non-ASCII key answers nil and the panel's
     /// normal handling takes it.

@@ -390,6 +390,7 @@ final class ShortcutEngine: ObservableObject {
         }
         if previous.sortMode != newValue.sortMode
             || previous.showDisabledItems != newValue.showDisabledItems
+            || previous.panelOrder != newValue.panelOrder
             || previous.ignoredCommands != newValue.ignoredCommands {
             state.orderedHitsCache = nil
         }
@@ -421,6 +422,7 @@ final class ShortcutEngine: ObservableObject {
         if old.panelPlacement != new.panelPlacement { changed.append("panelPlacement") }
         if old.columnCount != new.columnCount { changed.append("columnCount") }
         if old.sortMode != new.sortMode { changed.append("sortMode") }
+        if old.panelOrder != new.panelOrder { changed.append("panelOrder") }
         if old.showDisabledItems != new.showDisabledItems { changed.append("showDisabledItems") }
         if old.keyStyle != new.keyStyle { changed.append("keyStyle") }
         if old.language != new.language { changed.append("language") }

@@ -429,6 +429,13 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
 
+            Picker(localization.text(.appearancePanelOrder), selection: $store.settings.panelOrder) {
+                ForEach(PanelSortOrder.allCases, id: \.self) { order in
+                    Text(localization.text(order.titleKey)).tag(order)
+                }
+            }
+            .pickerStyle(.segmented)
+
             Picker(localization.text(.appearanceColumns), selection: $store.settings.columnCount) {
                 Text("1").tag(1)
                 Text("2").tag(2)

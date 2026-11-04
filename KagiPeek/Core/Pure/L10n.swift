@@ -37,6 +37,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case searchSubtitle
     case appearanceTheme, themeSystem, themeLight, themeDark
     case appearanceKeyPosition, keyPositionLeft, keyPositionRight
+    case appearancePanelOrder, panelOrderByModifier, panelOrderByMenuGroup
     case favoritesPinTop, favoritesFilterable
     case generalIgnoredCommands, generalIgnoredCommandsHint
     case ignoredAddCommand, ignoredSheetTitle, ignoredScopeGlobal, ignoredScopeApp
@@ -266,6 +267,9 @@ nonisolated enum L10n {
         .appearanceKeyPosition: ("Key position", "键位位置"),
         .keyPositionLeft: ("Keys left", "键位在左"),
         .keyPositionRight: ("Keys right", "键位在右"),
+        .appearancePanelOrder: ("Panel order", "面板排序"),
+        .panelOrderByModifier: ("By modifier", "按修饰键"),
+        .panelOrderByMenuGroup: ("By menu group", "按菜单栏分组"),
         .favoritesPinTop: ("Pin favourites to top", "收藏置顶"),
         .favoritesFilterable: ("Let filters hide favorites", "允许搜索和过滤隐藏收藏"),
         .appearanceTheme: ("Panel theme", "面板主题"),
