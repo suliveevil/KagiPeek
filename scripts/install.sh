@@ -76,7 +76,7 @@ if ! codesign --verify --strict "$STAGE" 2>/dev/null; then
     exit 1
 fi
 
-if ! codesign -dv "$STAGE" 2>&1 | grep -qE "Authority=(KagiPeek Local|Developer ID Application)"; then
+if ! codesign -dvvv "$STAGE" 2>&1 | grep -qE "Authority=(KagiPeek Local|Developer ID Application)"; then
     $SUDO rm -rf "$STAGE"
     echo "error: the staged build is ad-hoc signed; refusing to install it." >&2
     echo "       A stable identity is required: run ./scripts/setup_signing.sh" >&2
