@@ -5,7 +5,7 @@
 
 **Press and hold a modifier. See what the app you are in can do next.**
 
-KagiPeek is a menu bar utility for macOS. It reads the frontmost app's menu bar through the Accessibility API and shows its shortcuts in a floating panel. The panel is **persistent**: it stays until you press Esc, toggle it off, or complete a shortcut. Holding modifiers to summon it narrows the list to that modifier level, which-key style; the hotkey and the trigger-key double tap summon it with no prefix, showing every shortcut as a complete combination (⌘C). There is no per-app shortcut pack to install and no configuration file to maintain: if an app has a menu bar, KagiPeek can show its shortcuts, including chords, disabled items, and conflicts — and it can trigger any of them, including menu items that have no shortcut at all.
+KagiPeek is a menu bar utility for macOS. It reads the frontmost app's menu bar through the Accessibility API and shows its shortcuts in a floating panel. The panel is **persistent**: it stays until you press Esc, toggle it off, or complete a shortcut. A modifier pressed while it is open joins an ordered filter, and a letter pressed while that modifier is still down narrows further; the trigger key's own press is not a filter token, so the panel opens on the full list of complete combinations (⌘C). There is no per-app shortcut pack to install and no configuration file to maintain: if an app has a menu bar, KagiPeek can show its shortcuts, including chords, disabled items, and conflicts — and it can trigger any of them, including menu items that have no shortcut at all.
 
 The shortcut engine was rewritten around live menu scanning. It then became actionable: the panel became keyboard-driven and clickable, and conflicts began to include macOS system hotkeys. The panel became persistent, with four placement modes, tokenized and pinyin-aware search, Hyper-key matching, per-app statistics in Application Support, guided permission onboarding, an About tab, and a panel/search switch hotkey. It is now organised into two cards ordered by the shortcut itself; the "look at another app" job moved out of the browser window and into the search palette; Settings split into eight tabs — statistics and conflicts each answer a different question and got a page of their own; a conflict names its **type** and a likely winner instead of a severity; the cross-app scan is cached on disk behind a manual rescan; system hotkeys have real names; and triggering the menu item became the primary goal: every menu item is run by pressing it in the menu itself, so menu items with no shortcut at all are reachable too.
 
@@ -24,10 +24,10 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 *The title bar gives way in a fixed order: the result count, then the modifier chips and the favourites toggle, then the app name and subtitle. The settings and close buttons stay reachable — in a one-column panel they used to be pushed outside it. The menu column is dropped rather than squeezed, and the "has a sub-level" chevron moves into the trailing slot so it survives.*
 
 ![Ticking modifiers instead of holding them](docs/images/overlay-latch.png)
-*A shortcut can be assembled like an Emacs key sequence: tap ⌥, tap ⌘, then press C — or hold all three at once. Tapping a modifier (or clicking its chip in the title bar) ticks it: the list narrows exactly as it does while a key is held, but the tick survives the release, and the next tap narrows on top of it. Ticks light the chip and are folded into the next stroke, which the panel then replays in full. ⌫ undoes the tick you made last, and everything but the last one is still there, so you can narrow again without reopening the panel.*
+*Pressing a modifier while the panel is open adds it to the panel's ordered filter, and the next press narrows on top of it — ⌃ then F keeps only shortcuts that carry both. Clicking a title-bar chip ticks the modifier instead, so it stays down after release; ⌫ takes back the last token you added, then the last tick.*
 
 ![Holding a modifier instead of ticking it](docs/images/overlay-held.png)
-*Holding is the other half of the same list: it narrows while the key is down and widens again the moment you let go — a way of looking, where a tick is a way of composing. The menu item keeps its whole chord either way; the modifier you are holding is lit in place rather than stripped, so a menu item narrowed by ⌘ still reads ⌘C and not just C.*
+*Holding is the other half of the same list: pressing a modifier while the panel is open adds it to the filter, and letting go leaves that condition in place. The menu item keeps its whole chord either way; the modifier you pressed is lit in place rather than stripped, so a menu item narrowed by ⌘ still reads ⌘C and not just C.*
 
 ![Menu items that have no shortcut at all](docs/images/overlay-noshortcut.png)
 *Triggering the menu item is the point, so the panel does not stop at menu items that can be typed: one with no key equivalent still gets a row, sorted after every shortcut, with the shortcut column left blank. Running it presses the menu item itself — the only way to reach it — and the same press is tried first for every other menu item, with the chord replayed only as a fallback.*
@@ -47,9 +47,9 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 | --- | --- |
 | **Live menu scanning** | Reads the frontmost app's menu bar recursively through Accessibility: menu titles, key equivalents, enabled state, and the position of each item in the tree. Items with no key equivalent are kept too — they are triggered by pressing the menu item, not by typing. Any app with a standard menu bar works without a custom shortcut list. |
 | **Fallback catalog** | 100 built-in system, text-editing, Finder, and screenshot shortcuts fill in when an app has no menu bar or a scan cannot run. Can be disabled. |
-| **Persistent panel** | The panel stays until you press Esc or toggle it off. **Holding the trigger key to summon it seeds a prefix**, so the list narrows to the menu items those modifiers can start; the hotkey (⌃⌥⌘K) and the double-tap gesture summon it with an empty prefix, so every menu item is a complete combination (for example ⌘C). Releasing the modifiers widens the list back without closing the panel. |
-| **Which-key narrowing** | While the prefix is modifier-only, menu items shrink to those whose first stroke uses a superset of the held modifiers, each menu item shows the next key, and the surviving menu items are highlighted (the highlighted set and the visible set are the same at that level). Pressing a real key descends into that level. Completing a shortcut emphasises its description for about 0.4 s, then the panel closes. |
-| **Chords** | Multi-stroke shortcuts such as `⌘K ⌘C` descend one level at a time. ⌫ goes back, Esc closes; a breadcrumb shows the current prefix. Pressing a key with no match leaves the panel open. |
+| **Persistent panel** | The panel stays until you press Esc or toggle it off. The summoning press is a trigger, not a filter token: the hotkey (⌃⌥⌘K), the double tap and the hold all open on the whole list, so every menu item is a complete combination (for example ⌘C). A modifier pressed **while the panel is open** joins an ordered filter, and releasing the keys leaves that condition in place. |
+| **Modifier and letter filter** | Hold ⌃ while the panel is open, then press a letter, to combine them into one query (`⌃ f`): the list keeps only menu items that answer both, in the panel's normal order. ⌫ takes back the last token — the letter if the letter came last, otherwise that modifier; pressing the same modifier again removes it wherever it sits in the queue, and a third press adds it back at the tail. Completing a shortcut emphasises its description for about 0.4 s, then the panel closes. |
+| **Chords** | Multi-stroke shortcuts such as `⌘K ⌘C` descend one level at a time. ⌫ takes back the filter's last token first, then goes back one stroke; Esc closes and does not clear the filter; a breadcrumb shows the current prefix. Pressing a key with no match leaves the panel open. |
 | **Menu grouping** | Each menu item keeps the menu it came from as its middle column, with the app's own menu titles in the app's language. A group heading appears only when **Panel order** is **By menu group**; there the card is headed with the app's name (and the system card with **System hotkeys**). The default chord order is one flat list, so it draws no heading. |
 | **Two sections** | The app's menu items come first under its name; macOS's own hotkeys follow under **System hotkeys**, so a chord the system owns is visible next to the one the app owns. |
 | **Pagination** | Long lists are paged with `1/3` and clickable ‹ ›, and the scroll wheel works. **Max menu items per group** is an upper bound, not a promise: if the current window fits fewer, the panel shows fewer instead of pushing the last menu items under the footer. The panel never grows past the screen. |
@@ -145,7 +145,7 @@ The full walkthrough, including reset commands and signature-related re-granting
 
 | Trigger | How |
 | --- | --- |
-| Hold the trigger key | Hold the trigger key without pressing another key for 0.5 s (0.3–0.9 s in 0.1 s steps) | Default gesture. The trigger key is one of **Any modifier**, **Left Control**, **Left Option**, **Left Command**, **Right Command** (default), or **Right Option**; combinations are not supported. The held modifiers seed the prefix, so the panel narrows to that level. Shift alone is ignored. |
+| Hold the trigger key | Hold the trigger key without pressing another key for 0.5 s (0.3–0.9 s in 0.1 s steps) | Default gesture. The trigger key is one of **Any modifier**, **Left Control**, **Left Option**, **Left Command**, **Right Command** (default), or **Right Option**; combinations are not supported. The summoning press is not a filter token, so the panel opens on the whole list; a modifier pressed while it is open narrows. Shift alone is ignored. |
 | Press the trigger key twice | Two complete presses inside 0.3 s (0.15–0.8 s) | Alternative gesture. Any key press between the two presses cancels it. |
 | Panel hotkey | ⌃⌥⌘K by default | One of the three global hotkeys. The panel stays open until Esc or the hotkey again. Switching the frontmost app (or the desktop) closes the panel; summon it again to see the new app's shortcuts. |
 | Search | ⌃⌥⌘F by default | Opens the search panel independently. The hotkey is configurable. |
@@ -154,12 +154,13 @@ The full walkthrough, including reset commands and signature-related re-granting
 
 ### The panel
 
-- **One level at a time.** With an empty prefix every menu item is a complete combination (for example ⌘C). Holding modifiers to summon the panel seeds the prefix, so the panel narrows to that level and each menu item shows the next key; the hotkey and double-tap summon it empty.
-- **The panel is persistent.** It stays on screen until you press Esc or press the panel hotkey (or the switch hotkey) again. Releasing the modifiers widens the list back rather than closing it, there is no idle timer, and the old auto-hide delay is gone.
+- **One level at a time.** With no filter and an empty prefix every menu item is a complete combination (for example ⌘C). A modifier pressed while the panel is open joins the ordered filter, so the list narrows as more tokens arrive; a chord prefix shows each menu item's next key.
+- **The panel is persistent.** It stays on screen until you press Esc or press the panel hotkey (or the switch hotkey) again. Releasing the modifiers leaves the filter in place rather than widening the list, there is no idle timer, and the old auto-hide delay is gone.
+- **Filter with modifiers and letters.** A modifier pressed while the panel is open is added to an ordered filter; hold ⌃ and press a letter to make the query `⌃ f`. ⌫ takes back the last token — the letter if it came last, otherwise that modifier — and once the queue is empty the key goes back to chord backtracking. Pressing the same modifier again removes it wherever it sits in the queue; a third press adds it back at the tail. Releasing the keys does not clear anything, and Esc closes the panel rather than clearing the filter.
 - **Fullscreen and Space changes keep the panel usable.** On a full-screen space or with the menu bar hidden, the panel stays fully on screen and clear of the top safe area (the menu bar or the notch); switching Space refreshes the front app's menu instead of leaving a stale list.
 - **Selection and highlight are different things.** Highlight follows your fingers (the menu items the current prefix can reach); selection is your cursor, moved with ↑/↓ or the pointer. The selected menu item carries a 3 pt accent bar on its leading edge and a slightly brighter title, so it is visible on the light palette and to VoiceOver (which announces it as selected). Neither state moves the row text.
 - **The shortcut still reaches the app.** KagiPeek only observes keys; it does not remap them. Completing a shortcut closes the panel and lets the same key event continue to the front app, so the menu item runs immediately, exactly as if the panel had not been open.
-- **Chords stay open.** If a stroke is the first step of a multi-stroke shortcut, the panel descends one level and shows what can follow; a breadcrumb shows the prefix. ⌫ goes back one stroke, and only while no other modifier is held, so ⌘⌫ stays an ordinary shortcut. Esc closes the panel whatever the modifiers.
+- **Chords stay open.** If a stroke is the first step of a multi-stroke shortcut, the panel descends one level and shows what can follow; a breadcrumb shows the prefix. ⌫ takes back the filter's last token first, then goes back one stroke, and only while no other modifier is held, so ⌘⌫ stays an ordinary shortcut. Esc closes the panel whatever the modifiers and does not clear the filter.
 - **Keyboard and mouse.** ↑/↓ select, ←/→ page (or `;` / `'`), the run key acts on the selection, Esc closes. With no modifier held these keys are consumed by the panel and never reach the front app; clicking a menu item does the same as the run key.
 - **`/` opens the search palette.** The panel has no text field of its own: `/` swaps it for the search palette with the cursor already in the field, and the palette keeps whatever you last searched for. Press `/` again while the field is empty to go back to the panel (there is nothing to lose); once you have typed a query, `/` is an ordinary character and the back chevron in the title bar takes you back. ⌘/ is never taken; it belongs to the front app.
 - **Run or copy.** The run key (Space by default) closes the panel and triggers that menu item in the front app: it presses the menu item itself when the scan kept one — which is also the only way to run a menu item that has no shortcut at all — and replays the chord into the app as a fallback. The copy key (Return by default) writes the chord to the clipboard and leaves the panel open (a menu item with no shortcut copies its menu path instead). Both are **recorded** under **Settings → General → Menu item actions**; the footer always spells out the two keys you actually chose. A menu item with further steps descends a level instead of running, and a disabled menu item is ignored.
@@ -352,7 +353,7 @@ KagiPeek can only show shortcuts the app exposes in its menu bar. Shortcuts impl
 No. Shortcut handling is local, the key tap only passes events through (except KagiPeek's own hotkeys and the panel's navigation keys; a completed shortcut still reaches the app), and statistics contain only counts and timestamps grouped by app. Settings and statistics are two JSON files in Application Support. The one thing it does synthesise is the single chord you asked it to run — pressing the run key or clicking a menu item replays that menu item's shortcut into the front app once. The only network request is the update check you press yourself. See [Privacy](#privacy).
 
 **Why doesn't the panel close by itself?**
-The auto-hide delay was removed. The panel is persistent and closes when you press Esc or toggle it off with the panel/switch hotkey. Switching apps or desktops closes it too, because its contents belong to the app it was opened over. Releasing modifiers just widens the list back.
+The auto-hide delay was removed. The panel is persistent and closes when you press Esc or toggle it off with the panel/switch hotkey. Switching apps or desktops closes it too, because its contents belong to the app it was opened over. Releasing modifiers does not clear the filter; it stays until you take it back.
 
 **Where is my data, and will reinstalling lose it?**
 In `~/Library/Application Support/KagiPeek/` as `settings.json` and `usage.json`. They are independent of the app bundle and the preference domain, so reinstalling or updating keeps them; only deleting the folder removes them. See [Privacy](#privacy) and [docs/FAQ.md](docs/FAQ.md).
@@ -388,7 +389,7 @@ Five ideas come from [Menu-Bar-Search](https://github.com/BenziAhamed/Menu-Bar-S
 
 **按住修饰键，看看当前 App 接下来能做什么。**
 
-KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility）API 读取前台 App 的菜单栏，用浮层面板显示它的快捷键。面板是**持久**的：它会一直保持到你按 Esc、再次切换关闭或完成一条快捷键。按住修饰键唤出时，按住的修饰键会成为前缀，把列表收窄到那一层（which-key 行为）；用热键或连按两次触发键唤出时没有前缀，每个菜单项显示完整组合键（如 ⌘C）。不需要为每个 App 安装快捷键包，也不需要维护配置文件：只要 App 有菜单栏，KagiPeek 就能显示它的快捷键，包括多段组合键、不可用项和冲突。
+KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility）API 读取前台 App 的菜单栏，用浮层面板显示它的快捷键。面板是**持久**的：它会一直保持到你按 Esc、再次切换关闭或完成一条快捷键。面板打开后按下的修饰键会加入有序筛选队列，再按字母即可组合筛选（如 ⌃ + F 得到 `⌃ f`）；触发键那一次按下只是唤出，不入队，所以热键、连按与按住都从完整列表开始，每个菜单项显示完整组合键（如 ⌘C）。不需要为每个 App 安装快捷键包，也不需要维护配置文件：只要 App 有菜单栏，KagiPeek 就能显示它的快捷键，包括多段组合键、不可用项和冲突。
 
 快捷键引擎被重写：实时菜单扫描取代静态列表，面板新增多段组合键导航与搜索。这套引擎随后变得真正可用：面板可以用键盘驱动、也能点击执行，冲突检测纳入系统热键。面板变为持久面板，并新增四种面板位置、分词与拼音搜索、Hyper 键匹配、按 App 统计的 Application Support 存储、授权引导、独立的“关于”标签页，以及切换面板/搜索的热键。面板如今整理为两张卡片、菜单项按快捷键本身排序；把“看另一个 App”的职责从速查窗口搬进搜索面板（用 App 范围切换）；把设置拆成八个标签页（统计与冲突各回答一个问题，各自独立成页）；冲突不再只报严重度，而是给出**类型**和可能的胜负；跨 App 扫描结果落盘、只在需要时手动重扫；系统热键也有了真正的名字；同时把“执行菜单项”变成首要目标——菜单项一律按自身执行，因此没有快捷键的菜单项同样可以触发。
 
@@ -402,9 +403,9 @@ KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility
 | --- | --- |
 | **实时菜单扫描** | 通过辅助功能递归读取前台 App 的菜单栏：菜单标题、快捷键与启用状态。任何标准菜单栏 App 装完即用，无需手工维护列表。 |
 | **内置兜底目录** | 100 条系统、文本编辑、Finder 与截图快捷键，在 App 没有菜单栏或扫描失败时使用。可在设置中关闭。 |
-| **持久面板** | 面板一直保持到按 Esc 或再次切换关闭。**按住修饰键唤出时，按住的修饰键会成为前缀**，列表收窄到该层；热键（⌃⌥⌘K）与连按触发键唤出时没有前缀，每个菜单项是完整组合键（如 ⌘C）。松开修饰键会恢复完整列表，面板不关闭。 |
-| **which-key 收窄** | 前缀只有修饰键时，菜单项收窄到“首步修饰键包含当前按住项”的快捷键，每个菜单项显示下一个键，且这些菜单项同时高亮（该层可见集合与高亮集合相同）。按下实体键后进入该层；完成一条快捷键时该菜单项说明以强调色显示约 0.4 秒，然后面板关闭。 |
-| **多段组合键** | 支持 `⌘K ⌘C` 这类 chord：按下 ⌘K 后若还有后续组合，面板留在原位并进入下一层。⌫ 返回上一层，Esc 关闭面板，顶部面包屑显示当前前缀；没有匹配的按键时面板保持打开。 |
+| **持久面板** | 面板一直保持到按 Esc 或再次切换关闭。触发键那一次按下只是唤出，不是筛选 token；热键（⌃⌥⌘K）、连按与按住都从完整列表开始，每个菜单项是完整组合键（如 ⌘C）。面板打开后按下的修饰键会加入有序筛选队列，松开按键不会清除条件。 |
+| **修饰键 + 字母筛选** | 面板打开后按住 ⌃，再按字母即可把两者组合成一个查询（`⌃ f`），列表只留下同时满足两项的菜单项，顺序不变。⌫ 依次撤销：末尾是字母就删字母，末尾是修饰键就移除该修饰键；再按同一修饰键会从队列任意位置移除它，第三次按下又作为新队尾加入。完成一条快捷键时该菜单项说明以强调色显示约 0.4 秒，然后面板关闭。 |
+| **多段组合键** | 支持 `⌘K ⌘C` 这类 chord：按下 ⌘K 后若还有后续组合，面板留在原位并进入下一层。⌫ 先撤销筛选队列末尾的 token，再返回上一层；Esc 关闭面板且不清空筛选，顶部面包屑显示当前前缀；没有匹配的按键时面板保持打开。 |
 | **菜单分组** | 每个菜单项把所属菜单作为中间一列保留，菜单名来自 App 自己的菜单结构与语言。只有**面板排序**为**按菜单栏分组**时才画分组标题，标题是 App 名（系统卡片则是**系统热键**）；默认的按修饰键排序是一张平铺列表，不画标题。 |
 | **两张卡片** | App 自己的菜单项在前，标题是 App 名；macOS 的系统热键在后，标题是**系统热键**。系统占用的组合键因此能和 App 占用的并排比较。 |
 | **自动分页** | 菜单项过多时显示 `1/3` 与可点击的 ‹ ›，也支持滚轮翻页，面板不会撑破屏幕。**每个分组最多显示**是上限而不是承诺：当前窗口放不下时只显示放得下的数量，不会把最后几条挤到页脚下面。 |
@@ -498,7 +499,7 @@ open KagiPeek.xcodeproj
 
 | 触发方式 | 操作 | 说明 |
 | --- | --- | --- |
-| 修饰键手势：按住 | 按住触发键 0.5 秒（0.3–0.9 秒可调，步进 0.1 秒），期间不按其他键 | 手势触发键可选：任意修饰键、左 Control、左 Option、左 Command、右 Command（默认）、右 Option，单选，不支持组合键，不含 Caps Lock。按住的修饰键会成为前缀；单独按 ⇧ 不算。 |
+| 修饰键手势：按住 | 按住触发键 0.5 秒（0.3–0.9 秒可调，步进 0.1 秒），期间不按其他键 | 手势触发键可选：任意修饰键、左 Control、左 Option、左 Command、右 Command（默认）、右 Option，单选，不支持组合键，不含 Caps Lock。触发键那一次按下不入队；单独按 ⇧ 不算（Shift 是提示层）。 |
 | 修饰键手势：连按两次 | 完整按下并松开触发键两次，两次之间没有别的键；只有两次之间的间隔计时，跟随系统“双击速度”（限制在 0.25–0.6 秒） | 与“按住”二选一。按多久都算一次，不需要单独调窗口。 |
 | 面板热键 | 默认 ⌃⌥⌘K | 三条全局快捷键之一；面板保持到按 Esc 或再次按热键。切换前台 App 或桌面会关闭面板，重新唤出即可看到新 App 的快捷键。 |
 | 搜索 | 默认 ⌃⌥⌘F | 独立打开搜索面板，热键可自定义。 |
@@ -507,11 +508,12 @@ open KagiPeek.xcodeproj
 
 ### 面板操作
 
-- 一次只显示一层：没有前缀时每个菜单项是完整组合键（如 ⌘C）；按住修饰键唤出时前缀就是这些修饰键，面板收窄到该层，每个菜单项显示“下一个键”。
-- 面板是持久的：它会一直保持到按 Esc，或再次按面板热键（或切换热键）。松开修饰键只会恢复完整列表，不会关闭面板；没有静置计时器。
+- 一次只显示一层：没有筛选、没有前缀时每个菜单项是完整组合键（如 ⌘C）；面板打开后按下修饰键会把它们加入有序筛选队列，再按字母即可组合筛选，列表随 token 增加而收窄，每个菜单项仍显示完整组合键。
+- 面板是持久的：它会一直保持到按 Esc，或再次按面板热键（或切换热键）。松开修饰键不会清除筛选条件，也不会关闭面板；没有静置计时器。
+- 修饰键 + 字母筛选：面板打开后按下的修饰键进入有序筛选队列，按住 ⌃ 再按字母即得到 `⌃ f`。⌫ 依次撤销：末尾是字母就删字母，末尾是修饰键就移除该修饰键；队列空后回到 chord 退回上一层。再按同一修饰键会从队列任意位置移除它，第三次按下又回到队尾。松开按键不会清除条件，Esc 只关闭面板、不清空筛选。
 - 选中与高亮是两种状态：高亮跟随当前前缀能到达的菜单项，选中是你用 ↑/↓ 或鼠标移动的光标。选中的菜单项左侧有一条 3pt 高亮竖条，标题同时轻微提亮，因此浅色面板上也看得见，VoiceOver 会朗读为已选中。两者都不占布局宽度，所以鼠标扫过时文字不会左右跳。
 - 快捷键照常传给 App：KagiPeek 只观察按键，不重映射。完成一条快捷键时面板关闭，同一个按键事件继续传给前台 App，所以菜单项会像面板从未打开一样立即执行。
-- 支持多段组合键：若按下的键是某条 chord 的第一步，面板进入下一层显示可继续的按键，面包屑显示当前前缀；⌫ 退回上一层（只在没有其他修饰键时生效，⌘⌫ 仍是普通快捷键）。Esc 无论带不带修饰键都会关闭面板。
+- 支持多段组合键：若按下的键是某条 chord 的第一步，面板进入下一层显示可继续的按键，面包屑显示当前前缀；⌫ 先撤销筛选队列末尾的 token，再退回上一层（只在没有其他修饰键时生效，⌘⌫ 仍是普通快捷键）。Esc 无论带不带修饰键都会关闭面板，但不清空筛选。
 - 键盘与鼠标：↑/↓ 选择、←/→（或 `;` / `'`）翻页、执行键执行选中项、Esc 关闭。没有按住其他修饰键时这些键由面板消费，不会传给前台 App；鼠标点击某个菜单项等同于执行键。
 - **Shift 显示目标。** 按住 Shift 时，前 36 个菜单项显示 `0–9` / `a–z` 标签；Shift 加对应字符直接执行该菜单项。提示层只存在于面板里——在搜索中，Shift 仍属于输入框。
 - 执行还是复制由按键决定：执行键（默认 Space）关闭面板并把该菜单项的组合键回放给前台 App，复制键（默认 Return）只写入剪贴板、面板保持打开。两个键都可以在 **设置 → 通用 → 菜单项操作** 里录制，底部提示会渲染你实际选的键。还有后续步骤的菜单项会进入下一层而不是执行，不可用的菜单项会被忽略。

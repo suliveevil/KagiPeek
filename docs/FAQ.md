@@ -114,10 +114,10 @@ That list is read-only. KagiPeek never binds, changes, or disables a system shor
 Because `⌘K` is the first stroke of a **multi-stroke shortcut** (a chord), such as `⌘K ⌘C` in VS Code-style editors. When the current stroke has further completions, the panel descends one level and shows what can follow; the breadcrumb shows the prefix.
 
 - Press the next stroke to continue.
-- Press **⌫** to go back one level; **Esc** closes the panel. Both apply only when no other modifier is held, so ⌘⌫ and similar combinations remain normal shortcuts.
+- Press **⌫** to take back the last thing you added: a filter letter if it came last, otherwise that modifier; once the filter is empty the key goes back one level. It is handled only with no other modifier held, so ⌘⌫ remains an ordinary shortcut. **Esc** closes the panel.
 - Press the key that completes a shortcut to finish: the panel highlights the menu item for about 0.4 s, closes, and the shortcut runs in the front app. A key with no match leaves the panel open — it no longer closes on a miss.
 
-Otherwise the panel stays open because it is persistent by design. Releasing the modifiers does not dismiss it.
+Otherwise the panel stays open because it is persistent by design. Releasing the modifiers does not dismiss it, nor does it clear the filter.
 
 If a chord is not visible, the app may not expose it as a menu key equivalent, or the scan may have missed that menu.
 
@@ -129,7 +129,7 @@ Because v2.1.0 made the panel **persistent**. The auto-hide delay and its settin
 - you press **Esc**;
 - you press the **panel hotkey** (or the **switch panel/search** hotkey) again.
 
-Releasing the modifiers you were holding does not close it either. This is deliberate: the panel is now a reference surface you can read at your own pace, and it is dismissed by a clear action instead of a timer.
+Releasing the modifiers you were holding does not close it either, and it does not clear the filter. This is deliberate: the panel is now a reference surface you can read at your own pace, and it is dismissed by a clear action instead of a timer.
 
 ## Why does Esc close the panel, and why can't I just click away?
 
@@ -155,16 +155,25 @@ The panel is persistent, so keyboard operation is always available:
 | ← / → | Previous / next page |
 | Run key (Space by default) | Close the panel and replay the selected menu item's shortcut into the front app |
 | Copy key (Return by default) | Copy the selected menu item's shortcut; the panel stays open |
+| ⌫ | Take back the last filter token — the letter if it came last, otherwise that modifier; once the filter is empty, go back one chord stroke |
 | Esc | Close the panel (with or without modifiers) |
 | `;` / `'`, ⌃B / ⌃F | Previous / next page |
 | Click | Same as the run key |
 | The complete shortcut | Highlight the matching menu item for ~0.4 s, close the panel, and let the shortcut run |
 
-Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
+Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ pops the filter's last token first; once the queue is empty it backs out one chord stroke, and it is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 
 Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa. The selected menu item also draws a 3 pt accent bar on its leading edge and a slightly brighter title, so it stays visible on the light panel; VoiceOver announces it as selected, in the order name → shortcut → state.
 
 Pressing the run key on a menu item that still has further steps opens the next level instead of running it.
+
+## How do I clear a modifier filter?
+
+The panel keeps an ordered queue of what you added, and **⌫** takes back one token at a time: a letter if the letter came last, otherwise that modifier. Pressing the **same modifier again** removes it from wherever it sits in the queue, so `⌃ ⌥ f` minus ⌃ is `⌥ f`; a third press adds it back at the end. Releasing the keys never clears anything, and **Esc** closes the panel without clearing the filter — the next panel session starts empty. To get the whole list back, press ⌫ until the queue is empty (or reopen the panel).
+
+## Why doesn't ⌘F filter the panel?
+
+⌘F is still the front app's chord (or one of KagiPeek's hotkeys — search is ⌃⌥⌘F by default), so it is not a filter token. The filter only accepts a lowercase letter when the modifiers on that key press are already in the queue; a letter pressed with a modifier the queue does not hold belongs to the chord/hotkey path. To narrow with F, press ⌃ **while the panel is open**, then F: the queue becomes `⌃ f` and the list keeps only menu items that carry both. An extra ⌘ on the F press is never stepped on — only a modifier already in the queue turns the letter into a filter token.
 
 ## Why did the panel copy instead of running the menu item?
 
