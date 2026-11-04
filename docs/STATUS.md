@@ -12,15 +12,15 @@ as of **2026-11-05**（Asia/Shanghai）。
   依次为 `35e9172`（合并 `feature/paging-key-pair`）、`6acc027`（文档：三来源分区与受限
   动作）、`ac1b392`（面板三来源分区 + 六个受限动作）、`8360744`（修复上一批 UI 留下的
   编译错误）、`e98c206`（草稿：面板输入即搜索，只记录不实施）。
-- 分支：本地只剩 `main`、开发分支 `feature/panel-sections`，以及未合并的旧历史备份
-  `backup/pre-squash-20261104-192838`；`feature/paging-key-pair`、`fix/panel-footer-clearance`
-  等已并入 main 的临时分支已删除。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
-  suliveevil/KagiPeek。
+- 分支：`main` 已包含本轮全部改动；本地还留有开发分支 `feature/panel-sections`、旧历史备份
+  `backup/pre-squash-20261104-192838`（branch 与 tag 同指向 `de32cb6`），以及一批 pre-squash
+  时期的迭代分支。删除这些分支的操作被工具安全策略拦截，**尚未执行**，等用户确认后再清。
+  `upstream` 指向 Voltline/KagiPeek，`origin` 指向 suliveevil/KagiPeek。
 - `swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、未 squash、
   未碰 `backups/`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
-- **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
-  未 reset、未强推。旧历史保留在本地 `backup/pre-squash-20261104-192838`。
+- **squash / push 未执行**：本轮把两个 feature 分支合并进本地 `main`，未建新 tag、未 reset、
+  未强推，也没有 push。旧历史保留在本地 `backup/pre-squash-20261104-192838`（branch 与 tag）。
 
 ## 本轮完成
 
