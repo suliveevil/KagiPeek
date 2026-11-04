@@ -416,7 +416,10 @@ final class SurfacePanelController: PanelPresenting {
         let visible = screen.visibleFrame
         switch settings.panelPlacement {
         case .fillScreen:
-            return visible.size
+            return OverlayPlacement.fillScreenFrame(
+                visible: visible,
+                safeAreaTop: screen.safeAreaInsets.top
+            ).size
         case .fixedSize:
             return CGSize(
                 width: min(CGFloat(settings.fixedPanelWidth), visible.width),
@@ -442,16 +445,23 @@ final class SurfacePanelController: PanelPresenting {
         let visible = screen.visibleFrame
         switch settings.panelPlacement {
         case .fillScreen:
-            return visible
+            return OverlayPlacement.fillScreenFrame(
+                visible: visible,
+                safeAreaTop: screen.safeAreaInsets.top
+            )
         case .fixedSize, .coverWindow:
-            return OverlayPlacement.containedFrame(
-                CGRect(
-                    x: visible.midX - size.width / 2,
-                    y: visible.midY - size.height / 2,
-                    width: size.width,
-                    height: size.height
+            return OverlayPlacement.clampedTop(
+                OverlayPlacement.containedFrame(
+                    CGRect(
+                        x: visible.midX - size.width / 2,
+                        y: visible.midY - size.height / 2,
+                        width: size.width,
+                        height: size.height
+                    ),
+                    in: visible
                 ),
-                in: visible
+                in: visible,
+                safeAreaTop: screen.safeAreaInsets.top
             )
         case .besideWindow:
             return besideWindowFrame(size: size, screen: screen)

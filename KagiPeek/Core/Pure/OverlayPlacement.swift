@@ -72,6 +72,35 @@ nonisolated enum OverlayPlacement {
         return result
     }
 
+    /// The top margin that keeps a panel clear of the menu bar, and of the notch when the
+    /// display has one. A display without a notch still gets the regular breathing room.
+    static func topInset(safeAreaTop: CGFloat) -> CGFloat {
+        max(safeAreaTop, screenMargin)
+    }
+
+    /// The panel covers the visible frame but stops below the safe area: the top is trimmed
+    /// and the origin is left alone, so the footer keeps its position.
+    static func fillScreenFrame(visible: CGRect, safeAreaTop: CGFloat) -> CGRect {
+        let inset = topInset(safeAreaTop: safeAreaTop)
+        return CGRect(
+            x: visible.minX,
+            y: visible.minY,
+            width: visible.width,
+            height: max(0, visible.height - inset)
+        )
+    }
+
+    /// Moves a frame down as a whole when its top edge would land inside the safe area.
+    /// The size never changes, and the bottom stays at or above `visible.minY`.
+    static func clampedTop(_ frame: CGRect, in visible: CGRect, safeAreaTop: CGFloat) -> CGRect {
+        let inset = topInset(safeAreaTop: safeAreaTop)
+        var result = frame
+        if result.maxY > visible.maxY - inset {
+            result.origin.y = max(visible.minY, visible.maxY - inset - result.height)
+        }
+        return result
+    }
+
     /// The palette is `searchWidth` wide and at least as tall as the front window, so it
     /// spans the window instead of hugging the top of the screen.
     static func searchSize(windowFrame: CGRect?, visible: CGRect) -> CGSize {
