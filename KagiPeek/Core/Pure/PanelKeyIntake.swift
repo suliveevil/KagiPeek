@@ -25,8 +25,8 @@ nonisolated enum PanelKeyIntake {
         keyCode: UInt16,
         modifiers: ModifierSet,
         held: ModifierSet,
-        run: HotkeySpec,
-        copy: HotkeySpec,
+        run: HotkeySpec?,
+        copy: HotkeySpec?,
         characters: String? = nil
     ) -> Bool {
         if NavigationKey.isSlash(keyCode: keyCode, modifiers: modifiers, characters: characters) {

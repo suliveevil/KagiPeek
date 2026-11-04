@@ -48,6 +48,7 @@ extension ShortcutEngine {
     private static func previewSettingsTab(for mode: String) -> SettingsTab {
         switch mode {
         case "settings-ranking", "settings-statistics": return .statistics
+        case "settings-trigger": return .trigger
         case "settings-conflicts": return .conflicts
         case "settings-diagnostics": return .diagnostics
         default: return .general
@@ -127,7 +128,7 @@ extension ShortcutEngine {
         state.crossAppConflicts = state.conflicts.map { $0.scoped(to: $0.appBundleIDs.sorted().first) }
 
         switch mode {
-        case "settings", "settings-ranking", "settings-statistics", "settings-conflicts", "settings-diagnostics", "settings-tall":
+        case "settings", "settings-trigger", "settings-ranking", "settings-statistics", "settings-conflicts", "settings-diagnostics", "settings-tall":
             // The ranking page is long; give the ranking variant room to show the conflicts block.
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 680, height: Self.previewSettingsIsTall(mode) ? 1500 : 600),

@@ -62,6 +62,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case triggerKeyLeftCommand, triggerKeyRightCommand, triggerKeyRightOption
     case triggerHoldDelay, triggerPanelHotkey, triggerSearchHotkey
     case triggerSwitchHotkey, triggerRecording, triggerRecordingHint, triggerStopRecording
+    case triggerEnable, triggerUnset, triggerClear
 
     // Appearance
     case appearanceTitle, appearanceKeyStyle, appearanceStyleSymbols, appearanceStyleWords
@@ -96,6 +97,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     // Row actions
     case rowActionSection, rowActionExecute, rowActionCopy, rowActionHint
     case panelActionHint, panelActionHintSearch, panelActionHintCompact
+    case panelCopyHintCompact, panelEscCloseHint
 
     // Overlay
     case overlayNoCandidates, overlayScanning, overlayPageFormat, overlayUnavailableBadge
@@ -400,8 +402,8 @@ nonisolated enum L10n {
         ),
 
         .triggerTitle: ("Trigger", "触发"),
-        .triggerModifierGesture: ("Modifier gesture", "修饰键手势"),
-        .triggerGlobalHotkey: ("Global hotkeys", "全局快捷键"),
+        .triggerModifierGesture: ("Modifier trigger", "修饰键触发"),
+        .triggerGlobalHotkey: ("Shortcut trigger", "快捷键触发"),
         .triggerGesture: ("Trigger gesture", "触发手势"),
         .triggerGestureHold: ("Hold still", "按住停顿"),
         .triggerGestureDoubleTap: ("Press twice", "连按两次"),
@@ -419,6 +421,9 @@ nonisolated enum L10n {
         .triggerRecording: ("Record", "录制"),
         .triggerRecordingHint: ("Press a new key combination…", "请按下新的组合键…"),
         .triggerStopRecording: ("Stop", "停止"),
+        .triggerEnable: ("Enable", "启用"),
+        .triggerUnset: ("Not set", "未设置"),
+        .triggerClear: ("Delete", "删除"),
 
         .appearanceTitle: ("Appearance", "外观"),
         .appearanceKeyStyle: ("Key style", "按键显示"),
@@ -443,8 +448,8 @@ nonisolated enum L10n {
         .statisticsTitle: ("Statistics", "统计"),
         .rankingMode: ("Sort order", "排序方式"),
         .rankingModeHint: (
-            "Decides the order of both lists on this page. The panel is always in key order; the search palette orders by match.",
-            "决定本页两个列表的顺序。面板始终按按键顺序排列，搜索面板按匹配度排序。"
+            "Decides the order of both lists on this page. The panel order is set on the Appearance page; the search palette orders by match.",
+            "决定本页两个列表的顺序。面板顺序在外观页设置，搜索面板按匹配度排序。"
         ),
         .sortSmart: ("Smart order", "智能排序"),
         .sortFrequencyDesc: ("Most used first", "高频优先"),
@@ -541,6 +546,9 @@ nonisolated enum L10n {
         ),
         // One column, 300 pt: the two keys that do something and nothing else.
         .panelActionHintCompact: ("%1$@ run · Esc close", "%1$@ 执行 · Esc 关闭"),
+        // A row key can be deleted; the footer drops only the action that has no key.
+        .panelCopyHintCompact: ("%1$@ copy · Esc close", "%1$@ 复制 · Esc 关闭"),
+        .panelEscCloseHint: ("Esc close", "Esc 关闭"),
 
         .frontmostApp: ("Frontmost app", "前台 App"),
         .exportMarkdown: ("Export Markdown", "导出 Markdown"),

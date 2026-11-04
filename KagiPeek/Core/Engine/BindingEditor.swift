@@ -31,6 +31,27 @@ final class BindingEditor {
         onChange()
     }
 
+    /// Deletes a binding. `nil` means "no key", which both routers skip and the settings
+    /// payload writes as `null`.
+    func clear(_ target: HotkeyTarget) {
+        switch target {
+        case .panel:
+            settingsStore.settings.panelHotkey = nil
+        case .search:
+            settingsStore.settings.searchHotkey = nil
+        case .switcher:
+            settingsStore.settings.switchHotkey = nil
+        case .runRow:
+            settingsStore.settings.runRowKey = nil
+        case .copyRow:
+            settingsStore.settings.copyRowKey = nil
+        }
+        if state.recordingTarget == target {
+            state.recordingTarget = nil
+        }
+        onChange()
+    }
+
     /// Applies one event to the active recording. Returns `true` when the event was
     /// swallowed, which is always the case while a target is set.
     func handle(_ event: KeyEvent, target: HotkeyTarget) -> Bool {

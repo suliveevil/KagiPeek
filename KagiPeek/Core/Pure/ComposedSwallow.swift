@@ -21,8 +21,8 @@ nonisolated struct ComposedSwallowState {
     var pending: PendingModifiers = PendingModifiers()
     /// Only the modifiers physically down — `PanelKeyIntake` subtracts these.
     var heldModifiers: ModifierSet = []
-    var runRowKey: HotkeySpec = HotkeySpec(keyCode: 0, modifiers: [])
-    var copyRowKey: HotkeySpec = HotkeySpec(keyCode: 0, modifiers: [])
+    var runRowKey: HotkeySpec?
+    var copyRowKey: HotkeySpec?
     var catalogItems: [BindingItem] = []
     /// `panel.shiftHintActive`: the first 36 rows are addressed by 0–9 / a–z, so a
     /// Shift + glyph press belongs to the panel and must not reach the front app as text.

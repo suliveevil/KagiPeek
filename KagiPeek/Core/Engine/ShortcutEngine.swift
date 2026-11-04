@@ -1062,7 +1062,8 @@ final class ShortcutEngine: ObservableObject {
     private func applyHotkeySwallowing() {
         var rules: [SwallowRule] = []
         if state.recordingTarget == nil, state.settings.hotkeyTriggerEnabled {
-            for spec in [state.settings.panelHotkey, state.settings.searchHotkey, state.settings.switchHotkey] {
+            for spec in [state.settings.panelHotkey, state.settings.searchHotkey, state.settings.switchHotkey]
+                .compactMap({ $0 }) {
                 rules.append(SwallowRule(
                     keyCode: spec.keyCode,
                     modifiers: spec.modifiers,
@@ -1489,6 +1490,12 @@ final class ShortcutEngine: ObservableObject {
 
     func cancelRecording() {
         bindingEditor.cancel()
+    }
+
+    /// Removes a binding. The key then reaches the front app, and the recorder can record a
+    /// replacement in the same slot.
+    func clearBinding(_ target: HotkeyTarget) {
+        bindingEditor.clear(target)
     }
 
     private func handleRecording(_ event: KeyEvent, target: HotkeyTarget) -> Bool {

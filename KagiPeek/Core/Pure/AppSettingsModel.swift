@@ -156,9 +156,9 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var triggerGesture: TriggerGesture = .hold
     var triggerKey: TriggerKey = .rightCommand
     var holdDelay: Double = 0.5
-    var panelHotkey: HotkeySpec = .panelDefault
-    var searchHotkey: HotkeySpec = .searchDefault
-    var switchHotkey: HotkeySpec = .switchDefault
+    var panelHotkey: HotkeySpec? = .panelDefault
+    var searchHotkey: HotkeySpec? = .searchDefault
+    var switchHotkey: HotkeySpec? = .switchDefault
     var panelPlacement: PanelPlacement = .coverWindow
     var fixedPanelWidth: Double = 720
     var fixedPanelHeight: Double = 620
@@ -185,8 +185,8 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var panelOrder: PanelSortOrder = .byModifier
     var pinFavoritesToTop: Bool = true
     var favoritesCanBeFiltered: Bool = false
-    var runRowKey: HotkeySpec = .runRowDefault
-    var copyRowKey: HotkeySpec = .copyRowDefault
+    var runRowKey: HotkeySpec? = .runRowDefault
+    var copyRowKey: HotkeySpec? = .copyRowDefault
     /// Whether the third-party config scanners run. Off means no file outside KagiPeek's
     /// own data folder is ever opened.
     var scanConfigFiles: Bool = true
@@ -245,6 +245,12 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         func decode<T: Decodable>(_ key: CodingKeys, _ fallback: T) throws -> T {
             try container.decodeIfPresent(T.self, forKey: key) ?? fallback
         }
+        // `decodeIfPresent` cannot tell a deleted binding (`null`) from a key an older
+        // payload never had, and only the second may fall back to the default.
+        func decodeHotkey(_ key: CodingKeys, _ fallback: HotkeySpec?) throws -> HotkeySpec? {
+            guard container.contains(key) else { return fallback }
+            return try container.decode(HotkeySpec?.self, forKey: key)
+        }
         // A legacy value this build does not know must not fail the whole file: only the
         // trigger mapping is lost, and the v5 defaults take over.
         if let legacy = try? container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) {
@@ -255,9 +261,9 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         triggerGesture = try decode(.triggerGesture, fallback.triggerGesture)
         triggerKey = try decode(.triggerKey, fallback.triggerKey)
         holdDelay = try decode(.holdDelay, fallback.holdDelay)
-        panelHotkey = try decode(.panelHotkey, fallback.panelHotkey)
-        searchHotkey = try decode(.searchHotkey, fallback.searchHotkey)
-        switchHotkey = try decode(.switchHotkey, fallback.switchHotkey)
+        panelHotkey = try decodeHotkey(.panelHotkey, fallback.panelHotkey)
+        searchHotkey = try decodeHotkey(.searchHotkey, fallback.searchHotkey)
+        switchHotkey = try decodeHotkey(.switchHotkey, fallback.switchHotkey)
         showExecutedHUD = try decode(.showExecutedHUD, fallback.showExecutedHUD)
         keyStyle = try decode(.keyStyle, fallback.keyStyle)
         columnCount = try decode(.columnCount, fallback.columnCount)
@@ -287,8 +293,8 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         panelOrder = try decode(.panelOrder, fallback.panelOrder)
         pinFavoritesToTop = try decode(.pinFavoritesToTop, fallback.pinFavoritesToTop)
         favoritesCanBeFiltered = try decode(.favoritesCanBeFiltered, fallback.favoritesCanBeFiltered)
-        runRowKey = try decode(.runRowKey, fallback.runRowKey)
-        copyRowKey = try decode(.copyRowKey, fallback.copyRowKey)
+        runRowKey = try decodeHotkey(.runRowKey, fallback.runRowKey)
+        copyRowKey = try decodeHotkey(.copyRowKey, fallback.copyRowKey)
         scanConfigFiles = try decode(.scanConfigFiles, fallback.scanConfigFiles)
         diagnosticsEnabled = try decode(.diagnosticsEnabled, fallback.diagnosticsEnabled)
         verboseDiagnostics = try decode(.verboseDiagnostics, fallback.verboseDiagnostics)

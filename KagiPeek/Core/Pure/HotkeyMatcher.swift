@@ -10,9 +10,9 @@ nonisolated enum HotkeyMatcher {
         keyCode: UInt16,
         modifiers: ModifierSet,
         key: KeyToken?,
-        spec: HotkeySpec
+        spec: HotkeySpec?
     ) -> Bool {
-        guard keyCode == spec.keyCode else { return false }
+        guard let spec, keyCode == spec.keyCode else { return false }
         if let key, key != spec.chord.steps.first?.key {
             return false
         }
@@ -24,8 +24,8 @@ nonisolated enum HotkeyMatcher {
     }
 
     /// Called on the event-tap thread: keep it allocation-light.
-    static func shouldSwallow(keyCode: UInt16, modifiers: ModifierSet, spec: HotkeySpec) -> Bool {
-        guard keyCode == spec.keyCode else { return false }
+    static func shouldSwallow(keyCode: UInt16, modifiers: ModifierSet, spec: HotkeySpec?) -> Bool {
+        guard let spec, keyCode == spec.keyCode else { return false }
         if modifiers == spec.modifiers { return true }
         return spec.modifiers.count >= 3 && modifiers.isSuperset(of: spec.modifiers)
     }

@@ -317,32 +317,32 @@ struct SettingsView: View {
 
     private var triggerTab: some View {
         Form {
-            Section(localization.text(.triggerTitle)) {
-                // Two independent paths: the gesture and the three hotkeys. Either one can
-                // be live, both can, and both off is the pause state.
+            // Two independent paths, one card each: the gesture and the three hotkeys. Either
+            // one can be live, both can, and both off is the pause state.
+            Section(localization.text(.triggerModifierGesture)) {
+                Toggle(localization.text(.triggerEnable),
+                       isOn: $store.settings.modifierTriggerEnabled)
+
                 HStack(spacing: 8) {
-                    Toggle(localization.text(.triggerModifierGesture),
-                           isOn: $store.settings.modifierTriggerEnabled)
-                    Picker("", selection: $store.settings.triggerGesture) {
+                    Picker(localization.text(.triggerGesture), selection: $store.settings.triggerGesture) {
                         ForEach(TriggerGesture.allCases, id: \.self) { gesture in
                             Text(localization.text(gesture.titleKey)).tag(gesture)
                         }
                     }
                     .labelsHidden()
                     .frame(width: 140)
-                    .disabled(!settings.modifierTriggerEnabled)
 
-                    Picker("", selection: $store.settings.triggerKey) {
+                    Picker(localization.text(.triggerKey), selection: $store.settings.triggerKey) {
                         ForEach(TriggerKey.allCases, id: \.self) { key in
                             Text(localization.text(key.titleKey)).tag(key)
                         }
                     }
                     .labelsHidden()
                     .frame(width: 160)
-                    .disabled(!settings.modifierTriggerEnabled)
 
                     Spacer(minLength: 0)
                 }
+                .disabled(!settings.modifierTriggerEnabled)
 
                 LabeledContent(localization.text(.triggerHoldDelay)) {
                     HStack {
@@ -353,8 +353,10 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(!settings.modifierTriggerEnabled || settings.triggerGesture != .hold)
+            }
 
-                Toggle(localization.text(.triggerGlobalHotkey),
+            Section(localization.text(.triggerGlobalHotkey)) {
+                Toggle(localization.text(.triggerEnable),
                        isOn: $store.settings.hotkeyTriggerEnabled)
 
                 Group {
@@ -364,22 +366,21 @@ struct SettingsView: View {
                 }
                 .disabled(!settings.hotkeyTriggerEnabled)
             }
-
-            Text(localization.text(.overlayHint))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
     }
 
-    private func hotkeyRow(title: String, target: HotkeyTarget, spec: HotkeySpec) -> some View {
+    private func hotkeyRow(title: String, target: HotkeyTarget, spec: HotkeySpec?) -> some View {
         LabeledContent(title) {
             HStack(spacing: 8) {
                 if state.recordingTarget == target {
                     Text(localization.text(.triggerRecordingHint))
                         .foregroundStyle(.orange)
-                } else {
+                } else if let spec {
                     KeycapView(text: KeyFormatter.render(spec.chord, style: settings.keyStyle), compact: true)
+                } else {
+                    Text(localization.text(.triggerUnset))
+                        .foregroundStyle(.secondary)
                 }
                 Button(state.recordingTarget == target
                        ? localization.text(.triggerStopRecording)
@@ -390,6 +391,14 @@ struct SettingsView: View {
                         engine.beginRecording(target)
                     }
                 }
+                Button {
+                    engine.clearBinding(target)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help(localization.text(.triggerClear))
+                .disabled(spec == nil || state.recordingTarget == target)
             }
         }
     }

@@ -52,11 +52,11 @@ nonisolated enum RowKeyRouter {
     static func action(
         for keyCode: UInt16,
         modifiers: ModifierSet,
-        run: HotkeySpec,
-        copy: HotkeySpec
+        run: HotkeySpec?,
+        copy: HotkeySpec?
     ) -> RowAction? {
-        if run.matches(keyCode: keyCode, modifiers: modifiers) { return .execute }
-        if copy.matches(keyCode: keyCode, modifiers: modifiers) { return .copy }
+        if let run, run.matches(keyCode: keyCode, modifiers: modifiers) { return .execute }
+        if let copy, copy.matches(keyCode: keyCode, modifiers: modifiers) { return .copy }
         return nil
     }
 
@@ -89,21 +89,21 @@ nonisolated enum RowKeyRouter {
         for keyCode: UInt16,
         modifiers: ModifierSet,
         held: ModifierSet,
-        run: HotkeySpec,
-        copy: HotkeySpec
+        run: HotkeySpec?,
+        copy: HotkeySpec?
     ) -> RowAction? {
         let stripped = modifiers.subtracting(held)
-        if run.matches(keyCode: keyCode, modifiers: stripped) { return .execute }
-        if copy.matches(keyCode: keyCode, modifiers: modifiers) { return .copy }
-        if copy.matches(keyCode: keyCode, modifiers: stripped) { return .copy }
-        if run.matches(keyCode: keyCode, modifiers: modifiers) { return .execute }
+        if let run, run.matches(keyCode: keyCode, modifiers: stripped) { return .execute }
+        if let copy, copy.matches(keyCode: keyCode, modifiers: modifiers) { return .copy }
+        if let copy, copy.matches(keyCode: keyCode, modifiers: stripped) { return .copy }
+        if let run, run.matches(keyCode: keyCode, modifiers: modifiers) { return .execute }
         return nil
     }
 
     /// Every (keyCode, modifiers) pair that must be consumed while the row keys are live,
     /// including the Enter alias. Derived from the same specs as `action(for:)` so the
     /// "handled but not swallowed" and "swallowed but not handled" holes cannot open.
-    static func capturedIdentifiers(run: HotkeySpec, copy: HotkeySpec) -> [(keyCode: UInt16, modifiers: ModifierSet)] {
-        run.capturedIdentifiers + copy.capturedIdentifiers
+    static func capturedIdentifiers(run: HotkeySpec?, copy: HotkeySpec?) -> [(keyCode: UInt16, modifiers: ModifierSet)] {
+        (run?.capturedIdentifiers ?? []) + (copy?.capturedIdentifiers ?? [])
     }
 }

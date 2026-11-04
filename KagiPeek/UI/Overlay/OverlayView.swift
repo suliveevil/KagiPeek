@@ -1133,16 +1133,26 @@ private struct OverlayFooterView: View {
             return localization.text(.searchHintRun)
         }
         guard state.panel.isPinned else { return localization.text(.overlayHint) }
-        let run = KeyFormatter.render(settings.runRowKey.chord, style: settings.keyStyle)
-        let copy = KeyFormatter.render(settings.copyRowKey.chord, style: settings.keyStyle)
+        // A deleted row key is `nil`; the hint drops only the action it no longer has.
+        let run = settings.runRowKey.map { KeyFormatter.render($0.chord, style: settings.keyStyle) }
+        let copy = settings.copyRowKey.map { KeyFormatter.render($0.chord, style: settings.keyStyle) }
         switch layout {
         case .full:
-            return localization.format(.panelActionHintSearch, run, copy)
+            if let run, let copy { return localization.format(.panelActionHintSearch, run, copy) }
+            return rowHint(run: run, copy: copy)
         case .tight:
-            return localization.format(.panelActionHint, run, copy)
+            if let run, let copy { return localization.format(.panelActionHint, run, copy) }
+            return rowHint(run: run, copy: copy)
         case .minimal:
-            return localization.format(.panelActionHintCompact, run, "")
+            return rowHint(run: run, copy: copy)
         }
+    }
+
+    /// The narrow forms, for a footer that has one action key or none.
+    private func rowHint(run: String?, copy: String?) -> String {
+        if let run { return localization.format(.panelActionHintCompact, run) }
+        if let copy { return localization.format(.panelCopyHintCompact, copy) }
+        return localization.text(.panelEscCloseHint)
     }
 }
 
