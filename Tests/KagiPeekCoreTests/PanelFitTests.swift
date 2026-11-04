@@ -119,13 +119,30 @@ final class PanelFitTests: XCTestCase {
         XCTAssertEqual(OverlayPlacement.containedFrame(frame, in: screen), frame)
     }
 
-    /// A panel taller than the screen keeps its bottom edge visible, so at least the first
-    /// rows (and the footer) are on screen and the panel is shifted rather than clipped.
+    /// A small frame pushed past a corner keeps its size and gets the full breathing room.
+    func testFittingFrameNearTheEdgeKeepsItsMargin() {
+        let frame = CGRect(x: screen.maxX - 590, y: screen.minY - 10, width: 600, height: 500)
+        let result = OverlayPlacement.containedFrame(frame, in: screen)
+        XCTAssertEqual(result.size, frame.size)
+        XCTAssertEqual(result.origin.x, screen.maxX - frame.width - OverlayPlacement.screenMargin)
+        XCTAssertEqual(result.origin.y, screen.minY + OverlayPlacement.screenMargin)
+    }
+
+    /// A frame exactly as large as the screen is clamped to it: no margin exists to add,
+    /// so the previous 8 pt offset used to push the whole frame off the display.
+    func testFullScreenFrameIsClampedToTheVisibleFrame() {
+        let result = OverlayPlacement.containedFrame(screen, in: screen)
+        XCTAssertEqual(result.size, screen.size)
+        XCTAssertEqual(result.origin, screen.origin)
+    }
+
+    /// A panel taller than the screen is clamped to the screen height and anchored at the
+    /// bottom, so the first rows (and the footer) stay reachable.
     func testFrameTallerThanTheScreenAnchorsAtTheBottom() {
         let frame = CGRect(x: 0, y: -120, width: 600, height: 1000)
         let result = OverlayPlacement.containedFrame(frame, in: screen)
-        XCTAssertEqual(result.origin.y, screen.minY + OverlayPlacement.screenMargin)
-        XCTAssertEqual(result.size, frame.size)
+        XCTAssertEqual(result.size.height, screen.height)
+        XCTAssertEqual(result.origin.y, screen.minY)
     }
 
     /// The closed-loop pagination keeps its semantics; only the page count follows the new

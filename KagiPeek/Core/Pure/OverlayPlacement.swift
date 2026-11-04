@@ -43,15 +43,23 @@ nonisolated enum OverlayPlacement {
     /// display, which is the one place the user cannot scroll to. The frame is shifted as
     /// a whole — never stretched or clipped — so the footer and the rows below it stay
     /// where they were relative to each other.
+    ///
+    /// The size is clamped first: a frame exactly as large as the screen has no room left
+    /// for the margin, and adding one on both sides used to push it off the display.
+    /// A direction only gets `screenMargin` when both margins still fit.
     static func containedFrame(_ frame: CGRect, in visible: CGRect) -> CGRect {
         var result = frame
+        result.size.width = min(result.width, visible.width)
+        result.size.height = min(result.height, visible.height)
+        let horizontalMargin = visible.width - result.width >= screenMargin * 2 ? screenMargin : 0
+        let verticalMargin = visible.height - result.height >= screenMargin * 2 ? screenMargin : 0
         result.origin.x = min(
-            max(result.origin.x, visible.minX + screenMargin),
-            max(visible.minX + screenMargin, visible.maxX - result.width - screenMargin)
+            max(result.origin.x, visible.minX + horizontalMargin),
+            max(visible.minX + horizontalMargin, visible.maxX - result.width - horizontalMargin)
         )
         result.origin.y = min(
-            max(result.origin.y, visible.minY + screenMargin),
-            max(visible.minY + screenMargin, visible.maxY - result.height - screenMargin)
+            max(result.origin.y, visible.minY + verticalMargin),
+            max(visible.minY + verticalMargin, visible.maxY - result.height - verticalMargin)
         )
         return result
     }
