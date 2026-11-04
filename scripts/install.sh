@@ -76,13 +76,20 @@ if ! codesign --verify --strict "$STAGE" 2>/dev/null; then
     exit 1
 fi
 
-if ! codesign -dvvv "$STAGE" 2>&1 | grep -qE "Authority=(KagiPeek Local|Developer ID Application)"; then
-    $SUDO rm -rf "$STAGE"
-    echo "error: the staged build is ad-hoc signed; refusing to install it." >&2
-    echo "       A stable identity is required: run ./scripts/setup_signing.sh" >&2
-    echo "       once, then rebuild. Ad-hoc packages are only for verification." >&2
-    exit 1
-fi
+# `-dvvv` is required (plain `-dv` omits the Authority lines). Capture the output instead
+# of piping into `grep -q`: with `pipefail`, grep exiting on the first match can kill
+# codesign with SIGPIPE and turn a good signature into a rejection.
+SIGNATURE_DETAILS="$(codesign -dvvv "$STAGE" 2>&1 || true)"
+case "$SIGNATURE_DETAILS" in
+    *"Authority=KagiPeek Local"*|*"Authority=Developer ID Application"*) ;;
+    *)
+        $SUDO rm -rf "$STAGE"
+        echo "error: the staged build is ad-hoc signed; refusing to install it." >&2
+        echo "       A stable identity is required: run ./scripts/setup_signing.sh" >&2
+        echo "       once, then rebuild. Ad-hoc packages are only for verification." >&2
+        exit 1
+        ;;
+esac
 
 BACKUP=""
 if [ -d "$DEST" ]; then
