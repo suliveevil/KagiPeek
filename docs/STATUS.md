@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 22:36**（Asia/Shanghai）。
+as of **2026-11-04 22:54**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,8 +8,8 @@ as of **2026-11-04 22:36**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`a0b1401`（`chore(signing): 私钥迁到独立钥匙串，签名不再弹授权`）；本文件提交后
-  HEAD 会再前移一格，Info.plist 里的 commit 要重装一次才能与 HEAD 相等。
+- 代码 HEAD：`3e4532a`（`docs(status): 记录设置页改动、签名迁移与本次安装验证`）；面板定位改动
+  紧随其后提交，本文件最后提交，所以安装标记是 `3e4532a-dirty`。
 - 工作区：干净（提交前只剩本文件）。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 未合并分支：无，当前在 `main`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
@@ -18,6 +18,12 @@ as of **2026-11-04 22:36**（Asia/Shanghai）。
 
 ## 本轮完成
 
+- **面板定位修正**（提交见 `git log`）：提示面板的 `coverWindow` 高度不再被内容高度整段替换，
+  改为取覆盖高度与内容高度的较大者并夹在可见区内；横向仍按屏幕可见区中心对称计算。
+  搜索面板从「屏幕居中 + 距顶 140pt 的 680×460」改为「前台窗口居中」：宽度固定 680，
+  高度至少等于前台窗口高度（夹在可见区内），帧以窗口中心为基准并夹回可见区，无窗口帧时
+  回退屏幕中心；前台 pid 在 `NSApp.activate()` 之前读取。新增 `Core/Pure/OverlayPlacement`
+  承接这套几何，`swift test` 672 → 682。
 - **设置页文案与触发卡片**（`d4321ea`）：`rankingModeHint` 改为「面板顺序在外观页设置，搜索面板按匹配度
   排序」；删除触发页误用的面板提示脚注。触发页拆成两张卡片「修饰键触发 / Modifier trigger」
   与「快捷键触发 / Shortcut trigger」，各自带启用开关。
@@ -88,12 +94,12 @@ as of **2026-11-04 22:36**（Asia/Shanghai）。
 | `codesign -d -r-`（安装包 vs 上一份备份） | 两行都是 `certificate root = H"6c0ac5…a929"`，TCC designated requirement 未变 |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `valid on disk` / `satisfies its Designated Requirement` |
-| `KagiPeekCommit` / 版本串 | `a0b1401-dirty` / `v2.2.0 (a0b1401-dirty)` |
-| `pgrep -x KagiPeek` | `99700`（单实例） |
-| `scripts/install.sh` | 成功；`xcodebuild` 路径可用，未回退 swiftc；备份 `KagiPeek-2026-11-04-223050-4bd1b64-dirty-local.app`，按命名保留最近 5 份 |
+| `KagiPeekCommit` / 版本串 | `3e4532a-dirty` / `v2.2.0 (3e4532a-dirty)` |
+| `pgrep -x KagiPeek` | `7622`（单实例） |
+| `scripts/install.sh` | 成功；`xcodebuild` BUILD SUCCEEDED；备份 `KagiPeek-2026-11-04-225041-a0b1401-dirty-local.app`，按命名保留最近 5 份 |
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
-本次安装标记为 `a0b1401-dirty`：`docs/STATUS.md` 的更新在构建之后才提交；重装一次即可让
+本次安装标记为 `3e4532a-dirty`：`docs/STATUS.md` 的更新在构建之后才提交；重装一次即可让
 Info.plist 里的 commit 与 HEAD 相等。签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
@@ -110,17 +116,17 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (a0b1401-dirty)`
+- 版本串原文：`v2.2.0 (3e4532a-dirty)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`a0b1401-dirty`（安装时的 main HEAD + 尚未提交的 STATUS）
+- `KagiPeekCommit`（Info.plist）：`3e4532a-dirty`（安装时的 main HEAD + 尚未提交的 STATUS）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持；私钥只在独立钥匙串中
-- 运行中 PID：`99700`（`pgrep -x KagiPeek`，单实例）
+- 运行中 PID：`7622`（`pgrep -x KagiPeek`，单实例）
 - 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
   `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  本次为 `KagiPeek-2026-11-04-223050-4bd1b64-dirty-local.app`。
+  本次为 `KagiPeek-2026-11-04-225041-a0b1401-dirty-local.app`。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
@@ -132,7 +138,10 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 
 1. **`xcodebuild` 在本机不稳定。** 构建系统给每次编译套 `sandbox-exec`，嵌套沙盒有时被
    拒绝：`sandbox-exec: sandbox_apply: Operation not permitted`。这不是代码问题。本轮
-   2026-11-04 21:31 的 `install.sh` 中 xcodebuild 可用；失败时仍可回退到
+   2026-11-04 22:54 的 `install.sh` 中 xcodebuild 一次通过；22:50 那次先报
+   `external macro implementation type 'SwiftUIMacros.StateMacro' could not be found`
+   与一串 `'self' is immutable` 派生错，重跑即恢复，属于构建缓存问题而不是源码问题。
+   失败时仍可回退到
    `scripts/build_swiftc.sh Release|Debug`，它用同一套源码与同一组 Swift 6 编译参数，
    显式加载 SwiftUI 宏插件。
 2. **`agent-desktop` 抓不到 `LSUIElement` 应用的窗口。** App 默认没有 Dock 图标和主窗口；
