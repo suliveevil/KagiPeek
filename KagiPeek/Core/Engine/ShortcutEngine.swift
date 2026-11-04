@@ -715,7 +715,9 @@ final class ShortcutEngine: ObservableObject {
                    systemDoubleClickInterval: NSEvent.doubleClickInterval
                )
            ) {
-            togglePinnedPanel()
+            // Both clicks of the gesture are triggers. If the second press is still down
+            // when the panel opens, suppress narrowing until it is released.
+            togglePinnedPanel(waitingForTriggerRelease: pressed)
             return
         }
 
@@ -733,6 +735,28 @@ final class ShortcutEngine: ObservableObject {
     /// shortcuts are left — plus the two gestures layered on it: a lone hyper press closes
     /// the panel, and a quick tap ticks a modifier so ⌥ ⌘ C can be typed one key at a time.
     private func narrowWithHeldModifiers(_ modifiers: ModifierSet, previous: ModifierSet, event: KeyEvent) {
+        // The press that opened the panel is a trigger, not a filter. Until that key is
+        // released, a modifier event changes nothing; the release itself clears the flag
+        // without rebuilding. The next press is an ordinary modifier and narrows.
+        if state.panel.triggerNarrowPending {
+            let triggerDown = state.settings.triggerKey.isPressed(
+                keyCode: event.keyCode,
+                modifiers: modifiers
+            )
+            switch TriggerNarrowGate.decision(
+                waitingForRelease: true,
+                triggerKeyDown: triggerDown
+            ) {
+            case .wait:
+                return
+            case .clearPending:
+                state.panel.triggerNarrowPending = false
+                state.panel.heldModifiers = []
+                return
+            case .narrow:
+                break
+            }
+        }
         // A lone Shift is the hint layer: labels instead of chords, and Shift + glyph runs
         // the row. Anything else down with it is a real narrowing prefix, so the hints step
         // aside — the two would otherwise fight over the same glyph press. The tap reads the
@@ -1108,7 +1132,7 @@ final class ShortcutEngine: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
             guard self.state.phase == .armed else { return }
-            self.activatePanel(seedPrefix: true)
+            self.activatePanel(waitingForTriggerRelease: true)
         }
     }
 
@@ -1120,25 +1144,30 @@ final class ShortcutEngine: ObservableObject {
     /// Opens the persistent panel. The keys used to trigger it are deliberately not used
     /// as a prefix, and the panel stays until a complete shortcut or Esc.
     ///
-    /// A hold-to-summon seeds the prefix with the modifiers still down, so the panel opens
-    /// already narrowed to them; the hotkey and double-tap paths start empty, where every row
-    /// is a complete combination. Either way the rows keep their full chord — a ⌘ that is
-    /// held is lit up in the row, not removed from it.
-    func activatePanel(seedPrefix: Bool = false) {
+    /// Every trigger opens the full list. A hold-to-summon passes
+    /// `waitingForTriggerRelease: true` so the still-down modifier cannot narrow until it
+    /// has been released and pressed again; a hotkey or menu action passes `false`. In
+    /// both cases the rows keep their full chord — a ⌘ that is held is lit up in the row,
+    /// not removed from it.
+    func activatePanel(waitingForTriggerRelease: Bool = false) {
         guard !state.isFrontAppExcluded else { return }
         state.search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
         state.phase = .active
-        let seed = (state.previousModifiers == [.shift]) ? ModifierSet() : state.previousModifiers
-        state.prefix = seedPrefix && !seed.isEmpty ? .modifiers(seed) : .empty
+        // Nothing is composed on open: the trigger press is not a filter, and a hotkey's
+        // own modifiers are part of the hotkey rather than a prefix. The panel starts on
+        // the whole list and narrows only on a later, separate press.
+        state.prefix = .empty
         state.panel.isVisible = true
         state.panel.isPinned = true
         state.panel.beginNewSession()
+        state.panel.triggerNarrowPending = waitingForTriggerRelease
         state.hyperEscape = HyperEscape()
         // A modifier held down to summon the panel is the trigger, not a tap: letting go of
-        // it must not tick anything.
+        // it must not tick anything. It is also not a held filter, so the rows keep their
+        // full chords instead of arriving narrowed.
         state.modifierTap.reset()
-        state.panel.heldModifiers = state.previousModifiers == [.shift] ? [] : state.previousModifiers
+        state.panel.heldModifiers = []
         // A sequence belongs to one panel session: opening a new one starts from nothing.
         state.panel.latchedModifiers = []
         state.panel.latchedOrder = []
@@ -1504,12 +1533,12 @@ final class ShortcutEngine: ObservableObject {
 
     // MARK: - Commands from the UI
 
-    func togglePinnedPanel() {
+    func togglePinnedPanel(waitingForTriggerRelease: Bool = false) {
         if state.panel.isVisible, state.phase == .active {
             dismissPanel()
             return
         }
-        activatePanel()
+        activatePanel(waitingForTriggerRelease: waitingForTriggerRelease)
     }
 
     /// One shortcut that swaps between the panel and the search palette.

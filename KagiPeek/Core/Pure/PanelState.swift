@@ -83,6 +83,10 @@ nonisolated struct PanelState {
     /// Shift + glyph press runs the matching row. Kept in the snapshot because the tap's
     /// swallow decision reads it, and because the rows have to be rebuilt when it flips.
     var shiftHintActive = false
+    /// The panel was opened by the modifier gesture and the trigger key is still down.
+    /// Until that key is released, a `flagsChanged` must not narrow the list: the press
+    /// that summoned the panel is a trigger, not a filter. Cleared by the release edge.
+    var triggerNarrowPending = false
     /// The row whose menu element is being resolved off the main thread. Non-nil means a run
     /// is already in flight, and further activations are refused until it finishes or the
     /// panel closes.
@@ -139,6 +143,7 @@ nonisolated struct PanelState {
         completedRowID = nil
         prefixLabels = []
         shiftHintActive = false
+        triggerNarrowPending = false
     }
 
     static let hidden = PanelState()
