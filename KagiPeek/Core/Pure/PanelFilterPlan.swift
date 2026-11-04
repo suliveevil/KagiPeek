@@ -37,6 +37,11 @@ nonisolated enum PanelFilterPlan {
         if event.keyCode == KeyCode.delete, !filter.isEmpty {
             return .popToken
         }
+        // Letters only belong to the filter once it has something in it. An empty filter
+        // makes `filter.modifiers` an empty superset, so without this guard every bare
+        // letter would be appended — stealing ⌘C / ⌥C chord strokes and the latched
+        // modifiers' "tick ⌥ then press C" path, and clearing the prefix on top.
+        guard !filter.isEmpty else { return .none }
         guard !event.isRepeat, let letter = letter(for: event, filter: filter) else { return .none }
         return .append(letter)
     }

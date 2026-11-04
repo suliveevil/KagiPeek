@@ -141,6 +141,18 @@ final class PanelFilterPlanTests: XCTestCase {
         XCTAssertEqual(queue.query, "⌃ f")
     }
 
+    func testBareLetterWithAnEmptyFilterStaysAChordStroke() {
+        XCTAssertEqual(decision(event(KeyToken("f")), filter: PanelFilter()), .none)
+        XCTAssertEqual(decision(event(KeyToken("c"), modifiers: [.command]), filter: PanelFilter()), .none)
+    }
+
+    func testBackspaceWithAnEmptyFilterBelongsToTheOldRoute() {
+        XCTAssertEqual(
+            decision(event(KeyToken("delete"), keyCode: KeyCode.delete), filter: PanelFilter()),
+            .none
+        )
+    }
+
     func testExtraCommandIsNotSteppedOn() {
         let active = filter([.control])
         XCTAssertEqual(
