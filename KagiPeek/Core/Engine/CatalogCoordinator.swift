@@ -54,7 +54,7 @@ final class CatalogCoordinator {
 
     // MARK: - The frontmost app's catalog
 
-    func reload(force: Bool) {
+    func reload(force: Bool, preserveOnEmpty: Bool = false) {
         guard !isPreviewing() else { return }
         guard let app = frontmost() else {
             state.isCatalogLoading = false
@@ -89,6 +89,19 @@ final class CatalogCoordinator {
             guard !self.isPreviewing() else { return }
             guard generation == self.state.catalogGeneration else {
                 Diag.debug(.scan, "dropping stale scan for \(snapshot.appIdentity)")
+                return
+            }
+            // 一次强制重扫可能撞上菜单栏还没挂回来：它给的是空列表，而用户上一次的列表
+            // 仍然有效。保留旧目录，但把「正在扫描」复位，别让面板一直转圈。
+            if preserveOnEmpty,
+               CatalogPublishPolicy.keepsPrevious(
+                   previousCount: self.state.catalog.items.count,
+                   newCount: snapshot.items.count,
+                   hasMenuBar: snapshot.hasMenuBar
+               ) {
+                Diag.warning(.scan, "keeping the previous catalog after an empty forced rescan")
+                self.state.isCatalogLoading = false
+                self.state.panel.isScanning = false
                 return
             }
             self.state.isCatalogLoading = false

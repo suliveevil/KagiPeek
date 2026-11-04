@@ -157,6 +157,8 @@ final class ShortcutEngine: ObservableObject {
     private static let modifierTapWindow: TimeInterval = 0.35
     private var activationObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
+    /// 切 Space 后同一前台 App 的重扫合并窗口。
+    private var spaceRescanGate = SpaceRescanGate(interval: 0.75)
     /// `true` while one of the panel's context menus is tracking.
     ///
     /// SwiftUI's `contextMenu` is a real `NSMenu`, and while it tracks it owns the keyboard:
@@ -275,6 +277,13 @@ final class ShortcutEngine: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.dismissEverything()
+                guard let self else { return }
+                // 切 Space 会让菜单栏短暂消失，而前台 App 不一定变；只重扫当前这个 App，
+                // 并让它在拿到空列表时保留旧目录（见 `CatalogPublishPolicy`）。
+                let pid = self.frontmostProcessIdentifier
+                guard self.spaceRescanGate.shouldScan(pid: pid, at: Date()) else { return }
+                Diag.info(.scan, "space changed → forced rescan \(self.state.appName)")
+                self.reloadCatalog(force: true, preserveOnEmpty: true)
             }
         }
 
@@ -637,8 +646,8 @@ final class ShortcutEngine: ObservableObject {
     }
 
     // MARK: - Catalog
-    func reloadCatalog(force: Bool = true) {
-        catalogCoordinator.reload(force: force)
+    func reloadCatalog(force: Bool = true, preserveOnEmpty: Bool = false) {
+        catalogCoordinator.reload(force: force, preserveOnEmpty: preserveOnEmpty)
     }
 
     private func frontmostChanged(_ app: FrontmostApp) {
