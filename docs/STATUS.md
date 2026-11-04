@@ -85,16 +85,19 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (05e424e)`
+- 版本串原文：`v2.2.0 (<安装时 HEAD 短哈希>)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`05e424e`（等于安装时的 main HEAD）
+- `KagiPeekCommit`（Info.plist）：等于安装时的 main HEAD（用 `git log -1 --short` 核对；
+  本文件提交后需重装一次才能再次相等）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持
-- 运行中 PID：`37030`（`/Applications/KagiPeek.app/Contents/MacOS/KagiPeek`，单实例）
-- 升级前备份：`~/Library/Application Support/KagiPeek/backups/KagiPeek-2026-11-04-200843-836e3c3-local.app`
-  （命名符合 `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留最近 5 份）。
+- 运行中 PID：用 `pgrep -x KagiPeek` 取（单实例）
+- 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下现有
+  `KagiPeek-2026-11-04-200843-836e3c3-local.app` 与
+  `KagiPeek-2026-11-04-202348-05e424e-local.app`；命名符合
+  `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留最近 5 份。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
