@@ -333,10 +333,10 @@ final class PanelSession {
     /// view and print the stroke still missing, because the breadcrumb already names what
     /// was typed.
     private func keySegments(for hit: PrefixHit) -> [KeyFormatter.Segment] {
-        // A command with no keyboard shortcut still gets a row; its shortcut column says so
-        // with a dash instead of going blank and reading as a rendering bug.
+        // A menu item with no keyboard shortcut still gets a row; its shortcut column stays
+        // blank rather than saying "no shortcut".
         if hit.item.chord.isEmpty {
-            return [KeyFormatter.Segment(kind: .label, text: localization.text(.overlayNoShortcut))]
+            return []
         }
         let shown: KeyChord
         if state.prefix.isEmpty || state.prefix.isModifierOnly {

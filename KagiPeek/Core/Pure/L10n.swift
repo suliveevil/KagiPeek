@@ -33,7 +33,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
     case searchResultCount, searchResultCountOne, searchClearHint
-    case overlayCountFormat, overlayNoShortcut, searchNoResultsScopedFormat, searchNoResultsHint, ownerBuiltIn
+    case overlayCountFormat, searchNoResultsScopedFormat, searchNoResultsHint, ownerBuiltIn
     case searchSubtitle
     case appearanceTheme, themeSystem, themeLight, themeDark
     case appearanceKeyPosition, keyPositionLeft, keyPositionRight
@@ -260,8 +260,8 @@ nonisolated enum L10n {
             "勾选修饰键后只保留包含它们的快捷键（可多选，需同时满足）"
         ),
         .panelNoFavorites: (
-            "No pinned shortcuts yet. Hover a row and click the star.",
-            "还没有收藏的快捷键。悬停某一行，点击右侧星标即可。"
+            "No pinned shortcuts yet. Hover a menu item and click the star.",
+            "还没有收藏的快捷键。悬停某个菜单项，点击右侧星标即可。"
         ),
         .appearanceKeyPosition: ("Key position", "键位位置"),
         .keyPositionLeft: ("Keys left", "键位在左"),
@@ -272,25 +272,25 @@ nonisolated enum L10n {
         .themeSystem: ("System", "跟随系统"),
         .themeLight: ("Light", "浅色"),
         .themeDark: ("Dark", "深色"),
-        .generalIgnoredCommands: ("Ignored commands", "忽略的命令"),
+        .generalIgnoredCommands: ("Ignored menu items", "忽略的菜单项"),
         .generalIgnoredCommandsHint: (
-            "Commands listed here stay out of the panel and the search. A command can be hidden everywhere or only inside one app — “Reload Page” in a browser is not the same command as “Reload Page” in an editor.",
-            "这里的命令不会出现在面板和搜索里。可以全局隐藏，也可以只在某个 App 内隐藏——浏览器里的“重新载入”和编辑器里的“重新载入”不是同一条命令。"
+            "Menu items listed here stay out of the panel and the search. A menu item can be hidden everywhere or only inside one app — “Reload Page” in a browser is not the same menu item as “Reload Page” in an editor.",
+            "这里的菜单项不会出现在面板和搜索里。可以全局隐藏，也可以只在某个 App 内隐藏——浏览器里的“重新载入”和编辑器里的“重新载入”不是同一个菜单项。"
         ),
-        .ignoredAddCommand: ("Add command…", "添加命令…"),
-        .ignoredSheetTitle: ("Ignore a command", "忽略命令"),
+        .ignoredAddCommand: ("Add menu item…", "添加菜单项…"),
+        .ignoredSheetTitle: ("Ignore a menu item", "忽略菜单项"),
         .ignoredScopeGlobal: ("All apps", "所有 App"),
         .ignoredScopeApp: ("Only this app", "仅指定 App"),
         .ignoredAppPicker: ("App", "应用"),
-        .ignoredCommandTitle: ("Command", "命令"),
-        .ignoredCommandPlaceholder: ("Command title, e.g. Reload Page", "命令名称，例如：重新载入页面"),
+        .ignoredCommandTitle: ("Menu item", "菜单项"),
+        .ignoredCommandPlaceholder: ("Menu item title, e.g. Reload Page", "菜单项名称，例如：重新载入页面"),
         .ignoredSuggestionsHint: (
-            "Pick a command from the list, or type the title exactly. Matching ignores case.",
+            "Pick a menu item from the list, or type the title exactly. Matching ignores case.",
             "从列表中选择，或精确输入名称。匹配不区分大小写。"
         ),
         .ignoredAdd: ("Add", "添加"),
         .ignoredCancel: ("Cancel", "取消"),
-        .ignoredEmpty: ("No ignored commands.", "尚未忽略任何命令。"),
+        .ignoredEmpty: ("No ignored menu items.", "尚未忽略任何菜单项。"),
         .generalAddApp: ("Add app…", "添加 App…"),
         .generalRemoveApp: ("Remove", "移除"),
         .generalNoExcludedApps: (
@@ -318,8 +318,8 @@ nonisolated enum L10n {
             "监听全局热键和你按下的快捷键。"
         ),
         .permissionAccessibilityDetail3: (
-            "Replay a shortcut into the front app when you run a row (the run key, ↩ by default).",
-            "执行某一行时把该快捷键回放给前台 App（默认按回车执行）。"
+            "Replay a shortcut into the front app when you run a menu item (the run key, ↩ by default).",
+            "执行某个菜单项时把该快捷键回放给前台 App（默认按回车执行）。"
         ),
         .permissionInputMonitoringDetail1: (
             "Fallback key listening if Accessibility alone does not deliver key events.",
@@ -423,7 +423,7 @@ nonisolated enum L10n {
         .appearanceColumns: ("Columns", "列数"),
         .appearanceMaxItems: ("Max rows per page", "每页最大行数"),
         .appearanceMaxDescription: ("Max description length", "说明文字最大长度"),
-        .appearanceShowDisabled: ("Show unavailable items", "显示当前不可用的菜单项"),
+        .appearanceShowDisabled: ("Show unavailable menu items", "显示当前不可用的菜单项"),
         .appearancePlacement: ("Panel placement", "面板位置"),
         .placementCoverWindow: ("Cover the front window", "覆盖前台窗口"),
         .placementFixedSize: ("Fixed size", "固定长宽"),
@@ -466,8 +466,8 @@ nonisolated enum L10n {
             "扫描时包含 Apple 菜单"
         ),
         .generalShowAppleMenuHint: (
-            "The Apple menu belongs to the system rather than to the app in front, so its commands (“About This Mac”, “Sleep”, …) are hidden by default. Turning this on adds them to every app's list.",
-            "Apple 菜单属于系统而非前台 App，其命令（“关于本机”“睡眠”等）默认隐藏。开启后会出现在每个 App 的列表里。"
+            "The Apple menu belongs to the system rather than to the app in front, so its menu items (“About This Mac”, “Sleep”, …) are hidden by default. Turning this on adds them to every app's list.",
+            "Apple 菜单属于系统而非前台 App，其菜单项（“关于本机”“睡眠”等）默认隐藏。开启后会出现在每个 App 的列表里。"
         ),
         .statsSection: ("Statistics", "使用统计"),
         .statsGenericApp: ("System / built-in", "系统 / 内置"),
@@ -487,12 +487,12 @@ nonisolated enum L10n {
 
 
         .generalBehaviorSection: ("Behavior", "行为"),
-        .rowActionSection: ("Row actions", "行操作"),
+        .rowActionSection: ("Menu item actions", "菜单项操作"),
         .rowActionExecute: ("Run the shortcut", "执行快捷键"),
         .rowActionCopy: ("Copy the shortcut", "复制快捷键"),
         .rowActionHint: (
-            "Clicking a row uses the run key. Both keys are recorded: a modifier is optional for keys such as Return, while a bare letter is refused so that filtering still works. The run key wins if both are recorded to the same chord.",
-            "点击行等同于执行键。两个键都可录制：Return 这类键可以不按修饰键，纯字母会被拒绝，以免影响筛选输入。若两个键录成同一组合，执行键优先。"
+            "Clicking a menu item uses the run key. Both keys are recorded: a modifier is optional for keys such as Return, while a bare letter is refused so that filtering still works. The run key wins if both are recorded to the same chord.",
+            "点击菜单项等同于执行键。两个键都可录制：Return 这类键可以不按修饰键，纯字母会被拒绝，以免影响筛选输入。若两个键录成同一组合，执行键优先。"
         ),
 
         .overlayNoCandidates: ("No matching shortcuts", "没有匹配的快捷键"),
@@ -518,7 +518,7 @@ nonisolated enum L10n {
         .panelCopied: ("Copied", "已复制"),
         .panelCopyFailed: ("Could not copy", "复制失败"),
         .panelNothingToCopy: ("No shortcut to copy", "没有可复制的快捷键"),
-        .panelRunFailed: ("Could not run this command", "无法运行该命令"),
+        .panelRunFailed: ("Could not run this menu item", "无法运行该菜单项"),
         .injectTargetUnavailable: (
             "Could not bring the target app to the front — no shortcut was sent",
             "无法将目标 App 切到前台，未发送快捷键"
@@ -546,8 +546,7 @@ nonisolated enum L10n {
         .searchNoResults: ("No matches", "无匹配结果"),
         .searchNoResultsScopedFormat: ("No matches in %@", "%@ 中没有匹配"),
         .searchNoResultsHint: ("Switch to the app you want, then search again.", "切到目标 App 后再搜索一次。"),
-        .overlayCountFormat: ("%d items", "%d 项"),
-        .overlayNoShortcut: ("No shortcut", "无快捷键"),
+        .overlayCountFormat: ("%d menu items", "%d 个菜单项"),
         .ownerBuiltIn: ("Built-in", "内置"),
         .searchBackToPanel: (
             "Back to the shortcut panel (/ when the search is empty)",
@@ -604,12 +603,12 @@ nonisolated enum L10n {
         .conflictCategorySystemVsTool: ("macOS vs tool", "系统快捷键 vs 工具"),
         .conflictCategoryToolVsTool: ("Two tools", "两个工具相撞"),
         .conflictCategoryMenuOrderExplanation: (
-            "Two commands of the same app share this combo. macOS takes whichever comes first in the menu, and nothing needs changing.",
-            "同一个 App 的两条菜单命令共用这个组合键。macOS 按菜单顺序取第一条，不需要处理。"
+            "Two menu items of the same app share this combo. macOS takes whichever comes first in the menu, and nothing needs changing.",
+            "同一个 App 的两个菜单项共用这个组合键。macOS 按菜单顺序取第一个，不需要处理。"
         ),
         .conflictCategorySystemShadowExplanation: (
             "A macOS shortcut claims this combo before any app sees it, so the menu item can never fire. Turn the system shortcut off in System Settings → Keyboard → Shortcuts.",
-            "macOS 系统快捷键在任何 App 之前就拿走了这个组合键，这条菜单命令永远不会被触发。到「系统设置 → 键盘 → 键盘快捷键」关掉那条系统快捷键。"
+            "macOS 系统快捷键在任何 App 之前就拿走了这个组合键，这个菜单项永远不会被触发。到「系统设置 → 键盘 → 键盘快捷键」关掉那条系统快捷键。"
         ),
         .conflictCategoryToolShadowExplanation: (
             "A tool you installed takes this combo before the app sees it. Change or disable that rule in the tool's own config.",
@@ -762,7 +761,7 @@ nonisolated enum L10n {
         .aboutSystem: ("System", "系统"),
         .aboutDataFolder: ("Data folder", "数据目录"),
         .aboutDiagnostics: ("Diagnostics", "诊断"),
-        .aboutMenuItems: ("Menu items", "菜单条目"),
+        .aboutMenuItems: ("Menu items", "菜单项数"),
         .aboutExportDiagnostics: ("Export diagnostics report…", "导出诊断报告（JSON）…"),
         .aboutDiagnosticsHint: (
             "Writes a JSON report (permissions, scan result, settings, log excerpt) that can be attached to a bug report. Nothing is uploaded.",
@@ -825,7 +824,7 @@ nonisolated enum L10n {
         .rankingResetConfirmTitle: ("Reset statistics?", "重置统计？"),
         .rankingResetConfirmMessage: ("Press counts will be cleared. Pinned shortcuts are kept.", "将清除触发次数，已收藏的快捷键会保留。"),
         .rankingDefaultsConfirmTitle: ("Restore all settings?", "恢复全部设置？"),
-        .rankingDefaultsConfirmMessage: ("Hotkeys, excluded apps, ignored commands, appearance, diagnostics and the launch-at-login item will return to their defaults.", "快捷键、排除的 App、忽略命令、外观、诊断和开机启动都会恢复默认值。"),
+        .rankingDefaultsConfirmMessage: ("Hotkeys, excluded apps, ignored menu items, appearance, diagnostics and the launch-at-login item will return to their defaults.", "快捷键、排除的 App、忽略的菜单项、外观、诊断和开机启动都会恢复默认值。"),
 
         .errorEventTap: (
             "Could not create the keyboard event tap.",

@@ -29,7 +29,7 @@ The built-in catalog (about 100 system, text-editing, Finder, and screenshot sho
 
 ## Can I browse another app's shortcuts without switching to it?
 
-Yes. The search palette's app menu lists the frontmost app plus every running regular app. Choose one and the palette scans and searches that app's menu shortcuts; its header then names that app, and Return runs the command inside it.
+Yes. The search palette's app menu lists the frontmost app plus every running regular app. Choose one and the palette scans and searches that app's menu shortcuts; its header then names that app, and Return runs the menu item inside it.
 
 The floating panel is deliberately separate: whichever app the window is browsing, the panel still follows the real frontmost app, because that is the app your keys will reach.
 
@@ -56,7 +56,7 @@ The Permissions tab shows a KagiPeek app icon that is a real drag source. Drag i
 
 No. There is no keystroke log and no text capture. Shortcut processing is local; the only network request is the manual update check described below.
 
-- The global key tap is used to compute modifier/key state and to detect the recorded hotkeys. Events pass through to the front app untouched, except KagiPeek's own panel, search, and switch hotkeys and the panel's navigation keys, which are consumed; a shortcut that completes a row is **not** consumed. No event is logged, replayed, or written to disk.
+- The global key tap is used to compute modifier/key state and to detect the recorded hotkeys. Events pass through to the front app untouched, except KagiPeek's own panel, search, and switch hotkeys and the panel's navigation keys, which are consumed; a shortcut that completes a menu item is **not** consumed. No event is logged, replayed, or written to disk.
 - Usage statistics store a **count and a last-used timestamp per `bundleID|chord`**, not a stream of key presses. They live in `usage.json` in Application Support, are grouped by app in Settings, and can be reset.
 - Menu scans are cached in memory per app for 20 seconds. Switching apps forces a rescan, app launch/quit clears the cache, and changing the language or catalog setting refreshes it. They are not uploaded or archived.
 - The only files KagiPeek writes are `settings.json` and `usage.json` in `~/Library/Application Support/KagiPeek/`; see *Where are settings and statistics stored?* above.
@@ -84,7 +84,7 @@ Press **⌃⌥⌘F** (default) to open the search palette, or press `/` while th
 - **↑/↓** moves the selection.
 - **Return runs the selected shortcut.** The palette closes, the app you were in comes back, and that one chord is replayed into it. It is not a copy: the palette has no copy action at all.
 - To copy a chord without running it, use the copy key in the panel — Return by default, a recorded binding.
-- Menu commands can be destructive (Delete, Empty Trash, Quit), which is why nothing runs until you press Return; the first match is merely selected.
+- Menu items can be destructive (Delete, Empty Trash, Quit), which is why nothing runs until you press Return; the first match is merely selected.
 
 ## What does the ⚠︎ next to a shortcut mean?
 
@@ -94,7 +94,7 @@ The warning is informational. macOS decides which menu item actually receives th
 
 ## Why does a macOS system shortcut show up as a conflict?
 
-macOS keeps its own system-wide shortcuts (Spotlight, Mission Control, screenshots, input-source switching, …). KagiPeek reads the enabled ones through Carbon and compares them with the app's menu shortcuts. When they collide, both rows are marked ⚠︎ and the conflict list shows the system entry under **System hotkeys** / **系统热键**.
+macOS keeps its own system-wide shortcuts (Spotlight, Mission Control, screenshots, input-source switching, …). KagiPeek reads the enabled ones through Carbon and compares them with the app's menu shortcuts. When they collide, both entries are marked ⚠︎ and the conflict list shows the system entry under **System hotkeys** / **系统热键**.
 
 That list is read-only. KagiPeek never binds, changes, or disables a system shortcut; change those in **System Settings → Keyboard → Keyboard Shortcuts**.
 
@@ -104,7 +104,7 @@ Because `⌘K` is the first stroke of a **multi-stroke shortcut** (a chord), suc
 
 - Press the next stroke to continue.
 - Press **⌫** to go back one level; **Esc** closes the panel. Both apply only when no other modifier is held, so ⌘⌫ and similar combinations remain normal shortcuts.
-- Press the key that completes a shortcut to finish: the panel highlights the row for about 0.4 s, closes, and the shortcut runs in the front app. A key with no match leaves the panel open — it no longer closes on a miss.
+- Press the key that completes a shortcut to finish: the panel highlights the menu item for about 0.4 s, closes, and the shortcut runs in the front app. A key with no match leaves the panel open — it no longer closes on a miss.
 
 Otherwise the panel stays open because it is persistent by design. Releasing the modifiers does not dismiss it.
 
@@ -126,7 +126,7 @@ Esc is the panel's explicit "dismiss" gesture. It is handled while no other modi
 
 ## Why does the shortcut I press still reach the app?
 
-Because KagiPeek only **observes** keys; it does not remap them or replay them. When you press a complete shortcut, KagiPeek uses the event to highlight the matching row, closes the panel, and lets the same event continue to the frontmost app. That is why the command runs immediately, exactly as if the panel had never been open. The events KagiPeek actually consumes are only its own hotkeys and the panel's navigation keys (arrows, Space/Return, Esc); a completed shortcut is never swallowed.
+Because KagiPeek only **observes** keys; it does not remap them or replay them. When you press a complete shortcut, KagiPeek uses the event to highlight the matching menu item, closes the panel, and lets the same event continue to the frontmost app. That is why the menu item runs immediately, exactly as if the panel had never been open. The events KagiPeek actually consumes are only its own hotkeys and the panel's navigation keys (arrows, Space/Return, Esc); a completed shortcut is never swallowed.
 
 ## Can I use a Hyper key (⌃⌥⇧⌘) with KagiPeek?
 
@@ -142,26 +142,26 @@ The panel is persistent, so keyboard operation is always available:
 | --- | --- |
 | ↑ / ↓ | Move the selection |
 | ← / → | Previous / next page |
-| Run key (Space by default) | Close the panel and replay the selected row's shortcut into the front app |
-| Copy key (Return by default) | Copy the selected row's shortcut; the panel stays open |
+| Run key (Space by default) | Close the panel and replay the selected menu item's shortcut into the front app |
+| Copy key (Return by default) | Copy the selected menu item's shortcut; the panel stays open |
 | Esc | Close the panel (with or without modifiers) |
 | `;` / `'`, ⌃B / ⌃F | Previous / next page |
 | Click | Same as the run key |
-| The complete shortcut | Highlight the matching row for ~0.4 s, close the panel, and let the shortcut run |
+| The complete shortcut | Highlight the matching menu item for ~0.4 s, close the panel, and let the shortcut run |
 
-Both keys are recorded under **Settings → General → Row actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two row keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
+Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 
-Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the rows the current prefix can reach. A row can be selected without being highlighted, and vice versa.
+Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa.
 
-Pressing the run key on a row that still has further steps opens the next level instead of running it.
+Pressing the run key on a menu item that still has further steps opens the next level instead of running it.
 
-## Why did the panel copy instead of running the command?
+## Why did the panel copy instead of running the menu item?
 
-It should not: the run key runs the row. If a row copies, you either pressed the copy key (Return) or recorded the two keys the other way round under **Settings → General → Row actions**. The footer always shows which key does what, so check it first — and note that the search palette is the one surface where Return always runs and there is no copy key at all.
+It should not: the run key runs the menu item. If a menu item copies, you either pressed the copy key (Return) or recorded the two keys the other way round under **Settings → General → Menu item actions**. The footer always shows which key does what, so check it first — and note that the search palette is the one surface where Return always runs and there is no copy key at all.
 
 ## Why did nothing happen when I pressed the run key?
 
-Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the command — from the panel, KagiPeek presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the command runs, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → About → Export diagnostics…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
+Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, KagiPeek presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → About → Export diagnostics…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
 
 ## Why does the panel disappear in some apps or fields?
 
@@ -238,7 +238,7 @@ macOS system shortcuts are read-only here as well: KagiPeek reports collisions w
 
 The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
 
-**It does not order the panel.** The panel is always in key order — ⌘ → ⌥ → ⌃ → ⇧, then the key — because it is a reference card, and "most used" would move a row every time you run one. The search palette is always in match order for the same reason.
+**It does not order the panel.** The panel is always in key order — ⌘ → ⌥ → ⌃ → ⇧, then the key — because it is a reference card, and "most used" would move a menu item every time you run one. The search palette is always in match order for the same reason.
 
 All four orders live in **Settings → Statistics → Sort order**: smart order, most used first, key order, and alphabetical. They apply to both lists on that page — the per-app list and the rows inside an app.
 

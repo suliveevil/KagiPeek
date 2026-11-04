@@ -44,8 +44,8 @@ are always written.
 | "It worked yesterday" | `[perm] accessibility` | The grant was revoked, usually by reinstalling under a new signature |
 | Panel is empty / "built-in" | `[scan]` | `state=noMenus`, `state=permissionDenied`, `menu-bar attribute missing`, `truncated at maxItems` |
 | Panel is slow every time | `[scan] cache-miss` | Why the disk cache did not answer: `control`, `fingerprint`, `entryFingerprint`, `expired`, `decode` |
-| A row does nothing | `[inject]` | `ax-press failed err=<AXError>` plus whether a chord replay was available |
-| Run key does nothing | `[run]` | `no row selected`, or the row that was executed and where it went |
+| A menu item does nothing | `[inject]` | `ax-press failed err=<AXError>` plus whether a chord replay was available |
+| Run key does nothing | `[run]` | `no row selected`, or the menu item that was executed and where it went |
 | "Check for updates" fails | `[net]` | `reason=error/parse/no-tag/url` and the HTTP status |
 | App vanished / "it quit by itself" | `[exit]` + `[crash]` | `clean exit` vs. `ended unexpectedly (crash report: …)` vs. `no crash report: killed, force quit or power loss` |
 | Settings did not stick | `[settings] changed:` | Which keys changed, by name |
@@ -83,22 +83,22 @@ Log category: `input` (event tap installed / failed), `ui` (permission state).
 
 ## Pressing the run key does nothing
 
-1. **A disabled menu item is ignored.** The row is greyed out for a reason.
-2. **The app received nothing.** From the panel, KagiPeek presses the row's menu item through
+1. **A disabled menu item is ignored.** The menu item is greyed out for a reason.
+2. **The app received nothing.** From the panel, KagiPeek presses the menu item through
    Accessibility; the chord is only replayed when that press fails, so a shortcut handled in a
    custom view (with no menu item behind it) cannot be run this way. From the palette, the
-   scoped app is activated first and the command runs after it comes forward, so an app that is
+   scoped app is activated first and the menu item is triggered after it comes forward, so an app that is
    slow to activate may miss it. Log category `input` records
    `replaying … into <bundle id>` when a chord is posted and `no target app …; not injecting`
    when there was nobody to send it to.
-3. **The chord is incomplete.** A row that still has further steps descends a level instead of
+3. **The chord is incomplete.** A menu item that still has further steps descends a level instead of
    running; the breadcrumb tells you where you are.
 
 ## Space runs, Return copies — is that right?
 
-Yes. They are two recorded bindings: the run key (Space by default) replays the row into the
+Yes. They are two recorded bindings: the run key (Space by default) replays the menu item's shortcut into the
 front app, the copy key (Return by default) only writes it to the clipboard. Change either one
-under **Settings → General → Row actions**; the footer shows what the two keys currently do.
+under **Settings → General → Menu item actions**; the footer shows what the two keys currently do.
 
 The search palette is different on purpose: Return always runs there and there is no copy
 action.

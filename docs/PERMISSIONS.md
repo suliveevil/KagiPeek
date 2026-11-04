@@ -8,7 +8,7 @@ macOS 权限、签名与运行环境的事实说明。写于 2026-11-04，依据
 
 | 权限 | 是否必需 | 代码依据 | 用户在哪里开 | 没开时的表现 |
 | --- | --- | --- | --- | --- |
-| 辅助功能（Accessibility） | **必需** | [KeyboardMonitor.swift:243-246](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/Input/KeyboardMonitor.swift#L243-L246) 创建 `.cgSessionEventTap`、`.defaultTap`（可吞事件的会话级 tap）；[CatalogLoader.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/CatalogLoader.swift) 用 `AXUIElementCreateApplication` 读菜单；[MenuTrigger.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/MenuTrigger.swift) 跨进程 `AXUIElementPerformAction` | 系统设置 → 隐私与安全性 → 辅助功能 → 勾选 KagiPeek | 面板不弹出；事件 tap 创建失败；菜单扫描为空；运行行时 press 失败。设置首页显示「未授权」并给出「打开设置」入口 |
+| 辅助功能（Accessibility） | **必需** | [KeyboardMonitor.swift:243-246](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/Input/KeyboardMonitor.swift#L243-L246) 创建 `.cgSessionEventTap`、`.defaultTap`（可吞事件的会话级 tap）；[CatalogLoader.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/CatalogLoader.swift) 用 `AXUIElementCreateApplication` 读菜单；[MenuTrigger.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/MenuTrigger.swift) 跨进程 `AXUIElementPerformAction` | 系统设置 → 隐私与安全性 → 辅助功能 → 勾选 KagiPeek | 面板不弹出；事件 tap 创建失败；菜单扫描为空；运行菜单项时 press 失败。设置首页显示「未授权」并给出「打开设置」入口 |
 | 输入监控（Input Monitoring） | **可选兜底** | [PermissionCenter.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/PermissionCenter.swift) 用 `CGPreflightListenEventAccess()` 检查；只在辅助功能之外作为第二道判定 | 系统设置 → 隐私与安全性 → 输入监控 → 勾选 KagiPeek | 没有它 App 仍能工作（辅助功能已覆盖会话级 tap）；只影响少数按「输入监控」而非「辅助功能」判定的系统版本 |
 | 屏幕录制（Screen Recording） | **不需要** | 全仓库没有 `CGWindowListCreateImage`、`SCShareableContent` 或任何截图 API；面板定位只用 AX 窗口 frame（[WindowGeometry.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/WindowGeometry.swift)） | — | 与本 App 无关。截图/窗口捕获属于外部工具（见 STATUS 的环境坑） |
 | 自动化 / Apple Events | **不需要** | 没有 `NSAppleEventsUsageDescription`，没有 `AEDeterminePermissionToAutomateTarget`；跨 App 动作全部走 AX | — | — |
@@ -80,7 +80,7 @@ codesign -dv --verbose=4 /Applications/KagiPeek.app && ls "$HOME/Library/Applica
 
 - 本文旧版本写过「打开 Execute menu commands 才有注入」，但当前代码已删除
   `allowPanelExecute` / `allowSearchExecute` 两个开关（`AppSettingsModel` 的迁移注释：
-  version 2/3 把它们删掉了）。现在的语义是：面板与搜索这两类表面都接管键盘，执行行时关闭
+  version 2/3 把它们删掉了）。现在的语义是：面板与搜索这两类表面都接管键盘，执行菜单项时关闭
   表面并回放原快捷键。没有需要用户额外打开的「执行」开关。
 - 旧版本笼统写「tap 创建失败」；实际有两层：`.cgSessionEventTap` 创建失败（权限/环境）与
   本地 run loop source 创建失败（代码内已回滚，见 `KeyboardMonitor` 的 tap 恢复路径）。

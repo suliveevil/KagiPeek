@@ -64,7 +64,7 @@ downloadable release, use a Developer ID Application certificate instead
    signature, copies the replaced build to `~/Library/Application Support/KagiPeek/backups/`,
    then swaps the new one in). The installer refuses an ad-hoc build: only `KagiPeek Local` or a
    Developer ID signature may sit in `/Applications`. Then the short list:
-   trigger the panel, narrow it with ⌘, run a row, copy a row, open the palette with `/`, switch
+   trigger the panel, narrow it with ⌘, run a menu item, copy a menu item, open the palette with `/`, switch
    its app scope, export Markdown, search and press Return, open Settings and check the
    Statistics and Conflicts tabs.
 
