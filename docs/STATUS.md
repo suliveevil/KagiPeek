@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 21:09**（Asia/Shanghai）。
+as of **2026-11-04 21:31**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,11 +8,11 @@ as of **2026-11-04 21:09**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `00f67e6`（面板排序）；
+- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `21638f1`（连按两次自动窗口）；
   本文件提交后 HEAD 会再前移一格。
-- 工作区：干净；本轮面板排序改动已随 `00f67e6` 落盘。
-- 未合并分支：无。本轮的 `feature/panel-sort` 以 fast-forward 合回 `main`，引用保留。
-- 远端同步：`main` 已推送 `origin/main`，本地与远端一致。
+- 工作区：干净；本轮改动已随 `21638f1` 落盘。
+- 未合并分支：无。本轮的 `feature/auto-double-tap` 以 fast-forward 合回 `main`，引用保留。
+- 远端同步：`origin/main` 停在 `8549e42`；本轮 `21638f1` 未推送（用户未要求 push）。
 - **第二轮 squash 未执行**：用户指定的起点 `aa23786` 是 `270febe` 的祖先（相差 61 个提交），
   不是 HEAD；按「不是 HEAD 就先停下」的约定只核对了拓扑，没有建 tag、没有 reset、没有
   强推。旧历史仍保留在本地 `backup/pre-squash-20261104-192838`（tag 与 branch，均未推送）。
@@ -50,6 +50,12 @@ as of **2026-11-04 21:09**（Asia/Shanghai）。
   新增字段，排序缓存键（`OrderedHitsKey`）加入 `panelOrder`，已打开的面板立即重排。
 - `swift test`：656 → 666（新增 10 项，覆盖两种顺序、分组连续性、组序来源、无组/空组
   兜底、Shift 标签随顺序、默认值与 schema 5→6 迁移、编码与往返、损坏 JSON）。
+- **连按两次改为自动窗口（`feature/auto-double-tap`，fast-forward 合回 main）**：删除
+  设置页的「双击间隔」滑杆与 `doubleTapWindow` 字段；新增 `Core/Pure/DoubleTapTiming`，
+  窗口跟随系统「双击速度」（`NSEvent.doubleClickInterval`）并限制在 0.25–0.6 秒。判定
+  改为「两次干净按压，中间没有其他键，只计两次之间的间隔」：慢按仍算一次，第二次按久
+  也会在松开时完成；按了别的键仍取消。设置 schema 6→7，旧字段被忽略并在下次保存时丢弃；
+  诊断页只读显示当前生效窗口。`swift test` 666 → 672。
 - **术语统一为「菜单项」**（提交 `05c775f`）：对象本体统一叫「菜单项 / menu item」，
   「快捷键」只指菜单项的键盘捷径（没有时留空，不再写「无快捷键」），「行 / row」只用于
   布局；数量表达统一为「菜单项数」。改的是 `L10n` 中英两列、`PanelSession` 的无快捷键
@@ -65,18 +71,17 @@ as of **2026-11-04 21:09**（Asia/Shanghai）。
 
 | 命令 | 结果 |
 | --- | --- |
-| `swift test`（面板排序） | `Executed 666 tests, with 0 failures (0 unexpected)`；退出码 0 |
-| `swiftc -typecheck`（面板排序） | 0 诊断 |
+| `swift test`（连按两次自动窗口） | `Executed 672 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release` | `==> Signing with KagiPeek Local`；`valid on disk` / `satisfies its Designated Requirement` |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`designated => identifier "com.voltline.kagipeek" and certificate root = H"6c0ac5…a929"` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `VERIFY_OK`（`valid on disk` / `satisfies its Designated Requirement`） |
-| `KagiPeekCommit` / `CFBundleShortVersionString` | `00f67e6` / `2.2.0`（版本串显示 `v2.2.0 (00f67e6)`） |
-| `pgrep -x KagiPeek` | `60704`（单实例） |
-| `scripts/install.sh` | 成功；备份 `KagiPeek-2026-11-04-210146-997b603-local.app`，按命名保留最近 5 份 |
+| `KagiPeekCommit` / `CFBundleShortVersionString` | `21638f1` / `2.2.0`（版本串显示 `v2.2.0 (21638f1)`） |
+| `pgrep -x KagiPeek` | `69442`（单实例） |
+| `scripts/install.sh` | 成功；备份 `KagiPeek-2026-11-04-213111-00f67e6-local.app`，按命名保留最近 5 份 |
 
-本轮 `scripts/install.sh` 的 `xcodebuild` 路径再次因本机 `sandbox-exec` 嵌套限制失败，
-按设计回退到 `scripts/build_swiftc.sh Release`；回退后的签名与校验都通过，最后输出
-`KagiPeek installed and signed with a stable identity.`
+本轮 `scripts/install.sh` 的 `xcodebuild` 路径可用，没有回退到 swiftc；签名与校验都通过，
+最后输出 `KagiPeek installed and signed with a stable identity.`。xcodebuild 路径此前多次
+因本机 `sandbox-exec` 嵌套限制失败（见「已知环境坑」），所以两种路径都要能跑。
 
 签名说明：本轮已恢复稳定身份 `KagiPeek Local`。此前 `codesign` 会停在钥匙串授权框，
 用户手动点过「始终允许」；现在先用一个临时文件试签（`codesign --sign "KagiPeek Local" /tmp/...`）
@@ -93,29 +98,31 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (00f67e6)`
+- 版本串原文：`v2.2.0 (21638f1)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`00f67e6`（安装时的 main HEAD；本文件提交后需重装一次
+- `KagiPeekCommit`（Info.plist）：`21638f1`（安装时的 main HEAD；本文件提交后需重装一次
   才能再次与 HEAD 相等）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持
-- 运行中 PID：`60704`（`pgrep -x KagiPeek`，单实例）
+- 运行中 PID：`69442`（`pgrep -x KagiPeek`，单实例）
 - 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
   `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  本次为 `KagiPeek-2026-11-04-210146-997b603-local.app`。
+  本次为 `KagiPeek-2026-11-04-213111-00f67e6-local.app`。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
   `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
   `launchAtLogin=true`、`keyStyle=symbols`、`runRowKey`/`copyRowKey` 仍是 Space/Return；
-  新字段 `panelOrder` 落盘为 `byModifier`（默认值）。
+  `panelOrder` 落盘为 `byModifier`（默认值）。schema 已是 7，`doubleTapWindow` 已不在
+  文件中（启动后的保存把它丢掉了）。
 
 ## 已知环境坑
 
-1. **`xcodebuild` 在本机不可用。** 构建系统给每次编译套 `sandbox-exec`，嵌套沙盒被拒绝：
-   `sandbox-exec: sandbox_apply: Operation not permitted`。这不是代码问题。替代路径是
+1. **`xcodebuild` 在本机不稳定。** 构建系统给每次编译套 `sandbox-exec`，嵌套沙盒有时被
+   拒绝：`sandbox-exec: sandbox_apply: Operation not permitted`。这不是代码问题。本轮
+   2026-11-04 21:31 的 `install.sh` 中 xcodebuild 可用；失败时仍可回退到
    `scripts/build_swiftc.sh Release|Debug`，它用同一套源码与同一组 Swift 6 编译参数，
    显式加载 SwiftUI 宏插件。
 2. **`agent-desktop` 抓不到 `LSUIElement` 应用的窗口。** App 默认没有 Dock 图标和主窗口；
