@@ -249,8 +249,9 @@ final class PanelKeyIntakeTests: XCTestCase {
         XCTAssertTrue(intake(KeyCode.semicolon, pagingPairs: [.semicolonQuote]))
         XCTAssertTrue(intake(KeyCode.leftBracket, pagingPairs: [.brackets]))
         XCTAssertFalse(intake(KeyCode.leftBracket, pagingPairs: [.semicolonQuote]))
-        XCTAssertTrue(intake(KeyCode.minus, pagingPairs: [.minusPlus]))
-        XCTAssertTrue(intake(KeyCode.equal, modifiers: [.shift], pagingPairs: [.minusPlus]))
+        XCTAssertTrue(intake(KeyCode.minus, pagingPairs: [.minusEqual]))
+        XCTAssertTrue(intake(KeyCode.equal, pagingPairs: [.minusEqual]))
+        XCTAssertFalse(intake(KeyCode.equal, modifiers: [.shift], pagingPairs: [.minusEqual]))
         // No pair enabled: only the arrows and Esc remain.
         XCTAssertFalse(intake(KeyCode.semicolon, pagingPairs: []))
     }

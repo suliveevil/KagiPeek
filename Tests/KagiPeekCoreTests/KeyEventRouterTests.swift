@@ -200,17 +200,18 @@ final class KeyEventRouterTests: XCTestCase {
         XCTAssertEqual(route(keyCode: KeyCode.rightBracket, key: "]", settings: settings), .page(1))
         XCTAssertFalse(isPage(route(keyCode: KeyCode.semicolon, key: ";", settings: settings)))
 
-        settings.pagingPairs = [.commaPeriod, .brackets, .minusPlus, .semicolonQuote]
+        settings.pagingPairs = [.commaPeriod, .brackets, .minusEqual, .semicolonQuote]
         for (keyCode, key) in [
             (KeyCode.comma, ","), (KeyCode.period, "."),
             (KeyCode.leftBracket, "["), (KeyCode.rightBracket, "]"),
-            (KeyCode.minus, "-"), (KeyCode.semicolon, ";"), (KeyCode.quote, "'")
+            (KeyCode.minus, "-"), (KeyCode.equal, "="),
+            (KeyCode.semicolon, ";"), (KeyCode.quote, "'")
         ] {
             XCTAssertTrue(isPage(route(keyCode: keyCode, key: KeyToken(key), settings: settings)))
         }
-        XCTAssertEqual(
-            route(keyCode: KeyCode.equal, key: "+", modifiers: [.shift], settings: settings),
-            .page(1)
+        // `+` (Shift+=) belongs to no pair: it is not a page key even with every pair on.
+        XCTAssertFalse(
+            isPage(route(keyCode: KeyCode.equal, key: "+", modifiers: [.shift], settings: settings))
         )
     }
 

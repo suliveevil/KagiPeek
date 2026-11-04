@@ -59,9 +59,10 @@ nonisolated struct KeySwallowRules: Equatable {
         if capturedIdentifiers.contains(Self.identifier(keyCode: keyCode, modifiers: modifiers)) {
             return true
         }
-        // Paging characters are judged with Shift allowed (`+` needs it). Any other modifier
-        // means the key is not the paging key the user pressed — the identifier channel
-        // already covers the held-modifier spelling published by the engine.
+        // Paging characters are judged with Shift allowed (a layout may spell one with it).
+        // Any other modifier means the key is not the paging key the user pressed — the
+        // identifier channel already covers the held-modifier spelling published by the
+        // engine.
         if modifiers.subtracting([.shift]).isEmpty,
            let first = characters?.first,
            capturedCharacters.contains(first) {

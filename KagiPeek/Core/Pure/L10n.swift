@@ -97,7 +97,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     // Row actions
     case rowActionSection, rowActionExecute, rowActionCopy, rowActionHint
     case rowActionPagingTitle, rowActionPagingHint
-    case pagingPairCommaPeriod, pagingPairBrackets, pagingPairMinusPlus, pagingPairSemicolonQuote
+    case pagingPairCommaPeriod, pagingPairBrackets, pagingPairMinusEqual, pagingPairSemicolonQuote
     case panelActionHint, panelActionHintSearch, panelActionHintCompact
     case panelCopyHintCompact, panelEscCloseHint
 
@@ -512,7 +512,7 @@ nonisolated enum L10n {
         ),
         .pagingPairCommaPeriod: ("Comma / Period  ( , . )", "逗号、句号（, .）"),
         .pagingPairBrackets: ("Brackets  ( [ ] )", "方括号（[ ]）"),
-        .pagingPairMinusPlus: ("Minus / Plus  ( - + )", "减号、加号（- +）"),
+        .pagingPairMinusEqual: ("Minus / Equal  ( - = )", "减号、等号（- =）"),
         .pagingPairSemicolonQuote: ("Semicolon / Quote  ( ; ' )", "分号、引号（; '）"),
 
         .overlayNoCandidates: ("No matching shortcuts", "没有匹配的快捷键"),

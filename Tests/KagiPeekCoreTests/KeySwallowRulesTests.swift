@@ -103,9 +103,10 @@ final class KeySwallowRulesTests: XCTestCase {
         XCTAssertFalse(
             rules.shouldSwallow(keyCode: KeyCode.semicolon, modifiers: [.command], characters: ";")
         )
-        // `+` needs Shift and is still the page key.
-        rules.capturedCharacters.formUnion(PagingKeyPlan.characters(for: [.minusPlus]))
-        XCTAssertTrue(rules.shouldSwallow(keyCode: KeyCode.equal, modifiers: [.shift], characters: "+"))
+        // `=` is the unshifted page key; `+` (Shift+=) is not part of any pair.
+        rules.capturedCharacters.formUnion(PagingKeyPlan.characters(for: [.minusEqual]))
+        XCTAssertTrue(rules.shouldSwallow(keyCode: KeyCode.equal, modifiers: [], characters: "="))
+        XCTAssertFalse(rules.shouldSwallow(keyCode: KeyCode.equal, modifiers: [.shift], characters: "+"))
     }
 
     func testRulesAndCapturesAreIndependentChannels() {

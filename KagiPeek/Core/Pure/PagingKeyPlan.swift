@@ -8,7 +8,7 @@ import Foundation
 nonisolated enum PagingPair: String, Codable, CaseIterable, Hashable, Sendable {
     case commaPeriod
     case brackets
-    case minusPlus
+    case minusEqual
     case semicolonQuote
 
     var previous: PagingStroke {
@@ -17,7 +17,7 @@ nonisolated enum PagingPair: String, Codable, CaseIterable, Hashable, Sendable {
             return PagingStroke(character: ",", keyCode: KeyCode.comma, modifiers: [])
         case .brackets:
             return PagingStroke(character: "[", keyCode: KeyCode.leftBracket, modifiers: [])
-        case .minusPlus:
+        case .minusEqual:
             return PagingStroke(character: "-", keyCode: KeyCode.minus, modifiers: [])
         case .semicolonQuote:
             return PagingStroke(character: ";", keyCode: KeyCode.semicolon, modifiers: [])
@@ -30,10 +30,10 @@ nonisolated enum PagingPair: String, Codable, CaseIterable, Hashable, Sendable {
             return PagingStroke(character: ".", keyCode: KeyCode.period, modifiers: [])
         case .brackets:
             return PagingStroke(character: "]", keyCode: KeyCode.rightBracket, modifiers: [])
-        case .minusPlus:
-            // `+` is Shift+= on the ANSI layout, but the judgment is by the character the
-            // layout produced; the modifier is only used by the physical fallback.
-            return PagingStroke(character: "+", keyCode: KeyCode.equal, modifiers: [.shift])
+        case .minusEqual:
+            // Both are unshifted on the ANSI layout: `-` is key 27, `=` is key 24. `+`
+            // (Shift+=) is deliberately not a paging character.
+            return PagingStroke(character: "=", keyCode: KeyCode.equal, modifiers: [])
         case .semicolonQuote:
             return PagingStroke(character: "'", keyCode: KeyCode.quote, modifiers: [])
         }
@@ -43,7 +43,7 @@ nonisolated enum PagingPair: String, Codable, CaseIterable, Hashable, Sendable {
         switch self {
         case .commaPeriod: return .pagingPairCommaPeriod
         case .brackets: return .pagingPairBrackets
-        case .minusPlus: return .pagingPairMinusPlus
+        case .minusEqual: return .pagingPairMinusEqual
         case .semicolonQuote: return .pagingPairSemicolonQuote
         }
     }
@@ -69,7 +69,7 @@ nonisolated enum PagingKeyPlan {
     private static let canonicalMap: [Character: Character] = [
         "，": ",", "。": ".", "、": ",",
         "［": "[", "］": "]",
-        "－": "-", "＋": "+",
+        "－": "-",
         "；": ";", "＇": "'", "’": "'"
     ]
 
@@ -79,8 +79,9 @@ nonisolated enum PagingKeyPlan {
 
     /// The step for this key, or `nil` when it is not a paging key.
     ///
-    /// Only Shift may accompany a paging key: `+` needs it, and a character-bearing event
-    /// cannot reach here with ⌘/⌥/⌃ because those change what the key types.
+    /// No paging pair needs a modifier of its own, but Shift is tolerated: a layout may
+    /// spell a punctuation character with it. ⌘/⌥/⌃ are shortcut layers and never page,
+    /// because they change what the key types.
     static func step(
         pairs: Set<PagingPair>,
         keyCode: UInt16,

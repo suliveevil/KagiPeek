@@ -7,7 +7,7 @@ final class PagingKeyPlanTests: XCTestCase {
         let expected: [(PagingPair, Character, Character)] = [
             (.commaPeriod, ",", "."),
             (.brackets, "[", "]"),
-            (.minusPlus, "-", "+"),
+            (.minusEqual, "-", "="),
             (.semicolonQuote, ";", "'")
         ]
         for (pair, previous, next) in expected {
@@ -40,7 +40,7 @@ final class PagingKeyPlanTests: XCTestCase {
 
     /// All pairs unchecked: only the arrows page.
     func testEmptySetNoPaging() {
-        for character in [",", ".", "[", "]", "-", "+", ";", "'"] {
+        for character in [",", ".", "[", "]", "-", "=", ";", "'"] {
             XCTAssertNil(PagingKeyPlan.step(pairs: [], keyCode: 0, modifiers: [], characters: character))
         }
     }
@@ -107,18 +107,19 @@ final class PagingKeyPlanTests: XCTestCase {
             -1
         )
         XCTAssertEqual(
-            PagingKeyPlan.step(pairs: [.minusPlus], keyCode: KeyCode.equal, modifiers: [.shift], characters: nil),
+            PagingKeyPlan.step(pairs: [.minusEqual], keyCode: KeyCode.equal, modifiers: [], characters: nil),
             1
         )
         XCTAssertNil(
-            PagingKeyPlan.step(pairs: [.minusPlus], keyCode: KeyCode.equal, modifiers: [], characters: nil)
+            PagingKeyPlan.step(pairs: [.minusEqual], keyCode: KeyCode.equal, modifiers: [.shift], characters: nil)
         )
         XCTAssertNil(
             PagingKeyPlan.step(pairs: [.semicolonQuote], keyCode: KeyCode.comma, modifiers: [], characters: nil)
         )
     }
 
-    /// ⌘/⌥/⌃ are shortcut layers; only Shift is allowed (for `+`).
+    /// ⌘/⌥/⌃ are shortcut layers and never page; Shift is tolerated so a layout that
+    /// spells punctuation with it still works.
     func testModifierGuard() {
         XCTAssertNil(
             PagingKeyPlan.step(pairs: [.semicolonQuote], keyCode: 0, modifiers: [.command], characters: ";")
@@ -127,19 +128,25 @@ final class PagingKeyPlanTests: XCTestCase {
             PagingKeyPlan.step(pairs: [.semicolonQuote], keyCode: 0, modifiers: [.option], characters: ";")
         )
         XCTAssertEqual(
-            PagingKeyPlan.step(pairs: [.minusPlus], keyCode: 0, modifiers: [.shift], characters: "+"),
+            PagingKeyPlan.step(pairs: [.minusEqual], keyCode: 0, modifiers: [.shift], characters: "="),
             1
         )
     }
 
-    /// Shift-hint layer ruling: `+` is not a 0–9/a–z label, so ⇧= still pages.
-    func testShiftEqualsStillPagesDuringTheHintLayer() {
-        XCTAssertEqual(
-            PagingKeyPlan.step(pairs: [.minusPlus], keyCode: 0, modifiers: [.shift], characters: "+"),
-            1
+    /// `+` is not a paging character: Shift+= belongs to no pair and no hint label, so it
+    /// neither pages nor is mistaken for a `0`–`9` / `a`–`z` label.
+    func testShiftEqualsIsNeitherPageNorHint() {
+        XCTAssertNil(
+            PagingKeyPlan.step(pairs: [.minusEqual], keyCode: 0, modifiers: [.shift], characters: "+")
         )
+        XCTAssertNil(PagingKeyPlan.step(pairs: [.minusEqual], keyCode: KeyCode.equal, modifiers: [.shift], characters: nil))
         XCTAssertNil(ShiftHintLayer.index(forCharacter: "+"))
         XCTAssertEqual(ShiftHintLayer.index(forCharacter: "9"), 9)
+        // `=` itself still pages, including when a layout needs Shift to produce it.
+        XCTAssertEqual(
+            PagingKeyPlan.step(pairs: [.minusEqual], keyCode: 0, modifiers: [], characters: "="),
+            1
+        )
     }
 
     /// The capture set covers every enabled key, including the full-width spellings.

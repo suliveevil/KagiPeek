@@ -381,7 +381,7 @@ While modifiers are held, the menu items that can be reached from them keep the 
 `KeyboardMonitor` installs one global event tap under the Accessibility grant. It observes `flagsChanged` and `keyDown` (plus tap-disabled notifications) and passes events through unchanged, with these exceptions:
 
 - the three recorded hotkeys (panel, search, switch) are consumed so the front app does not also receive them — through the same `HotkeyMatcher` rule used for activation, including the Hyper superset tolerance;
-- while a panel is active, its navigation keys (↑/↓/←/→, ⌃F/⌃B/⌃N/⌃P), the characters of every enabled paging pair (`,`/`.`, `[`/`]`, `-`/`+`, `;`/`'`), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
+- while a panel is active, its navigation keys (↑/↓/←/→, ⌃F/⌃B/⌃N/⌃P), the characters of every enabled paging pair (`,`/`.`, `[`/`]`, `-`/`=`, `;`/`'`), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
 - a key that **completes** a shortcut is not swallowed: the panel closes and the event continues to the front app.
 - repeats of a captured key are swallowed too. Letting them through would move the panel selection and scroll the front app at the same time; the engine separately ignores repeats for actions that should not fire twice.
 
@@ -780,7 +780,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - `KeyChord.isFinalStroke`: one source of truth for "this stroke is the last one", shared by descent and menu item activation
 - `PendingModifiers` and `ChordComposition`: held vs latched, the lone-⇧ rule, the `composed` guard rail, and the full swallow truth table
 - `PanelKeyIntake`: navigation, the enabled paging pairs, the action keys, `/` and Escape are claimed before composition; ⌫ is deliberately not on the list
-- `PagingKeyPlan`: either the first character of an enabled pair (previous) or the second (next), matched on the typed character first and the ANSI key code only when the event has none; arrows are never part of it, several pairs can be on at once without swallowing each other, and `+` (Shift+=) still pages while the Shift-hint layer is up because it is not a `0`–`9` / `a`–`z` label
+- `PagingKeyPlan`: either the first character of an enabled pair (previous) or the second (next), matched on the typed character first and the ANSI key code only when the event has none; arrows are never part of it, several pairs can be on at once without swallowing each other, the third pair is `-` / `=` (unshifted), and `+` (Shift+=) is not a paging character at all — so it neither pages nor collides with the Shift-hint layer's `0`–`9` / `a`–`z` labels
 - `SearchKeyRouter`: all eight paging characters pass through to the search field, so a focused query field never pages
 - narrowing is preserved: a held or ticked ⌘ keeps ⇧⌘A, because the rule is "carries every held modifier", not "equals it"
 - menu-path weighting: a title match outranks a menu-name match, and the nearer level outranks the deeper ancestor

@@ -24,9 +24,11 @@ final class PagingSettingsTests: XCTestCase {
         XCTAssertTrue(settings.pagingPairs.isEmpty)
     }
 
-    /// An unknown member is dropped; the known members in the same array survive.
+    /// An unknown member is dropped; the known members in the same array survive. The old
+    /// `minusPlus` spelling is now unknown, so a file written before the rename loses it
+    /// rather than reviving the `+` key.
     func testUnknownMemberIsDroppedNotTheWholeSet() throws {
-        let json = #"{"pagingPairs":["commaPeriod","parenthesis","semicolonQuote"]}"#.data(using: .utf8)!
+        let json = #"{"pagingPairs":["commaPeriod","minusPlus","semicolonQuote"]}"#.data(using: .utf8)!
         let settings = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
         XCTAssertEqual(settings.pagingPairs, [.commaPeriod, .semicolonQuote])
     }

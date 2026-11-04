@@ -159,7 +159,7 @@ final class SearchKeyRouterTests: XCTestCase {
         let keys: [(UInt16, ModifierSet)] = [
             (KeyCode.comma, []), (KeyCode.period, []),
             (KeyCode.leftBracket, []), (KeyCode.rightBracket, []),
-            (KeyCode.minus, []), (KeyCode.equal, [.shift]),
+            (KeyCode.minus, []), (KeyCode.equal, []),
             (KeyCode.semicolon, []), (KeyCode.quote, [])
         ]
         for (keyCode, modifiers) in keys {
