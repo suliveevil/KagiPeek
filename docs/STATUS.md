@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 21:31**（Asia/Shanghai）。
+as of **2026-11-04 22:36**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,18 +8,28 @@ as of **2026-11-04 21:31**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `21638f1`（连按两次自动窗口）；
-  本文件提交后 HEAD 会再前移一格。
-- 工作区：干净；本轮改动已随 `21638f1` 落盘。
-- 未合并分支：无。本轮的 `feature/auto-double-tap` 以 fast-forward 合回 `main`，引用保留。
-- 远端同步：`origin/main` 停在 `8549e42`；本轮 `21638f1` 未推送（用户未要求 push）。
-- **第二轮 squash 未执行**：用户指定的起点 `aa23786` 是 `270febe` 的祖先（相差 61 个提交），
-  不是 HEAD；按「不是 HEAD 就先停下」的约定只核对了拓扑，没有建 tag、没有 reset、没有
-  强推。旧历史仍保留在本地 `backup/pre-squash-20261104-192838`（tag 与 branch，均未推送）。
-  等用户确认修正范围后才能继续。
+- 代码 HEAD：`a0b1401`（`chore(signing): 私钥迁到独立钥匙串，签名不再弹授权`）；本文件提交后
+  HEAD 会再前移一格，Info.plist 里的 commit 要重装一次才能与 HEAD 相等。
+- 工作区：干净（提交前只剩本文件）。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
+- 未合并分支：无，当前在 `main`。
+- 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
+- **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
+  未 reset、未强推。旧历史保留在本地 `backup/pre-squash-20261104-192838`。
 
 ## 本轮完成
 
+- **设置页文案与触发卡片**（`d4321ea`）：`rankingModeHint` 改为「面板顺序在外观页设置，搜索面板按匹配度
+  排序」；删除触发页误用的面板提示脚注。触发页拆成两张卡片「修饰键触发 / Modifier trigger」
+  与「快捷键触发 / Shortcut trigger」，各自带启用开关。
+- **预设快捷键可删除**（`d4321ea`）：五个绑定槽（面板/搜索/切换三个全局快捷键，以及行执行/复制）改为
+  `HotkeySpec?`，`nil` 表示未设置；`L10n` 增加「未设置/删除/启用」。设置页每行有删除按钮，
+  清除后路由与吞键规则跳过该槽，面板脚注按剩余按键降级；JSON 里写 `null`，字段缺失仍回退
+  默认值，schema 仍为 7。`swift test` 保持 672。
+- **签名密钥迁到独立钥匙串**（`a0b1401`）：新增 `~/Library/Keychains/kagipeek-signing.keychain-db`，
+  口令 `~/Library/Application Support/KagiPeek/signing/keychain-pass`（600，目录 700）；
+  `.p12` 备份与口令同目录（600）。身份仍是原证书（SHA-1 `6c0ac5…a929`），登录钥匙串中的
+  副本已删除；`security find-identity -v -p codesigning` 只剩一条。`build_swiftc.sh`
+  自动解锁并显式 `--keychain`；`setup_signing.sh` 改为直接在新钥匙串建身份。
 - **未推送历史整理**：把 `origin/main` 之上的 72 个提交（59 个普通提交 + 13 个 merge）
   squash 成 1 个；代码内容零丢失，只顺带清理了 STATUS、ARCHITECTURE 与设计草稿里过期的
   测试数和 commit 示例。旧历史保留在本地 `backup/pre-squash-20261104-192838`（tag 与
@@ -71,22 +81,24 @@ as of **2026-11-04 21:31**（Asia/Shanghai）。
 
 | 命令 | 结果 |
 | --- | --- |
-| `swift test`（连按两次自动窗口） | `Executed 672 tests, with 0 failures (0 unexpected)`；退出码 0 |
-| `scripts/build_swiftc.sh Release` | `==> Signing with KagiPeek Local`；`valid on disk` / `satisfies its Designated Requirement` |
-| `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`designated => identifier "com.voltline.kagipeek" and certificate root = H"6c0ac5…a929"` |
-| `codesign --verify --deep --strict /Applications/KagiPeek.app` | `VERIFY_OK`（`valid on disk` / `satisfies its Designated Requirement`） |
-| `KagiPeekCommit` / `CFBundleShortVersionString` | `21638f1` / `2.2.0`（版本串显示 `v2.2.0 (21638f1)`） |
-| `pgrep -x KagiPeek` | `69442`（单实例） |
-| `scripts/install.sh` | 成功；备份 `KagiPeek-2026-11-04-213111-00f67e6-local.app`，按命名保留最近 5 份 |
+| `swift test`（提交后） | `Executed 672 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
+| 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
+| `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |
+| `codesign -d -r-`（安装包 vs 上一份备份） | 两行都是 `certificate root = H"6c0ac5…a929"`，TCC designated requirement 未变 |
+| `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local` |
+| `codesign --verify --deep --strict /Applications/KagiPeek.app` | `valid on disk` / `satisfies its Designated Requirement` |
+| `KagiPeekCommit` / 版本串 | `a0b1401-dirty` / `v2.2.0 (a0b1401-dirty)` |
+| `pgrep -x KagiPeek` | `99700`（单实例） |
+| `scripts/install.sh` | 成功；`xcodebuild` 路径可用，未回退 swiftc；备份 `KagiPeek-2026-11-04-223050-4bd1b64-dirty-local.app`，按命名保留最近 5 份 |
+| 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
-本轮 `scripts/install.sh` 的 `xcodebuild` 路径可用，没有回退到 swiftc；签名与校验都通过，
-最后输出 `KagiPeek installed and signed with a stable identity.`。xcodebuild 路径此前多次
-因本机 `sandbox-exec` 嵌套限制失败（见「已知环境坑」），所以两种路径都要能跑。
+本次安装标记为 `a0b1401-dirty`：`docs/STATUS.md` 的更新在构建之后才提交；重装一次即可让
+Info.plist 里的 commit 与 HEAD 相等。签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
-签名说明：本轮已恢复稳定身份 `KagiPeek Local`。此前 `codesign` 会停在钥匙串授权框，
-用户手动点过「始终允许」；现在先用一个临时文件试签（`codesign --sign "KagiPeek Local" /tmp/...`）
-确认私钥可用，再整包构建。因为签名身份与 designated requirement 未变，这次覆盖安装不会让
-辅助功能重新授权。
+签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
+的授权框会反复出现；新钥匙串用 `-A` 导入并设置 partition list，`codesign` 不再弹窗。证书
+与 designated requirement 未变，覆盖安装不会让辅助功能重新授权（DR 根哈希对比见上表）。
 
 **ad-hoc 只作验证**：`scripts/build_swiftc.sh` 在没有稳定身份时会 ad-hoc 签名，这种包只能
 在临时目录做 `codesign --verify --deep --strict`；`scripts/install.sh` 现在会直接拒绝安装
@@ -98,25 +110,23 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (21638f1)`
+- 版本串原文：`v2.2.0 (a0b1401-dirty)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`21638f1`（安装时的 main HEAD；本文件提交后需重装一次
-  才能再次与 HEAD 相等）
+- `KagiPeekCommit`（Info.plist）：`a0b1401-dirty`（安装时的 main HEAD + 尚未提交的 STATUS）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
-  辅助功能授权保持
-- 运行中 PID：`69442`（`pgrep -x KagiPeek`，单实例）
+  辅助功能授权保持；私钥只在独立钥匙串中
+- 运行中 PID：`99700`（`pgrep -x KagiPeek`，单实例）
 - 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
   `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  本次为 `KagiPeek-2026-11-04-213111-00f67e6-local.app`。
+  本次为 `KagiPeek-2026-11-04-223050-4bd1b64-dirty-local.app`。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
-  非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
+  非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
   `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
-  `launchAtLogin=true`、`keyStyle=symbols`、`runRowKey`/`copyRowKey` 仍是 Space/Return；
-  `panelOrder` 落盘为 `byModifier`（默认值）。schema 已是 7，`doubleTapWindow` 已不在
-  文件中（启动后的保存把它丢掉了）。
+  `launchAtLogin=true`、`keyStyle=symbols`、`panelOrder=byModifier`）；
+  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。schema 仍为 7。
 
 ## 已知环境坑
 
