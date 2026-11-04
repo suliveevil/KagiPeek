@@ -32,14 +32,12 @@ final class SettingsWindowController {
         }
         guard let window else { return }
         NSApp.activate(ignoringOtherApps: true)
-        // Keep `.miniaturizable`: removing a window capability is a regression for users who
-        // rely on it. Restoring the window instead means the menu item always reaches it,
-        // minimised or merely behind another app, and the saved frame is not re-centred.
-        if window.isMiniaturized {
-            window.deminiaturize(nil)
-        }
         window.makeKeyAndOrderFront(nil)
     }
+
+    /// The window the permission guide attaches to as a sheet. Nil until Settings has been
+    /// opened once.
+    var hostingWindow: NSWindow? { window }
 
     private func makeRoot(initialTab: SettingsTab) -> some View {
         SettingsView(initialTab: initialTab)
@@ -53,7 +51,10 @@ final class SettingsWindowController {
     private func makeWindow(initialTab: SettingsTab) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 680, height: 600),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            // No `.miniaturizable`: Settings is a single utility window, and a minimised
+            // copy used to sit in the Dock while the menu item had to hunt for it. Close
+            // and the existing menu restore path are the only ways out.
+            styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )

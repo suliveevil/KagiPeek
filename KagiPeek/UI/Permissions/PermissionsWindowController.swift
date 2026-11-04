@@ -6,13 +6,34 @@ import SwiftUI
 @MainActor
 final class PermissionsWindowController {
     private let engine: ShortcutEngine
+    /// The window to attach to as a sheet when it is open. `nil` makes the guide stand
+    /// alone, which is what first launch needs (Settings has not been opened yet).
+    private let sheetHost: () -> NSWindow?
     private var window: NSWindow?
+    private weak var sheetParent: NSWindow?
 
-    init(engine: ShortcutEngine) {
+    init(engine: ShortcutEngine, sheetHost: @escaping () -> NSWindow? = { nil }) {
         self.engine = engine
+        self.sheetHost = sheetHost
     }
 
     func show() {
+        // A sheet cannot take focus away from the app, and it cannot be either behind the
+        // settings window or in another Space — the two ways a free-floating guide got lost.
+        if let host = sheetHost(), host.isVisible {
+            if window == nil {
+                makeWindow()
+            }
+            guard let window else { return }
+            window.title = engine.localization.text(.permissionsTitle)
+            if sheetParent == nil {
+                sheetParent = host
+                host.beginSheet(window) { [weak self] _ in
+                    self?.sheetParent = nil
+                }
+            }
+            return
+        }
         if window == nil {
             makeWindow()
         }
@@ -26,6 +47,11 @@ final class PermissionsWindowController {
     }
 
     func close() {
+        if let sheetParent, let window {
+            sheetParent.endSheet(window)
+            self.sheetParent = nil
+            return
+        }
         window?.orderOut(nil)
     }
 

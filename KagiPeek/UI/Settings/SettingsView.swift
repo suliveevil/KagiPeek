@@ -366,6 +366,16 @@ struct SettingsView: View {
                 }
                 .disabled(!settings.hotkeyTriggerEnabled)
             }
+
+            Section {
+                Button(localization.text(.settingsShowTriggerTip)) {
+                    engine.showHUD(
+                        chord: "⌘",
+                        title: localization.text(.triggerTip),
+                        kind: .info
+                    )
+                }
+            }
         }
         .formStyle(.grouped)
     }

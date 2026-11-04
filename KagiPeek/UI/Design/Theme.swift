@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum Theme {
-    static let cornerRadius: CGFloat = 16
+    static let cornerRadius: CGFloat = 12
     // The numbers the panel window is sized with live in `OverlayMetrics` (pure, testable);
     // the view reads the same ones, so a resize rule can be asserted rather than eyeballed.
     static let rowHeight: CGFloat = OverlayMetrics.rowHeight
