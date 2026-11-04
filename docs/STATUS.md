@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 19:30**（Asia/Shanghai）。
+as of **2026-11-04 19:34**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -14,13 +14,18 @@ as of **2026-11-04 19:30**（Asia/Shanghai）。
 - 工作区：干净（`git status --short` 无输出）。
 - 未合并分支：无。`refactor/engine-split`、`feature/pagination-wrap`、`docs/status-refactor-3`、
   `ui/settings-diagnostics-merge` 都已合入 main，引用保留。
-- 未推送：本轮没有执行 `git push`。
+- 远端同步：重写后的 `main` 已推到 `origin/main`（`14ba41a`），本地与远端一致
+  （`git status -sb` 显示 `## main...origin/main`，无 ahead/behind）。
+- 备份 ref：`backup/pre-squash-20261104-192838`（tag 与 branch）只存在本地，未推送。
+- 远端历史已被重写：其他克隆需要先 `git fetch origin`，再 `git reset --hard origin/main`
+  或基于新历史 rebase；不要直接 merge 旧的 `main`。
 
 ## 本轮完成
 
 - **未推送历史整理**：把 `origin/main` 之上的 72 个提交（59 个普通提交 + 13 个 merge）
   squash 成 1 个；代码内容零丢失，只顺带清理了 STATUS、ARCHITECTURE 与设计草稿里过期的
-  测试数和 commit 示例。旧历史保留在 `backup/pre-squash-20261104-192838`，未 push。
+  测试数和 commit 示例。旧历史保留在本地 `backup/pre-squash-20261104-192838`（tag 与
+  branch，均未推送）；重写后的 `main` 已用 `--force-with-lease` 推到 `origin/main`。
 - **引擎协作模块拆分（R-3）**：`ShortcutEngine` 从 2761 行 / 139 个函数降到 1541 行 / 103
   个函数；新增 `BindingEditor`、`RowRunner`、`CatalogCoordinator`、`SearchSession`、
   `LiveTestCoordinator`、`DiagnosticsReporter`、`PanelSession`，并把录制规则与搜索 scope
