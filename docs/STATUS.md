@@ -8,9 +8,9 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`1c1eee5`（`test(placement): 锁定全屏时 visibleFrame 等于整屏的边界`），其上还有
-  一条未提交的「前台 app 切换后面板首帧覆盖」修复。
-- 工作区：干净（提交前只剩本文件）。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
+- 代码 HEAD：`ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）；全屏边界测试
+  在 `1c1eee5`，面板定位修正 `4d7abed`。
+- 工作区：干净。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 未合并分支：无，当前在 `main`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
@@ -106,7 +106,8 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 | `scripts/install.sh` | 成功；`xcodebuild` BUILD SUCCEEDED；已装包替换前备份 `KagiPeek-2026-11-04-230313-3e4532a-dirty-local.app`，按命名保留最近 5 份 |
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
-本次安装标记为 `1c1eee5-dirty`：面板首帧覆盖的修复与这份 STATUS 的更新在构建时都还没提交。
+本次安装标记为 `1c1eee5-dirty`，比 HEAD（`ee18e08`）旧一个提交：修复在安装之后才提交。
+二进制已含该修复，重装一次只是让 Info.plist 里的 commit 与 HEAD 相等。
 签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
