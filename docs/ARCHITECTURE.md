@@ -26,7 +26,7 @@ KagiPeek/
 │   ├── Pure/                      # SwiftPM target KagiPeekCore (Foundation only)
 │   │   ├── KeyChord.swift         # keys, modifiers, normalization, parsing
 │   │   ├── RowKeys.swift          # key codes, Enter alias, RowKeyRouter
-│   │   ├── BindingItem.swift      # one shortcut/action row
+│   │   ├── BindingItem.swift      # one shortcut/action binding
 │   │   ├── PrefixResolver.swift   # prefix → child bindings, chord traversal
 │   │   ├── ChordComposition.swift # one pure decision: build a stroke, classify it, swallow?
 │   │   ├── Ranker.swift           # the four sort modes' shared maths (decayed usefulness)
@@ -51,15 +51,15 @@ KagiPeek/
 │   │   ├── HotkeyMatcher.swift    # global hotkey matching, Hyper superset rule
 │   │   ├── PanelPlacement.swift   # cover / fixed / fill / beside the front window
 │   │   ├── PanelSections.swift    # app card + system card, and where the boundary is
-│   │   ├── PanelState.swift       # immutable panel snapshot (rows, groups, prefix)
-│   │   ├── PanelRowBuilder.swift  # one row/group builder for both rebuild paths
-│   │   ├── PanelHighlighter.swift # which rows belong to the shortcut in progress
+│   │   ├── PanelState.swift       # immutable panel snapshot (menu items, groups, prefix)
+│   │   ├── PanelRowBuilder.swift  # one menu item/group builder for both rebuild paths
+│   │   ├── PanelHighlighter.swift # which menu items belong to the shortcut in progress
 │   │   ├── PanelOrdering.swift    # the panel's chord order and modifier filter rule
 │   │   ├── PendingModifiers.swift # held (transient) vs latched (ticked) modifiers
 │   │   ├── ModifierTapTracker.swift # a press-and-release of a modifier becomes a tick
 │   │   ├── LatchedTicks.swift     # tick/untick, and which one ⌫ undoes
 │   │   ├── PanelKeyIntake.swift   # keys the panel consumes as itself, read by the tap too
-│   │   ├── PanelSelection.swift   # the only row is selected; a stale index is dropped
+│   │   ├── PanelSelection.swift   # the only menu item is selected; a stale index is dropped
 │   │   ├── RowLayout.swift        # the row's three column widths, as arithmetic
 │   │   ├── PanelTheme.swift       # panel palettes
 │   │   ├── HeaderLayout.swift     # responsive title-bar thresholds
@@ -111,7 +111,7 @@ KagiPeek/
 │   └── Engine/
 │       ├── ShortcutEngine.swift   # input router + lifecycle + collaborator wiring
 │       ├── EngineState.swift      # @Published state container
-│       ├── PanelSession.swift     # panel rows, ordering, paging, row actions
+│       ├── PanelSession.swift     # panel menu items, ordering, paging, menu item actions
 │       ├── SearchSession.swift    # palette open/close, scope, results
 │       ├── CatalogCoordinator.swift # what to scan, stale-result guards, config files
 │       ├── RowRunner.swift        # resolve element → press menu → replay chord
@@ -628,9 +628,9 @@ Two things that used to live in a separate window are now in its title bar:
   a query, the scope's full list when there is not. The palette presents an `NSSavePanel`
   (default file name `<App>.md`), writes UTF-8, and confirms through the HUD.
 
-The document contains a `# KagiPeek — <App>` title with a timestamp and row count, one
+The document contains a `# KagiPeek — <App>` title with a timestamp and menu item count, one
 `## <menu group>` section per first-level menu, a `| Shortcut | Action |` table per section
-(pipes escaped, disabled rows suffixed `_(unavailable)_`), and a footer link. The exporter does
+(pipes escaped, disabled menu items suffixed `_(unavailable)_`), and a footer link. The exporter does
 no file I/O, which is why it is unit tested without AppKit.
 
 ## Settings window

@@ -240,7 +240,7 @@ The default order of the statistics page: presses weighted by an exponential dec
 
 **It does not order the panel.** The panel is always in key order — ⌘ → ⌥ → ⌃ → ⇧, then the key — because it is a reference card, and "most used" would move a menu item every time you run one. The search palette is always in match order for the same reason.
 
-All four orders live in **Settings → Statistics → Sort order**: smart order, most used first, key order, and alphabetical. They apply to both lists on that page — the per-app list and the rows inside an app.
+All four orders live in **Settings → Statistics → Sort order**: smart order, most used first, key order, and alphabetical. They apply to both lists on that page — the per-app list and the menu items inside an app.
 
 ## Can I hide disabled menu items?
 

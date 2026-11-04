@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 19:34**（Asia/Shanghai）。
+as of **2026-11-04 20:20**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,17 +8,16 @@ as of **2026-11-04 19:34**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：squash 后的 `main` 提交，哈希用 `git log -1` 取（本文件不自指）。该提交内容
-  等同于 squash 前的 `de32cb6`；squash 前的完整 72 个提交保留在
-  `backup/pre-squash-20261104-192838`（同名 tag 与 branch）。
-- 工作区：干净（`git status --short` 无输出）。
+- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `05e424e`，包含术语统一
+  `05c775f` 与两个 `install.sh` 修复提交 `a31044d`、`05e424e`；本文件提交后 HEAD 会再前移一格。
+- 工作区：README、ARCHITECTURE、FAQ 与本文件的术语收尾改动随本提交一起落盘；提交后应为干净。
 - 未合并分支：无。`refactor/engine-split`、`feature/pagination-wrap`、`docs/status-refactor-3`、
   `ui/settings-diagnostics-merge` 都已合入 main，引用保留。
-- 远端同步：重写后的 `main` 已推到 `origin/main`（`14ba41a`），本地与远端一致
-  （`git status -sb` 显示 `## main...origin/main`，无 ahead/behind）。
-- 备份 ref：`backup/pre-squash-20261104-192838`（tag 与 branch）只存在本地，未推送。
-- 远端历史已被重写：其他克隆需要先 `git fetch origin`，再 `git reset --hard origin/main`
-  或基于新历史 rebase；不要直接 merge 旧的 `main`。
+- 远端同步：本地 `main` 领先 `origin/main`（`5b24bde`）4 个提交，**本轮未 push**。
+- **第二轮 squash 未执行**：用户指定的起点 `aa23786` 是 `270febe` 的祖先（相差 61 个提交），
+  不是 HEAD；按「不是 HEAD 就先停下」的约定只核对了拓扑，没有建 tag、没有 reset、没有
+  强推。旧历史仍保留在本地 `backup/pre-squash-20261104-192838`（tag 与 branch，均未推送）。
+  等用户确认修正范围后才能继续。
 
 ## 本轮完成
 
@@ -42,6 +41,14 @@ as of **2026-11-04 19:34**（Asia/Shanghai）。
   命名 `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留 5 份）；
   `scripts/install.sh` 改为调用它、拒绝安装 ad-hoc 包、回滚改为从 backups 恢复。
 - `swift test`：636 → 656（新增 20 项，覆盖 RecordingPolicy、SearchScopePlan、PaginationPlan）。
+- **术语统一为「菜单项」**（提交 `05c775f`）：对象本体统一叫「菜单项 / menu item」，
+  「快捷键」只指菜单项的键盘捷径（没有时留空，不再写「无快捷键」），「行 / row」只用于
+  布局；数量表达统一为「菜单项数」。改的是 `L10n` 中英两列、`PanelSession` 的无快捷键
+  渲染，以及 README、ARCHITECTURE、FAQ、TROUBLESHOOTING、RELEASING、PERMISSIONS、STATUS
+  和设计草稿；代码标识符（`RowID`、`rowKey`、`RowRunner` 等）一律未动。
+- **`install.sh` 签名门禁修复**（提交 `a31044d`、`05e424e`）：`codesign -dv` 读不到
+  `Authority`，改用 `-dvvv`；随后发现 `pipefail` 下 `codesign | grep -q` 会因 SIGPIPE
+  误判，改为捕获输出后用 `case` 匹配。稳定签名包不再被误拒。
 
 ## 最后一次验证
 
@@ -49,17 +56,19 @@ as of **2026-11-04 19:34**（Asia/Shanghai）。
 
 | 命令 | 结果 |
 | --- | --- |
-| `swift test` | `Executed 656 tests, with 0 failures (0 unexpected) in 0.274 seconds`；退出码 0，main 与翻页分支各跑一次 |
-| `swiftc -typecheck`（设置页改动） | 0 诊断 |
-| `scripts/build_swiftc.sh Release` | 编译、Info.plist、资源目录、`==> Commit: 836e3c3`、`==> Signing with KagiPeek Local` 全部完成 |
+| `swift test` | `Executed 656 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swiftc -typecheck`（术语改动） | 0 诊断 |
+| `scripts/build_swiftc.sh Release` | `==> Commit: 05e424e`、`==> Signing with KagiPeek Local`；`valid on disk` / `satisfies its Designated Requirement` |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`designated => identifier "com.voltline.kagipeek" and certificate root = H"6c0ac5…a929"` |
-| `codesign --verify --deep --strict /Applications/KagiPeek.app` | `valid on disk` / `satisfies its Designated Requirement` |
+| `codesign --verify --deep --strict /Applications/KagiPeek.app` | `VERIFY_OK`（`valid on disk` / `satisfies its Designated Requirement`） |
+| `KagiPeekCommit` / `CFBundleShortVersionString` | `05e424e` / `2.2.0`（版本串显示 `v2.2.0 (05e424e)`） |
+| `pgrep -x KagiPeek` | `37030`（单实例） |
+| `scripts/install.sh` | 成功；真实跑了一次新备份，产出 `KagiPeek-2026-11-04-200843-836e3c3-local.app` |
 | `bash -n scripts/install.sh` / `bash -n scripts/backup_app.sh` | 两者语法通过 |
-| `KAGIPEEK_BACKUP_DIR=/tmp/… scripts/backup_app.sh /Applications/KagiPeek.app` | 产出 `KagiPeek-2026-11-04-191257-836e3c3-local.app`；预置 5 份假备份后总数为 5，最旧一份被删 |
-| ad-hoc 拒装检查（临时副本签 ad-hoc 后跑同一条件） | `Authority=(KagiPeek Local|Developer ID)` 匹配数为 0 → `install.sh` 会拒绝 |
 
-`xcodebuild` 未运行：本机环境起不来，原因见「已知环境坑」。因此 `KagiPeek.xcodeproj` 的构建
-在本轮**未验证**。
+本轮 `scripts/install.sh` 走 `build_release.sh` 的 `xcodebuild` 路径时输出过
+`** BUILD SUCCEEDED **`，与下面「已知环境坑」第 1 条的旧结论不一致；以本轮实际输出为准，
+但尚未做完整回归确认。
 
 签名说明：本轮已恢复稳定身份 `KagiPeek Local`。此前 `codesign` 会停在钥匙串授权框，
 用户手动点过「始终允许」；现在先用一个临时文件试签（`codesign --sign "KagiPeek Local" /tmp/...`）
@@ -76,29 +85,21 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (836e3c3)`
+- 版本串原文：`v2.2.0 (05e424e)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`836e3c3`（等于安装时的 main HEAD；本轮只整理历史、
-  未重建 App，所以安装包仍带这个短哈希）
+- `KagiPeekCommit`（Info.plist）：`05e424e`（等于安装时的 main HEAD）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持
-- 运行中 PID：`9527`（`/Applications/KagiPeek.app/Contents/MacOS/KagiPeek`，单实例）
-- 升级前备份：**没有放在 `/Applications`**。按新约定，`scripts/install.sh` 在覆盖前用
-  `scripts/backup_app.sh` 把旧包拷到
-  `~/Library/Application Support/KagiPeek/backups/`，命名为
-  `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留最近 5 份。
-  - 该目录**已创建**：`~/Library/Application Support/KagiPeek/backups/`（空，可写）；
-    本轮不跑安装，所以还没有备份文件。App 的清理逻辑只删 `logs/`、`menu-cache/`、
-    `crashes/` 里的自有文件，不会碰 `backups/`（见 ARCHITECTURE 的「Persistence」）。
-  - 历史上两份 `/Applications/KagiPeek-2026-11-04-250638c-adhoc.app` 与
-    `…-bbc44a6.app` **已由用户手动移入废纸篓**，不在 `/Applications`，也不再当作备份使用。
-  - `/Applications` 下只允许 `KagiPeek.app` 一份。
-- 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 在启动时被 App
-  重写（文件 mtime 与哈希变化属正常），但非默认值仍在：`maxItemsPerPage=60`、
-  `showDisabledItems=true`、`holdDelay=0.5`、`diagnosticsEnabled=true`、`pinFavoritesToTop=true`、
-  `panelPlacement=coverWindow`、`launchAtLogin=true`。
+- 运行中 PID：`37030`（`/Applications/KagiPeek.app/Contents/MacOS/KagiPeek`，单实例）
+- 升级前备份：`~/Library/Application Support/KagiPeek/backups/KagiPeek-2026-11-04-200843-836e3c3-local.app`
+  （命名符合 `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留最近 5 份）。
+  - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
+- 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
+  非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
+  `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
+  `launchAtLogin=true`、`keyStyle=symbols`、`runRowKey`/`copyRowKey` 仍是 Space/Return。
 
 ## 已知环境坑
 
@@ -121,16 +122,18 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 
 最多 5 条，每条从「第一动作」开始：
 
-1. **`ShortcutEngine` 拆分已做一轮（R-3）**：七个协作模块与两个 Pure 策略已落地，InputRouter
+1. **第二轮 squash 待确认**：用户给的起点 `aa23786` 不是 HEAD（详见「当前代码状态」）。
+   确认范围后按 `270febe..HEAD` 建安全网、`reset --soft`、单提交、`--force-with-lease`
+   推送；在确认前不要执行。术语统一与 squash 必须分开提交。
+2. **`ShortcutEngine` 拆分已做一轮（R-3）**：七个协作模块与两个 Pure 策略已落地，InputRouter
    按计划留在引擎里。若继续瘦身，下一刀是 `CatalogQuery` 参数对象（架构报告 H1/M1）；不要
    把 InputRouter 硬拆走。
-2. **面板 VoiceOver 可达性**（HIG 报告 H2）：先给面板根视图加 `.accessibilityElement` 容器
+3. **面板 VoiceOver 可达性**（HIG 报告 H2）：先给面板根视图加 `.accessibilityElement` 容器
    与行级标签，再处理行内按钮；需要实机开 VoiceOver 验收。
-3. **设置页信息架构**（HIG 报告 M4 / §7.1）：先画 8 段→侧边栏的交互稿并确认窗口尺寸，再动
+4. **设置页信息架构**（HIG 报告 M4 / §7.1）：先画 8 段→侧边栏的交互稿并确认窗口尺寸，再动
    `SettingsView`；本轮明确不做。
-4. **菜单栏 extras 的 HIG 行为**（HIG 报告 H3）：先确认左键开面板、右键开菜单是否产品意图，
+5. **菜单栏 extras 的 HIG 行为**（HIG 报告 H3）：先确认左键开面板、右键开菜单是否产品意图，
    再改 `NSStatusItem` 的 `sendAction(on:)`。
-5. **权限流程分步向导**（HIG 报告 §7.5）：先定交互稿，涉及三个控制器协同，暂不单改。
 
 ## 已知未修问题
 
@@ -157,8 +160,8 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
   favourites” 与当前实现（开关打开 = 收藏可被过滤隐藏）语义相反；本轮按实现改为
   “Let filters hide favorites / 允许搜索和过滤隐藏收藏”。若想反转行为，需要先改
   `FavoritesPolicy`。
-- **术语与句式统一**（执行/运行/Run、面板/窗口/Panel、`panelIdleHint` 三种句式、标点与
-  省略号规则）：本轮只改了明确错误的条目，纯风格项未动，等产品定稿。
+- **术语与句式统一**：对象本体已定为「菜单项 / menu item」（提交 `05c775f`），
+  「行 / row」只保留给布局；执行/运行/Run、面板/窗口/Panel 等纯风格项仍未统一。
 
 ## 不要动的地方
 
