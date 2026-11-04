@@ -224,7 +224,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 | Show unavailable menu items | On / Off | On (greyed out) |
 | Key style | Symbols / Words | Symbols |
 | Columns | 1–3 | 2 |
-| Max rows per page | 6–60 | 24 |
+| Max rows per page (upper bound; the panel fits fewer when the window is short) | 6–60 | 24 |
 | Max description length | 8–80 characters | 30 |
 | Language | System / English / 简体中文 | System |
 | Run a menu item | Any recorded key | Space |
@@ -570,7 +570,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 | 显示当前不可用的菜单项 | 开 / 关 | 开（灰显） |
 | 按键显示 | 符号 / 文字 | 符号 |
 | 列数 | 1–3 | 2 |
-| 每页最大行数 | 6–60 | 24 |
+| 每页最大行数（上限；窗口放不下时面板自动少排） | 6–60 | 24 |
 | 描述最大长度 | 8–80 个字符 | 30 |
 | 界面语言 | 跟随系统 / English / 简体中文 | 跟随系统 |
 | 执行键 | 任意录制键 | Space |

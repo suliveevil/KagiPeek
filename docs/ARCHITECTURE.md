@@ -782,6 +782,8 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - narrowing is preserved: a held or ticked ⌘ keeps ⇧⌘A, because the rule is "carries every held modifier", not "equals it"
 - menu-path weighting: a title match outranks a menu-name match, and the nearer level outranks the deeper ancestor
 - `OverlayMetrics` sizing is stable: narrowing the list keeps the session's height, a budget smaller than the rows on screen cannot clip them, an empty budget falls back to the rows drawn, and a heading reserved by the widest list stays reserved
+- `OverlayMetrics.fittedPageSize` / `rowsPerColumn`: the footer and the header are chrome, never row space; `maxItemsPerPage` is an upper bound and the geometry can lower it (36 rows, not 60, in a 720 pt two-card window); an exact N-row height yields N under a scaled display; a panel shorter than its chrome still shows one row
+- `OverlayPlacement.containedFrame` moves a panel that hangs off the screen as a whole — never resizes or clips it — so a bottom-anchored frame ends up `screenMargin` above the display edge
 - `MenuCachePolicy`: the fingerprint tracks the scan-shaping setting, an entry expires exactly at the age cap, a future timestamp is refused, and a mismatched or missing control file invalidates the whole cache
 - `BindingItem` survives a JSON round trip (`id`, `usageKey`, `chord` with its alternates, and the empty chord), which is what a cache restore depends on
 - `SystemHotkeyNames`: known chords get a name in either language, a reassigned chord and a multi-step sequence get none, and the table has no duplicate chord

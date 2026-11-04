@@ -15,26 +15,25 @@ final class OverlayMetricsContractTests: XCTestCase {
         }
     }
 
-    /// The fill-screen page is the whole point of the mode: on a 16-inch display it must be
-    /// several times the small-window limit, and it must never fall below that limit.
-    func testFillScreenPageSizeGrowsWithTheScreen() {
-        // 16-inch MacBook Pro, visible frame: 1728 × 1050. Four 300pt columns (the cap) of
-        // thirty rows each — five times the 24-row limit the small window uses.
+    /// The fill-screen page grows with the screen, but the configured limit is still an
+    /// upper bound: a page never asks for more rows than the window can show.
+    func testFillScreenPageSizeIsBoundedByTheScreenAndTheSetting() {
+        // 16-inch MacBook Pro, visible frame: 1728 × 1050. The screen could hold far more
+        // than 24, so the setting wins.
         XCTAssertEqual(
             OverlayMetrics.fillScreenPageSize(
                 visibleFrame: CGSize(width: 1728, height: 1050),
                 maxItemsPerPage: 24
             ),
-            4 * 30,
-            "four columns of thirty rows are what a full-screen page can hold"
+            24
         )
-        // A screen too small for even one row still has to show the configured page.
+        // A screen too small for even a full header and footer still shows one row.
         XCTAssertEqual(
             OverlayMetrics.fillScreenPageSize(
                 visibleFrame: CGSize(width: 400, height: 100),
                 maxItemsPerPage: 24
             ),
-            24
+            1
         )
     }
 }

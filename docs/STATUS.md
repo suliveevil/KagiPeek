@@ -8,16 +8,24 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）；全屏边界测试
-  在 `1c1eee5`，面板定位修正 `4d7abed`。
-- 工作区：干净。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
-- 未合并分支：无，当前在 `main`。
+- 代码 HEAD：见 `git log -1`。`main` 最后停在 `ee18e08`（`fix(placement): 前台 app 切换后
+  面板首帧即完整覆盖`）；全屏边界测试在 `1c1eee5`，面板定位修正 `4d7abed`。
+- 工作区：本文件所在分支为 `fix/panel-footer-clearance`（从 `main` 开），另有
+  `feature/paging-key-pair` 未合并；两分支都未 push、未合 main。
+- 设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
   未 reset、未强推。旧历史保留在本地 `backup/pre-squash-20261104-192838`。
 
 ## 本轮完成
 
+- **页脚不再遮挡菜单项**（`fix/panel-footer-clearance`）：`OverlayMetrics` 把标题栏 54pt、
+  分隔线 1pt、页脚 32pt、列表内边距 18pt 合成 `chromeHeight`，SwiftUI 三个固定高度也读同一组
+  常量，页脚是内容区的兄弟而不是叠层。新增 `rowsPerColumn` / `fittedPageSize`：每页行数取
+  `min(设置值, 几何容量)`，720pt 两卡窗口里 60 行降到 36 行；整数取整带 1e-4 容差，恰好的
+  N 行不会被缩放算成 N−1；连一行都放不下时仍保证一行。`OverlayPlacement.containedFrame`
+  把贴近屏幕底部的面板整体上移，不再裁掉最后几行。删除内容区底部的 18pt 渐隐——它会盖住
+  最后一行。`swift test` 684 → 693。
 - **面板定位修正**（提交见 `git log`）：提示面板的 `coverWindow` 高度不再被内容高度整段替换，
   改为取覆盖高度与内容高度的较大者并夹在可见区内；横向仍按屏幕可见区中心对称计算。
   搜索面板从「屏幕居中 + 距顶 140pt 的 680×460」改为「前台窗口居中」：宽度固定 680，

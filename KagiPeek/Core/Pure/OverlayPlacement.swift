@@ -34,6 +34,28 @@ nonisolated enum OverlayPlacement {
         min(max(coverHeight, contentHeight), limit)
     }
 
+    /// Breathing room between a panel and the screen edge.
+    static let screenMargin: CGFloat = 8
+
+    /// Moves a frame inside `visible` instead of letting it hang off the edge.
+    ///
+    /// A panel anchored near the bottom of the screen can have its last rows cut by the
+    /// display, which is the one place the user cannot scroll to. The frame is shifted as
+    /// a whole — never stretched or clipped — so the footer and the rows below it stay
+    /// where they were relative to each other.
+    static func containedFrame(_ frame: CGRect, in visible: CGRect) -> CGRect {
+        var result = frame
+        result.origin.x = min(
+            max(result.origin.x, visible.minX + screenMargin),
+            max(visible.minX + screenMargin, visible.maxX - result.width - screenMargin)
+        )
+        result.origin.y = min(
+            max(result.origin.y, visible.minY + screenMargin),
+            max(visible.minY + screenMargin, visible.maxY - result.height - screenMargin)
+        )
+        return result
+    }
+
     /// The palette is `searchWidth` wide and at least as tall as the front window, so it
     /// spans the window instead of hugging the top of the screen.
     static func searchSize(windowFrame: CGRect?, visible: CGRect) -> CGSize {

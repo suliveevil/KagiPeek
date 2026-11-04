@@ -26,11 +26,14 @@ struct OverlayView: View {
     private var isSearch: Bool { state.search.isVisible }
 
     var body: some View {
+        // The footer is a sibling of the content, never a layer over it: the content takes
+        // the panel height minus the header, the rule and the footer, so no menu item can
+        // end up underneath the hint bar. The same three numbers live in `OverlayMetrics`.
         VStack(alignment: .leading, spacing: 0) {
             OverlayHeaderView()
             Rectangle()
                 .fill(palette.rule)
-                .frame(height: 1)
+                .frame(height: OverlayMetrics.ruleHeight)
             if isSearch {
                 OverlaySearchContentView()
             } else {
@@ -77,7 +80,7 @@ private struct OverlayHeaderView: View {
             headerContent(layout: HeaderLayout(width: proxy.size.width))
                 .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .frame(height: 54)
+        .frame(height: OverlayMetrics.headerHeight)
         .onAppear {
             if isSearch {
                 DispatchQueue.main.async { searchFocused = true }
@@ -492,7 +495,9 @@ private struct OverlayPanelContentView: View {
                 // shared out when a page straddles both sections.
                 let cards = max(1, state.panel.groups.count)
                 let cardChrome = Double(Theme.groupHeaderHeight) + OverlayMetrics.cardVerticalInset * 2
-                let fittedRows = (Double(proxy.size.height) - 18 - cardChrome * Double(cards))
+                let fittedRows = (Double(proxy.size.height)
+                    - Double(OverlayMetrics.contentTopPadding + OverlayMetrics.contentBottomPadding)
+                    - cardChrome * Double(cards))
                     / Double(Theme.rowHeight)
                 let tallestCard = state.panel.groups.map(\.rows.count).max() ?? 0
                 let capacity = max(
@@ -519,24 +524,15 @@ private struct OverlayPanelContentView: View {
                         }
                     }
                     .padding(.horizontal, Theme.padding)
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
+                    .padding(.top, OverlayMetrics.contentTopPadding)
+                    .padding(.bottom, OverlayMetrics.contentBottomPadding)
                     // A short page used to end mid-window with 300 pt of empty glass under
                     // it; centring keeps the shape deliberate without shrinking the cover.
                     .frame(minHeight: proxy.size.height, alignment: .center)
                 }
-                .overlay(alignment: .bottom) {
-                    // The pagination budget can be taller than a fixed panel, so a row can be
-                    // cut by the bottom edge. The fade says "there is more" instead of
-                    // looking like a rendering fault.
-                    LinearGradient(
-                        colors: [palette.backgroundSolid.opacity(0), palette.backgroundSolid],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 18)
-                    .allowsHitTesting(false)
-                }
+                // No fade over the last row: the page size is now capped by the geometry,
+                // so the list ends where the content area ends. A gradient here tinted the
+                // bottom of a real row and read as the footer covering it.
             }
         }
     }
@@ -1075,7 +1071,7 @@ private struct OverlayFooterView: View {
             footerContent(layout: HeaderLayout(width: proxy.size.width))
                 .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .frame(height: 32)
+        .frame(height: OverlayMetrics.footerHeight)
     }
 
     private func footerContent(layout: HeaderLayout) -> some View {

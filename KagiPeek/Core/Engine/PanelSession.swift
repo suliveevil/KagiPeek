@@ -46,18 +46,37 @@ final class PanelSession {
         self.onInputStateChanged = onInputStateChanged
     }
 
-    /// In fill-screen mode the panel can show everything at once, so the page grows with the
-    /// screen instead of sticking to the small-window row limit. The arithmetic is pure
-    /// (`OverlayMetrics`) and holds no `Theme` values: how rows are counted must not move
-    /// when a corner radius does.
+    /// Rows per page: `maxItemsPerPage` is an upper bound, not a target. A 60-row page in a
+    /// 720 pt window put its last rows under the footer (or past the screen edge), so the
+    /// geometry gets the final say. The arithmetic is pure (`OverlayMetrics`) and holds no
+    /// `Theme` values: how rows are counted must not move when a corner radius does.
     /// Internal for `PreviewScenarios`, which computes the boundary page from it.
     var panelPageSize: Int {
-        guard state.settings.panelPlacement == .fillScreen, let screen = NSScreen.main else {
-            return max(1, state.settings.maxItemsPerPage)
+        let settings = state.settings
+        let configured = max(1, settings.maxItemsPerPage)
+        guard let screen = NSScreen.main else { return configured }
+        let visible = screen.visibleFrame.size
+        let columns: Int
+        let panelHeight: CGFloat
+        switch settings.panelPlacement {
+        case .fillScreen:
+            columns = max(1, min(4, Int((visible.width - OverlayMetrics.padding * 2) / OverlayMetrics.denseColumnStride)))
+            panelHeight = visible.height
+        case .fixedSize:
+            columns = max(1, min(settings.columnCount, OverlayMetrics.columns(forWidth: CGFloat(settings.fixedPanelWidth)))
+            panelHeight = min(CGFloat(settings.fixedPanelHeight), visible.height)
+        case .coverWindow, .besideWindow:
+            columns = max(1, settings.columnCount)
+            panelHeight = min(OverlayMetrics.maxPanelHeight, visible.height)
         }
-        return OverlayMetrics.fillScreenPageSize(
-            visibleFrame: screen.visibleFrame.size,
-            maxItemsPerPage: state.settings.maxItemsPerPage
+        return OverlayMetrics.fittedPageSize(
+            maxItemsPerPage: configured,
+            columns: columns,
+            panelHeight: panelHeight,
+            // Two cards at most: the app's section and the system hotkeys. Reserved on
+            // every page so the page count cannot wobble when one of them is empty.
+            cardCount: 2,
+            headingCount: 2
         )
     }
 

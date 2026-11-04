@@ -414,11 +414,14 @@ final class SurfacePanelController: PanelPresenting {
         case .fillScreen:
             return visible
         case .fixedSize, .coverWindow:
-            return CGRect(
-                x: visible.midX - size.width / 2,
-                y: visible.midY - size.height / 2,
-                width: size.width,
-                height: size.height
+            return OverlayPlacement.containedFrame(
+                CGRect(
+                    x: visible.midX - size.width / 2,
+                    y: visible.midY - size.height / 2,
+                    width: size.width,
+                    height: size.height
+                ),
+                in: visible
             )
         case .besideWindow:
             return besideWindowFrame(size: size, screen: screen)
@@ -466,10 +469,7 @@ final class SurfacePanelController: PanelPresenting {
     }
 
     private func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
-        var result = rect
-        result.origin.x = min(max(result.origin.x, bounds.minX + 8), max(bounds.minX + 8, bounds.maxX - result.width - 8))
-        result.origin.y = min(max(result.origin.y, bounds.minY + 8), max(bounds.minY + 8, bounds.maxY - result.height - 8))
-        return result
+        OverlayPlacement.containedFrame(rect, in: bounds)
     }
 
     private func screenContainingMouse() -> NSScreen? {
