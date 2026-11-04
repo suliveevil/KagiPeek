@@ -8,15 +8,16 @@ as of **2026-11-05**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`feature/panel-sections` 上的合并提交（合并 `feature/paging-key-pair`），其前
-  一条为 `6acc027`（文档：三来源分区与受限动作）；`a438e44` 之上依次为 `e98c206`（草稿：
-  面板输入即搜索，只记录不实施）、`8360744`（修复上一批 UI 留下的编译错误）、`ac1b392`
-  （面板三来源分区 + 六个受限动作）、`6acc027`。`main` 最后停在 `15471dd`
-  （`docs(status): 记录首帧覆盖修复与本次安装验证`）。
-- 工作区：本文件所在分支为 `feature/panel-sections`（从 `fix/panel-footer-clearance`
-  开）；`feature/paging-key-pair`（`b690de9`）已于本轮合并进该分支。所有分支均未 push、
-  未合 main。`swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、
-  未 squash、未碰 `backups/`。
+- 代码 HEAD：`8dc9304`（`main`），是把 `feature/panel-sections` 合进 main 的合并提交；其下
+  依次为 `35e9172`（合并 `feature/paging-key-pair`）、`6acc027`（文档：三来源分区与受限
+  动作）、`ac1b392`（面板三来源分区 + 六个受限动作）、`8360744`（修复上一批 UI 留下的
+  编译错误）、`e98c206`（草稿：面板输入即搜索，只记录不实施）。
+- 分支：本地只剩 `main`、开发分支 `feature/panel-sections`，以及未合并的旧历史备份
+  `backup/pre-squash-20261104-192838`；`feature/paging-key-pair`、`fix/panel-footer-clearance`
+  等已并入 main 的临时分支已删除。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
+  suliveevil/KagiPeek。
+- `swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、未 squash、
+  未碰 `backups/`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
   未 reset、未强推。旧历史保留在本地 `backup/pre-squash-20261104-192838`。
@@ -68,7 +69,7 @@ as of **2026-11-05**（Asia/Shanghai）。
   N 行不会被缩放算成 N−1；连一行都放不下时仍保证一行。`OverlayPlacement.containedFrame`
   把贴近屏幕底部的面板整体上移，不再裁掉最后几行。删除内容区底部的 18pt 渐隐——它会盖住
   最后一行。`swift test` 684 → 693。
-- **前后翻页键可配置（`feature/paging-key-pair`，已并入 `feature/panel-sections`）**：新增
+- **前后翻页键可配置（`feature/paging-key-pair`，已并入 main）**：新增
   `Core/Pure/PagingKeyPlan`，四对键（`,`/`.`、`[`/`]`、`-`/`=`、`;`/`'`）按实际产生的
   字符判定，物理键码只在事件没有解码字符时兜底；设置 → 通用 → 菜单项操作下改为四个勾选项，
   可同时启用多对或一对都不勾，默认只勾 `;`/`'`（原来写死的那一对）；←/→ 永久生效且不在
@@ -232,9 +233,9 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 
 最多 5 条，每条从「第一动作」开始：
 
-1. **第二轮 squash 待确认**：用户给的起点 `aa23786` 不是 HEAD（详见「当前代码状态」）。
-   确认范围后按 `270febe..HEAD` 建安全网、`reset --soft`、单提交、`--force-with-lease`
-   推送；在确认前不要执行。术语统一与 squash 必须分开提交。
+1. **第二轮 squash 未执行**：本轮只把 `feature/panel-sections` 与 `feature/paging-key-pair`
+   合并进本地 `main`（HEAD `8dc9304`），未 squash、未 push。若之后要做，先确认范围，建安全网
+   后再 `reset --soft`；确认前不要执行。
 2. **`ShortcutEngine` 拆分已做一轮（R-3）**：七个协作模块与两个 Pure 策略已落地，InputRouter
    按计划留在引擎里。若继续瘦身，下一刀是 `CatalogQuery` 参数对象（架构报告 H1/M1）；不要
    把 InputRouter 硬拆走。
