@@ -16,8 +16,9 @@ as of **2026-11-05**（Asia/Shanghai）。
   `docs/terminology-menu-item`、`feature/auto-double-tap`、`feature/paging-key-pair`、
   `feature/panel-sort`、`fix/panel-footer-clearance`）。本地还剩开发分支
   `feature/panel-sections`、旧历史备份 `backup/pre-squash-20261104-192838`（branch 与 tag
-  同指向 `de32cb6`），以及 15 个 pre-squash 时期的迭代分支（tip 均在该备份的祖先上，
-  未合入 main，本轮未删）。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
+  同指向 `de32cb6`），以及 16 个 pre-squash 时期的迭代分支（tip 均在该备份的祖先上，
+  未合入 main）。这 16 个分支的删除被工具安全策略拒绝（有用户口头批准，但策略禁止删除
+  未合入 main 的分支），需在终端里手动清理。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
   suliveevil/KagiPeek。
 - `swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、未 squash、
   未碰 `backups/`。
