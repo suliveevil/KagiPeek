@@ -672,12 +672,13 @@ The About tab of **Settings** offers a manual release check, and it is the only 
 
   | Placement | Size | Position |
   | --- | --- | --- |
-  | Cover the front window (default) | At least large enough to cover the window in both dimensions (never below its natural size, capped at the visible frame); 80% × 70% of the screen when no window frame exists | Centred on the screen |
-  | Fixed size | `fixedPanelWidth` × `fixedPanelHeight` (default 720 × 620, clamped to the visible frame) | Centred on the screen |
+  | Cover the front window (default) | At least large enough to cover the window in both dimensions (never below its natural size, capped at the visible frame); the content height for the widened column count is only used when it is taller than the cover height; 80% × 70% of the screen when no window frame exists | Centred on the visible frame |
+  | Fixed size | `fixedPanelWidth` × `fixedPanelHeight` (default 720 × 620, clamped to the visible frame) | Centred on the visible frame |
   | Fill the screen | The visible frame | The visible frame |
   | Beside the front window (v2.0 behaviour) | The panel's natural size | Beside the window, flipping sides as needed, and avoiding the focused element; top-right fallback when there is no window |
 
   Placement is recalculated each time the panel is shown or resized, so moving the window and reopening the panel picks up the new frame.
+- **The search palette sits on the front window, not on the screen.** Its width is fixed at 680 pt and its height is at least the window's height (clamped to the visible frame), so it spans the front window vertically instead of a fixed 460 pt near the top edge. The frame is centred on the window's centre and clamped into the visible frame; with no window frame it falls back to the screen centre. The front app's pid is read before `NSApp.activate()`, because afterwards the frontmost app is KagiPeek itself.
 - **The panel is sized for the widest list of the session, not for the page on screen.** Pressing a modifier narrows the list by definition, so a window sized from the current page changed height on every press and again on release — on screen that read as the panel jumping. `PanelState.rowBudget` / `headingBudget` carry how many rows and headings the un-narrowed list shows (nothing composed, paginated, with one heading reserved for the system section), and `OverlayMetrics` sizes from the larger of that budget and the rows actually drawn, so the frame holds while the list moves inside it and can never clip a row. The budget is recomputed when the catalog, the chips, the favourites-only toggle, the ignored titles or the page size change — never per keystroke. An inline filter used to have a budget of its own; the filter is gone, and with it the question of what "the list before the query" means.
 - `PanelTheme` stores System / Light / Dark, resolves against the window's
   `effectiveAppearance`, and decodes old Graphite / Midnight / Paper files onto the dark and

@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
+## Panel placement against the front window (2026-11-04)
+
+- The hint panel keeps covering the window: widening it for a tall window recomputes the content height, but the larger of that and the cover height wins, so a short list can no longer shrink the panel below the window. It stays centred on the visible frame.
+- The search palette now belongs to the front window instead of the screen: its width stays 680 pt, its height follows the window (clamped to the visible frame), and its centre is the window's centre, clamped so it stays on screen. With no window frame it falls back to the screen centre.
+
 ## Automatic double-tap window (2026-11-04)
 
 - The double-tap trigger no longer has an interval setting. Its window follows the system double-click speed, clamped to 0.25–0.6 s.

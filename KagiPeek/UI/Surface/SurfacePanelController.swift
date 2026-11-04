@@ -110,8 +110,15 @@ final class SurfacePanelController: PanelPresenting {
         let screen = targetScreen()
         var size = panelSize(natural: natural, settings: settings, screen: screen)
         if settings.panelPlacement == .coverWindow {
-            // A wider panel fits more columns, so the height must follow the final width.
-            size.height = OverlayMetrics.size(for: state, settings: settings, width: size.width).height
+            // A wider panel fits more columns, so the content height follows the final width —
+            // but the cover height must survive that. Taking the larger of the two keeps the
+            // window covered; a panel that shrank to its content stopped covering a tall window.
+            let contentHeight = OverlayMetrics.size(for: state, settings: settings, width: size.width).height
+            size.height = OverlayPlacement.coveredHeight(
+                contentHeight: contentHeight,
+                coverHeight: size.height,
+                limit: screen?.visibleFrame.height ?? size.height
+            )
         }
         panel.setContentSize(size)
         panel.setFrame(panelFrame(size: size, settings: settings, screen: screen), display: true)
@@ -148,16 +155,32 @@ final class SurfacePanelController: PanelPresenting {
             }
             self.anchorWindowFrame = snapshot.windowFrame.map(WindowGeometry.cocoaRect(fromAX:))
             self.focusedElementFrame = snapshot.focusedElementFrame.map(WindowGeometry.cocoaRect(fromAX:))
-            guard self.mode == .panel, let settings = self.lastPanelSettings else { return }
-            let size = self.panel.frame.size
-            self.panel.setFrame(
-                self.panelFrame(size: size, settings: settings, screen: self.targetScreen()),
-                display: true
-            )
-            self.engine.updateOutsideMouseSwallow(
-                panelFrame: WindowGeometry.cgRect(fromCocoa: self.panel.frame),
-                appWindowFrame: self.anchorWindowFrame.map(WindowGeometry.cgRect(fromCocoa:))
-            )
+            guard self.mode != .hidden else { return }
+            switch self.mode {
+            case .panel:
+                guard let settings = self.lastPanelSettings else { return }
+                let size = self.panel.frame.size
+                self.panel.setFrame(
+                    self.panelFrame(size: size, settings: settings, screen: self.targetScreen()),
+                    display: true
+                )
+                self.engine.updateOutsideMouseSwallow(
+                    panelFrame: WindowGeometry.cgRect(fromCocoa: self.panel.frame),
+                    appWindowFrame: self.anchorWindowFrame.map(WindowGeometry.cgRect(fromCocoa:))
+                )
+            case .search:
+                // The frame arrived after the palette was placed from the fallback; move it
+                // onto the window now that the real frame is known.
+                guard let visible = self.targetScreen()?.visibleFrame else { return }
+                let size = OverlayPlacement.searchSize(windowFrame: self.anchorWindowFrame, visible: visible)
+                self.panel.setContentSize(size)
+                self.panel.setFrame(
+                    OverlayPlacement.searchFrame(windowFrame: self.anchorWindowFrame, visible: visible, size: size),
+                    display: true
+                )
+            case .hidden:
+                break
+            }
         }
     }
 
@@ -171,8 +194,27 @@ final class SurfacePanelController: PanelPresenting {
             }
             switchToSearch()
         }
-        panel.setContentSize(NSSize(width: 680, height: 460))
-        positionSearch()
+        // Read the target pid before `NSApp.activate()`: afterwards the frontmost app is
+        // KagiPeek itself, and its window frame is not what the palette should centre on.
+        let pid = previousApp.map(\.processIdentifier) ?? engine.frontmostProcessIdentifier
+        if anchorPid != pid || anchorWindowFrame == nil {
+            anchorPid = pid
+            anchorWindowFrame = nil
+            focusedElementFrame = nil
+            refreshGeometry(for: pid)
+        }
+        let screen = targetScreen()
+        let size: CGSize
+        let frame: CGRect
+        if let visible = screen?.visibleFrame {
+            size = OverlayPlacement.searchSize(windowFrame: anchorWindowFrame, visible: visible)
+            frame = OverlayPlacement.searchFrame(windowFrame: anchorWindowFrame, visible: visible, size: size)
+        } else {
+            size = CGSize(width: OverlayPlacement.searchWidth, height: OverlayPlacement.searchMinHeight)
+            frame = CGRect(origin: .zero, size: size)
+        }
+        panel.setContentSize(size)
+        panel.setFrame(frame, display: true)
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
         installSearchKeyMonitor()
@@ -320,17 +362,6 @@ final class SurfacePanelController: PanelPresenting {
 
     // MARK: - Placement
 
-    private func positionSearch() {
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
-        guard let visible = screen?.visibleFrame else { return }
-        let size = panel.frame.size
-        panel.setFrameOrigin(NSPoint(
-            x: visible.midX - size.width / 2,
-            y: visible.maxY - size.height - 140
-        ))
-    }
-
     private func targetScreen() -> NSScreen? {
         if let anchor = anchorWindowFrame,
            let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) {
@@ -354,12 +385,7 @@ final class SurfacePanelController: PanelPresenting {
             guard let window = anchorWindowFrame else {
                 return CGSize(width: visible.width * 0.8, height: visible.height * 0.7)
             }
-            let halfWidth = max(abs(visible.midX - window.minX), abs(window.maxX - visible.midX)) + 24
-            let halfHeight = max(abs(visible.midY - window.minY), abs(window.maxY - visible.midY)) + 24
-            return CGSize(
-                width: min(max(halfWidth * 2, natural.width), visible.width),
-                height: min(max(halfHeight * 2, natural.height), visible.height)
-            )
+            return OverlayPlacement.coverWindowSize(windowFrame: window, visible: visible, natural: natural)
         case .besideWindow:
             return natural
         }
