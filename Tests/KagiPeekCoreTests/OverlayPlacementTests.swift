@@ -66,6 +66,22 @@ final class OverlayPlacementTests: XCTestCase {
         )
     }
 
+    func testFullscreenWindowFillsTheVisibleFrame() {
+        // In native fullscreen the visible frame is the whole screen, so the 24 pt margin
+        // has nowhere to go: the panel ends up exactly the size of the screen and still covers.
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let size = OverlayPlacement.coverWindowSize(
+            windowFrame: screen,
+            visible: screen,
+            natural: CGSize(width: 680, height: 300)
+        )
+        let frame = centred(size, in: screen)
+
+        XCTAssertEqual(size, screen.size)
+        XCTAssertEqual(frame, screen)
+        XCTAssertTrue(frame.contains(screen))
+    }
+
     // MARK: - Search palette
 
     func testSearchSizeFollowsTheWindowHeightAndKeepsItsWidth() {
@@ -117,5 +133,16 @@ final class OverlayPlacementTests: XCTestCase {
 
         XCTAssertEqual(frame.midX, screenCentre.x)
         XCTAssertEqual(frame.midY, screenCentre.y)
+    }
+
+    func testSearchPaletteFillsTheHeightOfAFullscreenWindow() {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let size = OverlayPlacement.searchSize(windowFrame: screen, visible: screen)
+        let frame = OverlayPlacement.searchFrame(windowFrame: screen, visible: screen, size: size)
+
+        XCTAssertEqual(size.width, OverlayPlacement.searchWidth)
+        XCTAssertEqual(size.height, screen.height)
+        XCTAssertEqual(frame.minY, screen.minY)
+        XCTAssertEqual(frame.midY, screen.midY)
     }
 }
