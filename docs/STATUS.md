@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 20:55**（Asia/Shanghai）。
+as of **2026-11-04 21:09**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,11 +8,11 @@ as of **2026-11-04 20:55**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `997b603`（术语收尾）；
-  本轮「面板排序」的代码、测试与文档随本提交一起落盘，提交后 HEAD 会再前移一格。
-- 工作区：面板排序改动随本提交一起落盘；提交后应为干净。
+- 代码 HEAD：用 `git log -1` 取（本文件不自指）。写这份文件前是 `00f67e6`（面板排序）；
+  本文件提交后 HEAD 会再前移一格。
+- 工作区：干净；本轮面板排序改动已随 `00f67e6` 落盘。
 - 未合并分支：无。本轮的 `feature/panel-sort` 以 fast-forward 合回 `main`，引用保留。
-- 远端同步：本地 `main` 领先 `origin/main`，**本轮未 push**。
+- 远端同步：`main` 已推送 `origin/main`，本地与远端一致。
 - **第二轮 squash 未执行**：用户指定的起点 `aa23786` 是 `270febe` 的祖先（相差 61 个提交），
   不是 HEAD；按「不是 HEAD 就先停下」的约定只核对了拓扑，没有建 tag、没有 reset、没有
   强推。旧历史仍保留在本地 `backup/pre-squash-20261104-192838`（tag 与 branch，均未推送）。
@@ -70,13 +70,13 @@ as of **2026-11-04 20:55**（Asia/Shanghai）。
 | `scripts/build_swiftc.sh Release` | `==> Signing with KagiPeek Local`；`valid on disk` / `satisfies its Designated Requirement` |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`designated => identifier "com.voltline.kagipeek" and certificate root = H"6c0ac5…a929"` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `VERIFY_OK`（`valid on disk` / `satisfies its Designated Requirement`） |
-| `KagiPeekCommit` / `CFBundleShortVersionString` | 等于安装时的 main HEAD / `2.2.0`（版本串显示 `v2.2.0 (<短哈希>)`） |
-| `pgrep -x KagiPeek` | 单实例（PID 用该命令输出核对） |
-| `scripts/install.sh` | 成功；本次备份路径见该次输出，按命名保留最近 5 份 |
+| `KagiPeekCommit` / `CFBundleShortVersionString` | `00f67e6` / `2.2.0`（版本串显示 `v2.2.0 (00f67e6)`） |
+| `pgrep -x KagiPeek` | `60704`（单实例） |
+| `scripts/install.sh` | 成功；备份 `KagiPeek-2026-11-04-210146-997b603-local.app`，按命名保留最近 5 份 |
 
-本轮 `scripts/install.sh` 走 `build_release.sh` 的 `xcodebuild` 路径时输出过
-`** BUILD SUCCEEDED **`，与下面「已知环境坑」第 1 条的旧结论不一致；以本轮实际输出为准，
-但尚未做完整回归确认。
+本轮 `scripts/install.sh` 的 `xcodebuild` 路径再次因本机 `sandbox-exec` 嵌套限制失败，
+按设计回退到 `scripts/build_swiftc.sh Release`；回退后的签名与校验都通过，最后输出
+`KagiPeek installed and signed with a stable identity.`
 
 签名说明：本轮已恢复稳定身份 `KagiPeek Local`。此前 `codesign` 会停在钥匙串授权框，
 用户手动点过「始终允许」；现在先用一个临时文件试签（`codesign --sign "KagiPeek Local" /tmp/...`）
@@ -93,18 +93,18 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (<安装时 HEAD 短哈希>)`
+- 版本串原文：`v2.2.0 (00f67e6)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：等于安装时的 main HEAD（用 `git log -1 --short` 核对；
-  本文件提交后需重装一次才能再次相等）
+- `KagiPeekCommit`（Info.plist）：`00f67e6`（安装时的 main HEAD；本文件提交后需重装一次
+  才能再次与 HEAD 相等）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持
-- 运行中 PID：用 `pgrep -x KagiPeek` 取（单实例）
+- 运行中 PID：`60704`（`pgrep -x KagiPeek`，单实例）
 - 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
   `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  每次 `scripts/install.sh` 的输出会报出本次备份的完整路径。
+  本次为 `KagiPeek-2026-11-04-210146-997b603-local.app`。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
