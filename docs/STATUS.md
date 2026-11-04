@@ -25,8 +25,8 @@ as of **2026-11-05**（Asia/Shanghai）。
   各自目的在 main 中都有对应实现，且 tip 均可从备份 ref 到达，因此已删除分支标签，
   提交历史仍保留在这份 backup 上。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
   suliveevil/KagiPeek。
-- `swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、未 squash、
-  未碰 `backups/`。
+- `swift test` 768 → 789，0 failures。本轮未 amend、未 squash；最后按 AGENTS.md 的分支
+  流程构建并重装了 `/Applications/KagiPeek.app`（见「最后一次验证」）。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：本轮把两个 feature 分支合并进本地 `main`，未建新 tag、未 reset、
   未强推，也没有 push。旧历史保留在本地 `backup/pre-squash-20261104-192838`（branch 与 tag）。
@@ -174,14 +174,13 @@ as of **2026-11-05**（Asia/Shanghai）。
 | `codesign -d -r-`（安装包 vs 上一份备份） | 两行都是 `certificate root = H"6c0ac5…a929"`，TCC designated requirement 未变 |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`flags=0x10000(runtime)` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `valid on disk` / `satisfies its Designated Requirement` |
-| `KagiPeekCommit` / 版本串 | `1c1eee5-dirty` / `v2.2.0 (1c1eee5-dirty)` |
-| `pgrep -x KagiPeek` | `12554`（单实例） |
-| `scripts/install.sh` | 成功；`xcodebuild` BUILD SUCCEEDED；已装包替换前备份 `KagiPeek-2026-11-04-230313-3e4532a-dirty-local.app`，按命名保留最近 5 份 |
+| `KagiPeekCommit` / 版本串 | `b2c5d46` / `2.2.0` |
+| `pgrep -x KagiPeek` | `91090`（单实例） |
+| `scripts/install.sh`（2026-11-05 03:22） | 成功；已装包替换前备份 `KagiPeek-2026-11-05-032211-1c1eee5-dirty-local.app`，按命名保留最近 5 份 |
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
-本次安装标记为 `1c1eee5-dirty`，比 HEAD（`ee18e08`）旧一个提交：修复在安装之后才提交。
-二进制已含该修复，重装一次只是让 Info.plist 里的 commit 与 HEAD 相等。本轮翻页键改动
-**未构建、未安装**：`/Applications/KagiPeek.app` 仍是上述旧包，没有翻页键设置。
+本次安装的 Info.plist 提交戳为 `b2c5d46`（AGENTS.md 分支流程那一轮的合并提交）。翻页键、
+三来源分区与受限动作都在这份安装里；后续只改文档的提交不会让 binary 变旧。
 签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
