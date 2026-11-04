@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 23:03**（Asia/Shanghai）。
+as of **2026-11-05**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,16 +8,74 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）；全屏边界测试
-  在 `1c1eee5`，面板定位修正 `4d7abed`。
-- 工作区：干净。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
-- 未合并分支：无，当前在 `main`。
+- 代码 HEAD：`feature/panel-sections` 上的合并提交（合并 `feature/paging-key-pair`），其前
+  一条为 `6acc027`（文档：三来源分区与受限动作）；`a438e44` 之上依次为 `e98c206`（草稿：
+  面板输入即搜索，只记录不实施）、`8360744`（修复上一批 UI 留下的编译错误）、`ac1b392`
+  （面板三来源分区 + 六个受限动作）、`6acc027`。`main` 最后停在 `15471dd`
+  （`docs(status): 记录首帧覆盖修复与本次安装验证`）。
+- 工作区：本文件所在分支为 `feature/panel-sections`（从 `fix/panel-footer-clearance`
+  开）；`feature/paging-key-pair`（`b690de9`）已于本轮合并进该分支。所有分支均未 push、
+  未合 main。`swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、
+  未 squash、未碰 `backups/`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
   未 reset、未强推。旧历史保留在本地 `backup/pre-squash-20261104-192838`。
 
 ## 本轮完成
 
+- **面板修饰键 + 字母混合筛选**（`428c925`）：`Core/Pure/PanelFilter` 用有序 token 队列保存
+  筛选条件——修饰键在按下边沿入队一次，字母键追加为小写 token；`⌫` 弹队尾（末尾是字母就删
+  字母，末尾是修饰键就移除该修饰键），再按同一修饰键从队列任意位置移除，第三次按下作为新队尾
+  入队（纯 toggle）。松开不翻转，按住只入队一次，条件保持（latched）；触发键那一次按下不入队。
+  `Core/Pure/PanelFilterPlan.matchingIDs` 复用 `SearchCorpus.search`，查询串为
+  `PanelFilter.query`（修饰键 glyph + 小写字母），不另建第二套匹配；空队列回全量、第一页，
+  结果变小时 `panelPage` 把页码夹到最后一页。Shift 仍只做 `0–9` / `a–z` 提示层；`.active`
+  之外（如搜索面板）字母留在输入框；方向键与四对翻页键不受影响，触发键不 narrow 的
+  `PanelTriggerNarrow` 规则不变。新增 `PanelFilterTests`、`PanelFilterPlanTests`；
+  `swift test` 726 → 741。
+- **面板几何失效与 Space 重扫（G1–G4）**：`containedFrame` 先把尺寸夹到可见区，再按方向判断
+  8pt `screenMargin` 是否放得下，放不下该方向取 0，整屏大小的帧不再被边距推出去（`80d5810`）。
+  新增纯类型 `PanelAnchorCache`（`invalidate` / `beginRead(pid:)` / `apply`，陈旧 pid 的结果被
+  丢弃）；`SurfacePanelController.hide()` 取消在途 `geometryTask`、复位 `isRefreshingGeometry`
+  并清空快照，控制器自行观察 Space 与屏幕参数变化并清空快照，下次展示后台重读；无快照期间
+  `OverlayPlacement.coverSize` 以整块可见区兜底，首帧就完整覆盖（`29f1f8f`）。新增
+  `topInset(safeAreaTop:) = max(safeAreaTop, screenMargin)`、`fillScreenFrame`（只缩高度、原点
+  不动）与 `clampedTop`；`.fillScreen` 避开顶部安全区，`.fixedSize` / `.coverWindow` 在
+  `containedFrame` 后不再顶进菜单栏或刘海（`c28895e`）。新增 `SpaceRescanGate`（0.75s、按
+  pid 去抖）与 `CatalogPublishPolicy`：切 Space 先 `dismissEverything()`，再强制重扫当前前台
+  App，日志 `space changed → forced rescan <app>`；`CatalogCoordinator.reload` 的
+  `preserveOnEmpty` 在空列表且无菜单栏时保留旧目录并复位加载状态（`bd2b6b0`）。新增
+  `PanelAnchorCacheTests`、`SpaceRescanGateTests` 与 `OverlayGeometryTests`；`swift test`
+  708 → 726。
+- **面板可读性、设置窗口与材质收口**（基线 `553fcca`，本轮三组提交）：选中菜单项左侧加
+  3pt 高亮竖条、标题提亮，VoiceOver 暴露 `.isSelected`，朗读顺序「菜单项名 → 快捷键 →
+  状态」，行容器由 `.ignore` 改为 `.contain`，装饰元素 `accessibilityHidden`；不可用菜单项
+  行尾加 `lock.slash`，右键菜单首行「该菜单项当前不可用」，点击弹 HUD 解释，`DisabledNoticeGate`
+  （纯类型）限制同一菜单项 3 秒内只提示一次。新增 `PanelEmptyKind`（纯枚举），统一四种空态并
+  按「权限未就绪 > 扫描中 > 无匹配」定优先级，权限态带「打开权限向导」。`maxItemsPerPage`
+  明确为上限，实际取 `min(设置值, 几何容量)`；设置文案改为「每个分组最多显示 N 个菜单项 /
+  Max menu items per group」；组标题只在「按菜单栏分组」时绘制且单独计入高度。快捷键列改
+  等宽字体、固定列宽、默认右对齐，无快捷键留空；纯选中只写 `selectionIndex` 不重建面板，
+  选中态 0.1s 过渡，`MenuTrigger.press` 以 `@concurrent` 与 250ms 超时离开主线程。切换
+  面板排序时只闪一行 HUD，不常驻标签。首次启动用一次 `KagiPeekTriggerTipShown`
+  提示，触发页可重看。设置窗口 `styleMask` 去掉 `.miniaturizable`，权限向导在设置可见时以
+  sheet 依附。材质改为浅色 `.popover`、深色 `.hudWindow`，外边距 16、内容内边距 8/10、
+  圆角 12。新增 `DisabledNoticeGateTests`、`PanelEmptyKindTests`；`swift test` 693 → 708。
+- **页脚不再遮挡菜单项**（`fix/panel-footer-clearance`）：`OverlayMetrics` 把标题栏 54pt、
+  分隔线 1pt、页脚 32pt、列表内边距 18pt 合成 `chromeHeight`，SwiftUI 三个固定高度也读同一组
+  常量，页脚是内容区的兄弟而不是叠层。新增 `rowsPerColumn` / `fittedPageSize`：每页行数取
+  `min(设置值, 几何容量)`，720pt 两卡窗口里 60 行降到 36 行；整数取整带 1e-4 容差，恰好的
+  N 行不会被缩放算成 N−1；连一行都放不下时仍保证一行。`OverlayPlacement.containedFrame`
+  把贴近屏幕底部的面板整体上移，不再裁掉最后几行。删除内容区底部的 18pt 渐隐——它会盖住
+  最后一行。`swift test` 684 → 693。
+- **前后翻页键可配置（`feature/paging-key-pair`，已并入 `feature/panel-sections`）**：新增
+  `Core/Pure/PagingKeyPlan`，四对键（`,`/`.`、`[`/`]`、`-`/`=`、`;`/`'`）按实际产生的
+  字符判定，物理键码只在事件没有解码字符时兜底；设置 → 通用 → 菜单项操作下改为四个勾选项，
+  可同时启用多对或一对都不勾，默认只勾 `;`/`'`（原来写死的那一对）；←/→ 永久生效且不在
+  设置组里。搜索框有焦点时八个字符全部作为输入透传；Shift 提示层激活时 `+`（Shift+=）
+  既不是翻页键也不是 `0-9/a-z` 提示标签，按普通输入落到前台。设置 schema 7→8，
+  缺字段→默认 `;`/`'`，集合内未知值丢弃而不整份回退；`apply(settings:)` 与
+  `logSettingsDelta` 同步集合字段。`swift test` 768 → 789。
 - **面板定位修正**（提交见 `git log`）：提示面板的 `coverWindow` 高度不再被内容高度整段替换，
   改为取覆盖高度与内容高度的较大者并夹在可见区内；横向仍按屏幕可见区中心对称计算。
   搜索面板从「屏幕居中 + 距顶 140pt 的 680×460」改为「前台窗口居中」：宽度固定 680，
@@ -53,7 +111,7 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
   切换下沉为 `Core/Pure/RecordingPolicy`、`Core/Pure/SearchScopePlan`。InputRouter 按计划
   永久留在引擎里。详见 `outputs/refactor-engine.md`。
 - **面板翻页闭环**：`Core/Pure/PaginationPlan` 实现首尾循环与页码夹取；单页时两键不动作、
-  不重建、不闪。面板路由、按键语义未变（仍是 ←/→ 与 `;`/`'`）。
+  不重建、不闪。页码语义未变；按键来源后来改由 `PagingKeyPlan` 提供（见本轮条目）。
 - **设置页诊断合并**：把「关于」页的诊断区（辅助功能、输入监控、监听状态、菜单项数、
   导出诊断报告、说明）整段并入「诊断」页，排在日志目录之后、隐私说明之前；`关于` 页只留
   图标/版本、系统版本、更新检查、数据目录、仓库与许可证。`exportDiagnostics()` 移到诊断区，
@@ -95,6 +153,11 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 | 命令 | 结果 |
 | --- | --- |
 | `swift test`（本次安装前） | `Executed 684 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（本轮 UI 批次提交前） | `Executed 708 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（G1–G4 代码批次） | `Executed 726 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（面板筛选提交 `428c925`） | `Executed 741 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（面板三来源分区 + 受限动作） | `Executed 768 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（合并翻页键 `feature/paging-key-pair` 后） | `Executed 789 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
 | 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
 | `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |
@@ -107,7 +170,8 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
 本次安装标记为 `1c1eee5-dirty`，比 HEAD（`ee18e08`）旧一个提交：修复在安装之后才提交。
-二进制已含该修复，重装一次只是让 Info.plist 里的 commit 与 HEAD 相等。
+二进制已含该修复，重装一次只是让 Info.plist 里的 commit 与 HEAD 相等。本轮翻页键改动
+**未构建、未安装**：`/Applications/KagiPeek.app` 仍是上述旧包，没有翻页键设置。
 签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
@@ -140,7 +204,8 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
   非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
   `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
   `launchAtLogin=true`、`keyStyle=symbols`、`panelOrder=byModifier`）；
-  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。schema 仍为 7。
+  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。该文件仍是 7；
+  本轮代码已写 8，运行新构建后才会迁移并把 `pagingPairs` 落盘为 `["semicolonQuote"]`。
 
 ## 已知环境坑
 
@@ -173,8 +238,9 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 2. **`ShortcutEngine` 拆分已做一轮（R-3）**：七个协作模块与两个 Pure 策略已落地，InputRouter
    按计划留在引擎里。若继续瘦身，下一刀是 `CatalogQuery` 参数对象（架构报告 H1/M1）；不要
    把 InputRouter 硬拆走。
-3. **面板 VoiceOver 可达性**（HIG 报告 H2）：先给面板根视图加 `.accessibilityElement` 容器
-   与行级标签，再处理行内按钮；需要实机开 VoiceOver 验收。
+3. **面板 VoiceOver 可达性**（HIG 报告 H2）：本轮已补选中态 `.isSelected`、行的 `.contain`
+   容器、装饰元素隐藏与「菜单项名 → 快捷键 → 状态」朗读顺序；剩余是根容器与行内按钮的实机
+   VoiceOver 验收。
 4. **设置页信息架构**（HIG 报告 M4 / §7.1）：先画 8 段→侧边栏的交互稿并确认窗口尺寸，再动
    `SettingsView`；本轮明确不做。
 5. **菜单栏 extras 的 HIG 行为**（HIG 报告 H3）：先确认左键开面板、右键开菜单是否产品意图，
@@ -185,6 +251,8 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 按审查报告编号列出本轮**明确降级或未处理**的条目（修复说明见
 `/Users/suliveevil/.trae-cn/assistant/2026-11-04/kagipeek-code-review-2/outputs/fix-round2.md`）：
 
+- **设置页缩略面板实时预览（「按下试试」测试区）未实现**：复用 `OverlayView` 需要先把
+  engine 解耦，风险高，本轮降级，文档不宣称它存在。
 - 并发报告：M1（注入任务取消后仍可能发键）、M2（两条延迟 Task 无人持有）、M3
   （`ShortcutTester` tap 未拆）、M5（缓存/崩溃报告无淘汰）、M6（日志含菜单标题）、M7
   （退出路径主线程写盘）、M8（预览态 loading 不复位）、L1–L5。

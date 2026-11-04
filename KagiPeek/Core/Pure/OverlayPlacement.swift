@@ -28,10 +28,77 @@ nonisolated enum OverlayPlacement {
         )
     }
 
+    /// The cover size for the front window, or the whole visible frame while its frame has
+    /// not arrived yet. The fallback is intentionally not a guess: a shrunken panel left the
+    /// new window partly uncovered until the background read returned.
+    static func coverSize(windowFrame: CGRect?, visible: CGRect, natural: CGSize) -> CGSize {
+        guard let windowFrame else { return visible.size }
+        return coverWindowSize(windowFrame: windowFrame, visible: visible, natural: natural)
+    }
+
     /// The cover height wins over the content height: widening the panel can need fewer
     /// rows, but a panel shorter than the window stops covering it.
     static func coveredHeight(contentHeight: CGFloat, coverHeight: CGFloat, limit: CGFloat) -> CGFloat {
         min(max(coverHeight, contentHeight), limit)
+    }
+
+    /// Breathing room between a panel and the screen edge.
+    static let screenMargin: CGFloat = 8
+
+    /// Moves a frame inside `visible` instead of letting it hang off the edge.
+    ///
+    /// A panel anchored near the bottom of the screen can have its last rows cut by the
+    /// display, which is the one place the user cannot scroll to. The frame is shifted as
+    /// a whole — never stretched or clipped — so the footer and the rows below it stay
+    /// where they were relative to each other.
+    ///
+    /// The size is clamped first: a frame exactly as large as the screen has no room left
+    /// for the margin, and adding one on both sides used to push it off the display.
+    /// A direction only gets `screenMargin` when both margins still fit.
+    static func containedFrame(_ frame: CGRect, in visible: CGRect) -> CGRect {
+        var result = frame
+        result.size.width = min(result.width, visible.width)
+        result.size.height = min(result.height, visible.height)
+        let horizontalMargin = visible.width - result.width >= screenMargin * 2 ? screenMargin : 0
+        let verticalMargin = visible.height - result.height >= screenMargin * 2 ? screenMargin : 0
+        result.origin.x = min(
+            max(result.origin.x, visible.minX + horizontalMargin),
+            max(visible.minX + horizontalMargin, visible.maxX - result.width - horizontalMargin)
+        )
+        result.origin.y = min(
+            max(result.origin.y, visible.minY + verticalMargin),
+            max(visible.minY + verticalMargin, visible.maxY - result.height - verticalMargin)
+        )
+        return result
+    }
+
+    /// The top margin that keeps a panel clear of the menu bar, and of the notch when the
+    /// display has one. A display without a notch still gets the regular breathing room.
+    static func topInset(safeAreaTop: CGFloat) -> CGFloat {
+        max(safeAreaTop, screenMargin)
+    }
+
+    /// The panel covers the visible frame but stops below the safe area: the top is trimmed
+    /// and the origin is left alone, so the footer keeps its position.
+    static func fillScreenFrame(visible: CGRect, safeAreaTop: CGFloat) -> CGRect {
+        let inset = topInset(safeAreaTop: safeAreaTop)
+        return CGRect(
+            x: visible.minX,
+            y: visible.minY,
+            width: visible.width,
+            height: max(0, visible.height - inset)
+        )
+    }
+
+    /// Moves a frame down as a whole when its top edge would land inside the safe area.
+    /// The size never changes, and the bottom stays at or above `visible.minY`.
+    static func clampedTop(_ frame: CGRect, in visible: CGRect, safeAreaTop: CGFloat) -> CGRect {
+        let inset = topInset(safeAreaTop: safeAreaTop)
+        var result = frame
+        if result.maxY > visible.maxY - inset {
+            result.origin.y = max(visible.minY, visible.maxY - inset - result.height)
+        }
+        return result
     }
 
     /// The palette is `searchWidth` wide and at least as tall as the front window, so it

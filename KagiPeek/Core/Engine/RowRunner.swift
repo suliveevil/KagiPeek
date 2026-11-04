@@ -119,6 +119,29 @@ final class RowRunner {
         )
     }
 
+    /// The last gate before any key is posted.
+    ///
+    /// `PanelSession` and `SearchSession` already consult `PanelRowActionPlan`, but execution
+    /// is the dangerous half and must not depend on a caller remembering to ask: a config
+    /// row and a restricted system action are refused here even if a future surface forgets.
+    private func refusesExecution(_ item: BindingItem) -> Bool {
+        if item.source == .configFile {
+            presenters.notices.showNotice(
+                text: localization.text(.panelUnsupportedSource),
+                kind: .info
+            )
+            return true
+        }
+        if RestrictedActionPolicy.restriction(for: item).isRestricted {
+            presenters.notices.showNotice(
+                text: localization.text(.panelRestrictedNotice),
+                kind: .info
+            )
+            return true
+        }
+        return false
+    }
+
     /// Triggering the command is the point, so the menu item itself is pressed first: it
     /// works for commands that have no shortcut at all, and for the ones that do it is
     /// exactly what clicking the menu would do. Replaying the chord is the fallback — for a
@@ -134,6 +157,7 @@ final class RowRunner {
         origin: Origin,
         searchTarget: NSRunningApplication? = nil
     ) async {
+        guard !refusesExecution(item) else { return }
         let rendered = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
         if let element, await MenuTrigger.press(ResolvedAXElement(element: element)) {
             switch origin {
@@ -209,6 +233,7 @@ final class RowRunner {
 
     /// A system hotkey has no element to press: replay the chord into the front app.
     func runSystemHotkey(_ system: BindingItem) {
+        guard !refusesExecution(system) else { return }
         usageStore.record(usageKey: system.usageKey)
         dismissPanel()
         Diag.info(.inject, "replaying system hotkey into the front app")

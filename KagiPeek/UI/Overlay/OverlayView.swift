@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -25,12 +26,32 @@ struct OverlayView: View {
     }
     private var isSearch: Bool { state.search.isVisible }
 
+    /// The panel's material, kept on the shell so the content area cannot accidentally
+    /// paint its own layer over the header and footer.
+    ///
+    /// `popover` for the light theme and `hudWindow` for the dark one are AppKit visual
+    /// effect materials; SwiftUI's `Material` has no equivalents. The palette tint sits on
+    /// top so the contrast ratios the text was tuned against do not move with the wallpaper.
+    /// Reduce Transparency replaces the whole thing with a solid fill.
+    @ViewBuilder
+    private var panelSurface: some View {
+        if Theme.reduceTransparency {
+            palette.backgroundSolid
+        } else {
+            PanelSurfaceView(material: palette.isLight ? .popover : .hudWindow)
+                .overlay(palette.backgroundSolid.opacity(palette.isLight ? 0.35 : 0.45))
+        }
+    }
+
     var body: some View {
+        // The footer is a sibling of the content, never a layer over it: the content takes
+        // the panel height minus the header, the rule and the footer, so no menu item can
+        // end up underneath the hint bar. The same three numbers live in `OverlayMetrics`.
         VStack(alignment: .leading, spacing: 0) {
             OverlayHeaderView()
             Rectangle()
                 .fill(palette.rule)
-                .frame(height: 1)
+                .frame(height: OverlayMetrics.ruleHeight)
             if isSearch {
                 OverlaySearchContentView()
             } else {
@@ -39,7 +60,10 @@ struct OverlayView: View {
             OverlayFooterView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(palette.backgroundSolid)
+        // Material follows the theme: a light popover reads as paper, a dark HUD as glass.
+        // The palette tint stays on top so the contrast ratios the text was tuned against
+        // do not move when the wallpaper does. Reduce Transparency keeps the solid colour.
+        .background(panelSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
@@ -77,7 +101,7 @@ private struct OverlayHeaderView: View {
             headerContent(layout: HeaderLayout(width: proxy.size.width))
                 .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .frame(height: 54)
+        .frame(height: OverlayMetrics.headerHeight)
         .onAppear {
             if isSearch {
                 DispatchQueue.main.async { searchFocused = true }
@@ -457,31 +481,52 @@ private struct OverlayPanelContentView: View {
             }
     }
 
+    /// The four "nothing here" answers. Scanning is the only one with a spinner; the
+    /// permission one is the only one with a way out.
     @ViewBuilder
-    private var content: some View {
-        if state.panel.isScanning {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small).tint(palette.secondaryText)
-                Text(localization.text(.overlayScanning))
+    private func emptyState(_ kind: PanelEmptyKind) -> some View {
+        Group {
+            if kind == .scanning {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small).tint(palette.secondaryText)
+                    Text(localization.text(kind.messageKey))
+                        .font(.system(size: 12))
+                        .foregroundStyle(palette.secondaryText)
+                }
+            } else if kind == .permissionRequired {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(localization.text(kind.messageKey))
+                        .font(.system(size: 12))
+                        .foregroundStyle(palette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(localization.text(.permissionsTitle)) {
+                        engine.showPermissionsWindow()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            } else {
+                Text(localization.text(kind.messageKey))
                     .font(.system(size: 12))
                     .foregroundStyle(palette.secondaryText)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-        } else if state.panel.isEmpty {
-            // An empty panel and a scan that never happened look identical to the user;
-            // the scan state says which one it was (Menu-Bar-Search's initState).
-            let emptyKey: L10nKey = state.scanState == .permissionDenied
-                ? .scanPermissionDenied
-                : (state.panel.showsFavoritesOnly && usageStore.favorites.isEmpty
-                    ? .panelNoFavorites
-                    : .overlayNoCandidates)
-            Text(localization.text(emptyKey))
-                .font(.system(size: 12))
-                .foregroundStyle(palette.secondaryText)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 16)
+        .padding(.top, kind == .scanning ? 0 : 12)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if state.panel.isEmpty {
+            // One priority order lives in `PanelEmptyKind`: permission > scanning >
+            // favourites > no match. The view only picks a shape for the answer.
+            emptyState(PanelEmptyKind.kind(
+                isScanning: state.panel.isScanning,
+                permissionDenied: state.scanState == .permissionDenied,
+                showsFavoritesOnly: state.panel.showsFavoritesOnly,
+                favoritesEmpty: usageStore.favorites.isEmpty
+            ))
         } else {
             GeometryReader { proxy in
                 let columns = max(1, min(settings.columnCount, OverlayMetrics.columns(forWidth: proxy.size.width)))
@@ -492,7 +537,9 @@ private struct OverlayPanelContentView: View {
                 // shared out when a page straddles both sections.
                 let cards = max(1, state.panel.groups.count)
                 let cardChrome = Double(Theme.groupHeaderHeight) + OverlayMetrics.cardVerticalInset * 2
-                let fittedRows = (Double(proxy.size.height) - 18 - cardChrome * Double(cards))
+                let fittedRows = (Double(proxy.size.height)
+                    - Double(OverlayMetrics.contentTopPadding + OverlayMetrics.contentBottomPadding)
+                    - cardChrome * Double(cards))
                     / Double(Theme.rowHeight)
                 let tallestCard = state.panel.groups.map(\.rows.count).max() ?? 0
                 let capacity = max(
@@ -519,24 +566,15 @@ private struct OverlayPanelContentView: View {
                         }
                     }
                     .padding(.horizontal, Theme.padding)
-                    .padding(.top, 8)
-                    .padding(.bottom, 10)
+                    .padding(.top, OverlayMetrics.contentTopPadding)
+                    .padding(.bottom, OverlayMetrics.contentBottomPadding)
                     // A short page used to end mid-window with 300 pt of empty glass under
                     // it; centring keeps the shape deliberate without shrinking the cover.
                     .frame(minHeight: proxy.size.height, alignment: .center)
                 }
-                .overlay(alignment: .bottom) {
-                    // The pagination budget can be taller than a fixed panel, so a row can be
-                    // cut by the bottom edge. The fade says "there is more" instead of
-                    // looking like a rendering fault.
-                    LinearGradient(
-                        colors: [palette.backgroundSolid.opacity(0), palette.backgroundSolid],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 18)
-                    .allowsHitTesting(false)
-                }
+                // No fade over the last row: the page size is now capped by the geometry,
+                // so the list ends where the content area ends. A gradient here tinted the
+                // bottom of a real row and read as the footer covering it.
             }
         }
     }
@@ -544,10 +582,11 @@ private struct OverlayPanelContentView: View {
     /// One section of the panel, drawn as a card — the same treatment the search palette gives
     /// its categories: a title strip, a hairline under it, and a border around the whole block.
     ///
-    /// The panel only ever has two sections (the app's commands and the system's hotkeys), and
-    /// they used to be told apart by a heading in the middle of the list. A card makes the
-    /// boundary a shape instead of a line of text: it survives scrolling, it survives the
-    /// narrow layout, and it matches what the palette already looks like.
+    /// The panel has three sources (the app's commands, the system's hotkeys and each config
+    /// tool's file), and they used to be told apart by a heading in the middle of the list. A
+    /// card makes the boundary a shape instead of a line of text: it survives scrolling, it
+    /// survives the narrow layout, and it matches what the palette already looks like.
+    /// A tool's card is collapsible: its title strip is the click target and carries a chevron.
     private func groupSection(
         _ group: PanelGroup,
         columns: Int,
@@ -557,6 +596,11 @@ private struct OverlayPanelContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             if !group.title.isEmpty {
                 HStack(spacing: 7) {
+                    if group.isCollapsible {
+                        Image(systemName: group.isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(palette.secondaryText)
+                    }
                     Text(group.title)
                         .font(.system(size: 12.5, weight: .medium))
                         .lineLimit(1)
@@ -570,6 +614,14 @@ private struct OverlayPanelContentView: View {
                 .frame(height: Theme.groupHeaderHeight, alignment: .center)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(palette.selection)
+                // The tool card's header is the toggle: the rows are hidden, the count and the
+                // source stay visible so the user can see what there is to open.
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if group.isCollapsible {
+                        engine.toggleToolSection()
+                    }
+                }
                 Rectangle()
                     .fill(palette.rule)
                     .frame(height: 1)
@@ -635,7 +687,7 @@ private struct OverlayPanelContentView: View {
         // A dimmed row carries index -1, exactly like the "nothing selected" marker, so
         // comparing the two lit up every dimmed row. Only a real position can be selected.
         let isSelected = row.index >= 0 && state.panel.selectionIndex == row.index
-        return rowColumns(row, layout: layout)
+        return rowColumns(row, layout: layout, isSelected: isSelected)
             .padding(.horizontal, Theme.rowHorizontalPadding)
             .frame(height: Theme.rowHeight)
             .background(
@@ -646,10 +698,14 @@ private struct OverlayPanelContentView: View {
             // must never reflow the title or the keycap.
             .overlay(alignment: .leading) { selectionMarker(isSelected) }
             .contentShape(Rectangle())
-            .accessibilityElement(children: .ignore)
+            // The row is a container, not one opaque blob: the star and the conflict badge
+            // keep their own labels, while the purely decorative bits hide themselves. The
+            // row itself still reads "name, shortcut, state" in that order.
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(Text(rowAccessibilityLabel(row)))
             .accessibilityValue(Text(rowAccessibilityValue(row)))
             .accessibilityAddTraits(.isButton)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityAction { engine.performPanelRow(rowID: row.id, action: .execute) }
             .onHover { inside in
                 hoveredRowID = inside ? row.id : (hoveredRowID == row.id ? nil : hoveredRowID)
@@ -659,21 +715,22 @@ private struct OverlayPanelContentView: View {
             }
             .onTapGesture {
                 press(row.id)
-                // A click means "run": the run key's action, whatever key that ends up being.
-                engine.performPanelRow(rowID: row.id, action: .execute)
+                // A click copies a restricted or config-tool row and runs everything else;
+                // the plan decides, so the view does not have to special-case either.
+                engine.clickPanelRow(rowID: row.id)
             }
-            .animation(.easeOut(duration: 0.14), value: isSelected)
+            .animation(.easeOut(duration: 0.1), value: isSelected)
             .contextMenu { rowMenu(row) }
     }
 
     /// The columns in the order the settings ask for: the chord is either the first thing on
     /// the row or the last, and the menu path travels with it.
-    private func rowColumns(_ row: PanelRow, layout: RowLayout.Metrics) -> some View {
+    private func rowColumns(_ row: PanelRow, layout: RowLayout.Metrics, isSelected: Bool) -> some View {
         HStack(spacing: Theme.rowColumnGap) {
             if settings.keyPosition == .left {
                 keyLabel(row, width: layout.keyWidth, alignment: .leading)
             }
-            titleColumn(row, width: layout.titleWidth)
+            titleColumn(row, width: layout.titleWidth, selected: isSelected)
             if settings.keyPosition == .left {
                 // Key · command · path — the path and the trailing slot travel together, so
                 // the row still has three columns and the chord keeps the opposite end.
@@ -706,9 +763,11 @@ private struct OverlayPanelContentView: View {
     }
 
     private func selectionMarker(_ isSelected: Bool) -> some View {
+        // 3 pt, not a hairline: the fill alone was easy to miss on the light palette at a
+        // glance, and the bar is the second signal that survives a colour-blind reading.
         RoundedRectangle(cornerRadius: 1.5, style: .continuous)
             .fill(Color.accentColor)
-            .frame(width: 2.5, height: 12)
+            .frame(width: 3, height: 14)
             .padding(.leading, 2)
             .scaleEffect(x: 1, y: isSelected ? 1 : 0.2, anchor: .center)
             .opacity(isSelected ? 1 : 0)
@@ -718,20 +777,63 @@ private struct OverlayPanelContentView: View {
     /// The right-click menu. The draft's four items are pass through, pin, copy the shortcut
     /// and locate it; locating needs a shortcut page this app cannot open yet, so the first
     /// three are here, in that order, and settings stays below them as the fifth door.
+    ///
+    /// Rows KagiPeek refuses to run get a shorter menu instead: copying stays, running does
+    /// not, and the reason is written where the action would have been.
     @ViewBuilder
     private func rowMenu(_ row: PanelRow) -> some View {
-        Button(localization.text(.panelPassThrough)) {
-            engine.activate(rowID: row.id)
-        }
-        Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
-            engine.toggleFavorite(rowID: row.id)
-        }
-        Button(localization.text(.panelCopyShortcut)) {
-            engine.copyShortcut(rowID: row.id)
-        }
-        Divider()
-        Button(localization.text(.panelSettings)) {
-            engine.showSettings()
+        if row.isRestricted {
+            if row.hasChord {
+                Button(localization.text(.panelCopyShortcut)) {
+                    engine.copyShortcut(rowID: row.id)
+                }
+            }
+            Button(localization.text(.panelCopyMenuItem)) {
+                engine.copyMenuPath(rowID: row.id)
+            }
+            Divider()
+            Text(localization.text(.panelRestrictedReason))
+        } else if row.source == .configFile {
+            if !row.isEnabled {
+                Text(localization.text(.panelDisabledReason))
+                Divider()
+            }
+            if row.hasChord {
+                Button(localization.text(.panelCopyShortcut)) {
+                    engine.copyShortcut(rowID: row.id)
+                }
+            }
+            Button(localization.text(.panelCopyMenuItem)) {
+                engine.copyMenuPath(rowID: row.id)
+            }
+            Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
+                engine.toggleFavorite(rowID: row.id)
+            }
+            Divider()
+            Text(localization.text(.panelUnsupportedSource))
+            Divider()
+            Button(localization.text(.panelSettings)) {
+                engine.showSettings()
+            }
+        } else {
+            if !row.isEnabled {
+                // The menu states the reason instead of offering an action that cannot run.
+                Text(localization.text(.panelDisabledReason))
+                Divider()
+            }
+            Button(localization.text(.panelPassThrough)) {
+                engine.activate(rowID: row.id)
+            }
+            Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
+                engine.toggleFavorite(rowID: row.id)
+            }
+            Button(localization.text(.panelCopyShortcut)) {
+                engine.copyShortcut(rowID: row.id)
+            }
+            Divider()
+            Button(localization.text(.panelSettings)) {
+                engine.showSettings()
+            }
         }
     }
 
@@ -787,7 +889,7 @@ private struct OverlayPanelContentView: View {
     ///
     /// A fixed width, not a natural one — the menu path has to start at the same x on every
     /// row, and that is only true if this column does not grow and shrink with its text.
-    private func titleColumn(_ row: PanelRow, width: Double) -> some View {
+    private func titleColumn(_ row: PanelRow, width: Double, selected: Bool) -> some View {
         HStack(spacing: 5) {
             if state.panel.runningRowID == row.id {
                 ProgressView()
@@ -801,6 +903,18 @@ private struct OverlayPanelContentView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(rowTitleColor(row))
+                // A selected row's name steps up in brightness: the tint is a surface cue
+                // and can wash out on the light palette.
+                .brightness(selected ? 0.06 : 0)
+            if !row.isEnabled {
+                // A dimmed row and a row the app cannot run looked identical; the lock says
+                // the cause at a glance without turning the row into an error banner.
+                Image(systemName: "lock.slash")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(palette.tertiaryText)
+                    .accessibilityLabel(localization.text(.overlayUnavailableBadge))
+                    .accessibilityHint(localization.text(.panelDisabledReason))
+            }
         }
         .frame(width: width, alignment: .leading)
     }
@@ -811,7 +925,10 @@ private struct OverlayPanelContentView: View {
         if state.panel.runningRowID == row.id {
             return localization.text(.overlayRunning)
         }
-        return row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)
+        var values: [String] = []
+        if !row.isEnabled { values.append(localization.text(.overlayUnavailableBadge)) }
+        if row.isRestricted { values.append(localization.text(.panelRestrictedReason)) }
+        return values.joined(separator: ", ")
     }
 
     /// The menu path, with the "has a sub-level" chevron in a slot of its own at the left.
@@ -891,7 +1008,7 @@ private struct OverlayPanelContentView: View {
                             .font(.system(
                                 size: isLabel(segment) ? 10.5 : 12.5,
                                 weight: isEmphasized(segment) ? .bold : (isLabel(segment) ? .regular : .semibold),
-                                design: isLabel(segment) ? .default : .rounded
+                                design: isLabel(segment) ? .default : .monospaced
                             ))
                             .foregroundStyle(keySegmentColor(row, segment))
                     }
@@ -923,6 +1040,9 @@ private struct OverlayPanelContentView: View {
     }
 
     private func rowTitleColor(_ row: PanelRow) -> Color {
+        // Red is a statement about safety, not decoration: these rows are shown precisely so
+        // the user can see that the shortcut exists, and that KagiPeek will not run it.
+        if row.isRestricted { return palette.restrictedText }
         if row.isCompleted { return palette.text }
         if !row.isEnabled { return palette.tertiaryText }
         return row.isHighlighted ? palette.text : palette.text.opacity(0.88)
@@ -1075,7 +1195,7 @@ private struct OverlayFooterView: View {
             footerContent(layout: HeaderLayout(width: proxy.size.width))
                 .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .frame(height: 32)
+        .frame(height: OverlayMetrics.footerHeight)
     }
 
     private func footerContent(layout: HeaderLayout) -> some View {
@@ -1294,11 +1414,24 @@ private struct SearchResultRow: View {
     /// what lets the eye run down one column and ignore the text beside it.
     private let keyColumn: CGFloat = 78
 
+    private var restriction: Restriction {
+        RestrictedActionPolicy.restriction(for: item)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             if keyPosition == .left { shortcut }
             titleBlock
             Spacer(minLength: 8)
+            if restriction.isRestricted {
+                // The row is still searchable and selectable — that is the point of showing it
+                // — but the trailing text says why pressing it will not run.
+                Text(localization.text(.panelRestrictedReason))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(palette.restrictedText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             if keyPosition == .right { shortcut }
         }
         .padding(.horizontal, 12)
@@ -1343,6 +1476,7 @@ private struct SearchResultRow: View {
             highlightedTitle
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .foregroundStyle(restriction.isRestricted ? palette.restrictedText : palette.text)
             if let subgroup = item.subgroup {
                 Text(subgroup)
                     .font(.system(size: 10.5))
@@ -1402,5 +1536,25 @@ private struct SearchResultRow: View {
             attributed.append(piece)
         }
         return Text(attributed)
+    }
+}
+
+/// The AppKit visual-effect layer behind the surface.
+///
+/// SwiftUI's `Material` cannot express the two materials this app uses — `.popover` for the
+/// light theme and `.hudWindow` for the dark one — so the shell hosts one `NSVisualEffectView`
+/// instead. It is decoration only: the palette tint on top of it keeps the text contrast.
+private struct PanelSurfaceView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
     }
 }

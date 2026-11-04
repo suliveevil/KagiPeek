@@ -29,6 +29,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case permissionsTitle, permissionsSubtitle, permissionsPrivacy
     case permissionWizard, permissionGrant, permissionGrantedDone, permissionContinue, permissionQuit
     case panelFavoritesFilter, panelPin, panelUnpin, panelCopyShortcut, panelPassThrough, panelSettings
+    case panelRestrictedReason, panelRestrictedNotice, panelUnsupportedSource, panelCopyMenuItem
     case panelNoFavorites
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
@@ -96,11 +97,15 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Row actions
     case rowActionSection, rowActionExecute, rowActionCopy, rowActionHint
+    case rowActionPagingTitle, rowActionPagingHint
+    case pagingPairCommaPeriod, pagingPairBrackets, pagingPairMinusEqual, pagingPairSemicolonQuote
     case panelActionHint, panelActionHintSearch, panelActionHintCompact
     case panelCopyHintCompact, panelEscCloseHint
 
     // Overlay
     case overlayNoCandidates, overlayScanning, overlayPageFormat, overlayUnavailableBadge
+    case panelDisabledReason
+    case triggerTip, settingsShowTriggerTip
     case overlayBuiltInBadge, overlayRunning
     case scanPermissionDenied, scanFallbackHint
     case overlayConflictHint, overlayConflictOpen, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelRunFailed, injectTargetUnavailable, panelIdleHint
@@ -254,6 +259,19 @@ nonisolated enum L10n {
         .panelPin: ("Pin", "收藏"),
         .panelUnpin: ("Unpin", "取消收藏"),
         .panelCopyShortcut: ("Copy Shortcut", "复制快捷键"),
+        .panelCopyMenuItem: ("Copy menu item", "复制菜单项"),
+        .panelRestrictedReason: (
+            "This action affects the whole Mac and is not offered",
+            "该动作会影响整台 Mac，不提供执行"
+        ),
+        .panelRestrictedNotice: (
+            "This action is not available to run",
+            "该动作不提供执行"
+        ),
+        .panelUnsupportedSource: (
+            "This source is shown only, not executed",
+            "该来源只展示不执行"
+        ),
         .panelPassThrough: ("Run", "执行"),
         .panelSettings: ("Settings…", "设置…"),
         .panelClose: ("Close", "关闭"),
@@ -430,7 +448,7 @@ nonisolated enum L10n {
         .appearanceStyleSymbols: ("Symbols (⌘)", "符号（⌘）"),
         .appearanceStyleWords: ("Words (command)", "文字（command）"),
         .appearanceColumns: ("Columns", "列数"),
-        .appearanceMaxItems: ("Max rows per page", "每页最大行数"),
+        .appearanceMaxItems: ("Max menu items per group", "每个分组最多显示"),
         .appearanceMaxDescription: ("Max description length", "说明文字最大长度"),
         .appearanceShowDisabled: ("Show unavailable menu items", "显示当前不可用的菜单项"),
         .appearancePlacement: ("Panel placement", "面板位置"),
@@ -503,6 +521,15 @@ nonisolated enum L10n {
             "Clicking a menu item uses the run key. Both keys are recorded: a modifier is optional for keys such as Return, while a bare letter is refused so that filtering still works. The run key wins if both are recorded to the same chord.",
             "点击菜单项等同于执行键。两个键都可录制：Return 这类键可以不按修饰键，纯字母会被拒绝，以免影响筛选输入。若两个键录成同一组合，执行键优先。"
         ),
+        .rowActionPagingTitle: ("Page navigation", "前后翻页"),
+        .rowActionPagingHint: (
+            "← / → always work and are not controlled here. Enable as many pairs as you like; with none ticked, only the arrows page.",
+            "← / → 始终可用，且不受这里控制。可以同时启用多对；一对都不勾选时，仅方向键翻页。"
+        ),
+        .pagingPairCommaPeriod: ("Comma / Period  ( , . )", "逗号、句号（, .）"),
+        .pagingPairBrackets: ("Brackets  ( [ ] )", "方括号（[ ]）"),
+        .pagingPairMinusEqual: ("Minus / Equal  ( - = )", "减号、等号（- =）"),
+        .pagingPairSemicolonQuote: ("Semicolon / Quote  ( ; ' )", "分号、引号（; '）"),
 
         .overlayNoCandidates: ("No matching shortcuts", "没有匹配的快捷键"),
         .scanPermissionDenied: (
@@ -518,6 +545,18 @@ nonisolated enum L10n {
         .overlayScanning: ("Scanning menu bar…", "正在读取菜单栏…"),
         .overlayPageFormat: ("%d/%d", "%d/%d"),
         .overlayUnavailableBadge: ("Unavailable", "不可用"),
+        .panelDisabledReason: (
+            "This menu item is unavailable right now",
+            "该菜单项当前不可用"
+        ),
+        .triggerTip: (
+            "Hold ⌘ or double-tap it to open the panel",
+            "按住 ⌘ 或连按两次 ⌘ 打开面板"
+        ),
+        .settingsShowTriggerTip: (
+            "Show the trigger tip again",
+            "重新查看触发提示"
+        ),
         .overlayConflictHint: (
             "Some shortcuts are bound more than once",
             "有快捷键被重复绑定"

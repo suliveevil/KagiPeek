@@ -10,7 +10,8 @@ import Foundation
 nonisolated enum OverlayMetrics {
     static let columnWidth: CGFloat = 248
     static let rowHeight: CGFloat = 30
-    static let padding: CGFloat = 14
+    /// Outer margin: 16 pt, the low end of the 16–20 range the design asks for.
+    static let padding: CGFloat = 16
     static let groupHeaderHeight: CGFloat = 24
     /// One section of the panel is a card: its rows sit inside it, and the cards are apart.
     static let cardHorizontalInset: CGFloat = 6
@@ -20,8 +21,18 @@ nonisolated enum OverlayMetrics {
     static let cardRuleHeight: CGFloat = 1
     static let maxPanelHeight: CGFloat = 720
     static let minPanelHeight: CGFloat = 190
-    /// Vertical padding (10×2) + header (56 + 6) + footer (34) + 2pt of slack.
-    static let chromeHeight: CGFloat = 20 + 62 + 34 + 2
+    /// The title bar, the hairline under it, and the footer. The SwiftUI views read these
+    /// too, so "content height = panel height − footer" is one number instead of two copies.
+    static let headerHeight: CGFloat = 54
+    static let footerHeight: CGFloat = 32
+    static let ruleHeight: CGFloat = 1
+    /// Padding inside the list's scroll view: 8 above the first card, 10 below the last.
+    static let contentTopPadding: CGFloat = 8
+    static let contentBottomPadding: CGFloat = 10
+    /// Everything that is not a row: header + rule + footer + the list's own padding.
+    /// A page may never use this space, so the footer cannot sit on top of a row.
+    static let chromeHeight: CGFloat = headerHeight + ruleHeight + footerHeight
+        + contentTopPadding + contentBottomPadding
 
     /// The grid stride used to count how many columns a *screen* holds when the panel covers
     /// it. Deliberately not `columnWidth + columnSpacing`: that is the natural width of one
@@ -44,8 +55,53 @@ nonisolated enum OverlayMetrics {
     /// obvious in an assertion.
     static func fillScreenPageSize(visibleFrame: CGSize, maxItemsPerPage: Int) -> Int {
         let columns = max(1, min(4, Int((visibleFrame.width - padding * 2) / denseColumnStride)))
-        let usableRows = max(1, Int((visibleFrame.height - screenVerticalReserve) / rowHeight))
-        return max(maxItemsPerPage, columns * usableRows)
+        return fittedPageSize(
+            maxItemsPerPage: maxItemsPerPage,
+            columns: columns,
+            panelHeight: visibleFrame.height,
+            cardCount: 2,
+            headingCount: 2
+        )
+    }
+
+    /// How many rows one column can show in a panel of `panelHeight`, after the header,
+    /// the footer, the list's padding, the card chrome and the gaps have taken their share.
+    ///
+    /// Integer floor with a small epsilon: a height that is exactly N rows must give N, not
+    /// N−1, on a scaled display where `available / rowHeight` computes 29.9999. One row
+    /// always remains — a panel is never allowed to show zero menu items.
+    static func rowsPerColumn(
+        panelHeight: CGFloat,
+        cardCount: Int,
+        headingCount: Int
+    ) -> Int {
+        let cards = max(1, cardCount)
+        let headings = max(0, headingCount)
+        let groupHeaders = CGFloat(headings) * groupHeaderHeight
+        let cardChrome = CGFloat(cards) * (cardVerticalInset * 2)
+            + (headings > 0 ? cardRuleHeight : 0)
+        let gaps = CGFloat(max(0, cards - 1)) * cardGap
+        let available = panelHeight - chromeHeight - groupHeaders - cardChrome - gaps
+        let rows = Int(floor(available / rowHeight + 0.0001))
+        return max(1, rows)
+    }
+
+    /// The rows one page may hold: the user's setting is an upper bound, the geometry is
+    /// the other. A page of 60 rows in a 720 pt window would be cut by the footer, so the
+    /// geometry wins — the same reason a single row is still guaranteed.
+    static func fittedPageSize(
+        maxItemsPerPage: Int,
+        columns: Int,
+        panelHeight: CGFloat,
+        cardCount: Int,
+        headingCount: Int
+    ) -> Int {
+        let capacity = rowsPerColumn(
+            panelHeight: panelHeight,
+            cardCount: cardCount,
+            headingCount: headingCount
+        ) * max(1, columns)
+        return max(1, min(max(1, maxItemsPerPage), capacity))
     }
 
     /// Cheat-sheet density: one column per grid stride, capped at four. The stride includes

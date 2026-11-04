@@ -121,6 +121,7 @@ final class SearchSession {
         guard state.search.results.indices.contains(index) else { return }
         let item = state.search.results[index]
         guard RowEligibility.canActivate(isEnabled: item.isEnabled) else { return }
+        guard canRunFromSearch(item) else { return }
         // With a scope, the app to run in is the one being searched — it is usually *not* in
         // front, because the palette took the keyboard from whatever was.
         let scoped = state.searchScopeProcessID.flatMap { NSRunningApplication(processIdentifier: $0) }
@@ -144,6 +145,7 @@ final class SearchSession {
     /// The trigger itself, split out so the scoped path can activate first and still share it.
     private func triggerSearchItem(_ item: BindingItem, target: NSRunningApplication?) async {
         guard RowEligibility.canActivate(isEnabled: item.isEnabled) else { return }
+        guard canRunFromSearch(item) else { return }
         // Pressing the menu item is the primary trigger; `RowRunner` keeps the search path's
         // differences (no HUD, record after success) inside the same implementation.
         let element = await rowRunner.resolveElement(forRowID: item.id)
@@ -156,6 +158,36 @@ final class SearchSession {
         )
     }
 
+    /// The palette has no copy action, so a refused row is told why and the palette stays
+    /// open: closing it would look like the shortcut ran.
+    private func canRunFromSearch(_ item: BindingItem) -> Bool {
+        let outcome = PanelRowActionPlan.outcome(
+            request: .execute,
+            restriction: RestrictedActionPolicy.restriction(for: item),
+            source: item.source,
+            hasChord: !item.chord.isEmpty
+        )
+        switch outcome {
+        case .run:
+            return true
+        case .noticeRestricted:
+            presenters.notices.showNotice(
+                text: localization.text(.panelRestrictedNotice),
+                kind: .info
+            )
+            return false
+        case .noticeUnsupportedSource:
+            presenters.notices.showNotice(
+                text: localization.text(.panelUnsupportedSource),
+                kind: .info
+            )
+            return false
+        case .copyShortcut, .copyMenuItem, .noticeNothingToCopy:
+            // `.execute` never yields these; keeping the switch exhaustive documents that.
+            return false
+        }
+    }
+
     /// Return in the search palette behaves exactly like a click: close it, return to
     /// the front app and replay the shortcut there.
     func confirmSearchSelection() {
@@ -164,9 +196,14 @@ final class SearchSession {
     }
 
     /// Rows the palette searches: the scoped app's commands, or the frontmost app's plus the
-    /// system's own hotkeys.
+    /// system's own hotkeys and the config-tool rows.
+    ///
+    /// Config rows have no bundle id, so they belong to the unscoped ("all") view only; the
+    /// app-scoped corpus stays that app's menus.
     private var searchItems: [BindingItem] {
-        state.search.scopeAppID == nil ? state.catalog.items + state.systemBindings : state.search.scopeItems
+        state.search.scopeAppID == nil
+            ? state.catalog.items + state.systemBindings + state.configBindings
+            : state.search.scopeItems
     }
 
     /// Points the palette at another app, or back at the frontmost one with nil.
@@ -234,6 +271,11 @@ final class SearchSession {
             String(state.catalog.scannedAt.timeIntervalSince1970),
             String(state.searchScopeCatalog.scannedAt.timeIntervalSince1970),
             String(searchItems.count),
+            // Counts alone miss a rescan that rewrites the same number of rows. The scan
+            // timestamp changes with every config read, so a same-count edit cannot be
+            // answered from the previous corpus.
+            String(state.configBindings.count),
+            String(state.configScan.scannedAt.timeIntervalSince1970),
             state.settings.keyStyle.rawValue,
             localization.language.rawValue
         ].joined(separator: "|")

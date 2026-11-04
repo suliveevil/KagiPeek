@@ -20,6 +20,9 @@ nonisolated struct SwallowRule: Equatable, Sendable {
 ///   front app while plain `;` belongs to the panel.
 /// - **`capturedKeyCodes`** — key codes consumed whatever the modifiers say. Escape only,
 ///   because there is no spelling of Escape the panel should let past.
+/// - **`capturedCharacters`** — the characters of the enabled paging pairs. A CJK layout
+///   types `；` for the semicolon key, so the identifier channel (which knows the ANSI code)
+///   is not enough to describe what the user meant; the character decides.
 ///
 /// This lived inside `KeyboardMonitor` — a 693-line class holding a thread, a run loop, two
 /// timers and four caches — where the one decision every keystroke of every session depends
@@ -28,11 +31,15 @@ nonisolated struct KeySwallowRules: Equatable {
     var rules: [SwallowRule] = []
     var capturedIdentifiers: Set<UInt32> = []
     var capturedKeyCodes: Set<UInt16> = []
+    var capturedCharacters: Set<Character> = []
 
     /// True when nothing is captured, which is the answer for almost every keystroke of a
     /// session — the cheap refusal comes first for exactly that reason.
     var isEmpty: Bool {
-        rules.isEmpty && capturedIdentifiers.isEmpty && capturedKeyCodes.isEmpty
+        rules.isEmpty
+            && capturedIdentifiers.isEmpty
+            && capturedKeyCodes.isEmpty
+            && capturedCharacters.isEmpty
     }
 
     /// Packs a key and its modifiers into the identifier the panel captures with.
@@ -43,13 +50,22 @@ nonisolated struct KeySwallowRules: Equatable {
         UInt32(keyCode) << 8 | UInt32(truncatingIfNeeded: modifiers.rawValue & 0xFF)
     }
 
-    func shouldSwallow(keyCode: UInt16, modifiers: ModifierSet) -> Bool {
+    func shouldSwallow(keyCode: UInt16, modifiers: ModifierSet, characters: String? = nil) -> Bool {
         // `capturedKeyCodes` is a separate channel (Escape regardless of modifiers); leaving
-        // it out of this guard would silently disable Escape whenever the other two are empty.
+        // it out of this guard would silently disable Escape whenever the others are empty.
         guard !isEmpty else { return false }
 
         if capturedKeyCodes.contains(keyCode) { return true }
         if capturedIdentifiers.contains(Self.identifier(keyCode: keyCode, modifiers: modifiers)) {
+            return true
+        }
+        // Paging characters are judged with Shift allowed (a layout may spell one with it).
+        // Any other modifier means the key is not the paging key the user pressed — the
+        // identifier channel already covers the held-modifier spelling published by the
+        // engine.
+        if modifiers.subtracting([.shift]).isEmpty,
+           let first = characters?.first,
+           capturedCharacters.contains(first) {
             return true
         }
         for rule in rules {

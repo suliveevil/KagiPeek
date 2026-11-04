@@ -45,7 +45,11 @@ nonisolated enum KeyMapper {
 
         // Misc
         0x0A: "iso-section", 0x5D: "jis-yen", 0x5E: "jis-underscore",
-        0x66: "jis-keypad-comma"
+        0x66: "jis-keypad-comma",
+        // ANSI Power key (`kVK_PowerKey`). Used only to recognise the Apple menu's
+        // Sleep / Restart / Shut Down shortcuts in `RestrictedActionPolicy`; KagiPeek never
+        // replays this key.
+        0x7F: "power"
     ]
 
     /// Reverse lookup used when replaying a shortcut into the front app.

@@ -1,26 +1,39 @@
 import Foundation
 
+/// Which of the panel's sources a row came from.
+///
+/// The panel is three lists, never interleaved: the frontmost app's commands, the system's
+/// hotkeys, then the shortcuts read out of each config tool's file. Each kind is a card of
+/// its own, so a row has to know its section and not just "is it a system hotkey".
+nonisolated enum PanelSectionID: Hashable, Sendable {
+    /// The frontmost app's own menu commands.
+    case app
+    /// The system's own hotkeys.
+    case system
+    /// A third-party keyboard tool, read from its config file.
+    case tool(ConfigTool)
+}
+
 /// One row of the panel's combined sequence, tagged with the section it belongs to.
 nonisolated struct PanelEntry: Identifiable, Equatable, Sendable {
     let hit: PrefixHit
-    /// True for the system's own hotkeys, which form the second section.
-    let isSystem: Bool
+    let section: PanelSectionID
 
     var id: String { hit.id }
 }
 
-/// The panel's two sections: the frontmost app's commands, then the system's hotkeys.
+/// The panel's sections: the frontmost app's commands, the system's hotkeys, and one block
+/// per config tool.
 ///
 /// Rows inside a section keep the chord order they always had — `PanelOrdering` is unchanged —
-/// and the sections never interleave: the app's section comes first, in full, and the system
-/// section starts after it. That is also the boundary the panel draws a heading at, so the
-/// order difference between the two sections is visible instead of implied.
+/// and the sections never interleave: each block is whole before the next one starts. That is
+/// also the boundary the panel draws a heading at, so the difference between the sources is
+/// visible instead of implied.
 ///
-/// Pagination runs over this combined sequence. The boundary is therefore crossed exactly once,
-/// at the end of the app's list: a page either belongs to the app's section, contains the
-/// boundary, or belongs to the system's.
+/// Pagination runs over this combined sequence. A page belongs to whichever sections its rows
+/// came from; the order only has to be fixed, which is what the callers below guarantee.
 nonisolated enum PanelSections {
-    /// Wraps system hotkeys as panel rows.
+    /// Wraps hotkeys as panel rows.
     ///
     /// They are single chords with no prefix to complete, so `nextKey` is nil and
     /// `remainingSteps` is zero — the same shape a finished shortcut has.
@@ -30,14 +43,85 @@ nonisolated enum PanelSections {
         }
     }
 
-    static func combine(app: [PrefixHit], system: [PrefixHit]) -> [PanelEntry] {
-        app.map { PanelEntry(hit: $0, isSystem: false) }
-            + system.map { PanelEntry(hit: $0, isSystem: true) }
+    /// Concatenates the sections in the order given. No sorting, no de-duplication: the
+    /// caller decides the order, and a row that exists in two sources stays two rows.
+    static func combine(_ sections: [(section: PanelSectionID, hits: [PrefixHit])]) -> [PanelEntry] {
+        sections.flatMap { pair in
+            pair.hits.map { PanelEntry(hit: $0, section: pair.section) }
+        }
     }
 
-    /// Where the system section begins, for tests and for a caller that wants the boundary
-    /// without walking the list.
+    /// The two-source form, kept for callers that have no tool rows yet.
+    static func combine(app: [PrefixHit], system: [PrefixHit]) -> [PanelEntry] {
+        combine([(section: .app, hits: app), (section: .system, hits: system)])
+    }
+
+    /// The panel's fixed source order: App, then system, then one block per tool in the
+    /// order supplied.
+    static func combine(
+        app: [PrefixHit],
+        system: [PrefixHit],
+        tool: [(ConfigTool, [PrefixHit])]
+    ) -> [PanelEntry] {
+        let fixed: [(section: PanelSectionID, hits: [PrefixHit])] = [
+            (section: .app, hits: app),
+            (section: .system, hits: system)
+        ]
+        let blocks: [(section: PanelSectionID, hits: [PrefixHit])] = tool.map {
+            (section: PanelSectionID.tool($0.0), hits: $0.1)
+        }
+        return combine(fixed + blocks)
+    }
+
+    /// The section order the panel always draws, as one list.
+    ///
+    /// Tools arrive already ordered by the caller (`ConfigTool.allCases` in the session), so
+    /// this function does not sort: it only states that the app comes first and the system
+    /// second, before any tool.
+    static func sectionOrder(tool: [ConfigTool] = []) -> [PanelSectionID] {
+        [.app, .system] + tool.map(PanelSectionID.tool)
+    }
+
+    /// The rows the panel actually walks.
+    ///
+    /// Folded, the tool blocks leave the sequence — they still draw a titled card, but no
+    /// rows — so their counts have to be taken from the unfiltered list (see `counts(in:)`).
+    static func visible(_ entries: [PanelEntry], includeToolSection: Bool) -> [PanelEntry] {
+        guard !includeToolSection else { return entries }
+        return entries.filter { entry in
+            if case .tool = entry.section { return false }
+            return true
+        }
+    }
+
+    /// How many rows each section contributes. Tools are counted one by one, never merged
+    /// into the app's total.
+    static func counts(in entries: [PanelEntry]) -> [PanelSectionID: Int] {
+        var counts: [PanelSectionID: Int] = [:]
+        for entry in entries {
+            counts[entry.section, default: 0] += 1
+        }
+        return counts
+    }
+
+    /// How many cards the panel draws for these counts.
+    ///
+    /// The app's card is always drawn, even when the app has no rows — that is the card the
+    /// title bar's name belongs to. The system and tool sections only add one when they have
+    /// rows: a folded tool still renders a titled card, so a non-empty tool counts too.
+    static func nonEmptySectionCount(appCount: Int, systemCount: Int, toolCount: Int) -> Int {
+        1 + (systemCount > 0 ? 1 : 0) + (toolCount > 0 ? 1 : 0)
+    }
+
+    /// The index of the first row that is not an App row, for tests and for a caller that
+    /// wants the boundary without walking the list.
+    ///
+    /// An empty system section does not move the boundary: it points at the first tool row
+    /// instead, because the system section draws nothing when it has no rows.
     static func boundary(in entries: [PanelEntry]) -> Int? {
-        entries.firstIndex { $0.isSystem }
+        entries.firstIndex { entry in
+            if case .app = entry.section { return false }
+            return true
+        }
     }
 }

@@ -10,11 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// protocols in `Core/Ports`; this is where they are built and handed over, in the one
     /// direction the dependency rule allows (App → Core).
     lazy var engine = ShortcutEngine(settingsStore: settingsStore, usageStore: usageStore) { engine in
-        EnginePresenters(
+        let settings = SettingsWindowController(engine: engine)
+        return EnginePresenters(
             panel: SurfacePanelController(engine: engine),
             notices: HUDPanelController(),
-            settings: SettingsWindowController(engine: engine),
-            permissions: PermissionsWindowController(engine: engine),
+            settings: settings,
+            permissions: PermissionsWindowController(engine: engine) { [weak settings] in
+                settings?.hostingWindow
+            },
             guide: PermissionGuidePanelController()
         )
     }
@@ -57,6 +60,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             """)
     }
 
+    /// The trigger is the one thing a new user cannot discover by looking at the menu bar.
+    /// One HUD on first launch, never again; Settings keeps a button to replay it.
+    private static let triggerTipShownKey = "KagiPeekTriggerTipShown"
+
+    private func showTriggerTipIfNeeded() {
+        guard !UserDefaults.standard.bool(forKey: Self.triggerTipShownKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.triggerTipShownKey)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            self.engine.showHUD(
+                chord: "⌘",
+                title: self.engine.localization.text(.triggerTip),
+                kind: .info
+            )
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(settingsStore.settings.showDockIcon ? .regular : .accessory)
 
@@ -95,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let started = Date()
         engine.start()
         Diag.info(.start, "engine started in \(Int(Date().timeIntervalSince(started) * 1000))ms")
+        showTriggerTipIfNeeded()
 
         // The menu bar item is ours from here on: `StatusItemController` explains why it is
         // no longer a SwiftUI `MenuBarExtra`.

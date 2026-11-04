@@ -19,6 +19,8 @@ final class PanelSession {
     private let dismissEverything: () -> Void
     private let onCapturedKeysChanged: () -> Void
     private let onInputStateChanged: () -> Void
+    /// Same disabled row, same explanation: at most once per `DisabledNoticeGate.interval`.
+    private var disabledNoticeGate = DisabledNoticeGate()
 
     init(
         state: EngineState,
@@ -46,18 +48,38 @@ final class PanelSession {
         self.onInputStateChanged = onInputStateChanged
     }
 
-    /// In fill-screen mode the panel can show everything at once, so the page grows with the
-    /// screen instead of sticking to the small-window row limit. The arithmetic is pure
-    /// (`OverlayMetrics`) and holds no `Theme` values: how rows are counted must not move
-    /// when a corner radius does.
+    /// Rows per page: `maxItemsPerPage` is an upper bound, not a target. A 60-row page in a
+    /// 720 pt window put its last rows under the footer (or past the screen edge), so the
+    /// geometry gets the final say. The arithmetic is pure (`OverlayMetrics`) and holds no
+    /// `Theme` values: how rows are counted must not move when a corner radius does.
     /// Internal for `PreviewScenarios`, which computes the boundary page from it.
     var panelPageSize: Int {
-        guard state.settings.panelPlacement == .fillScreen, let screen = NSScreen.main else {
-            return max(1, state.settings.maxItemsPerPage)
+        let settings = state.settings
+        let configured = max(1, settings.maxItemsPerPage)
+        guard let screen = NSScreen.main else { return configured }
+        let visible = screen.visibleFrame.size
+        let columns: Int
+        let panelHeight: CGFloat
+        switch settings.panelPlacement {
+        case .fillScreen:
+            columns = max(1, min(4, Int((visible.width - OverlayMetrics.padding * 2) / OverlayMetrics.denseColumnStride)))
+            panelHeight = visible.height
+        case .fixedSize:
+            columns = max(1, min(settings.columnCount, OverlayMetrics.columns(forWidth: CGFloat(settings.fixedPanelWidth))))
+            panelHeight = min(CGFloat(settings.fixedPanelHeight), visible.height)
+        case .coverWindow, .besideWindow:
+            columns = max(1, settings.columnCount)
+            panelHeight = min(OverlayMetrics.maxPanelHeight, visible.height)
         }
-        return OverlayMetrics.fillScreenPageSize(
-            visibleFrame: screen.visibleFrame.size,
-            maxItemsPerPage: state.settings.maxItemsPerPage
+        return OverlayMetrics.fittedPageSize(
+            maxItemsPerPage: configured,
+            columns: columns,
+            panelHeight: panelHeight,
+            // Three cards at most: the app's section, the system hotkeys and the config-tool
+            // block. Reserved on every page so the page count cannot wobble when one of them
+            // is empty or folded.
+            cardCount: 3,
+            headingCount: 3
         )
     }
 
@@ -74,9 +96,12 @@ final class PanelSession {
         let key = RowBudgetKey(
             scannedAt: state.catalog.scannedAt,
             showsFavoritesOnly: state.favoritesPolicy.showsFavoritesOnly,
+            filter: state.panel.filter,
             includeDisabled: state.settings.showDisabledItems,
             ignoredSignature: ignoredSignature,
             systemCount: state.systemBindings.count,
+            configCount: state.configBindings.count,
+            toolSectionExpanded: state.panel.toolSectionExpanded,
             pageSize: panelPageSize
         )
         if let cached = state.rowBudgetCache, cached.key == key {
@@ -88,11 +113,25 @@ final class PanelSession {
             includeDisabled: state.settings.showDisabledItems
         ).filter { !state.isIgnored($0.item) }
         hits = state.favoritesPolicy.favoritesOnly(hits) { usageStore.isFavorite($0.item.usageKey) }
-        let total = hits.count
+        // The tool rows are part of the widest list whenever the section is open; folded,
+        // they cost their cards' headings only.
+        let toolRows: Int
+        if state.panel.toolSectionExpanded {
+            toolRows = state.favoritesPolicy
+                .favoritesOnly(state.configBindings, isFavorite: { usageStore.isFavorite($0.usageKey) })
+                .count
+        } else {
+            toolRows = 0
+        }
+        let total = hits.count + toolRows
         let pageSize = key.pageSize
-        // Both sections flow through the same pages. A short list reserves only its own
-        // rows; the system section's heading still gets its one strip.
-        let headings = state.systemBindings.isEmpty ? 1 : 2
+        // Every section flows through the same pages. A short list reserves only its own
+        // rows; the other sections' headings still get their strip.
+        let headings = PanelSections.nonEmptySectionCount(
+            appCount: hits.count,
+            systemCount: state.systemBindings.count,
+            toolCount: state.configBindings.count
+        )
         let allocation = PanelBudget.budget(totalRows: total, pageSize: pageSize, headings: headings)
         state.rowBudgetCache = (key, allocation.rows, allocation.headings)
         return (allocation.rows, allocation.headings)
@@ -110,9 +149,8 @@ final class PanelSession {
 
     /// The name the app's own section is headed with.
     ///
-    /// Both sections get a card, and a card needs a name: the app's own section is the one the
-    /// title bar names, so the same name heads it — with the count the title bar has no room
-    /// for. Empty until a scan names the front app.
+    /// The app's card is the one the title bar names, so the same name heads it — with the
+    /// count the title bar has no room for. Empty until a scan names the front app.
     private var panelSectionTitle: String {
         state.appName.isEmpty ? frontmostName() : state.appName
     }
@@ -124,7 +162,11 @@ final class PanelSession {
     /// write the result back. Split at the seams the blank lines were already drawing.
     func rebuildPanel() {
         guard state.panel.isVisible else { return }
-        let sequence = panelSequence()
+        // `allEntries` is the filtered list of all three sources; `sequence` is what the
+        // panel walks, with the tool block folded away unless the user opened it. Counts
+        // come from the former, so a folded card still says how many rows it holds.
+        let allEntries = filteredEntries(allPanelEntries())
+        let sequence = visibleEntries(allEntries)
         let page = panelPage(of: sequence, pageSize: panelPageSize)
         let systemTitle = localization.text(.groupSystemHotkeys)
         let sectionTitle = panelSectionTitle
@@ -132,15 +174,16 @@ final class PanelSession {
             for: page.entries,
             highlighted: highlightedIDs(for: page.entries.map(\.hit)),
             systemTitle: systemTitle,
-            sectionTitle: sectionTitle,
+            appTitle: sectionTitle,
             hintLabels: hintLabels(for: sequence)
         )
         if isPreviewing() {
-            let systemRows = sequence.filter(\.isSystem).count
-            Diag.info(.ui, "panel sequence: app=\(sequence.count - systemRows) system=\(systemRows) page=\(page.index + 1)/\(page.count) rows=\(specs.count)")
+            let counts = PanelSections.counts(in: allEntries)
+            let toolRows = ConfigTool.allCases.reduce(0) { $0 + (counts[.tool($1)] ?? 0) }
+            Diag.info(.ui, "panel sequence: app=\(counts[.app] ?? 0) system=\(counts[.system] ?? 0) tool=\(toolRows) page=\(page.index + 1)/\(page.count) rows=\(specs.count)")
         }
         applyPanelUpdate(
-            sequence: sequence,
+            allEntries: allEntries,
             specs: specs,
             page: page,
             systemTitle: systemTitle,
@@ -172,7 +215,7 @@ final class PanelSession {
         for entries: [PanelEntry],
         highlighted: Set<String>,
         systemTitle: String,
-        sectionTitle: String,
+        appTitle: String,
         hintLabels: [String: String]
     ) -> [PanelRowBuilder.Spec] {
         entries.map { entry in
@@ -181,7 +224,7 @@ final class PanelSession {
             // column was an em dash, and the same dash also said "no keyboard shortcut" a few
             // rows down. The only true thing about that row is its chord, so the chord becomes
             // the name and the key column stays empty.
-            let unnamedSystemHotkey = entry.isSystem && hit.item.title == DescriptionCleaner.placeholder
+            let unnamedSystemHotkey = entry.section == .system && hit.item.title == DescriptionCleaner.placeholder
             let renderedChord = KeyFormatter.render(hit.item.chord, style: state.settings.keyStyle)
             return PanelRowBuilder.Spec(
                 id: hit.id,
@@ -189,13 +232,8 @@ final class PanelSession {
                 title: unnamedSystemHotkey
                     ? renderedChord
                     : DescriptionCleaner.truncate(hit.item.title, maxLength: state.settings.maxDescriptionLength),
-                // The system card's header already names the section, so repeating it in
-                // every row's note column would be the same word 79 times.
-                note: entry.isSystem ? "" : menuPath(of: hit.item),
-                // Two sections, never interleaved: the app's rows keep the flat chord order
-                // under the app's name, the system's hotkeys under theirs. Each title is a
-                // card header, so the boundary is a shape rather than a line of text.
-                groupTitle: entry.isSystem ? systemTitle : sectionTitle,
+                note: rowNote(for: entry),
+                groupTitle: rowGroupTitle(for: entry, systemTitle: systemTitle, appTitle: appTitle),
                 // The chevron and the click share one answer: a row without a chevron is a
                 // shortcut the user can run (`KeyChord.isFinalStroke`).
                 isGroup: !hit.item.chord.isFinalStroke(after: state.prefix),
@@ -204,14 +242,51 @@ final class PanelSession {
                 isHighlighted: highlighted.contains(hit.item.id),
                 isCompleted: state.panel.completedRowID == hit.item.id,
                 isFavorite: usageStore.isFavorite(hit.item.usageKey),
-                hintLabel: hintLabels[hit.id]
+                hintLabel: hintLabels[hit.id],
+                source: hit.item.source,
+                // Both the system section and the Apple-menu section carry the same chord
+                // for Sleep/Restart/…; the policy is evaluated on every row so both are red.
+                restriction: RestrictedActionPolicy.restriction(for: hit.item).action,
+                hasChord: !hit.item.chord.isEmpty
             )
+        }
+    }
+
+    /// The row's annotation column, by source.
+    ///
+    /// The system card's header already names the section, so repeating it in every row's
+    /// note column would be the same word 79 times. A tool row says which tool owns it —
+    /// that is the answer "why does ⌘K open Alfred and not the app".
+    private func rowNote(for entry: PanelEntry) -> String {
+        switch entry.section {
+        case .app:
+            return menuPath(of: entry.hit.item)
+        case .system:
+            return ""
+        case let .tool(tool):
+            return tool.displayName
+        }
+    }
+
+    /// Which card a row belongs to, by source.
+    ///
+    /// The app's heading exists for the menu-bar order, where a card title tells the user
+    /// which menu a block came from. Chord order is one flat list, so it draws no heading;
+    /// the system's hotkeys keep theirs either way, and each tool always names itself.
+    private func rowGroupTitle(for entry: PanelEntry, systemTitle: String, appTitle: String) -> String {
+        switch entry.section {
+        case .app:
+            return state.settings.panelOrder == .byMenuGroup ? appTitle : ""
+        case .system:
+            return systemTitle
+        case let .tool(tool):
+            return tool.displayName
         }
     }
 
     /// Builds the rows and writes the whole panel state back in one pass.
     private func applyPanelUpdate(
-        sequence: [PanelEntry],
+        allEntries: [PanelEntry],
         specs: [PanelRowBuilder.Spec],
         page: PanelPage,
         systemTitle: String,
@@ -219,18 +294,59 @@ final class PanelSession {
     ) {
         let built = PanelRowBuilder.build(specs)
         let budget = unnarrowedBudget()
-        // Both sections span pages, so their headings print the section's size rather than the
-        // slice on screen — "15" was the count of the page, not of the section.
-        let systemTotal = sequence.reduce(0) { $0 + ($1.isSystem ? 1 : 0) }
-        let appTotal = sequence.count - systemTotal
-        state.panel.groups = built.groups.map { group in
-            PanelGroup(
+        // Every section spans pages, so its heading prints the section's size rather than the
+        // slice on screen — "15" was the count of the page, not of the section. The counts
+        // come from `allEntries`, so a folded tool card still knows how many rows it holds.
+        let counts = PanelSections.counts(in: allEntries)
+        let appTotal = counts[.app] ?? 0
+        let systemTotal = counts[.system] ?? 0
+        var toolTotals: [(tool: ConfigTool, count: Int)] = []
+        for tool in ConfigTool.allCases {
+            toolTotals.append((tool, counts[.tool(tool)] ?? 0))
+        }
+        // Group titles identify sections: the app's card is headed by the app's name (or by
+        // nothing in chord order), the system's by its localisation, a tool's by its own name.
+        var totals: [String: Int] = [:]
+        // Assigned one by one, not as a literal: the app's title is empty until a scan names
+        // the front app, so "" and `sectionTitle` are often the same key.
+        totals[""] = appTotal
+        totals[sectionTitle] = appTotal
+        totals[systemTitle] = systemTotal
+        for pair in toolTotals {
+            totals[pair.tool.displayName] = pair.count
+        }
+        var groups = built.groups.map { group -> PanelGroup in
+            let tool = ConfigTool.allCases.first { $0.displayName == group.title }
+            return PanelGroup(
                 id: group.id,
                 title: group.title,
                 rows: group.rows,
-                totalCount: group.title == systemTitle ? systemTotal : appTotal
+                // A title that is in neither map is one of the app's menu-group headings
+                // (by-menu order), and those print the app's total, as they always have.
+                totalCount: totals[group.title] ?? appTotal,
+                isCollapsible: tool != nil,
+                isExpanded: tool == nil ? true : state.panel.toolSectionExpanded
             )
         }
+        // A folded tool still draws its card: a title, its count, and no rows. The builder
+        // only makes groups out of rows, so the empty ones are added here, after the sequence,
+        // in the same fixed order the rows would have had (App → system → each tool).
+        if !state.panel.toolSectionExpanded {
+            let presentTitles = Set(groups.map(\.title))
+            for pair in toolTotals where pair.count > 0 && !presentTitles.contains(pair.tool.displayName) {
+                groups.append(
+                    PanelGroup(
+                        id: pair.tool.displayName,
+                        title: pair.tool.displayName,
+                        rows: [],
+                        totalCount: pair.count,
+                        isCollapsible: true,
+                        isExpanded: false
+                    )
+                )
+            }
+        }
+        state.panel.groups = groups
         state.panel.flatRowIDs = built.flatRowIDs
         state.panel.rowBudget = budget.rows
         state.panel.headingBudget = budget.headings
@@ -241,7 +357,10 @@ final class PanelSession {
         state.panel.prefixLabels = KeyFormatter.breadcrumb(for: state.prefix, style: state.settings.keyStyle)
         state.panel.pageIndex = page.index
         state.panel.pageCount = page.count
-        state.panel.totalCount = sequence.count
+        // Three sources, one total: a folded tool block still counts its rows here, because
+        // the number in the title bar answers "how much is in this panel", not "how much is
+        // on this page".
+        state.panel.totalCount = allEntries.count
         state.panel.appName = sectionTitle
         state.panel.hasConflicts = !state.conflicts.isEmpty
         state.panel.showsFavoritesOnly = state.showsFavoritesOnly
@@ -260,6 +379,7 @@ final class PanelSession {
         let cacheKey = OrderedHitsKey(
             prefix: state.prefix,
             heldModifiers: state.panel.heldModifiers,
+            filter: state.panel.filter,
             latchedModifiers: state.panel.latchedModifiers,
             scannedAt: state.catalog.scannedAt,
             favorites: state.favoritesPolicy,
@@ -292,21 +412,85 @@ final class PanelSession {
         return sorted
     }
 
-    /// The panel's rows as one sequence: the app's section, then the system's.
+    /// The panel's rows as one sequence: the app's section, the system's, then each tool's.
     ///
     /// `orderedHits()` stays app-only — it is what the prefix, the held modifiers and the
-    /// order cache reason about. The system section is appended here, once, so pagination and
-    /// "jump to the page of this row" walk exactly the sequence the panel draws.
+    /// order cache reason about. The other two sources are appended here, once, so pagination
+    /// and "jump to the page of this row" walk exactly the sequence the panel draws.
     /// Internal for `PreviewScenarios`, which needs the page a heading lands on.
     func panelSequence() -> [PanelEntry] {
+        visibleEntries(filteredEntries(allPanelEntries()))
+    }
+
+    /// Every row the session owns, in the panel's fixed source order.
+    ///
+    /// The tool blocks are ordered by `ConfigTool.allCases`, not by the order the scan
+    /// happened to return: the cards then stay in the same place across rescans, which also
+    /// makes the order assertable in a test.
+    private func allPanelEntries() -> [PanelEntry] {
         let appHits = orderedHits()
-        guard state.prefix == .empty, !state.systemBindings.isEmpty else {
-            return PanelSections.combine(app: appHits, system: [])
+        let systemHits: [PrefixHit]
+        if state.prefix == .empty, !state.systemBindings.isEmpty {
+            systemHits = ranked(state.systemBindings)
+        } else {
+            systemHits = []
         }
-        let items = state.favoritesPolicy.favoritesOnly(state.systemBindings) { usageStore.isFavorite($0.usageKey) }
-        var sorted = PanelOrdering.sorted(items, emphasizing: state.pending.effective)
+        // Tool rows are single chords like the system's, so they follow the same rule: they
+        // appear only on an empty prefix, ranked the same way, one block per tool.
+        var toolBlocks: [(ConfigTool, [PrefixHit])] = []
+        if state.prefix == .empty, !state.configBindings.isEmpty {
+            for tool in ConfigTool.allCases {
+                let items = state.configBindings.filter { $0.configTool == tool }
+                if !items.isEmpty {
+                    toolBlocks.append((tool, ranked(items)))
+                }
+            }
+        }
+        return PanelSections.combine(app: appHits, system: systemHits, tool: toolBlocks)
+    }
+
+    /// Rows ranked by the same rules the app's list uses: favorites policy, then the chord
+    /// order, with favorites pinned when the setting asks for it.
+    ///
+    /// The system and tool sources used to spell this out separately; one helper keeps all
+    /// three sources from drifting into three slightly different orders.
+    private func ranked(_ items: [BindingItem]) -> [PrefixHit] {
+        let favorite = state.favoritesPolicy.favoritesOnly(items) { usageStore.isFavorite($0.usageKey) }
+        var sorted = PanelOrdering.sorted(favorite, emphasizing: state.pending.effective)
         sorted = state.favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.usageKey) }
-        return PanelSections.combine(app: appHits, system: PanelSections.hits(for: sorted))
+        return PanelSections.hits(for: sorted)
+    }
+
+    /// The rows the panel walks: everything except the tool block while that section is folded.
+    ///
+    /// Folded, the tools still draw a card (title and count, no rows), so they stay in the
+    /// counts but not in the pages.
+    private func visibleEntries(_ entries: [PanelEntry]) -> [PanelEntry] {
+        PanelSections.visible(entries, includeToolSection: state.panel.toolSectionExpanded)
+    }
+
+    /// The filter is a query over the combined sequence, after the source split and after
+    /// every other rule: it only decides which rows survive, never their order.
+    private func filteredEntries(_ entries: [PanelEntry]) -> [PanelEntry] {
+        // Build the corpus only when there is a query: an empty filter matches everything,
+        // and typing is the only thing that needs the index.
+        guard !state.panel.filter.isEmpty else { return entries }
+        guard let ids = PanelFilterPlan.matchingIDs(filter: state.panel.filter, corpus: filterCorpus()) else {
+            return entries
+        }
+        return entries.filter { ids.contains($0.id) }
+    }
+
+    /// The corpus the filter query runs against: all three of the panel's sources.
+    ///
+    /// The palette's cached corpus is deliberately not reused: it is built from the palette's
+    /// scope (one app, plus the system hotkeys) and never contains tool rows, so filtering
+    /// through it would silently hide the whole config-tool section.
+    private func filterCorpus() -> SearchCorpus {
+        SearchCorpus(
+            items: state.catalog.items + state.systemBindings + state.configBindings,
+            style: state.settings.keyStyle
+        )
     }
 
     /// Rows that are part of the shortcut currently being pressed.
@@ -368,6 +552,18 @@ final class PanelSession {
         rebuildPanel()
     }
 
+    /// Opens or folds the config-tool section.
+    ///
+    /// The tool rows leave the sequence and come back, so both caches are dropped: the
+    /// budget was sized for the previous fold, and the order cache must not outlive the
+    /// session's rule change. The page is clamped by the next rebuild.
+    func toggleToolSection() {
+        state.panel.toolSectionExpanded.toggle()
+        state.orderedHitsCache = nil
+        state.rowBudgetCache = nil
+        rebuildPanel()
+    }
+
     /// Ticks or unticks one of the title bar's modifier chips.
     ///
     /// A tick composes a stroke — a ticked ⌥ plus a pressed C is ⌥⌘C — and keeps narrowing
@@ -404,9 +600,14 @@ final class PanelSession {
 
     /// Re-seeds the prefix and redraws after the ticked set changed.
     func refreshAfterLatchedChange() {
-        if state.prefix.isEmpty || state.prefix.isModifierOnly {
-            let effective = state.pending.effective
-            state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
+        if state.panel.filter.isEmpty {
+            if state.prefix.isEmpty || state.prefix.isModifierOnly {
+                let effective = state.pending.effective
+                state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
+            }
+        } else {
+            // The filter already does the narrowing; a prefix on top would narrow twice.
+            state.prefix = .empty
         }
         state.orderedHitsCache = nil
         state.panel.pageIndex = 0
@@ -425,6 +626,7 @@ final class PanelSession {
     func toggleFavorite(rowID: String) {
         let item = state.catalog.items.first(where: { $0.id == rowID })
             ?? state.systemBindings.first(where: { $0.id == rowID })
+            ?? state.configBindings.first(where: { $0.id == rowID })
         guard let item else { return }
         usageStore.toggleFavorite(item.usageKey)
         // A pin changes the order but not the press counter, so the cache has to be dropped.
@@ -432,11 +634,12 @@ final class PanelSession {
         rebuildPanel()
     }
 
-    /// Rows can come from the frontmost app's catalog, the app the browser window is
-    /// showing, or the system hotkey list. One resolver keeps clicks and keys honest.
+    /// Rows can come from the frontmost app's catalog, the system hotkey list, or a config
+    /// tool's file. One resolver keeps clicks and keys honest.
     private func item(forRowID rowID: String) -> BindingItem? {
         state.catalog.items.first(where: { $0.id == rowID })
             ?? state.systemBindings.first(where: { $0.id == rowID })
+            ?? state.configBindings.first(where: { $0.id == rowID })
     }
 
     /// What a copy puts on the pasteboard: the shortcut when there is one, the menu path
@@ -463,6 +666,35 @@ final class PanelSession {
             return
         }
         copyToPasteboard(text)
+    }
+
+    /// Copies the menu path only.
+    ///
+    /// A restricted row's context menu and a chord-less row use this: the shortcut is the
+    /// thing that cannot be offered, but the place the command lives still can.
+    func copyMenuPath(rowID: String) {
+        guard let item = item(forRowID: rowID) else {
+            Diag.error(.run, "row \(rowID) is in no panel source")
+            return
+        }
+        let path = menuPath(of: item)
+        guard !path.isEmpty else {
+            presenters.notices.show(
+                chord: "!",
+                title: localization.text(.panelNothingToCopy),
+                kind: .failure
+            )
+            return
+        }
+        guard copyToPasteboard(path) else {
+            presenters.notices.show(
+                chord: "!",
+                title: localization.text(.panelCopyFailed),
+                kind: .failure
+            )
+            return
+        }
+        presenters.notices.show(chord: path, title: localization.text(.panelCopied))
     }
 
     /// Copy with the toast both surfaces share, so a copy that changes nothing on screen
@@ -544,12 +776,61 @@ final class PanelSession {
         performPanelRow(rowID: state.panel.flatRowIDs[state.panel.selectionIndex], action: action)
     }
 
-    /// A click and the run key share one contract: run or copy, as asked for.
+    /// A click and the run key share one contract, but they ask different questions:
+    ///
+    /// - the run key asks to execute;
+    /// - a click on a restricted or config row copies instead of running (see
+    ///   `PanelRowActionPlan`), which is why it gets its own entry point.
     func performPanelRow(rowID: String, action: RowAction) {
         switch action {
-        case .execute: activate(rowID: rowID)
-        case .copy: copyRow(rowID: rowID)
+        case .execute: performPanelRow(rowID: rowID, request: .execute)
+        case .copy: performPanelRow(rowID: rowID, request: .copyShortcut)
         }
+    }
+
+    /// Cursor click in the panel. Restricted and config-tool rows answer by copying their
+    /// shortcut (or their menu path when there is no chord) rather than doing nothing.
+    func clickPanelRow(rowID: String) {
+        performPanelRow(rowID: rowID, request: .click)
+    }
+
+    /// The one place panel activation turns into an outcome. The configuration row never
+    /// reaches `RowRunner`, and a restricted action never reaches it either.
+    private func performPanelRow(rowID: String, request: PanelRowRequest) {
+        guard let item = item(forRowID: rowID) else {
+            // No namespace knows this id. Reachable only if a row and the catalog disagree,
+            // which used to present itself as "clicking does nothing".
+            Diag.error(.run, "row \(rowID) is in no panel source")
+            return
+        }
+        let outcome = PanelRowActionPlan.outcome(
+            request: request,
+            restriction: RestrictedActionPolicy.restriction(for: item),
+            source: item.source,
+            hasChord: !item.chord.isEmpty
+        )
+        switch outcome {
+        case .run:
+            run(item: item, rowID: rowID)
+        case .copyShortcut:
+            copyShortcut(rowID: rowID)
+        case .copyMenuItem:
+            copyMenuPath(rowID: rowID)
+        case .noticeUnsupportedSource:
+            showNotice(.panelUnsupportedSource)
+        case .noticeRestricted:
+            showNotice(.panelRestrictedNotice)
+        case .noticeNothingToCopy:
+            showNotice(.panelNothingToCopy)
+        }
+    }
+
+    private func showNotice(_ key: L10nKey) {
+        presenters.notices.show(
+            chord: "!",
+            title: localization.text(key),
+            kind: .info
+        )
     }
 
     /// Cursor moved over a row: make it the selected row so Return acts on it.
@@ -559,23 +840,27 @@ final class PanelSession {
         state.panel.selectionIndex = index
     }
 
-    /// Click in the panel: close it and trigger the command in the front app — by pressing
-    /// the menu item when there is one, by replaying the chord otherwise — the same
-    /// contract as clicking a search result.
     /// Runs the row the user picked, in whichever namespace owns it.
     ///
-    /// A row belongs to exactly one namespace, so this is a router into the three effects
-    /// below rather than a function that does the work. Split at the same seams the
-    /// `if`-chain already had: catalog row, system hotkey, unknown id.
+    /// A row belongs to exactly one namespace, so this is a router into the effects below
+    /// rather than a function that does the work. Catalog row, system hotkey, unknown id.
+    ///
+    /// The guard is the same table the click and copy paths use: a config row says "shown
+    /// only", a restricted action says "not available to run". Neither reaches `RowRunner`.
     func activate(rowID: String) {
-        if let item = state.catalog.items.first(where: { $0.id == rowID }) {
+        performPanelRow(rowID: rowID, request: .execute)
+    }
+
+    private func run(item: BindingItem, rowID: String) {
+        switch item.source {
+        case .system:
+            rowRunner.runSystemHotkey(item)
+        case .configFile:
+            // Unreachable through the plan; the double guard inside `RowRunner` covers any
+            // future caller that finds this row another way.
+            showNotice(.panelUnsupportedSource)
+        default:
             activateCatalogItem(item, rowID: rowID)
-        } else if let system = state.systemBindings.first(where: { $0.id == rowID }) {
-            rowRunner.runSystemHotkey(system)
-        } else {
-            // Neither namespace knows this id. Reachable only if a row and the catalog
-            // disagree, which used to present itself as "clicking does nothing".
-            Diag.error(.run, "row \(rowID) is in neither the catalog nor the system hotkeys")
         }
     }
 
@@ -593,6 +878,15 @@ final class PanelSession {
         }
         guard item.isEnabled else {
             Diag.info(.run, "ignoring disabled row \(item.title)")
+            // A row that does nothing when clicked reads as a broken panel. The reason is
+            // spoken once per row per three seconds, not on every click.
+            if disabledNoticeGate.shouldShow(rowID: rowID, at: Date()) {
+                presenters.notices.show(
+                    chord: "",
+                    title: localization.text(.panelDisabledReason),
+                    kind: .info
+                )
+            }
             return
         }
         guard state.panel.beginRunning(rowID: rowID) else {

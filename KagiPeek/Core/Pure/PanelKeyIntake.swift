@@ -4,8 +4,8 @@ import Foundation
 ///
 /// The event tap has to decide whether to swallow a key before the engine ever sees it, and
 /// `handleKeyDown` spends its first few branches on keys that are panel navigation rather
-/// than a chord: `/` opens the search palette, Escape closes the panel, the arrows and `;`/`'`
-/// move through the list, and the run/copy keys act on the selected row.
+/// than a chord: `/` opens the search palette, Escape closes the panel, the arrows and the
+/// enabled paging pairs move through the list, and the run/copy keys act on the selected row.
 ///
 /// That list has to be readable from the tap as well, and the reason is the ticked modifier.
 /// A ticked ⌥ is not in the key event — it lives in the panel — so `;` arrives carrying
@@ -27,6 +27,7 @@ nonisolated enum PanelKeyIntake {
         held: ModifierSet,
         run: HotkeySpec?,
         copy: HotkeySpec?,
+        pagingPairs: Set<PagingPair>,
         characters: String? = nil
     ) -> Bool {
         if NavigationKey.isSlash(keyCode: keyCode, modifiers: modifiers, characters: characters) {
@@ -38,7 +39,12 @@ nonisolated enum PanelKeyIntake {
         if keyCode == KeyCode.escape { return true }
         let pressed = modifiers.subtracting(held)
         if NavigationKey.direction(keyCode: keyCode, modifiers: pressed) != nil { return true }
-        if NavigationKey.pageStep(keyCode: keyCode, modifiers: pressed, characters: characters) != nil {
+        if PagingKeyPlan.step(
+            pairs: pagingPairs,
+            keyCode: keyCode,
+            modifiers: pressed,
+            characters: characters
+        ) != nil {
             return true
         }
         if RowKeyRouter.action(

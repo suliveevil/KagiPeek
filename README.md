@@ -5,7 +5,7 @@
 
 **Press and hold a modifier. See what the app you are in can do next.**
 
-KagiPeek is a menu bar utility for macOS. It reads the frontmost app's menu bar through the Accessibility API and shows its shortcuts in a floating panel. The panel is **persistent**: it stays until you press Esc, toggle it off, or complete a shortcut. Holding modifiers to summon it narrows the list to that modifier level, which-key style; the hotkey and the trigger-key double tap summon it with no prefix, showing every shortcut as a complete combination (⌘C). There is no per-app shortcut pack to install and no configuration file to maintain: if an app has a menu bar, KagiPeek can show its shortcuts, including chords, disabled items, and conflicts — and it can trigger any of them, including menu items that have no shortcut at all.
+KagiPeek is a menu bar utility for macOS. It reads the frontmost app's menu bar through the Accessibility API and shows its shortcuts in a floating panel. The panel is **persistent**: it stays until you press Esc, toggle it off, or complete a shortcut. A modifier pressed while it is open joins an ordered filter, and a letter pressed while that modifier is still down narrows further; the trigger key's own press is not a filter token, so the panel opens on the full list of complete combinations (⌘C). There is no per-app shortcut pack to install and no configuration file to maintain: if an app has a menu bar, KagiPeek can show its shortcuts, including chords, disabled items, and conflicts — and it can trigger any of them, including menu items that have no shortcut at all.
 
 The shortcut engine was rewritten around live menu scanning. It then became actionable: the panel became keyboard-driven and clickable, and conflicts began to include macOS system hotkeys. The panel became persistent, with four placement modes, tokenized and pinyin-aware search, Hyper-key matching, per-app statistics in Application Support, guided permission onboarding, an About tab, and a panel/search switch hotkey. It is now organised into two cards ordered by the shortcut itself; the "look at another app" job moved out of the browser window and into the search palette; Settings split into eight tabs — statistics and conflicts each answer a different question and got a page of their own; a conflict names its **type** and a likely winner instead of a severity; the cross-app scan is cached on disk behind a manual rescan; system hotkeys have real names; and triggering the menu item became the primary goal: every menu item is run by pressing it in the menu itself, so menu items with no shortcut at all are reachable too.
 
@@ -24,10 +24,10 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 *The title bar gives way in a fixed order: the result count, then the modifier chips and the favourites toggle, then the app name and subtitle. The settings and close buttons stay reachable — in a one-column panel they used to be pushed outside it. The menu column is dropped rather than squeezed, and the "has a sub-level" chevron moves into the trailing slot so it survives.*
 
 ![Ticking modifiers instead of holding them](docs/images/overlay-latch.png)
-*A shortcut can be assembled like an Emacs key sequence: tap ⌥, tap ⌘, then press C — or hold all three at once. Tapping a modifier (or clicking its chip in the title bar) ticks it: the list narrows exactly as it does while a key is held, but the tick survives the release, and the next tap narrows on top of it. Ticks light the chip and are folded into the next stroke, which the panel then replays in full. ⌫ undoes the tick you made last, and everything but the last one is still there, so you can narrow again without reopening the panel.*
+*Pressing a modifier while the panel is open adds it to the panel's ordered filter, and the next press narrows on top of it — ⌃ then F keeps only shortcuts that carry both. Clicking a title-bar chip ticks the modifier instead, so it stays down after release; ⌫ takes back the last token you added, then the last tick.*
 
 ![Holding a modifier instead of ticking it](docs/images/overlay-held.png)
-*Holding is the other half of the same list: it narrows while the key is down and widens again the moment you let go — a way of looking, where a tick is a way of composing. The menu item keeps its whole chord either way; the modifier you are holding is lit in place rather than stripped, so a menu item narrowed by ⌘ still reads ⌘C and not just C.*
+*Holding is the other half of the same list: pressing a modifier while the panel is open adds it to the filter, and letting go leaves that condition in place. The menu item keeps its whole chord either way; the modifier you pressed is lit in place rather than stripped, so a menu item narrowed by ⌘ still reads ⌘C and not just C.*
 
 ![Menu items that have no shortcut at all](docs/images/overlay-noshortcut.png)
 *Triggering the menu item is the point, so the panel does not stop at menu items that can be typed: one with no key equivalent still gets a row, sorted after every shortcut, with the shortcut column left blank. Running it presses the menu item itself — the only way to reach it — and the same press is tried first for every other menu item, with the chord replayed only as a fallback.*
@@ -47,20 +47,20 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 | --- | --- |
 | **Live menu scanning** | Reads the frontmost app's menu bar recursively through Accessibility: menu titles, key equivalents, enabled state, and the position of each item in the tree. Items with no key equivalent are kept too — they are triggered by pressing the menu item, not by typing. Any app with a standard menu bar works without a custom shortcut list. |
 | **Fallback catalog** | 100 built-in system, text-editing, Finder, and screenshot shortcuts fill in when an app has no menu bar or a scan cannot run. Can be disabled. |
-| **Persistent panel** | The panel stays until you press Esc or toggle it off. **Holding the trigger key to summon it seeds a prefix**, so the list narrows to the menu items those modifiers can start; the hotkey (⌃⌥⌘K) and the double-tap gesture summon it with an empty prefix, so every menu item is a complete combination (for example ⌘C). Releasing the modifiers widens the list back without closing the panel. |
-| **Which-key narrowing** | While the prefix is modifier-only, menu items shrink to those whose first stroke uses a superset of the held modifiers, each menu item shows the next key, and the surviving menu items are highlighted (the highlighted set and the visible set are the same at that level). Pressing a real key descends into that level. Completing a shortcut emphasises its description for about 0.4 s, then the panel closes. |
-| **Chords** | Multi-stroke shortcuts such as `⌘K ⌘C` descend one level at a time. ⌫ goes back, Esc closes; a breadcrumb shows the current prefix. Pressing a key with no match leaves the panel open. |
-| **Menu grouping** | Each menu item keeps the menu it came from as its middle column, with the app's own menu titles in the app's language. There is no per-menu heading to re-order the list: by default the shortcut decides the order, and **Panel order** in Settings can instead keep every top-level menu contiguous. |
-| **Two sections** | The app's menu items come first under its name; macOS's own hotkeys follow under **System hotkeys**, so a chord the system owns is visible next to the one the app owns. |
-| **Pagination** | Long lists are paged with `1/3` and clickable ‹ ›, and the scroll wheel works. The panel never grows past the screen. |
-| **Actionable panel** | ↑/↓ select a menu item, ←/→ page, the run key (Space by default) runs the selected menu item, the copy key (Return by default) copies it, and Esc closes. While no modifier is held these keys are consumed by the panel, so the front app never sees them; a completed shortcut is not consumed, so the app still receives it. Clicking a menu item does what the run key does. Both keys are **recorded** under **Settings → General → Menu item actions**. |
+| **Persistent panel** | The panel stays until you press Esc or toggle it off. The summoning press is a trigger, not a filter token: the hotkey (⌃⌥⌘K), the double tap and the hold all open on the whole list, so every menu item is a complete combination (for example ⌘C). A modifier pressed **while the panel is open** joins an ordered filter, and releasing the keys leaves that condition in place. |
+| **Modifier and letter filter** | Hold ⌃ while the panel is open, then press a letter, to combine them into one query (`⌃ f`): the list keeps only menu items that answer both, in the panel's normal order. ⌫ takes back the last token — the letter if the letter came last, otherwise that modifier; pressing the same modifier again removes it wherever it sits in the queue, and a third press adds it back at the tail. Completing a shortcut emphasises its description for about 0.4 s, then the panel closes. |
+| **Chords** | Multi-stroke shortcuts such as `⌘K ⌘C` descend one level at a time. ⌫ takes back the filter's last token first, then goes back one stroke; Esc closes and does not clear the filter; a breadcrumb shows the current prefix. Pressing a key with no match leaves the panel open. |
+| **Menu grouping** | Each menu item keeps the menu it came from as its middle column, with the app's own menu titles in the app's language. A group heading appears only when **Panel order** is **By menu group**; there the card is headed with the app's name, the system section with **System hotkeys**, and each config-tool section with that tool's name. The default chord order is one flat list, so it draws no heading. |
+| **Three sections** | The app's menu items come first under its name, macOS's own hotkeys follow under **System hotkeys**, and third-party config tools come last, one section per tool, collapsed by default with its row count still visible. A chord the system owns is thus visible next to the one the app owns. Config-tool rows can be copied and favourited but never run; the six whole-Mac actions (sleep, restart, shut down, lock, log out / force log out, force quit) are marked red and are never run either. |
+| **Pagination** | Long lists are paged with `1/3` and clickable ‹ ›, and the scroll wheel works. **Max menu items per group** is an upper bound, not a promise: if the current window fits fewer, the panel shows fewer instead of pushing the last menu items under the footer. The panel never grows past the screen. |
+| **Actionable panel** | ↑/↓ select a menu item, ←/→ always page, the run key (Space by default) runs the selected menu item, the copy key (Return by default) copies it, and Esc closes. Up to four punctuation pairs can page alongside the arrows under **Settings → General → Menu item actions** — `;`/`'` by default, with `,`/`.`, `[`/`]`, `-`/`=` as further checkboxes; several may be on at once, or none. While no modifier is held these keys are consumed by the panel, so the front app never sees them; a completed shortcut is not consumed, so the app still receives it. Clicking a menu item does what the run key does. Both keys are **recorded** under **Settings → General → Menu item actions**. |
 | **Executed HUD** | A 0.75 s toast such as `⌘C Copy ✓` confirms a panel execution or a copy. Can be disabled. |
 | **Conflict detection** | Bindings that claim the same combination are marked ⚠︎, and **Settings → Conflicts** lists every member with a **type** rather than a severity: menu-order overlap, a system shortcut shadowing a menu item, a third-party tool shadowing either, system-vs-system, system-vs-tool, tool-vs-tool, and a tool fighting itself. Each finding names the layer and says which one wins — or honestly says "same layer, registration order decides, no file records it". The list filters by type and by **related app**, and only rescans when you ask. |
 | **System hotkey conflicts** | Spotlight, Mission Control, and other enabled system shortcuts are read through Carbon and compared with the app's menu shortcuts. Matching chords are marked ⚠︎, and the conflict list names the system source. Because a system shortcut sits below a menu item, the verdict is not "maybe" but **the menu item never fires**. Menu items in the panel's system section are named from a built-in table (⌘Space → Spotlight, ⌥⌘⎋ → Force Quit); a chord the table cannot name shows **—** rather than repeating the shortcut as its own description. |
 | **Third-party config sources** | Karabiner-Elements, skhd, Keyboard Maestro, BetterTouchTool, Hammerspoon and Alfred keep their shortcuts in a file rather than a menu, and all of them hook the keyboard *below* an app's menu. KagiPeek parses those files (read-only) so a conflict list can say "⌘⇧4 will never reach Safari" instead of just "two things want ⌘⇧4". On by default, with the list of what was read at the top of **Settings → Conflicts**. |
 | **Combo lookup** | Type a combination into search — `cmd shift 4`, `⌘⇧4`, `opt cmd t` — and KagiPeek answers who owns it, or that it is free, instead of returning an empty list that reads as "not scanned". |
 | **Live shortcut test** | **Test this combo** on any conflict row watches one real keypress: two listen-only event taps detect whether another app swallowed the key, and above that layer the verdict falls back to what came to the front. Each result is tagged **confirmed / informative / inconclusive**, so a guess is never presented as a fact. While it listens, every panel behaviour is suspended, so KagiPeek can never be the thing that ate the key. |
-| **Disabled items** | Menu items that the app reports as disabled (`AXEnabled == false`) are greyed out, and can optionally be hidden. |
+| **Disabled items** | Menu items that the app reports as disabled (`AXEnabled == false`) are greyed out, end with a `lock.slash`, and can optionally be hidden. Their context menu opens with **This menu item is unavailable right now** instead of pretending an action can run; clicking one shows the same sentence in a HUD at most once per menu item per three seconds. |
 | **Ranking** | Sort order decides the statistics page — both the per-app list and the menu items inside an app. **Smart order** is the default (decayed usage frequency, so recently used shortcuts rise and stale ones fade), then Most used first, Key order, and Alphabetical. The panel follows its own **Panel order** setting (by modifier by default, or by menu group), and the palette always follows match order; neither follows this setting. |
 | **Usage statistics** | Counts and last-used times per binding, **grouped by app** (system and built-in menu items appear as *System / built-in*), each app a collapsible row. Stored in `~/Library/Application Support/KagiPeek/usage.json`, capped at 800 entries, resettable. No raw key events or text. |
 | **Search** | A global search palette (default ⌃⌥⌘F), also reachable by pressing `/` in the panel. Results arrive in cards by menu, with a banner when the query spells out a combination. Space-separated terms in any order, `+` as a separator, modifier aliases (com/cmd/cm/⌘, op/alt/⌥, …), full pinyin and pinyin initials for Chinese titles, and word initials for English titles; all terms must match. Return closes the palette and **triggers** the selected menu item in the app you scoped to — pressing the menu item when there is one, replaying the chord otherwise. The palette has no copy action; the panel does. |
@@ -68,7 +68,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 | **Export Markdown** | The palette's export button saves the current matches (or the scoped app's whole sheet when the field is empty) through a save panel: grouped by menu, `Shortcut` / `Action` columns, unavailable items marked. |
 | **Excluded apps and ignored menu items** | An app can be excluded from scanning altogether (a list you fill from a file picker, not a text field of bundle identifiers), and a menu item title can be ignored either globally or for one app — so "Reload Page" in Safari can be hidden without hiding Xcode's. |
 | **Panel placement** | Cover the front window (default), a fixed width/height, the whole visible screen, or beside the front window (the older behavior, which also avoids the focused control). |
-| **Appearance and accessibility** | The panel follows the system appearance, with Light and Dark overrides, and honours Reduce Transparency and Increase Contrast. |
+| **Appearance and accessibility** | The panel follows the system appearance, with Light and Dark overrides. A light panel is a `.popover`-style paper surface and a dark one a `.hudWindow` glass surface, with a 12 pt corner radius and a 16 pt outer margin; Reduce Transparency keeps the solid colour, and Increase Contrast strengthens borders and text. |
 | **English and 简体中文** | The interface follows the system language and can be overridden in Settings. |
 | **Permission onboarding** | Accessibility is required (menu reading and the global key tap). Input Monitoring is offered as a fallback when a system does not deliver key events with Accessibility alone. **Request Access** opens both the system prompt and the matching System Settings pane, and a draggable KagiPeek icon can be dropped into the permission list. Each grant is detected and explained separately; the panel hides while secure input is active. |
 | **Hyper-key ready** | Hotkeys with three or more modifiers also match when the event carries extra modifiers, so a Karabiner-style Hyper (⌃⌥⇧⌘) triggers a recorded ⌃⌥⌘ hotkey. Hotkeys with fewer than three modifiers stay strict. |
@@ -133,7 +133,7 @@ The release script signs with a Developer ID Application identity when one is av
 
 1. Launch KagiPeek. Nothing opens on screen — the app appears in the menu bar. If Accessibility is missing, the menu bar menu carries a **Grant permission…** item instead. **Settings → Permissions** lists both grants and their current status.
 2. Open **Settings → Permissions** and click **Request** next to Accessibility. KagiPeek shows the system authorization prompt and opens the matching **System Settings → Privacy & Security → Accessibility** pane; enable KagiPeek there. If it is not listed, drag the KagiPeek icon from the Permissions tab into the list, or add the app with **+**.
-3. Try holding ⌘. If the panel appears, nothing else is needed.
+3. Try holding ⌘. The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and never repeats; **Settings → Trigger → Show the trigger tip again** replays it. If the panel appears, nothing else is needed.
 4. If no panel appears, quit KagiPeek, click **Request** next to **Input Monitoring** (it opens that pane too), enable KagiPeek, and reopen the app. This is the fallback for systems that do not deliver key events with Accessibility alone.
 5. Check **Settings → Permissions** to confirm the current state.
 
@@ -145,26 +145,31 @@ The full walkthrough, including reset commands and signature-related re-granting
 
 | Trigger | How |
 | --- | --- |
-| Hold the trigger key | Hold the trigger key without pressing another key for 0.5 s (0.3–0.9 s in 0.1 s steps) | Default gesture. The trigger key is one of **Any modifier**, **Left Control**, **Left Option**, **Left Command**, **Right Command** (default), or **Right Option**; combinations are not supported. The held modifiers seed the prefix, so the panel narrows to that level. Shift alone is ignored. |
+| Hold the trigger key | Hold the trigger key without pressing another key for 0.5 s (0.3–0.9 s in 0.1 s steps) | Default gesture. The trigger key is one of **Any modifier**, **Left Control**, **Left Option**, **Left Command**, **Right Command** (default), or **Right Option**; combinations are not supported. The summoning press is not a filter token, so the panel opens on the whole list; a modifier pressed while it is open narrows. Shift alone is ignored. |
 | Press the trigger key twice | Two complete presses inside 0.3 s (0.15–0.8 s) | Alternative gesture. Any key press between the two presses cancels it. |
 | Panel hotkey | ⌃⌥⌘K by default | One of the three global hotkeys. The panel stays open until Esc or the hotkey again. Switching the frontmost app (or the desktop) closes the panel; summon it again to see the new app's shortcuts. |
 | Search | ⌃⌥⌘F by default | Opens the search panel independently. The hotkey is configurable. |
 | Switch panel/search | ⌃⌥⌘S by default | Search visible → panel; panel visible → search; neither → panel. Only one is ever on screen. Recordable in Settings. |
-| Two independent switches | Settings → Trigger | The modifier gesture and the three hotkeys each have their own checkbox. They can both be live, only one can, or both can be off — both off is the pause state: nothing triggers, while the menu bar and settings keep working. |
+| Two independent switches | Settings → Trigger | The modifier gesture and the three hotkeys each have their own checkbox. They can both be live, only one can, or both can be off — both off means no trigger fires, while the menu bar and settings keep working. |
 
 ### The panel
 
-- **One level at a time.** With an empty prefix every menu item is a complete combination (for example ⌘C). Holding modifiers to summon the panel seeds the prefix, so the panel narrows to that level and each menu item shows the next key; the hotkey and double-tap summon it empty.
-- **The panel is persistent.** It stays on screen until you press Esc or press the panel hotkey (or the switch hotkey) again. Releasing the modifiers widens the list back rather than closing it, there is no idle timer, and the old auto-hide delay is gone.
-- **Selection and highlight are different things.** Highlight follows your fingers (the menu items the current prefix can reach); selection is your cursor, moved with ↑/↓ or the pointer. Both are drawn so that neither moves the row text.
+- **One level at a time.** With no filter and an empty prefix every menu item is a complete combination (for example ⌘C). A modifier pressed while the panel is open joins the ordered filter, so the list narrows as more tokens arrive; a chord prefix shows each menu item's next key.
+- **The panel is persistent.** It stays on screen until you press Esc or press the panel hotkey (or the switch hotkey) again. Releasing the modifiers leaves the filter in place rather than widening the list, there is no idle timer, and the old auto-hide delay is gone.
+- **Filter with modifiers and letters.** A modifier pressed while the panel is open is added to an ordered filter; hold ⌃ and press a letter to make the query `⌃ f`. ⌫ takes back the last token — the letter if it came last, otherwise that modifier — and once the queue is empty the key goes back to chord backtracking. Pressing the same modifier again removes it wherever it sits in the queue; a third press adds it back at the tail. Releasing the keys does not clear anything, and Esc closes the panel rather than clearing the filter.
+- **Fullscreen and Space changes keep the panel usable.** On a full-screen space or with the menu bar hidden, the panel stays fully on screen and clear of the top safe area (the menu bar or the notch); switching Space refreshes the front app's menu instead of leaving a stale list.
+- **Selection and highlight are different things.** Highlight follows your fingers (the menu items the current prefix can reach); selection is your cursor, moved with ↑/↓ or the pointer. The selected menu item carries a 3 pt accent bar on its leading edge and a slightly brighter title, so it is visible on the light palette and to VoiceOver (which announces it as selected). Neither state moves the row text.
 - **The shortcut still reaches the app.** KagiPeek only observes keys; it does not remap them. Completing a shortcut closes the panel and lets the same key event continue to the front app, so the menu item runs immediately, exactly as if the panel had not been open.
-- **Chords stay open.** If a stroke is the first step of a multi-stroke shortcut, the panel descends one level and shows what can follow; a breadcrumb shows the prefix. ⌫ goes back one stroke, and only while no other modifier is held, so ⌘⌫ stays an ordinary shortcut. Esc closes the panel whatever the modifiers.
-- **Keyboard and mouse.** ↑/↓ select, ←/→ page (or `;` / `'`), the run key acts on the selection, Esc closes. With no modifier held these keys are consumed by the panel and never reach the front app; clicking a menu item does the same as the run key.
-- **`/` opens the search palette.** The panel has no text field of its own: `/` swaps it for the search palette with the cursor already in the field, and the palette keeps whatever you last searched for. Press `/` again while the field is empty to go back to the panel (there is nothing to lose); once you have typed a query, `/` is an ordinary character and the back chevron in the title bar takes you back. ⌘/ is never taken; it belongs to the front app.
+- **Chords stay open.** If a stroke is the first step of a multi-stroke shortcut, the panel descends one level and shows what can follow; a breadcrumb shows the prefix. ⌫ takes back the filter's last token first, then goes back one stroke, and only while no other modifier is held, so ⌘⌫ stays an ordinary shortcut. Esc closes the panel whatever the modifiers and does not clear the filter.
+- **Keyboard and mouse.** ↑/↓ select, ←/→ always page, the run key acts on the selection, Esc closes. Any punctuation pairs ticked under **Settings → General → Menu item actions** page too; the default pair is `;` / `'`, and `,` / `.`, `[` / `]`, `-` / `=` can be added. The keys are judged by the character they type, and `+` (Shift+=) is never a paging key, so it stays available to the Shift-hint layer's `0–9` / `a–z` labels and never conflicts. With no modifier held these keys are consumed by the panel and never reach the front app; clicking a menu item does the same as the run key.
+- **`/` opens the search palette.** The panel has no text field of its own: `/` swaps it for the search palette with the cursor already in the field, and every open starts with an empty query, so nothing from last time is carried over. Press `/` again while the field is empty to go back to the panel (there is nothing to lose); once you have typed a query, `/` is an ordinary character and the back chevron in the title bar takes you back. ⌘/ is never taken; it belongs to the front app.
 - **Run or copy.** The run key (Space by default) closes the panel and triggers that menu item in the front app: it presses the menu item itself when the scan kept one — which is also the only way to run a menu item that has no shortcut at all — and replays the chord into the app as a fallback. The copy key (Return by default) writes the chord to the clipboard and leaves the panel open (a menu item with no shortcut copies its menu path instead). Both are **recorded** under **Settings → General → Menu item actions**; the footer always spells out the two keys you actually chose. A menu item with further steps descends a level instead of running, and a disabled menu item is ignored.
 - **Shift reveals targets.** While Shift is held, the first 36 menu items show `0–9` / `a–z` labels; Shift plus that character runs that menu item directly. The label layer exists only in the panel — inside search, Shift still belongs to the text field.
 - **Completing a shortcut.** The menu item is highlighted for about 0.4 s, the panel closes, and the shortcut runs in the app. A key with no match leaves the panel open instead of closing it.
-- **Two cards, and paging.** The app's menu items come first, ordered by the shortcut (shorter chords first, then ⌘ → ⌥ → ⌃ → ⇧, then the key) or, when **Panel order** is set to **By menu group**, by top-level menu; the system's hotkeys follow under **System hotkeys**. The menu a menu item lives in is the middle column, not a heading. Long lists show `1/3` with clickable ‹ › and respond to the scroll wheel.
+- **Three sections, and paging.** The app's menu items come first, ordered by the shortcut (shorter chords first, then ⌘ → ⌥ → ⌃ → ⇧, then the key) or, when **Panel order** is set to **By menu group**, by top-level menu; the system's hotkeys follow under **System hotkeys**, and config-tool rows sit in one section per tool, collapsed by default but still showing how many rows it holds. The menu a menu item lives in is the middle column, not a heading. Long lists show `1/3` with clickable ‹ › and respond to the scroll wheel.
+- **Empty panels say why.** An empty list is one of four states with a fixed priority: missing Accessibility permission (with an **Open the permission guide** button), still scanning (with a spinner), favourites-only with nothing pinned, or no match for the current filters. The permission case wins over scanning, because no scan can finish without it.
+- **When nothing can be shown, the reason is stated.** A menu item the app reports as disabled ends with a `lock.slash`; right-clicking it shows **This menu item is unavailable right now**, and clicking it says the same thing in a HUD once per menu item per three seconds, so repeated clicks cannot stack identical notices.
+- **Changing Panel order announces itself.** Switching between **By modifier** and **By menu group** while the panel is visible shows one HUD line with the new order; the panel itself carries no permanent mode label. The new order is also applied immediately.
 - **Conflicts and disabled items.** Conflicting menu items carry ⚠︎. Disabled menu items are greyed out unless you choose to hide them.
 - **Long descriptions** are truncated with an ellipsis according to the display setting.
 
@@ -185,13 +190,15 @@ Press ⌃⌥⌘F, or press `/` while the panel is open. Search covers the scoped
 
 KagiPeek is an `LSUIElement` agent: no Dock icon, and no window at launch. The menu bar icon is the whole interface — **Search Shortcuts…**, **Shortcut Panel**, **Settings…**, and **Quit KagiPeek**. Those four are the whole menu; the **Permission guide** only appears while Accessibility is still missing and disappears once it is granted. There is no pause item: turning both trigger switches off in Settings is the pause. Its own menu bar (the app menu inside its windows) carries ⌘, for Settings and ⇧⌘F for the search palette.
 
+Settings is one utility window: it can be closed and resized but not minimised, and reopening it always brings the same window forward. When Settings is visible, **Open the permission guide** appears as a sheet attached to it, so the guide cannot hide behind the window or in another Space; before Settings has ever been opened, the guide stands alone.
+
 Settings has eight tabs:
 
 | Tab | What it covers |
 | --- | --- |
 | General | Interface language, launch at login, executed HUD, built-in catalog, **Include the Apple menu in scans**, **Show a Dock icon as well**, **menu item actions** (the two recorded action keys), **excluded apps** (added from a file picker, removed from the list), and **ignored menu items** (one collapsible group per scope: global rules, then one per app). |
-| Trigger | Two independent switches: **Modifier gesture** (hold still / press twice, the trigger key, and the matching delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both can be live, only one can, or both can be off — both off is the pause state. |
-| Appearance | Key style, panel theme, key position, **panel order** (by modifier, or by menu group), columns, rows per page, description length, disabled items, favourites pinning, whether filters may hide favourites, and **panel placement** (cover the front window, fixed size with width and height, fill the screen, or beside the front window). |
+| Trigger | Two independent switches: **Modifier gesture** (hold still / press twice, the trigger key, and the matching delay), **Global hotkeys** (the panel, search, and switch hotkeys), and **Show the trigger tip again** to replay the one-time HUD. Both can be live, only one can, or both can be off — both off is the pause state. |
+| Appearance | Key style, panel theme, key position, **panel order** (by modifier, or by menu group), columns, **max menu items per group**, description length, disabled items, favourites pinning, whether filters may hide favourites, and **panel placement** (cover the front window, fixed size with width and height, fill the screen, or beside the front window). |
 | Statistics | Sort order and **statistics by app** (presses and shortcut counts, one collapsible section per app), **Show data folder**, **Reset statistics**, and **Restore defaults**. |
 | Conflicts | Third-party **config file sources** first (which files were read, how many bindings each contributed, a rescan), then the conflict list with a **type** filter, a **related app** filter, the scan timestamp, a manual rescan, and a **Test this combo** action on each row. |
 | Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt plus the matching System Settings pane), and the draggable KagiPeek icon. |
@@ -224,7 +231,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 | Show unavailable menu items | On / Off | On (greyed out) |
 | Key style | Symbols / Words | Symbols |
 | Columns | 1–3 | 2 |
-| Max rows per page | 6–60 | 24 |
+| Max rows per page (upper bound; the panel fits fewer when the window is short) | 6–60 | 24 |
 | Max description length | 8–80 characters | 30 |
 | Language | System / English / 简体中文 | System |
 | Run a menu item | Any recorded key | Space |
@@ -346,7 +353,7 @@ KagiPeek can only show shortcuts the app exposes in its menu bar. Shortcuts impl
 No. Shortcut handling is local, the key tap only passes events through (except KagiPeek's own hotkeys and the panel's navigation keys; a completed shortcut still reaches the app), and statistics contain only counts and timestamps grouped by app. Settings and statistics are two JSON files in Application Support. The one thing it does synthesise is the single chord you asked it to run — pressing the run key or clicking a menu item replays that menu item's shortcut into the front app once. The only network request is the update check you press yourself. See [Privacy](#privacy).
 
 **Why doesn't the panel close by itself?**
-The auto-hide delay was removed. The panel is persistent and closes when you press Esc or toggle it off with the panel/switch hotkey. Switching apps or desktops closes it too, because its contents belong to the app it was opened over. Releasing modifiers just widens the list back.
+The auto-hide delay was removed. The panel is persistent and closes when you press Esc or toggle it off with the panel/switch hotkey. Switching apps or desktops closes it too, because its contents belong to the app it was opened over. Releasing modifiers does not clear the filter; it stays until you take it back.
 
 **Where is my data, and will reinstalling lose it?**
 In `~/Library/Application Support/KagiPeek/` as `settings.json` and `usage.json`. They are independent of the app bundle and the preference domain, so reinstalling or updating keeps them; only deleting the folder removes them. See [Privacy](#privacy) and [docs/FAQ.md](docs/FAQ.md).
@@ -382,7 +389,7 @@ Five ideas come from [Menu-Bar-Search](https://github.com/BenziAhamed/Menu-Bar-S
 
 **按住修饰键，看看当前 App 接下来能做什么。**
 
-KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility）API 读取前台 App 的菜单栏，用浮层面板显示它的快捷键。面板是**持久**的：它会一直保持到你按 Esc、再次切换关闭或完成一条快捷键。按住修饰键唤出时，按住的修饰键会成为前缀，把列表收窄到那一层（which-key 行为）；用热键或连按两次触发键唤出时没有前缀，每个菜单项显示完整组合键（如 ⌘C）。不需要为每个 App 安装快捷键包，也不需要维护配置文件：只要 App 有菜单栏，KagiPeek 就能显示它的快捷键，包括多段组合键、不可用项和冲突。
+KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility）API 读取前台 App 的菜单栏，用浮层面板显示它的快捷键。面板是**持久**的：它会一直保持到你按 Esc、再次切换关闭或完成一条快捷键。面板打开后按下的修饰键会加入有序筛选队列，再按字母即可组合筛选（如 ⌃ + F 得到 `⌃ f`）；触发键那一次按下只是唤出，不入队，所以热键、连按与按住都从完整列表开始，每个菜单项显示完整组合键（如 ⌘C）。不需要为每个 App 安装快捷键包，也不需要维护配置文件：只要 App 有菜单栏，KagiPeek 就能显示它的快捷键，包括多段组合键、不可用项和冲突。
 
 快捷键引擎被重写：实时菜单扫描取代静态列表，面板新增多段组合键导航与搜索。这套引擎随后变得真正可用：面板可以用键盘驱动、也能点击执行，冲突检测纳入系统热键。面板变为持久面板，并新增四种面板位置、分词与拼音搜索、Hyper 键匹配、按 App 统计的 Application Support 存储、授权引导、独立的“关于”标签页，以及切换面板/搜索的热键。面板如今整理为两张卡片、菜单项按快捷键本身排序；把“看另一个 App”的职责从速查窗口搬进搜索面板（用 App 范围切换）；把设置拆成八个标签页（统计与冲突各回答一个问题，各自独立成页）；冲突不再只报严重度，而是给出**类型**和可能的胜负；跨 App 扫描结果落盘、只在需要时手动重扫；系统热键也有了真正的名字；同时把“执行菜单项”变成首要目标——菜单项一律按自身执行，因此没有快捷键的菜单项同样可以触发。
 
@@ -396,20 +403,21 @@ KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility
 | --- | --- |
 | **实时菜单扫描** | 通过辅助功能递归读取前台 App 的菜单栏：菜单标题、快捷键与启用状态。任何标准菜单栏 App 装完即用，无需手工维护列表。 |
 | **内置兜底目录** | 100 条系统、文本编辑、Finder 与截图快捷键，在 App 没有菜单栏或扫描失败时使用。可在设置中关闭。 |
-| **持久面板** | 面板一直保持到按 Esc 或再次切换关闭。**按住修饰键唤出时，按住的修饰键会成为前缀**，列表收窄到该层；热键（⌃⌥⌘K）与连按触发键唤出时没有前缀，每个菜单项是完整组合键（如 ⌘C）。松开修饰键会恢复完整列表，面板不关闭。 |
-| **which-key 收窄** | 前缀只有修饰键时，菜单项收窄到“首步修饰键包含当前按住项”的快捷键，每个菜单项显示下一个键，且这些菜单项同时高亮（该层可见集合与高亮集合相同）。按下实体键后进入该层；完成一条快捷键时该菜单项说明以强调色显示约 0.4 秒，然后面板关闭。 |
-| **多段组合键** | 支持 `⌘K ⌘C` 这类 chord：按下 ⌘K 后若还有后续组合，面板留在原位并进入下一层。⌫ 返回上一层，Esc 关闭面板，顶部面包屑显示当前前缀；没有匹配的按键时面板保持打开。 |
-| **菜单分组** | 每个菜单项把所属菜单作为中间一列保留，菜单名来自 App 自己的菜单结构与语言。没有按菜单划分的分组标题，也就没有东西能打乱菜单项的顺序。 |
-| **两张卡片** | App 自己的菜单项在前，标题是 App 名；macOS 的系统热键在后，标题是**系统热键**。系统占用的组合键因此能和 App 占用的并排比较。 |
-| **自动分页** | 菜单项过多时显示 `1/3` 与可点击的 ‹ ›，也支持滚轮翻页，面板不会撑破屏幕。 |
+| **持久面板** | 面板一直保持到按 Esc 或再次切换关闭。触发键那一次按下只是唤出，不是筛选 token；热键（⌃⌥⌘K）、连按与按住都从完整列表开始，每个菜单项是完整组合键（如 ⌘C）。面板打开后按下的修饰键会加入有序筛选队列，松开按键不会清除条件。 |
+| **修饰键 + 字母筛选** | 面板打开后按住 ⌃，再按字母即可把两者组合成一个查询（`⌃ f`），列表只留下同时满足两项的菜单项，顺序不变。⌫ 依次撤销：末尾是字母就删字母，末尾是修饰键就移除该修饰键；再按同一修饰键会从队列任意位置移除它，第三次按下又作为新队尾加入。完成一条快捷键时该菜单项说明以强调色显示约 0.4 秒，然后面板关闭。 |
+| **多段组合键** | 支持 `⌘K ⌘C` 这类 chord：按下 ⌘K 后若还有后续组合，面板留在原位并进入下一层。⌫ 先撤销筛选队列末尾的 token，再返回上一层；Esc 关闭面板且不清空筛选，顶部面包屑显示当前前缀；没有匹配的按键时面板保持打开。 |
+| **菜单分组** | 每个菜单项把所属菜单作为中间一列保留，菜单名来自 App 自己的菜单结构与语言。只有**面板排序**为**按菜单栏分组**时才画分组标题，标题是 App 名（系统分区是**系统热键**，配置工具分区是工具名）；默认的按修饰键排序是一张平铺列表，不画标题。 |
+| **三个分区** | App 自己的菜单项在前，标题是 App 名；macOS 的系统热键其次，标题是**系统热键**；第三方配置工具最后，一个工具一个分区，默认折叠但仍然显示条数，点标题展开。系统占用的组合键因此能和 App 占用的并排比较。配置工具行可以复制、可以收藏，但**不执行**；六个会动整台 Mac 的动作（睡眠、重启、关机、锁屏、退出登录 / 立即注销、强制退出）用红色标题标注，**永不执行**，只允许复制。 |
+| **自动分页** | 菜单项过多时显示 `1/3` 与可点击的 ‹ ›，也支持滚轮翻页，面板不会撑破屏幕。**每个分组最多显示**是上限而不是承诺：当前窗口放不下时只显示放得下的数量，不会把最后几条挤到页脚下面。 |
 | **可操作面板** | ↑/↓ 选择菜单项、←/→ 翻页、执行键（默认 Space）执行选中项——有菜单项就按菜单项，否则回放该组合键——复制键（默认 Return）只复制到剪贴板、Esc 关闭。没有按住其他修饰键时这些键由面板消费，不会传到前台 App，而完整快捷键不会被吞掉。点击某个菜单项等同于执行键。执行键和复制键都可以在 **设置 → 通用 → 菜单项操作** 里录制。 |
 | **已执行提示** | 面板里执行或复制一条快捷键后，按设置显示 0.75 秒的轻提示，例如 `⌘C 复制 ✓`。可关闭。 |
 | **冲突检测** | 同一组合键被多条绑定占用时显示 ⚠︎，**设置 → 冲突** 列出全部成员，并且按**类型**而不是严重度分类：菜单项顺序重叠、系统快捷键压住菜单项、第三方工具压住菜单项或系统键、系统对系统、系统对工具、工具对工具，以及工具自己和自己打架。每条结论都标明所在层并给出胜负——或者诚实说明“同一层，注册顺序决定，而配置文件不记录它”。列表可以按类型和**相关 App** 筛选，且只在你要求时重扫。 |
-| **系统热键冲突** | 通过 Carbon 读取已启用的系统快捷键（聚焦搜索、调度中心、截图……），与当前 App 的菜单快捷键比对；相同组合键标 ⚠︎，冲突列表标明系统来源。由于系统快捷键位于菜单项之下，结论不是“可能”，而是**该菜单项永远不会触发**。面板系统卡片里的菜单项由内置名字表命名（⌘Space → 聚焦搜索、⌥⌘⎋ → 强制退出）；表里认不出的组合键显示 **—**，而不是把快捷键自己再当一次描述。 |
-| **第三方配置来源** | Karabiner-Elements、skhd、Keyboard Maestro、BetterTouchTool、Hammerspoon、Alfred 的快捷键写在文件里而非菜单里，并且都挂在菜单之下的键盘层。KagiPeek 只读解析这些文件，于是冲突列表能说“⌘⇧4 永远到不了 Safari”，而不只是“两个东西都要 ⌘⇧4”。默认开启，读到了哪些文件列在 **设置 → 冲突** 顶部。 |
+| **系统热键冲突** | 通过 Carbon 读取已启用的系统快捷键（聚焦搜索、调度中心、截图……），与当前 App 的菜单快捷键比对；相同组合键标 ⚠︎，冲突列表标明系统来源。由于系统快捷键位于菜单项之下，结论不是“可能”，而是**该菜单项永远不会触发**。内置名字表能认出的按名字显示（⌘Space → 聚焦搜索）；表里认不出的仍有名字表外的 101 条，标题直接用组合键本身，并标注来源「系统热键」，不再显示 **—**。 |
+| **第三方配置来源** | Karabiner-Elements、skhd、Keyboard Maestro、BetterTouchTool、Hammerspoon、Alfred 的快捷键写在文件里而非菜单里，并且都挂在菜单之下的键盘层。KagiPeek 只读解析这些文件，于是冲突列表能说“⌘⇧4 永远到不了 Safari”，而不只是“两个东西都要 ⌘⇧4”。默认开启，读到了哪些文件列在 **设置 → 冲突** 顶部。这些行也会进面板与搜索，但**只展示不执行**：可以复制快捷键、复制菜单项、收藏，点击只复制。 |
+| **受管动作** | 睡眠、重启、关机、锁屏、退出登录（含立即注销）、强制退出这六个动作会动整台 Mac，KagiPeek **永不执行**它们：点击、Space、右键执行都不会发出任何按键或辅助功能按压，只允许复制快捷键或菜单项。判定按组合键而不是本地化标题；⌘Q 只是退出当前 App，仍可执行。 |
 | **组合键查询** | 在搜索里直接输入组合键（`cmd shift 4`、`⌘⇧4`、`opt cmd t`），KagiPeek 回答它被谁占用、或者它是空的，而不是返回空列表让人以为没扫描。 |
 | **实时按键测试** | 冲突列表里每一行都可以“测试这个组合键”：按一次，看它到底被谁拿走——两个只读监听点判断是否有其他 App 吞掉了这个键，更高层则回退到“谁被激活”。每条结论标注**已确认 / 有信息量 / 无法判断**，绝不把猜测当成事实。 |
-| **不可用项** | 菜单项当前不可用（`AXEnabled == false`）时灰显，也可设置为隐藏。 |
+| **不可用项** | 菜单项当前不可用（`AXEnabled == false`）时灰显，行尾带 `lock.slash`，也可设置为隐藏。右键菜单顶部先写**该菜单项当前不可用**，不再假装能执行；点击这行会在轻提示里给出同一句解释，同一菜单项 3 秒内只提示一次，连点也不会叠出多条。 |
 | **排序** | 排序方式决定统计页——按 App 的列表和 App 内部的菜单项都是。默认**智能排序**（使用频率随时间衰减，常用条目靠前、陈旧条目自然下沉），还可选高频优先、按键顺序、字母顺序。面板另有自己的**面板排序**（默认按修饰键，也可按菜单栏分组），搜索面板始终按匹配度，两者都不受这个设置影响。 |
 | **使用统计** | 记录每条绑定的使用次数与最近使用时间，并**按 App 分组**（系统与内置条目显示为“系统 / 内置”），每个 App 一行可折叠。保存在 `~/Library/Application Support/KagiPeek/usage.json`，上限 800 条，可重置；不记录原始按键内容。 |
 | **搜索** | 全局搜索面板（默认 ⌃⌥⌘F），也可以在面板里按 `/` 进入。结果按菜单分卡片，查询本身写成一个组合键时上方会给出结论横幅。空格分词、顺序无关，`+` 也可作分隔符；支持修饰键别名（com/cmd/cm/⌘、op/alt/⌥……）、中文全拼与拼音首字母、英文单词首字母，所有词项必须同时命中。Return 关闭面板并在你选定的那个 App 里**执行**选中项：有菜单项就按菜单项，否则回放该组合键。搜索面板没有复制功能；面板有。 |
@@ -417,7 +425,7 @@ KagiPeek 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility
 | **导出 Markdown** | 搜索面板的导出按钮通过存储面板把当前结果（输入框为空时是所选 App 的整张表）写成 Markdown：按菜单分组，表格列为 Shortcut / Action，不可用项标注 unavailable。 |
 | **排除 App 与忽略菜单项** | 可以整体排除某个 App（列表通过文件选择器添加，不需要手输 bundle id），也可以忽略某个菜单项标题——全局忽略，或只对某个 App 忽略，于是 Safari 的“重新载入页面”可以隐藏而 Xcode 的不受影响。 |
 | **面板位置** | 覆盖前台窗口（默认）、固定长宽、铺满屏幕，或前台窗口旁边（旧版行为，仍会尽量避开当前焦点元素）。 |
-| **外观与辅助功能** | 面板跟随系统外观，可单独选浅色或深色；遵循“降低透明度”和“增强对比度”辅助功能设置。 |
+| **外观与辅助功能** | 面板跟随系统外观，可单独选浅色或深色：浅色用 `.popover` 纸质材质，深色用 `.hudWindow` 玻璃材质；圆角 12、外边距 16。遵循“降低透明度”（保留纯色）和“增强对比度”（加强边框与文字）。 |
 | **中文 / English** | 界面跟随系统语言，也可在设置中覆盖。 |
 | **权限引导** | 辅助功能为必需项（读取菜单栏 + 创建全局按键监听）；输入监控是可选的兜底项，仅在系统无法通过辅助功能接收按键事件时需要。点“请求授权”会同时弹出系统授权提示并直接打开对应的系统设置页面，还可以把设置页里的 KagiPeek 图标直接拖进系统设置的列表。两项分开检测、分开说明；检测到安全输入时自动隐藏面板。 |
 | **支持 Hyper 键** | 三个及以上修饰键的热键，允许事件携带超集修饰键，因此 Karabiner 之类工具产生的 hyper（⌃⌥⇧⌘）可以匹配录制的 ⌃⌥⌘ 热键；少于三个修饰键时仍然严格匹配。 |
@@ -482,7 +490,7 @@ open KagiPeek.xcodeproj
 
 1. 启动 KagiPeek。屏幕上不会出现任何窗口，App 出现在菜单栏。缺少辅助功能时，菜单里会多出一项**权限向导**。**设置 → 权限** 中列出两项授权及当前状态。
 2. 打开 **设置 → 权限**，点击辅助功能旁的**请求授权**：KagiPeek 会弹出系统授权提示，并直接打开“隐私与安全性 → 辅助功能”，在那里打开 KagiPeek。如果列表里没有，可以把权限页里的 KagiPeek 图标直接拖进列表，或用 **+** 添加 `/Applications/KagiPeek.app`。
-3. 试着按住 ⌘。如果面板出现，就不需要再授权。
+3. 试着按住 ⌘。首次启动会出现一次轻提示——**按住 ⌘ 或连按两次打开面板**，之后不再重复；**设置 → 触发 → 再次显示触发提示** 可以重看。面板出现就不需要再授权。
 4. 如果面板不出现，退出 KagiPeek，点击输入监控旁的**请求授权**（同样会直接打开对应页面），打开 KagiPeek 后再重新启动 App。这是系统无法仅靠辅助功能传递按键事件时的兜底。
 5. 回到 **设置 → 权限** 查看当前授权状态。
 
@@ -492,7 +500,7 @@ open KagiPeek.xcodeproj
 
 | 触发方式 | 操作 | 说明 |
 | --- | --- | --- |
-| 修饰键手势：按住 | 按住触发键 0.5 秒（0.3–0.9 秒可调，步进 0.1 秒），期间不按其他键 | 手势触发键可选：任意修饰键、左 Control、左 Option、左 Command、右 Command（默认）、右 Option，单选，不支持组合键，不含 Caps Lock。按住的修饰键会成为前缀；单独按 ⇧ 不算。 |
+| 修饰键手势：按住 | 按住触发键 0.5 秒（0.3–0.9 秒可调，步进 0.1 秒），期间不按其他键 | 手势触发键可选：任意修饰键、左 Control、左 Option、左 Command、右 Command（默认）、右 Option，单选，不支持组合键，不含 Caps Lock。触发键那一次按下不入队；单独按 ⇧ 不算（Shift 是提示层）。 |
 | 修饰键手势：连按两次 | 完整按下并松开触发键两次，两次之间没有别的键；只有两次之间的间隔计时，跟随系统“双击速度”（限制在 0.25–0.6 秒） | 与“按住”二选一。按多久都算一次，不需要单独调窗口。 |
 | 面板热键 | 默认 ⌃⌥⌘K | 三条全局快捷键之一；面板保持到按 Esc 或再次按热键。切换前台 App 或桌面会关闭面板，重新唤出即可看到新 App 的快捷键。 |
 | 搜索 | 默认 ⌃⌥⌘F | 独立打开搜索面板，热键可自定义。 |
@@ -501,18 +509,21 @@ open KagiPeek.xcodeproj
 
 ### 面板操作
 
-- 一次只显示一层：没有前缀时每个菜单项是完整组合键（如 ⌘C）；按住修饰键唤出时前缀就是这些修饰键，面板收窄到该层，每个菜单项显示“下一个键”。
-- 面板是持久的：它会一直保持到按 Esc，或再次按面板热键（或切换热键）。松开修饰键只会恢复完整列表，不会关闭面板；没有静置计时器。
-- 选中与高亮是两种状态：高亮跟随当前前缀能到达的菜单项，选中是你用 ↑/↓ 或鼠标移动的光标。两者都不占布局宽度，所以鼠标扫过时文字不会左右跳。
+- 一次只显示一层：没有筛选、没有前缀时每个菜单项是完整组合键（如 ⌘C）；面板打开后按下修饰键会把它们加入有序筛选队列，再按字母即可组合筛选，列表随 token 增加而收窄，每个菜单项仍显示完整组合键。
+- 面板是持久的：它会一直保持到按 Esc，或再次按面板热键（或切换热键）。松开修饰键不会清除筛选条件，也不会关闭面板；没有静置计时器。
+- 修饰键 + 字母筛选：面板打开后按下的修饰键进入有序筛选队列，按住 ⌃ 再按字母即得到 `⌃ f`。⌫ 依次撤销：末尾是字母就删字母，末尾是修饰键就移除该修饰键；队列空后回到 chord 退回上一层。再按同一修饰键会从队列任意位置移除它，第三次按下又回到队尾。松开按键不会清除条件，Esc 只关闭面板、不清空筛选。
+- 选中与高亮是两种状态：高亮跟随当前前缀能到达的菜单项，选中是你用 ↑/↓ 或鼠标移动的光标。选中的菜单项左侧有一条 3pt 高亮竖条，标题同时轻微提亮，因此浅色面板上也看得见，VoiceOver 会朗读为已选中。两者都不占布局宽度，所以鼠标扫过时文字不会左右跳。
 - 快捷键照常传给 App：KagiPeek 只观察按键，不重映射。完成一条快捷键时面板关闭，同一个按键事件继续传给前台 App，所以菜单项会像面板从未打开一样立即执行。
-- 支持多段组合键：若按下的键是某条 chord 的第一步，面板进入下一层显示可继续的按键，面包屑显示当前前缀；⌫ 退回上一层（只在没有其他修饰键时生效，⌘⌫ 仍是普通快捷键）。Esc 无论带不带修饰键都会关闭面板。
-- 键盘与鼠标：↑/↓ 选择、←/→（或 `;` / `'`）翻页、执行键执行选中项、Esc 关闭。没有按住其他修饰键时这些键由面板消费，不会传给前台 App；鼠标点击某个菜单项等同于执行键。
+- 支持多段组合键：若按下的键是某条 chord 的第一步，面板进入下一层显示可继续的按键，面包屑显示当前前缀；⌫ 先撤销筛选队列末尾的 token，再退回上一层（只在没有其他修饰键时生效，⌘⌫ 仍是普通快捷键）。Esc 无论带不带修饰键都会关闭面板，但不清空筛选。
+- 键盘与鼠标：↑/↓ 选择、←/→ 翻页（永久生效，不可关闭）、执行键执行选中项、Esc 关闭。←/→ 之外，**设置 → 通用 → 菜单项操作 → 前后翻页** 下还有四对可选勾选：`;` / `'`（默认）、`,` / `.`、`[` / `]`、`-` / `=`；可同时勾多对，也可一对都不勾。所有翻页键按实际产生的字符判定，`+`（Shift+=）不属于任何翻页对。没有按住其他修饰键时这些键由面板消费，不会传给前台 App；鼠标点击某个菜单项等同于执行键。
 - **Shift 显示目标。** 按住 Shift 时，前 36 个菜单项显示 `0–9` / `a–z` 标签；Shift 加对应字符直接执行该菜单项。提示层只存在于面板里——在搜索中，Shift 仍属于输入框。
 - 执行还是复制由按键决定：执行键（默认 Space）关闭面板并把该菜单项的组合键回放给前台 App，复制键（默认 Return）只写入剪贴板、面板保持打开。两个键都可以在 **设置 → 通用 → 菜单项操作** 里录制，底部提示会渲染你实际选的键。还有后续步骤的菜单项会进入下一层而不是执行，不可用的菜单项会被忽略。
 - 完成一条快捷键：该菜单项高亮约 0.4 秒后，面板关闭，快捷键在 App 里执行；没有匹配的按键时面板保持打开，而不是关闭。
-- 两张卡片：App 自己的菜单项在前，按快捷键排序（步数少的在前，再按 ⌘ → ⌥ → ⌃ → ⇧，最后比按键），也可在设置里改成按菜单栏分组；系统热键在**系统热键**标题下随后。菜单项所属菜单是中间一列，不是分组标题。菜单项过多时自动分页，底部显示 `1/3` 和可点击的 ‹ ›，鼠标滚轮也可翻页。
+- 三个分区：App 自己的菜单项在前，按快捷键排序（步数少的在前，再按 ⌘ → ⌥ → ⌃ → ⇧，最后比按键），也可在设置里改成按菜单栏分组；系统热键在**系统热键**标题下随后；配置工具最后，每个工具一个分区，默认折叠并显示条数。菜单项所属菜单是中间一列，不是分组标题；分组标题（App 名）只在按菜单栏分组时出现。菜单项过多时自动分页，底部显示 `1/3` 和可点击的 ‹ ›，鼠标滚轮也可翻页；「每个分组最多显示」是上限，窗口放不下时会少显示几条而不是压住页脚。
+- 切换**面板排序**时，面板用一行轻提示说明新顺序，不常驻模式标签。
+- 空面板会说清原因，优先级固定：缺少辅助功能权限（带**打开权限向导**按钮）> 正在扫描（带转圈）> 只看收藏但没有收藏 > 当前筛选无匹配。
 - 同一组合键被多条绑定占用时，该条右侧显示 ⚠︎。
-- 菜单项不可用时灰显，可按设置隐藏；超长描述按设置截断并加省略号。
+- 菜单项不可用时灰显并带 `lock.slash`，可按设置隐藏；右键顶部写明**该菜单项当前不可用**，点击则用轻提示解释一次（同一菜单项 3 秒内只提示一次）。超长描述按设置截断并加省略号。
 
 ### 搜索
 
@@ -531,13 +542,15 @@ open KagiPeek.xcodeproj
 
 KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打开窗口。菜单栏图标就是全部入口：**搜索快捷键…**、**快捷键面板**、**设置…**、**退出 KagiPeek** 四项；**权限向导**只在缺少辅助功能时出现，授权后消失。没有“暂停”菜单项：在设置里把两套触发都关掉就是暂停。App 自己的菜单栏（窗口内的应用菜单）带 ⌘, 打开设置、⇧⌘F 打开搜索面板。
 
+设置是一个工具窗口：可以关闭和调整大小，但不能最小化，重新打开总是把同一个窗口带到前面。设置窗口可见时，**打开权限向导**会以 sheet 依附在它上面，不会藏到窗口后面或别的桌面；在设置从未打开过时，权限向导仍独立显示。
+
 设置共有八个标签页：
 
 | 标签页 | 内容 |
 | --- | --- |
 | 通用 | 界面语言、开机自启动、执行轻提示、内置目录、**扫描时包含 Apple 菜单**、**同时在 Dock 显示图标**、**菜单项操作**（可录制的执行键与复制键）、**排除的 App**（用文件选择器添加、在列表里删除）、**忽略的菜单项**（按范围折叠：先是全局规则，再是一个 App 一组）。 |
-| 触发 | 「修饰键手势」与「全局快捷键」两个独立开关；手势在按住停顿 / 连按两次、触发键与对应延迟之间设置，快捷键是面板、搜索、切换三条可录制热键。两套都关就是暂停。 |
-| 外观 | 按键显示、面板主题、按键位置、**面板排序**（按修饰键，或按菜单栏分组）、列数、每页行数、描述长度、不可用项、收藏置顶、收藏可被搜索/过滤隐藏，以及**面板位置**（覆盖前台窗口、固定长宽并设置宽高、铺满屏幕、前台窗口旁边）。 |
+| 触发 | 「修饰键手势」与「全局快捷键」两个独立开关；手势在按住停顿 / 连按两次、触发键与对应延迟之间设置，快捷键是面板、搜索、切换三条可录制热键；**再次显示触发提示**重看首次启动的那条提示。两套都关就是暂停。 |
+| 外观 | 按键显示、面板主题、按键位置、**面板排序**（按修饰键，或按菜单栏分组）、列数、**每个分组最多显示**、描述长度、不可用项、收藏置顶、收藏可被搜索/过滤隐藏，以及**面板位置**（覆盖前台窗口、固定长宽并设置宽高、铺满屏幕、前台窗口旁边）。 |
 | 统计 | 排序方式与**按 App 统计**（次数与快捷键数，每个 App 一节可折叠）、**显示数据目录**、**重置统计**、**恢复默认设置**。 |
 | 冲突 | 先列第三方**配置文件来源**（读了哪些文件、各贡献多少条、重扫按钮），再是冲突列表：**类型**筛选、**相关 App** 筛选、扫描时间、手动重扫，以及每行的**测试这个组合键**。 |
 | 权限 | 辅助功能与输入监控状态、**请求授权**（系统提示 + 直接打开对应系统设置页），以及可拖拽的 KagiPeek 图标。 |
@@ -570,7 +583,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 | 显示当前不可用的菜单项 | 开 / 关 | 开（灰显） |
 | 按键显示 | 符号 / 文字 | 符号 |
 | 列数 | 1–3 | 2 |
-| 每页最大行数 | 6–60 | 24 |
+| 每页最大行数（上限；窗口放不下时面板自动少排） | 6–60 | 24 |
 | 描述最大长度 | 8–80 个字符 | 30 |
 | 界面语言 | 跟随系统 / English / 简体中文 | 跟随系统 |
 | 执行键 | 任意录制键 | Space |

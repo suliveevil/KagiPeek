@@ -32,10 +32,13 @@ final class SurfacePanelController: PanelPresenting {
     private(set) var mode: Mode = .hidden
     /// Cocoa-coordinate snapshots of the anchor window and the focused element, refreshed
     /// off the main thread when the front app changes. Key presses only read these; they
-    /// never call the AX API themselves.
-    private var anchorWindowFrame: CGRect?
-    private var focusedElementFrame: CGRect?
-    private var anchorPid: pid_t = 0
+    /// never call the AX API themselves. The frames and their pid travel together so a
+    /// snapshot can be dropped as a whole when the space or the display changes.
+    private var anchor = PanelAnchorCache()
+    /// Observed for the controller's lifetime; it lives as long as the app, so there is no
+    /// deinit to remove them.
+    private var spaceChangeObserver: NSObjectProtocol?
+    private var screenParametersObserver: NSObjectProtocol?
     private var lastPanelSettings: AppSettingsSnapshot?
     private var geometryTask: Task<Void, Never>?
     private var isRefreshingGeometry = false
@@ -61,6 +64,24 @@ final class SurfacePanelController: PanelPresenting {
         panel.ignoresMouseEvents = false
         panel.isMovableByWindowBackground = false
         panel.animationBehavior = .utilityWindow
+
+        // A space or display change moves windows the cached frames were read against, so
+        // the snapshot must be read again on the next present instead of placing the panel
+        // where the front window used to be.
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.invalidateAnchorGeometry() }
+        }
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.invalidateAnchorGeometry() }
+        }
     }
 
     var isVisible: Bool { mode != .hidden }
@@ -94,16 +115,12 @@ final class SurfacePanelController: PanelPresenting {
 
         lastPanelSettings = settings
         let pid = engine.frontmostProcessIdentifier
-        if anchorPid != pid {
-            // A new front app invalidates both snapshots. Read the replacements in the
-            // background and cover the whole visible frame in the meantime: the previous
-            // app's window would put the panel somewhere meaningless, and a shrunken guess
-            // would leave the new window partly uncovered until the read returns.
-            anchorPid = pid
-            anchorWindowFrame = nil
-            focusedElementFrame = nil
-            refreshGeometry(for: pid)
-        } else if anchorWindowFrame == nil {
+        // A new front app — or a snapshot cleared by a space/display change — invalidates
+        // both frames. Read the replacements in the background and cover the whole visible
+        // frame in the meantime: the previous app's window would put the panel somewhere
+        // meaningless, and a shrunken guess would leave the new window partly uncovered
+        // until the read returns.
+        if anchor.beginRead(pid: pid) {
             refreshGeometry(for: pid)
         }
 
@@ -118,7 +135,7 @@ final class SurfacePanelController: PanelPresenting {
         // click past it.
         engine.updateOutsideMouseSwallow(
             panelFrame: WindowGeometry.cgRect(fromCocoa: panel.frame),
-            appWindowFrame: anchorWindowFrame.map(WindowGeometry.cgRect(fromCocoa:))
+            appWindowFrame: anchor.windowFrame.map(WindowGeometry.cgRect(fromCocoa:))
         )
     }
 
@@ -137,13 +154,18 @@ final class SurfacePanelController: PanelPresenting {
             let snapshot = await PanelGeometryReader.read(pid: pid)
             guard let self else { return }
             self.isRefreshingGeometry = false
-            guard self.anchorPid == pid else {
-                // The front app changed while this read was in flight; get the new one.
-                self.refreshGeometry(for: self.anchorPid)
+            guard self.anchor.apply(
+                pid: pid,
+                windowFrame: snapshot.windowFrame.map(WindowGeometry.cocoaRect(fromAX:)),
+                focusedElementFrame: snapshot.focusedElementFrame.map(WindowGeometry.cocoaRect(fromAX:))
+            ) else {
+                // The front app — or the snapshot itself — changed while this read was in
+                // flight. Only read again when there is a pid to read for.
+                if self.anchor.pid != 0 {
+                    self.refreshGeometry(for: self.anchor.pid)
+                }
                 return
             }
-            self.anchorWindowFrame = snapshot.windowFrame.map(WindowGeometry.cocoaRect(fromAX:))
-            self.focusedElementFrame = snapshot.focusedElementFrame.map(WindowGeometry.cocoaRect(fromAX:))
             guard self.mode != .hidden else { return }
             switch self.mode {
             case .panel:
@@ -160,16 +182,16 @@ final class SurfacePanelController: PanelPresenting {
                 )
                 self.engine.updateOutsideMouseSwallow(
                     panelFrame: WindowGeometry.cgRect(fromCocoa: self.panel.frame),
-                    appWindowFrame: self.anchorWindowFrame.map(WindowGeometry.cgRect(fromCocoa:))
+                    appWindowFrame: self.anchor.windowFrame.map(WindowGeometry.cgRect(fromCocoa:))
                 )
             case .search:
                 // The frame arrived after the palette was placed from the fallback; move it
                 // onto the window now that the real frame is known.
                 guard let visible = self.targetScreen()?.visibleFrame else { return }
-                let size = OverlayPlacement.searchSize(windowFrame: self.anchorWindowFrame, visible: visible)
+                let size = OverlayPlacement.searchSize(windowFrame: self.anchor.windowFrame, visible: visible)
                 self.panel.setContentSize(size)
                 self.panel.setFrame(
-                    OverlayPlacement.searchFrame(windowFrame: self.anchorWindowFrame, visible: visible, size: size),
+                    OverlayPlacement.searchFrame(windowFrame: self.anchor.windowFrame, visible: visible, size: size),
                     display: true
                 )
             case .hidden:
@@ -191,18 +213,15 @@ final class SurfacePanelController: PanelPresenting {
         // Read the target pid before `NSApp.activate()`: afterwards the frontmost app is
         // KagiPeek itself, and its window frame is not what the palette should centre on.
         let pid = previousApp.map(\.processIdentifier) ?? engine.frontmostProcessIdentifier
-        if anchorPid != pid || anchorWindowFrame == nil {
-            anchorPid = pid
-            anchorWindowFrame = nil
-            focusedElementFrame = nil
+        if anchor.beginRead(pid: pid) {
             refreshGeometry(for: pid)
         }
         let screen = targetScreen()
         let size: CGSize
         let frame: CGRect
         if let visible = screen?.visibleFrame {
-            size = OverlayPlacement.searchSize(windowFrame: anchorWindowFrame, visible: visible)
-            frame = OverlayPlacement.searchFrame(windowFrame: anchorWindowFrame, visible: visible, size: size)
+            size = OverlayPlacement.searchSize(windowFrame: anchor.windowFrame, visible: visible)
+            frame = OverlayPlacement.searchFrame(windowFrame: anchor.windowFrame, visible: visible, size: size)
         } else {
             size = CGSize(width: OverlayPlacement.searchWidth, height: OverlayPlacement.searchMinHeight)
             frame = CGRect(origin: .zero, size: size)
@@ -269,6 +288,16 @@ final class SurfacePanelController: PanelPresenting {
         // Nothing is showing, so nothing is left to protect the app behind from.
         engine.updateOutsideMouseSwallow(panelFrame: nil, appWindowFrame: nil)
         panel.orderOut(nil)
+        invalidateAnchorGeometry()
+    }
+
+    /// Drops the cached frames and any read that is still in flight, so the next present
+    /// reads against the new space or display instead of reusing a stale window frame.
+    private func invalidateAnchorGeometry() {
+        geometryTask?.cancel()
+        geometryTask = nil
+        isRefreshingGeometry = false
+        anchor.invalidate()
     }
 
     private func restorePreviousAppIfNeeded() {
@@ -357,8 +386,8 @@ final class SurfacePanelController: PanelPresenting {
     // MARK: - Placement
 
     private func targetScreen() -> NSScreen? {
-        if let anchor = anchorWindowFrame,
-           let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) {
+        if let anchorFrame = anchor.windowFrame,
+           let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchorFrame) }) {
             return screen
         }
         return screenContainingMouse() ?? NSScreen.main ?? NSScreen.screens.first
@@ -387,21 +416,25 @@ final class SurfacePanelController: PanelPresenting {
         let visible = screen.visibleFrame
         switch settings.panelPlacement {
         case .fillScreen:
-            return visible.size
+            return OverlayPlacement.fillScreenFrame(
+                visible: visible,
+                safeAreaTop: screen.safeAreaInsets.top
+            ).size
         case .fixedSize:
             return CGSize(
                 width: min(CGFloat(settings.fixedPanelWidth), visible.width),
                 height: min(CGFloat(settings.fixedPanelHeight), visible.height)
             )
         case .coverWindow:
-            guard let window = anchorWindowFrame else {
-                // The front window's frame arrives asynchronously, so the first frame after an
-                // app switch has no window to cover. A shrunken guess left the window half
-                // exposed; the visible frame covers every window, so start there and settle
-                // onto the window once its frame is known.
-                return visible.size
-            }
-            return OverlayPlacement.coverWindowSize(windowFrame: window, visible: visible, natural: natural)
+            // The front window's frame arrives asynchronously, so the first frame after an
+            // app switch has no window to cover. A shrunken guess left the window half
+            // exposed; the visible frame covers every window, so start there and settle
+            // onto the window once its frame is known.
+            return OverlayPlacement.coverSize(
+                windowFrame: anchor.windowFrame,
+                visible: visible,
+                natural: natural
+            )
         case .besideWindow:
             return natural
         }
@@ -412,13 +445,23 @@ final class SurfacePanelController: PanelPresenting {
         let visible = screen.visibleFrame
         switch settings.panelPlacement {
         case .fillScreen:
-            return visible
+            return OverlayPlacement.fillScreenFrame(
+                visible: visible,
+                safeAreaTop: screen.safeAreaInsets.top
+            )
         case .fixedSize, .coverWindow:
-            return CGRect(
-                x: visible.midX - size.width / 2,
-                y: visible.midY - size.height / 2,
-                width: size.width,
-                height: size.height
+            return OverlayPlacement.clampedTop(
+                OverlayPlacement.containedFrame(
+                    CGRect(
+                        x: visible.midX - size.width / 2,
+                        y: visible.midY - size.height / 2,
+                        width: size.width,
+                        height: size.height
+                    ),
+                    in: visible
+                ),
+                in: visible,
+                safeAreaTop: screen.safeAreaInsets.top
             )
         case .besideWindow:
             return besideWindowFrame(size: size, screen: screen)
@@ -427,7 +470,7 @@ final class SurfacePanelController: PanelPresenting {
 
     private func besideWindowFrame(size: CGSize, screen: NSScreen) -> CGRect {
         let visible = screen.visibleFrame
-        guard let anchor = anchorWindowFrame else {
+        guard let anchorFrame = anchor.windowFrame else {
             return clamp(
                 CGRect(x: visible.maxX - size.width - 16, y: visible.maxY - size.height - 16, width: size.width, height: size.height),
                 to: visible
@@ -435,25 +478,25 @@ final class SurfacePanelController: PanelPresenting {
         }
 
         var candidate = CGRect(
-            x: anchor.maxX + 12,
-            y: anchor.maxY - size.height,
+            x: anchorFrame.maxX + 12,
+            y: anchorFrame.maxY - size.height,
             width: size.width,
             height: size.height
         )
         if candidate.maxX > visible.maxX - 8 {
-            candidate.origin.x = anchor.minX - size.width - 12
+            candidate.origin.x = anchorFrame.minX - size.width - 12
         }
         if candidate.minX < visible.minX + 8 {
-            candidate.origin.x = anchor.minX + 16
-            candidate.origin.y = anchor.minY - size.height - 12
+            candidate.origin.x = anchorFrame.minX + 16
+            candidate.origin.y = anchorFrame.minY - size.height - 12
         }
         candidate = clamp(candidate, to: visible)
 
-        if let focused = focusedElementFrame,
+        if let focused = anchor.focusedElementFrame,
            focused.width > 1,
            candidate.intersects(focused) {
             var alternative = candidate
-            alternative.origin.y = anchor.minY - size.height - 12
+            alternative.origin.y = anchorFrame.minY - size.height - 12
             if alternative.minY >= visible.minY + 8, !alternative.intersects(focused) {
                 return clamp(alternative, to: visible)
             }
@@ -466,10 +509,7 @@ final class SurfacePanelController: PanelPresenting {
     }
 
     private func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
-        var result = rect
-        result.origin.x = min(max(result.origin.x, bounds.minX + 8), max(bounds.minX + 8, bounds.maxX - result.width - 8))
-        result.origin.y = min(max(result.origin.y, bounds.minY + 8), max(bounds.minY + 8, bounds.maxY - result.height - 8))
-        return result
+        OverlayPlacement.containedFrame(rect, in: bounds)
     }
 
     private func screenContainingMouse() -> NSScreen? {

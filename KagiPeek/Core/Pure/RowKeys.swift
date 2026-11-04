@@ -15,6 +15,12 @@ nonisolated enum KeyCode {
     static let slash: UInt16 = 44
     static let semicolon: UInt16 = 41
     static let quote: UInt16 = 39
+    static let comma: UInt16 = 43
+    static let period: UInt16 = 47
+    static let leftBracket: UInt16 = 33
+    static let rightBracket: UInt16 = 30
+    static let minus: UInt16 = 27
+    static let equal: UInt16 = 24
 
     static let left: UInt16 = 123
     static let right: UInt16 = 124

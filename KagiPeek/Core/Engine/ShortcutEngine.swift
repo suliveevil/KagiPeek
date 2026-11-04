@@ -157,6 +157,8 @@ final class ShortcutEngine: ObservableObject {
     private static let modifierTapWindow: TimeInterval = 0.35
     private var activationObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
+    /// 切 Space 后同一前台 App 的重扫合并窗口。
+    private var spaceRescanGate = SpaceRescanGate(interval: 0.75)
     /// `true` while one of the panel's context menus is tracking.
     ///
     /// SwiftUI's `contextMenu` is a real `NSMenu`, and while it tracks it owns the keyboard:
@@ -275,6 +277,13 @@ final class ShortcutEngine: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.dismissEverything()
+                guard let self else { return }
+                // 切 Space 会让菜单栏短暂消失，而前台 App 不一定变；只重扫当前这个 App，
+                // 并让它在拿到空列表时保留旧目录（见 `CatalogPublishPolicy`）。
+                let pid = self.frontmostProcessIdentifier
+                guard self.spaceRescanGate.shouldScan(pid: pid, at: Date()) else { return }
+                Diag.info(.scan, "space changed → forced rescan \(self.state.appName)")
+                self.reloadCatalog(force: true, preserveOnEmpty: true)
             }
         }
 
@@ -375,6 +384,11 @@ final class ShortcutEngine: ObservableObject {
         if previous.keyStyle != newValue.keyStyle {
             state.searchCorpus = nil
         }
+        if previous.pagingPairs != newValue.pagingPairs {
+            // The tap's swallow list is derived from the enabled pairs; without this the old
+            // pair would keep being eaten and the new one would reach the app behind the panel.
+            updateKeyCapture()
+        }
 
         if previous.language != newValue.language
             || previous.includeBuiltInCatalog != newValue.includeBuiltInCatalog
@@ -398,6 +412,12 @@ final class ShortcutEngine: ObservableObject {
         // keep blaming tools the user just asked us to stop reading.
         if previous.scanConfigFiles != newValue.scanConfigFiles {
             scanConfigFiles()
+        }
+        // The panel carries no permanent mode label, so the change is announced once. Only
+        // while the panel is up: editing the setting in the settings window would otherwise
+        // flash a HUD behind it.
+        if previous.panelOrder != newValue.panelOrder, state.panel.isVisible {
+            showHUD(chord: "", title: localization.text(newValue.panelOrder.titleKey), kind: .info)
         }
         if state.panel.isVisible {
             rebuildPanel()
@@ -430,6 +450,13 @@ final class ShortcutEngine: ObservableObject {
         if old.scanConfigFiles != new.scanConfigFiles { changed.append("scanConfigFiles") }
         if old.excludedBundleIDs != new.excludedBundleIDs { changed.append("excludedBundleIDs") }
         if old.ignoredCommands != new.ignoredCommands { changed.append("ignoredCommands") }
+        if old.pagingPairs != new.pagingPairs {
+            let enabled = PagingPair.allCases
+                .filter(new.pagingPairs.contains)
+                .map(\.rawValue)
+                .joined(separator: ",")
+            changed.append("pagingPairs=[\(enabled)]")
+        }
         if old.diagnosticsEnabled != new.diagnosticsEnabled { changed.append("diagnosticsEnabled") }
         if old.verboseDiagnostics != new.verboseDiagnostics { changed.append("verboseDiagnostics") }
         guard !changed.isEmpty else { return }
@@ -631,8 +658,8 @@ final class ShortcutEngine: ObservableObject {
     }
 
     // MARK: - Catalog
-    func reloadCatalog(force: Bool = true) {
-        catalogCoordinator.reload(force: force)
+    func reloadCatalog(force: Bool = true, preserveOnEmpty: Bool = false) {
+        catalogCoordinator.reload(force: force, preserveOnEmpty: preserveOnEmpty)
     }
 
     private func frontmostChanged(_ app: FrontmostApp) {
@@ -715,7 +742,9 @@ final class ShortcutEngine: ObservableObject {
                    systemDoubleClickInterval: NSEvent.doubleClickInterval
                )
            ) {
-            togglePinnedPanel()
+            // Both clicks of the gesture are triggers. If the second press is still down
+            // when the panel opens, suppress narrowing until it is released.
+            togglePinnedPanel(waitingForTriggerRelease: pressed)
             return
         }
 
@@ -733,6 +762,28 @@ final class ShortcutEngine: ObservableObject {
     /// shortcuts are left — plus the two gestures layered on it: a lone hyper press closes
     /// the panel, and a quick tap ticks a modifier so ⌥ ⌘ C can be typed one key at a time.
     private func narrowWithHeldModifiers(_ modifiers: ModifierSet, previous: ModifierSet, event: KeyEvent) {
+        // The press that opened the panel is a trigger, not a filter. Until that key is
+        // released, a modifier event changes nothing; the release itself clears the flag
+        // without rebuilding. The next press is an ordinary modifier and narrows.
+        if state.panel.triggerNarrowPending {
+            let triggerDown = state.settings.triggerKey.isPressed(
+                keyCode: event.keyCode,
+                modifiers: modifiers
+            )
+            switch TriggerNarrowGate.decision(
+                waitingForRelease: true,
+                triggerKeyDown: triggerDown
+            ) {
+            case .wait:
+                return
+            case .clearPending:
+                state.panel.triggerNarrowPending = false
+                state.panel.heldModifiers = []
+                return
+            case .narrow:
+                break
+            }
+        }
         // A lone Shift is the hint layer: labels instead of chords, and Shift + glyph runs
         // the row. Anything else down with it is a real narrowing prefix, so the hints step
         // aside — the two would otherwise fight over the same glyph press. The tap reads the
@@ -759,34 +810,33 @@ final class ShortcutEngine: ObservableObject {
         }
 
         // A lone ⇧ never counts — it also arrives while typing capital letters.
-        let held = modifiers == [.shift] ? ModifierSet() : modifiers
-        state.panel.heldModifiers = held
-        // A tap — press and let go quickly, with nothing typed in between — sticks: it ticks
-        // the modifier instead of narrowing only while the finger is down. Holding still
-        // narrows temporarily. The difference is the point: holding is looking, tapping is
-        // composing.
-        if let tapped = state.modifierTap.flagsChanged(
-            held,
+        //
+        // Only modifiers that went down on this edge become tokens: a press enqueues once
+        // however long it is held, and a release changes nothing. Shift is the hint layer
+        // and Globe has no filter chip, so neither becomes a token.
+        let added = modifiers.subtracting(previous)
+        for modifier in ModifierSet.canonicalOrder
+        where modifier != .shift && added.contains(modifier) {
+            state.panel.filter.toggleModifier(modifier)
+        }
+        state.panel.heldModifiers = state.panel.filter.modifiers
+        // Keep the tap tracker's candidate in step, but a tap must not tick on release:
+        // the press edge above already enqueued the token, and flipping it again here was
+        // what would turn one press into "on, then off".
+        _ = state.modifierTap.flagsChanged(
+            modifiers == [.shift] ? ModifierSet() : modifiers,
             previous: previous,
             now: event.happenedAt,
             window: Self.modifierTapWindow
-        ) {
-            panel.toggleModifier(tapped)
-            return
+        )
+        // The filter owns the narrowing. A prefix built from the same modifiers would
+        // narrow a second time.
+        state.prefix = .empty
+        // An empty queue is the whole list again, so it starts at the first page. A
+        // non-empty one keeps the page it had; the rebuild clamps an out-of-range index.
+        if state.panel.filter.isEmpty {
+            state.panel.pageIndex = 0
         }
-        // Only a modifier-only prefix is re-seeded. A real chord prefix (⌘K of ⌘K ⌘C) must
-        // survive the modifier being released between strokes, which is what used to drop the
-        // user back to the top level mid-chord.
-        //
-        // The seed is what the user is composing, not just what is down: a ticked ⌥ keeps
-        // narrowing after the physical key is let go. Latched modifiers are deliberately
-        // *not* cleared here — pressing a physical modifier while a sequence is being
-        // composed is the normal case, not a reason to abandon it.
-        if state.prefix.isEmpty || state.prefix.isModifierOnly {
-            let effective = state.pending.effective
-            state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
-        }
-        state.panel.pageIndex = 0
         // Deliberately no `selectionIndex = -1` here. Narrowing is exactly the case where the
         // user is about to press Return, and a narrowed panel often has one row left: clearing
         // the selection here is what made Return do nothing.
@@ -839,6 +889,39 @@ final class ShortcutEngine: ObservableObject {
             // pressed while secure input is on is not ours to act on, and the log says so.
             logSecureInputOnce()
             return
+        }
+
+        // The token queue answers before the router: a letter that the filter owns must not
+        // become a chord stroke, and ⌫ while the queue is non-empty pops a token instead of
+        // going up a level.
+        switch PanelFilterPlan.decision(
+            for: event,
+            filter: state.panel.filter,
+            phase: state.phase,
+            shiftHintActive: state.panel.shiftHintActive,
+            triggerPending: state.panel.triggerNarrowPending,
+            triggerKey: state.settings.triggerKey
+        ) {
+        case .append(let character):
+            noteGestureUse(.none, event: event)
+            state.panel.filter.appendLetter(character)
+            state.panel.heldModifiers = state.panel.filter.modifiers
+            state.prefix = .empty
+            rebuildPanel()
+            updateKeyCapture()
+            return
+        case .popToken:
+            noteGestureUse(.none, event: event)
+            state.panel.filter.popLastToken()
+            state.panel.heldModifiers = state.panel.filter.modifiers
+            if state.panel.filter.isEmpty {
+                state.panel.pageIndex = 0
+            }
+            rebuildPanel()
+            updateKeyCapture()
+            return
+        case .none:
+            break
         }
 
         let action = routeKeyDown(event)
@@ -1049,8 +1132,10 @@ final class ShortcutEngine: ObservableObject {
             prefix: state.prefix,
             pending: state.pending,
             heldModifiers: state.panel.heldModifiers,
+            filter: state.panel.filter,
             runRowKey: state.settings.runRowKey,
             copyRowKey: state.settings.copyRowKey,
+            pagingPairs: state.settings.pagingPairs,
             catalogItems: state.catalog.items,
             shiftHintsActive: state.panel.shiftHintActive
         )
@@ -1108,7 +1193,7 @@ final class ShortcutEngine: ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
             guard self.state.phase == .armed else { return }
-            self.activatePanel(seedPrefix: true)
+            self.activatePanel(waitingForTriggerRelease: true)
         }
     }
 
@@ -1120,25 +1205,30 @@ final class ShortcutEngine: ObservableObject {
     /// Opens the persistent panel. The keys used to trigger it are deliberately not used
     /// as a prefix, and the panel stays until a complete shortcut or Esc.
     ///
-    /// A hold-to-summon seeds the prefix with the modifiers still down, so the panel opens
-    /// already narrowed to them; the hotkey and double-tap paths start empty, where every row
-    /// is a complete combination. Either way the rows keep their full chord — a ⌘ that is
-    /// held is lit up in the row, not removed from it.
-    func activatePanel(seedPrefix: Bool = false) {
+    /// Every trigger opens the full list. A hold-to-summon passes
+    /// `waitingForTriggerRelease: true` so the still-down modifier cannot narrow until it
+    /// has been released and pressed again; a hotkey or menu action passes `false`. In
+    /// both cases the rows keep their full chord — a ⌘ that is held is lit up in the row,
+    /// not removed from it.
+    func activatePanel(waitingForTriggerRelease: Bool = false) {
         guard !state.isFrontAppExcluded else { return }
         state.search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
         state.phase = .active
-        let seed = (state.previousModifiers == [.shift]) ? ModifierSet() : state.previousModifiers
-        state.prefix = seedPrefix && !seed.isEmpty ? .modifiers(seed) : .empty
+        // Nothing is composed on open: the trigger press is not a filter, and a hotkey's
+        // own modifiers are part of the hotkey rather than a prefix. The panel starts on
+        // the whole list and narrows only on a later, separate press.
+        state.prefix = .empty
         state.panel.isVisible = true
         state.panel.isPinned = true
         state.panel.beginNewSession()
+        state.panel.triggerNarrowPending = waitingForTriggerRelease
         state.hyperEscape = HyperEscape()
         // A modifier held down to summon the panel is the trigger, not a tap: letting go of
-        // it must not tick anything.
+        // it must not tick anything. It is also not a held filter, so the rows keep their
+        // full chords instead of arriving narrowed.
         state.modifierTap.reset()
-        state.panel.heldModifiers = state.previousModifiers == [.shift] ? [] : state.previousModifiers
+        state.panel.heldModifiers = []
         // A sequence belongs to one panel session: opening a new one starts from nothing.
         state.panel.latchedModifiers = []
         state.panel.latchedOrder = []
@@ -1223,9 +1313,11 @@ final class ShortcutEngine: ObservableObject {
     func rebuildPanel() { panel.rebuildPanel() }
     func panelSequence() -> [PanelEntry] { panel.panelSequence() }
     func toggleFavoritesFilter() { panel.toggleFavoritesFilter() }
+    func toggleToolSection() { panel.toggleToolSection() }
     func toggleModifier(_ modifier: ModifierSet) { panel.toggleModifier(modifier) }
     func toggleFavorite(rowID: String) { panel.toggleFavorite(rowID: rowID) }
     func copyShortcut(rowID: String) { panel.copyShortcut(rowID: rowID) }
+    func copyMenuPath(rowID: String) { panel.copyMenuPath(rowID: rowID) }
     func copyRow(rowID: String) { panel.copyRow(rowID: rowID) }
     func showSettings() { panel.showSettings() }
     func showConflicts() { panel.showConflicts() }
@@ -1234,12 +1326,14 @@ final class ShortcutEngine: ObservableObject {
     func moveSelection(_ delta: Int) { panel.moveSelection(delta) }
     func performSelectedPanelRow(action: RowAction) { panel.performSelectedPanelRow(action: action) }
     func performPanelRow(rowID: String, action: RowAction) { panel.performPanelRow(rowID: rowID, action: action) }
+    func clickPanelRow(rowID: String) { panel.clickPanelRow(rowID: rowID) }
     func select(rowID: String) { panel.select(rowID: rowID) }
     func activate(rowID: String) { panel.activate(rowID: rowID) }
 
     private func updateKeyCapture() {
         var identifiers: Set<UInt32> = []
         var capturedKeyCodes: Set<UInt16> = []
+        var activePagingCharacters: Set<Character> = []
         if state.panel.isVisible, state.phase == .active {
             // While the list is narrowed the user is physically holding the modifiers, so
             // every key the panel consumes arrives carrying them. Both spellings have to be
@@ -1270,11 +1364,17 @@ final class ShortcutEngine: ObservableObject {
             for keyCode in [KeyCode.ctrlF, KeyCode.ctrlB, KeyCode.ctrlP, KeyCode.ctrlN] {
                 capture(keyCode, [.control])
             }
-            // ; / ' page through the list.
-            capture(KeyCode.semicolon, [])
-            capture(KeyCode.quote, [])
-            // Backspace only belongs to the panel while navigating a chord.
-            if !state.prefix.isEmpty {
+            // The enabled punctuation pairs page through the list. The key codes describe
+            // the physical spelling; the characters are published separately because a CJK
+            // layout types `；` for the semicolon key.
+            for pair in PagingPair.allCases where state.settings.pagingPairs.contains(pair) {
+                capture(pair.previous.keyCode, pair.previous.modifiers)
+                capture(pair.next.keyCode, pair.next.modifiers)
+            }
+            activePagingCharacters = PagingKeyPlan.characters(for: state.settings.pagingPairs)
+            // Backspace only belongs to the panel while navigating a chord or while the
+            // filter queue has a token to pop.
+            if !state.prefix.isEmpty || !state.panel.filter.isEmpty {
                 capture(KeyCode.delete, [])
             }
             // A bare `/` is the panel's own key: it opens the palette. Without capturing it
@@ -1284,6 +1384,7 @@ final class ShortcutEngine: ObservableObject {
         }
         monitor.updateCapturedKeys(identifiers)
         monitor.updateCapturedKeyCodes(capturedKeyCodes)
+        monitor.updateCapturedCharacters(activePagingCharacters)
         refreshKeyDecoding()
     }
 
@@ -1504,12 +1605,12 @@ final class ShortcutEngine: ObservableObject {
 
     // MARK: - Commands from the UI
 
-    func togglePinnedPanel() {
+    func togglePinnedPanel(waitingForTriggerRelease: Bool = false) {
         if state.panel.isVisible, state.phase == .active {
             dismissPanel()
             return
         }
-        activatePanel()
+        activatePanel(waitingForTriggerRelease: waitingForTriggerRelease)
     }
 
     /// One shortcut that swaps between the panel and the search palette.

@@ -7,7 +7,7 @@ Answers to questions that come up after the first launch. For installation and p
 Work through these in order:
 
 1. **Is KagiPeek running?** It is a menu bar app with no Dock icon. Look for the keyboard icon in the menu bar.
-2. **Is a trigger enabled?** Open **Settings → Trigger**. There are two independent switches: **Modifier gesture** and **Global hotkeys**. Turn on at least one. Both off is the pause state.
+2. **Is a trigger enabled?** Open **Settings → Trigger**. There are two independent switches: **Modifier gesture** and **Global hotkeys**. Turn on at least one. Both off means no trigger fires.
 3. **Is Accessibility granted?** Open **Settings → Permissions**. Accessibility is required for menu reading and for creating the key tap. If keys still do not arrive, grant **Input Monitoring** as a fallback and relaunch KagiPeek.
 4. **Are you in a password field?** Secure input hides the panel by design. Click into a normal window and try again.
 5. **Does the app have a menu bar?** Some games, overlays, and custom-drawn apps do not. With Accessibility granted but no menu bar, KagiPeek falls back to its built-in catalog; if the catalog is disabled you will see nothing.
@@ -26,6 +26,17 @@ KagiPeek reads the app's **menu bar** through Accessibility. It can only show wh
 - If the app's menu bar is unusually large or slow, the 0.35 s AX timeout may truncate the scan. Retry after the app becomes responsive.
 
 The built-in catalog (about 100 system, text-editing, Finder, and screenshot shortcuts) fills in common cases but cannot know an app's private shortcuts.
+
+## Why is the panel empty even though KagiPeek is running?
+
+An empty panel always says which of four states it is in, in this priority:
+
+1. **Accessibility is missing** — this state wins over everything else, because no scan can finish without it. The panel shows **Open the permission guide**, which is the way out.
+2. **Still scanning** — a spinner, not a verdict. Wait for the scan to finish (large menus can take a moment).
+3. **Favourites-only with nothing pinned** — turn the filter off, or pin something with the star.
+4. **No match** — the current prefix, search terms, or filters exclude every menu item.
+
+If the message is the permission one, grant Accessibility and reopen the panel; see [PERMISSIONS.md](PERMISSIONS.md).
 
 ## Can I browse another app's shortcuts without switching to it?
 
@@ -98,15 +109,27 @@ macOS keeps its own system-wide shortcuts (Spotlight, Mission Control, screensho
 
 That list is read-only. KagiPeek never binds, changes, or disables a system shortcut; change those in **System Settings → Keyboard → Keyboard Shortcuts**.
 
+## Why are some system shortcuts shown as a key combination instead of a name?
+
+macOS does not publish the name of its own hotkeys; the description field is always empty. KagiPeek keeps a table of the assignments a stock Mac ships with, so common ones read as **Spotlight**, **Screenshot**, **Mission Control**. A chord outside that table — one you reassigned, or one of the enabled slots that has no function behind it — keeps the chord itself as the title and is labelled as a system hotkey. It is not a placeholder and not a missing shortcut, and the panel no longer shows an em dash for it.
+
+## Why can't I run a shortcut that came from Karabiner, skhd or another config tool?
+
+Those tools implement shortcuts in their own keyboard layer, below the menu bar. KagiPeek reads their config files to warn about collisions, and those rows do appear in the panel and in search, but they are **shown only, never executed**: clicking copies the shortcut, and the context menu says so. Replaying a key would not reach the tool's layer anyway, and guessing at it could fire the wrong action. Bind those shortcuts in the tool itself.
+
+## Why won't KagiPeek run sleep, restart, shut down, lock, log out or force quit?
+
+Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by KagiPeek: a click copies the shortcut, Space explains why, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.
+
 ## Why does the panel stay open after ⌘K?
 
 Because `⌘K` is the first stroke of a **multi-stroke shortcut** (a chord), such as `⌘K ⌘C` in VS Code-style editors. When the current stroke has further completions, the panel descends one level and shows what can follow; the breadcrumb shows the prefix.
 
 - Press the next stroke to continue.
-- Press **⌫** to go back one level; **Esc** closes the panel. Both apply only when no other modifier is held, so ⌘⌫ and similar combinations remain normal shortcuts.
+- Press **⌫** to take back the last thing you added: a filter letter if it came last, otherwise that modifier; once the filter is empty the key goes back one level. It is handled only with no other modifier held, so ⌘⌫ remains an ordinary shortcut. **Esc** closes the panel.
 - Press the key that completes a shortcut to finish: the panel highlights the menu item for about 0.4 s, closes, and the shortcut runs in the front app. A key with no match leaves the panel open — it no longer closes on a miss.
 
-Otherwise the panel stays open because it is persistent by design. Releasing the modifiers does not dismiss it.
+Otherwise the panel stays open because it is persistent by design. Releasing the modifiers does not dismiss it, nor does it clear the filter.
 
 If a chord is not visible, the app may not expose it as a menu key equivalent, or the scan may have missed that menu.
 
@@ -118,7 +141,7 @@ Because v2.1.0 made the panel **persistent**. The auto-hide delay and its settin
 - you press **Esc**;
 - you press the **panel hotkey** (or the **switch panel/search** hotkey) again.
 
-Releasing the modifiers you were holding does not close it either. This is deliberate: the panel is now a reference surface you can read at your own pace, and it is dismissed by a clear action instead of a timer.
+Releasing the modifiers you were holding does not close it either, and it does not clear the filter. This is deliberate: the panel is now a reference surface you can read at your own pace, and it is dismissed by a clear action instead of a timer.
 
 ## Why does Esc close the panel, and why can't I just click away?
 
@@ -141,19 +164,28 @@ The panel is persistent, so keyboard operation is always available:
 | Key | Action |
 | --- | --- |
 | ↑ / ↓ | Move the selection |
-| ← / → | Previous / next page |
+| ← / → | Previous / next page, always available and not configurable |
 | Run key (Space by default) | Close the panel and replay the selected menu item's shortcut into the front app |
 | Copy key (Return by default) | Copy the selected menu item's shortcut; the panel stays open |
+| ⌫ | Take back the last filter token — the letter if it came last, otherwise that modifier; once the filter is empty, go back one chord stroke |
 | Esc | Close the panel (with or without modifiers) |
-| `;` / `'`, ⌃B / ⌃F | Previous / next page |
+| Any enabled paging pair (`;` / `'` by default; `,` / `.`, `[` / `]`, `-` / `=` optional); ⌃B / ⌃F | Previous / next page |
 | Click | Same as the run key |
 | The complete shortcut | Highlight the matching menu item for ~0.4 s, close the panel, and let the shortcut run |
 
-Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
+Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. The punctuation pairs live in the same section under **Page navigation**: four checkboxes that can be combined freely (several pairs on at once, or none, leaving the arrows); semicolon/quote is the default, the other three start unticked. They are matched by the character they type rather than the physical key, and the third pair is `-` / `=` (both unshifted); `+` (Shift+=) is not a paging key, so it never conflicts with the Shift-hint layer's `0`–`9` / `a`–`z` labels. When the search field has focus, none of these characters page — they type normally. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ pops the filter's last token first; once the queue is empty it backs out one chord stroke, and it is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 
-Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa.
+Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa. The selected menu item also draws a 3 pt accent bar on its leading edge and a slightly brighter title, so it stays visible on the light panel; VoiceOver announces it as selected, in the order name → shortcut → state.
 
 Pressing the run key on a menu item that still has further steps opens the next level instead of running it.
+
+## How do I clear a modifier filter?
+
+The panel keeps an ordered queue of what you added, and **⌫** takes back one token at a time: a letter if the letter came last, otherwise that modifier. Pressing the **same modifier again** removes it from wherever it sits in the queue, so `⌃ ⌥ f` minus ⌃ is `⌥ f`; a third press adds it back at the end. Releasing the keys never clears anything, and **Esc** closes the panel without clearing the filter — the next panel session starts empty. To get the whole list back, press ⌫ until the queue is empty (or reopen the panel).
+
+## Why doesn't ⌘F filter the panel?
+
+⌘F is still the front app's chord (or one of KagiPeek's hotkeys — search is ⌃⌥⌘F by default), so it is not a filter token. The filter only accepts a lowercase letter when the modifiers on that key press are already in the queue; a letter pressed with a modifier the queue does not hold belongs to the chord/hotkey path. To narrow with F, press ⌃ **while the panel is open**, then F: the queue becomes `⌃ f` and the list keeps only menu items that carry both. An extra ⌘ on the F press is never stepped on — only a modifier already in the queue turns the letter into a filter token.
 
 ## Why did the panel copy instead of running the menu item?
 
@@ -217,9 +249,13 @@ This is a macOS privacy protection, not a KagiPeek bug. See [PERMISSIONS.md](PER
 
 KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock icon and opens no window at launch. The menu bar icon opens the panel, the palette and Settings; ⌘, opens Settings from inside any of its windows.
 
+## Why can't I minimise the Settings window?
+
+Because Settings uses `[.titled, .closable, .resizable]` only. A minimised copy used to sit in the Dock while the menu-bar app had no way to bring it back except the icon's **Settings…** item, which reopened a second window. Close and reopen it from the menu bar instead; the same window comes forward. When Settings is visible, **Open the permission guide** attaches to it as a sheet rather than opening a separate window that could end up behind it or in another Space.
+
 ## Can I change the triggers or the hotkeys?
 
-Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the hold delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off is the pause state. The double-tap window is not a setting: it follows the system double-click speed, clamped to 0.25–0.6 s, and only the gap between the two taps is timed. The defaults are:
+Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the hold delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off means no trigger fires. The double-tap window is not a setting: it follows the system double-click speed, clamped to 0.25–0.6 s, and only the gap between the two taps is timed. The defaults are:
 
 | Action | Default |
 | --- | --- |
@@ -234,6 +270,10 @@ KagiPeek does not remap application shortcuts. It reports what the app already d
 
 macOS system shortcuts are read-only here as well: KagiPeek reports collisions with them in the conflict list, but it cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
 
+## How do I see the trigger hint again?
+
+The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and writes `KagiPeekTriggerTipShown` to `UserDefaults` so it never repeats. To replay it, open **Settings → Trigger** and press **Show the trigger tip again**; the button calls the same HUD and does not clear the flag or affect either trigger switch.
+
 ## What is Smart order?
 
 The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
@@ -244,18 +284,40 @@ All four orders live in **Settings → Statistics → Sort order**: smart order,
 
 ## Can I hide disabled menu items?
 
-Yes. Menu items whose `AXEnabled` state is false are greyed out by default and can be hidden entirely in Settings. This is useful in apps where most of a menu is contextually unavailable.
+Yes. Menu items whose `AXEnabled` state is false are greyed out by default, end with a `lock.slash`, and can be hidden entirely in Settings. This is useful in apps where most of a menu is contextually unavailable.
+
+## Why does clicking a greyed-out menu item show a message?
+
+Because the app reported the menu item as unavailable, so there is no action to run. Right-clicking it opens a menu whose first line is **This menu item is unavailable right now** above the actions, and clicking the row shows the same sentence in a HUD. The notice is rate-limited: the same menu item explains itself at most once per three seconds, so repeated clicks do not stack identical toasts. A greyed row is not an error; the lock and the sentence simply say that the app's own state, not KagiPeek, is refusing.
+
+## Why does the panel show fewer menu items than I set?
+
+**Max menu items per group** (Settings → Appearance) is an upper bound. Before drawing, the panel computes `min(setting, geometry)`: the chrome, card insets, group headings and gaps are subtracted from the available height, and only what fits is shown. A 60-item setting in a 720 pt window can therefore display 36 menu items. This is deliberate — the alternative was pushing the last menu items under the footer. Group headings are counted in that height, which is why turning **By menu group** on can reduce the visible count by one heading's worth.
+
+## Why does the panel flash a message when I change Panel order?
+
+Changing **Panel order** between **By modifier** and **By menu group** while the panel is visible shows the new order in a one-line HUD and rebuilds the list. It is a one-off announcement, not a permanent badge: the panel itself carries no mode label, so the same space stays available for menu items.
+
+## Why is the shortcut column blank on some rows?
+
+A menu item with no key equivalent has no shortcut, so the column stays empty rather than drawing an em dash. The dash is reserved for a different fact: a **system hotkey** whose name macOS does not expose. The column is a fixed-width slot in a monospaced face, right-aligned when the shortcut sits on the right, so the keys line up and the titles do not shift as the list changes.
 
 ## Why does the panel sometimes appear in an odd place?
 
 That depends on **Settings → Appearance → Panel placement**:
 
-- **Cover the front window** (default) makes the panel large enough to cover the front window in both dimensions and centers it on the screen.
-- **Fixed size** uses the width and height you set (720 × 620 by default) and centers it.
-- **Fill the screen** uses the whole visible screen area.
+- **Cover the front window** (default) makes the panel large enough to cover the front window in both dimensions, centres it on that window, and keeps it inside the visible area.
+- **Fixed size** uses the width and height you set (720 × 620 by default) and centres it.
+- **Fill the screen** uses the whole visible screen area, stopping below the top safe area so the menu bar or notch never covers its first rows.
 - **Beside the front window** is the old v1.x/v2.0 behavior: the panel sits beside or below the window and tries not to cover the focused element.
 
 The geometry is computed when the panel opens. If the window moved after that, or if an app reports unusual window frames, full-screen spaces, or multiple displays confuse the anchor, the panel can look misplaced. Close and reopen it, or choose a different placement.
+
+## Does the panel end up off-screen in fullscreen or after switching Space?
+
+No. A window frame read before a Space or display change would be stale, so the panel drops its cached anchor frame when it hides, when the active Space changes, and when the displays change, and reads the new frames on the next presentation. Until that read returns it uses the whole visible screen area as the cover size instead of a shrunken guess, so the first frame is already complete.
+
+On a full-screen space the visible frame is the screen minus the top safe area — the menu bar, or the notch on a display that has one — and the panel fills that area without drawing under it, so its first rows and its footer both stay reachable. Switching Space also forces a fresh scan of the app now in front; if macOS has not put that app's menu bar back yet, the previous list is kept rather than replaced by an empty panel.
 
 ## Does KagiPeek use much CPU or battery?
 

@@ -24,6 +24,9 @@ nonisolated enum PanelRowBuilder {
         var isCompleted = false
         var isFavorite = false
         var hintLabel: String?
+        var source: BindingSource = .menu
+        var restriction: RestrictedAction?
+        var hasChord = true
     }
 
     static func build(_ specs: [Spec]) -> (groups: [PanelGroup], flatRowIDs: [String]) {
@@ -44,7 +47,10 @@ nonisolated enum PanelRowBuilder {
                 isHighlighted: spec.isHighlighted,
                 isCompleted: spec.isCompleted,
                 isFavorite: spec.isFavorite,
-                hintLabel: spec.hintLabel
+                hintLabel: spec.hintLabel,
+                source: spec.source,
+                restriction: spec.restriction,
+                hasChord: spec.hasChord
             )
             flatRowIDs.append(spec.id)
 

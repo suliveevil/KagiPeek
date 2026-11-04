@@ -39,7 +39,7 @@ final class DoubleTapTimingTests: XCTestCase {
         )
         let encoded = try JSONEncoder().encode(upgraded)
         let object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
-        XCTAssertEqual(object?["schemaVersion"] as? Int, 7)
+        XCTAssertEqual(object?["schemaVersion"] as? Int, 8)
         let settings = object?["settings"] as? [String: Any]
         XCTAssertNil(settings?["doubleTapWindow"])
     }

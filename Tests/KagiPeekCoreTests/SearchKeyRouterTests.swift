@@ -154,6 +154,26 @@ final class SearchKeyRouterTests: XCTestCase {
 
     // MARK: 普通字符
 
+    /// 翻页字符在搜索框里是输入内容：无论 开关有没有勾选，八次按键都透传。
+    func testPagingCharactersPassThroughTheSearchField() {
+        let keys: [(UInt16, ModifierSet)] = [
+            (KeyCode.comma, []), (KeyCode.period, []),
+            (KeyCode.leftBracket, []), (KeyCode.rightBracket, []),
+            (KeyCode.minus, []), (KeyCode.equal, []),
+            (KeyCode.semicolon, []), (KeyCode.quote, [])
+        ]
+        for (keyCode, modifiers) in keys {
+            XCTAssertEqual(
+                SearchKeyRouter.action(keyCode: keyCode, modifiers: modifiers, isQueryEmpty: true),
+                .passThrough
+            )
+            XCTAssertEqual(
+                SearchKeyRouter.action(keyCode: keyCode, modifiers: modifiers, isQueryEmpty: false),
+                .passThrough
+            )
+        }
+    }
+
     func testTypingPassesThrough() {
         // A 键的 keyCode 是 0。
         XCTAssertEqual(
