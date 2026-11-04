@@ -10,7 +10,8 @@ import Foundation
 nonisolated enum OverlayMetrics {
     static let columnWidth: CGFloat = 248
     static let rowHeight: CGFloat = 30
-    static let padding: CGFloat = 14
+    /// Outer margin: 16 pt, the low end of the 16–20 range the design asks for.
+    static let padding: CGFloat = 16
     static let groupHeaderHeight: CGFloat = 24
     /// One section of the panel is a card: its rows sit inside it, and the cards are apart.
     static let cardHorizontalInset: CGFloat = 6

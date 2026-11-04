@@ -101,6 +101,8 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Overlay
     case overlayNoCandidates, overlayScanning, overlayPageFormat, overlayUnavailableBadge
+    case panelDisabledReason
+    case triggerTip, settingsShowTriggerTip
     case overlayBuiltInBadge, overlayRunning
     case scanPermissionDenied, scanFallbackHint
     case overlayConflictHint, overlayConflictOpen, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelRunFailed, injectTargetUnavailable, panelIdleHint
@@ -430,7 +432,7 @@ nonisolated enum L10n {
         .appearanceStyleSymbols: ("Symbols (⌘)", "符号（⌘）"),
         .appearanceStyleWords: ("Words (command)", "文字（command）"),
         .appearanceColumns: ("Columns", "列数"),
-        .appearanceMaxItems: ("Max rows per page", "每页最大行数"),
+        .appearanceMaxItems: ("Max menu items per group", "每个分组最多显示"),
         .appearanceMaxDescription: ("Max description length", "说明文字最大长度"),
         .appearanceShowDisabled: ("Show unavailable menu items", "显示当前不可用的菜单项"),
         .appearancePlacement: ("Panel placement", "面板位置"),
@@ -518,6 +520,18 @@ nonisolated enum L10n {
         .overlayScanning: ("Scanning menu bar…", "正在读取菜单栏…"),
         .overlayPageFormat: ("%d/%d", "%d/%d"),
         .overlayUnavailableBadge: ("Unavailable", "不可用"),
+        .panelDisabledReason: (
+            "This menu item is unavailable right now",
+            "该菜单项当前不可用"
+        ),
+        .triggerTip: (
+            "Hold ⌘ or double-tap it to open the panel",
+            "按住 ⌘ 或连按两次 ⌘ 打开面板"
+        ),
+        .settingsShowTriggerTip: (
+            "Show the trigger tip again",
+            "重新查看触发提示"
+        ),
         .overlayConflictHint: (
             "Some shortcuts are bound more than once",
             "有快捷键被重复绑定"

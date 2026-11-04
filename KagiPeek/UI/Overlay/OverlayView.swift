@@ -42,7 +42,10 @@ struct OverlayView: View {
             OverlayFooterView()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(palette.backgroundSolid)
+        // Material follows the theme: a light popover reads as paper, a dark HUD as glass.
+        // The palette tint stays on top so the contrast ratios the text was tuned against
+        // do not move when the wallpaper does. Reduce Transparency keeps the solid colour.
+        .background(panelSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
@@ -460,31 +463,63 @@ private struct OverlayPanelContentView: View {
             }
     }
 
+    /// The four "nothing here" answers. Scanning is the only one with a spinner; the
+    /// permission one is the only one with a way out.
     @ViewBuilder
-    private var content: some View {
-        if state.panel.isScanning {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small).tint(palette.secondaryText)
-                Text(localization.text(.overlayScanning))
+    private func emptyState(_ kind: PanelEmptyKind) -> some View {
+        Group {
+            if kind == .scanning {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small).tint(palette.secondaryText)
+                    Text(localization.text(kind.messageKey))
+                        .font(.system(size: 12))
+                        .foregroundStyle(palette.secondaryText)
+                }
+            } else if kind == .permissionRequired {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(localization.text(kind.messageKey))
+                        .font(.system(size: 12))
+                        .foregroundStyle(palette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(localization.text(.permissionsTitle)) {
+                        engine.showPermissionsWindow()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            } else {
+                Text(localization.text(kind.messageKey))
                     .font(.system(size: 12))
                     .foregroundStyle(palette.secondaryText)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-        } else if state.panel.isEmpty {
-            // An empty panel and a scan that never happened look identical to the user;
-            // the scan state says which one it was (Menu-Bar-Search's initState).
-            let emptyKey: L10nKey = state.scanState == .permissionDenied
-                ? .scanPermissionDenied
-                : (state.panel.showsFavoritesOnly && usageStore.favorites.isEmpty
-                    ? .panelNoFavorites
-                    : .overlayNoCandidates)
-            Text(localization.text(emptyKey))
-                .font(.system(size: 12))
-                .foregroundStyle(palette.secondaryText)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 16)
+        .padding(.top, kind == .scanning ? 0 : 12)
+    }
+
+    @ViewBuilder
+    private var panelSurface: some View {
+        if Theme.reduceTransparency {
+            palette.backgroundSolid
+        } else {
+            Rectangle()
+                .fill(palette.isLight ? Material.popover : Material.hudWindow)
+                .overlay(palette.backgroundSolid.opacity(palette.isLight ? 0.35 : 0.45))
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if state.panel.isEmpty {
+            // One priority order lives in `PanelEmptyKind`: permission > scanning >
+            // favourites > no match. The view only picks a shape for the answer.
+            emptyState(PanelEmptyKind.kind(
+                isScanning: state.panel.isScanning,
+                permissionDenied: state.scanState == .permissionDenied,
+                showsFavoritesOnly: state.panel.showsFavoritesOnly,
+                favoritesEmpty: usageStore.favorites.isEmpty
+            ))
         } else {
             GeometryReader { proxy in
                 let columns = max(1, min(settings.columnCount, OverlayMetrics.columns(forWidth: proxy.size.width)))
@@ -631,7 +666,7 @@ private struct OverlayPanelContentView: View {
         // A dimmed row carries index -1, exactly like the "nothing selected" marker, so
         // comparing the two lit up every dimmed row. Only a real position can be selected.
         let isSelected = row.index >= 0 && state.panel.selectionIndex == row.index
-        return rowColumns(row, layout: layout)
+        return rowColumns(row, layout: layout, isSelected: isSelected)
             .padding(.horizontal, Theme.rowHorizontalPadding)
             .frame(height: Theme.rowHeight)
             .background(
@@ -642,10 +677,14 @@ private struct OverlayPanelContentView: View {
             // must never reflow the title or the keycap.
             .overlay(alignment: .leading) { selectionMarker(isSelected) }
             .contentShape(Rectangle())
-            .accessibilityElement(children: .ignore)
+            // The row is a container, not one opaque blob: the star and the conflict badge
+            // keep their own labels, while the purely decorative bits hide themselves. The
+            // row itself still reads "name, shortcut, state" in that order.
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(Text(rowAccessibilityLabel(row)))
             .accessibilityValue(Text(rowAccessibilityValue(row)))
             .accessibilityAddTraits(.isButton)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             .accessibilityAction { engine.performPanelRow(rowID: row.id, action: .execute) }
             .onHover { inside in
                 hoveredRowID = inside ? row.id : (hoveredRowID == row.id ? nil : hoveredRowID)
@@ -658,18 +697,18 @@ private struct OverlayPanelContentView: View {
                 // A click means "run": the run key's action, whatever key that ends up being.
                 engine.performPanelRow(rowID: row.id, action: .execute)
             }
-            .animation(.easeOut(duration: 0.14), value: isSelected)
+            .animation(.easeOut(duration: 0.1), value: isSelected)
             .contextMenu { rowMenu(row) }
     }
 
     /// The columns in the order the settings ask for: the chord is either the first thing on
     /// the row or the last, and the menu path travels with it.
-    private func rowColumns(_ row: PanelRow, layout: RowLayout.Metrics) -> some View {
+    private func rowColumns(_ row: PanelRow, layout: RowLayout.Metrics, isSelected: Bool) -> some View {
         HStack(spacing: Theme.rowColumnGap) {
             if settings.keyPosition == .left {
                 keyLabel(row, width: layout.keyWidth, alignment: .leading)
             }
-            titleColumn(row, width: layout.titleWidth)
+            titleColumn(row, width: layout.titleWidth, selected: isSelected)
             if settings.keyPosition == .left {
                 // Key · command · path — the path and the trailing slot travel together, so
                 // the row still has three columns and the chord keeps the opposite end.
@@ -702,9 +741,11 @@ private struct OverlayPanelContentView: View {
     }
 
     private func selectionMarker(_ isSelected: Bool) -> some View {
+        // 3 pt, not a hairline: the fill alone was easy to miss on the light palette at a
+        // glance, and the bar is the second signal that survives a colour-blind reading.
         RoundedRectangle(cornerRadius: 1.5, style: .continuous)
             .fill(Color.accentColor)
-            .frame(width: 2.5, height: 12)
+            .frame(width: 3, height: 14)
             .padding(.leading, 2)
             .scaleEffect(x: 1, y: isSelected ? 1 : 0.2, anchor: .center)
             .opacity(isSelected ? 1 : 0)
@@ -716,6 +757,11 @@ private struct OverlayPanelContentView: View {
     /// three are here, in that order, and settings stays below them as the fifth door.
     @ViewBuilder
     private func rowMenu(_ row: PanelRow) -> some View {
+        if !row.isEnabled {
+            // The menu states the reason instead of offering an action that cannot run.
+            Text(localization.text(.panelDisabledReason))
+            Divider()
+        }
         Button(localization.text(.panelPassThrough)) {
             engine.activate(rowID: row.id)
         }
@@ -783,7 +829,7 @@ private struct OverlayPanelContentView: View {
     ///
     /// A fixed width, not a natural one — the menu path has to start at the same x on every
     /// row, and that is only true if this column does not grow and shrink with its text.
-    private func titleColumn(_ row: PanelRow, width: Double) -> some View {
+    private func titleColumn(_ row: PanelRow, width: Double, selected: Bool) -> some View {
         HStack(spacing: 5) {
             if state.panel.runningRowID == row.id {
                 ProgressView()
@@ -797,6 +843,18 @@ private struct OverlayPanelContentView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(rowTitleColor(row))
+                // A selected row's name steps up in brightness: the tint is a surface cue
+                // and can wash out on the light palette.
+                .brightness(selected ? 0.06 : 0)
+            if !row.isEnabled {
+                // A dimmed row and a row the app cannot run looked identical; the lock says
+                // the cause at a glance without turning the row into an error banner.
+                Image(systemName: "lock.slash")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(palette.tertiaryText)
+                    .accessibilityLabel(localization.text(.overlayUnavailableBadge))
+                    .accessibilityHint(localization.text(.panelDisabledReason))
+            }
         }
         .frame(width: width, alignment: .leading)
     }
@@ -887,7 +945,7 @@ private struct OverlayPanelContentView: View {
                             .font(.system(
                                 size: isLabel(segment) ? 10.5 : 12.5,
                                 weight: isEmphasized(segment) ? .bold : (isLabel(segment) ? .regular : .semibold),
-                                design: isLabel(segment) ? .default : .rounded
+                                design: isLabel(segment) ? .default : .monospaced
                             ))
                             .foregroundStyle(keySegmentColor(row, segment))
                     }

@@ -19,6 +19,8 @@ final class PanelSession {
     private let dismissEverything: () -> Void
     private let onCapturedKeysChanged: () -> Void
     private let onInputStateChanged: () -> Void
+    /// Same disabled row, same explanation: at most once per `DisabledNoticeGate.interval`.
+    private var disabledNoticeGate = DisabledNoticeGate()
 
     init(
         state: EngineState,
@@ -211,10 +213,12 @@ final class PanelSession {
                 // The system card's header already names the section, so repeating it in
                 // every row's note column would be the same word 79 times.
                 note: entry.isSystem ? "" : menuPath(of: hit.item),
-                // Two sections, never interleaved: the app's rows keep the flat chord order
-                // under the app's name, the system's hotkeys under theirs. Each title is a
-                // card header, so the boundary is a shape rather than a line of text.
-                groupTitle: entry.isSystem ? systemTitle : sectionTitle,
+                // The app's heading exists for the menu-bar order, where a card title tells
+                // the user which menu a block came from. Chord order is one flat list, so it
+                // draws no heading; the system's hotkeys keep theirs either way.
+                groupTitle: entry.isSystem
+                    ? systemTitle
+                    : (state.settings.panelOrder == .byMenuGroup ? sectionTitle : ""),
                 // The chevron and the click share one answer: a row without a chevron is a
                 // shortcut the user can run (`KeyChord.isFinalStroke`).
                 isGroup: !hit.item.chord.isFinalStroke(after: state.prefix),
@@ -612,6 +616,15 @@ final class PanelSession {
         }
         guard item.isEnabled else {
             Diag.info(.run, "ignoring disabled row \(item.title)")
+            // A row that does nothing when clicked reads as a broken panel. The reason is
+            // spoken once per row per three seconds, not on every click.
+            if disabledNoticeGate.shouldShow(rowID: rowID, at: Date()) {
+                presenters.notices.show(
+                    chord: "",
+                    title: localization.text(.panelDisabledReason),
+                    kind: .info
+                )
+            }
             return
         }
         guard state.panel.beginRunning(rowID: rowID) else {

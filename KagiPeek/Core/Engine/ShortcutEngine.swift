@@ -399,6 +399,12 @@ final class ShortcutEngine: ObservableObject {
         if previous.scanConfigFiles != newValue.scanConfigFiles {
             scanConfigFiles()
         }
+        // The panel carries no permanent mode label, so the change is announced once. Only
+        // while the panel is up: editing the setting in the settings window would otherwise
+        // flash a HUD behind it.
+        if previous.panelOrder != newValue.panelOrder, state.panel.isVisible {
+            showHUD(chord: "", title: localization.text(newValue.panelOrder.titleKey), kind: .info)
+        }
         if state.panel.isVisible {
             rebuildPanel()
         }
