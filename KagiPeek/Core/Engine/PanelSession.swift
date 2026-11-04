@@ -95,6 +95,7 @@ final class PanelSession {
         let key = RowBudgetKey(
             scannedAt: state.catalog.scannedAt,
             showsFavoritesOnly: state.favoritesPolicy.showsFavoritesOnly,
+            filter: state.panel.filter,
             includeDisabled: state.settings.showDisabledItems,
             ignoredSignature: ignoredSignature,
             systemCount: state.systemBindings.count,
@@ -283,6 +284,7 @@ final class PanelSession {
         let cacheKey = OrderedHitsKey(
             prefix: state.prefix,
             heldModifiers: state.panel.heldModifiers,
+            filter: state.panel.filter,
             latchedModifiers: state.panel.latchedModifiers,
             scannedAt: state.catalog.scannedAt,
             favorites: state.favoritesPolicy,
@@ -323,13 +325,32 @@ final class PanelSession {
     /// Internal for `PreviewScenarios`, which needs the page a heading lands on.
     func panelSequence() -> [PanelEntry] {
         let appHits = orderedHits()
-        guard state.prefix == .empty, !state.systemBindings.isEmpty else {
-            return PanelSections.combine(app: appHits, system: [])
+        let combined: [PanelEntry]
+        if state.prefix == .empty, !state.systemBindings.isEmpty {
+            let items = state.favoritesPolicy.favoritesOnly(state.systemBindings) { usageStore.isFavorite($0.usageKey) }
+            var sorted = PanelOrdering.sorted(items, emphasizing: state.pending.effective)
+            sorted = state.favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.usageKey) }
+            combined = PanelSections.combine(app: appHits, system: PanelSections.hits(for: sorted))
+        } else {
+            combined = PanelSections.combine(app: appHits, system: [])
         }
-        let items = state.favoritesPolicy.favoritesOnly(state.systemBindings) { usageStore.isFavorite($0.usageKey) }
-        var sorted = PanelOrdering.sorted(items, emphasizing: state.pending.effective)
-        sorted = state.favoritesPolicy.pinningFavoritesFirst(sorted) { usageStore.isFavorite($0.usageKey) }
-        return PanelSections.combine(app: appHits, system: PanelSections.hits(for: sorted))
+        // The filter is a query over the combined sequence, after the app/system split and
+        // after every other rule: it only decides which rows survive, never their order.
+        guard let ids = PanelFilterPlan.matchingIDs(filter: state.panel.filter, corpus: filterCorpus()) else {
+            return combined
+        }
+        return combined.filter { ids.contains($0.id) }
+    }
+
+    /// The corpus the filter query runs against: the palette's if it is already built,
+    /// otherwise one over the panel's own rows. System hotkeys are part of the panel, so
+    /// they are part of the fallback corpus too.
+    private func filterCorpus() -> SearchCorpus {
+        if let corpus = state.searchCorpus { return corpus }
+        return SearchCorpus(
+            items: state.catalog.items + state.systemBindings,
+            style: state.settings.keyStyle
+        )
     }
 
     /// Rows that are part of the shortcut currently being pressed.
@@ -427,9 +448,14 @@ final class PanelSession {
 
     /// Re-seeds the prefix and redraws after the ticked set changed.
     func refreshAfterLatchedChange() {
-        if state.prefix.isEmpty || state.prefix.isModifierOnly {
-            let effective = state.pending.effective
-            state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
+        if state.panel.filter.isEmpty {
+            if state.prefix.isEmpty || state.prefix.isModifierOnly {
+                let effective = state.pending.effective
+                state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
+            }
+        } else {
+            // The filter already does the narrowing; a prefix on top would narrow twice.
+            state.prefix = .empty
         }
         state.orderedHitsCache = nil
         state.panel.pageIndex = 0

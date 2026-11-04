@@ -219,6 +219,9 @@ final class EngineState: ObservableObject {
 struct OrderedHitsKey: Equatable {
     var prefix: KeyChord
     var heldModifiers: ModifierSet
+    /// The token queue is part of the identity: a different filter is a different sequence,
+    /// even though the ordering rules themselves did not change.
+    var filter: PanelFilter
     /// Also invalidates the cached order: a tick changes which rows are emphasised and
     /// which are reachable, so a cached order computed without it would be stale.
     var latchedModifiers: ModifierSet
@@ -236,6 +239,10 @@ struct OrderedHitsKey: Equatable {
 struct RowBudgetKey: Equatable {
     var scannedAt: Date
     var showsFavoritesOnly: Bool
+    /// The filter belongs in the key even though the budget is computed from the
+    /// unnarrowed list: a rebuild with a different filter must not reuse the previous
+    /// session's allocation.
+    var filter: PanelFilter
     var includeDisabled: Bool
     var ignoredSignature: String
     var systemCount: Int

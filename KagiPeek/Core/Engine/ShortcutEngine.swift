@@ -798,34 +798,33 @@ final class ShortcutEngine: ObservableObject {
         }
 
         // A lone ⇧ never counts — it also arrives while typing capital letters.
-        let held = modifiers == [.shift] ? ModifierSet() : modifiers
-        state.panel.heldModifiers = held
-        // A tap — press and let go quickly, with nothing typed in between — sticks: it ticks
-        // the modifier instead of narrowing only while the finger is down. Holding still
-        // narrows temporarily. The difference is the point: holding is looking, tapping is
-        // composing.
-        if let tapped = state.modifierTap.flagsChanged(
-            held,
+        //
+        // Only modifiers that went down on this edge become tokens: a press enqueues once
+        // however long it is held, and a release changes nothing. Shift is the hint layer
+        // and Globe has no filter chip, so neither becomes a token.
+        let added = modifiers.subtracting(previous)
+        for modifier in ModifierSet.canonicalOrder
+        where modifier != .shift && added.contains(modifier) {
+            state.panel.filter.toggleModifier(modifier)
+        }
+        state.panel.heldModifiers = state.panel.filter.modifiers
+        // Keep the tap tracker's candidate in step, but a tap must not tick on release:
+        // the press edge above already enqueued the token, and flipping it again here was
+        // what would turn one press into "on, then off".
+        _ = state.modifierTap.flagsChanged(
+            modifiers == [.shift] ? ModifierSet() : modifiers,
             previous: previous,
             now: event.happenedAt,
             window: Self.modifierTapWindow
-        ) {
-            panel.toggleModifier(tapped)
-            return
+        )
+        // The filter owns the narrowing. A prefix built from the same modifiers would
+        // narrow a second time.
+        state.prefix = .empty
+        // An empty queue is the whole list again, so it starts at the first page. A
+        // non-empty one keeps the page it had; the rebuild clamps an out-of-range index.
+        if state.panel.filter.isEmpty {
+            state.panel.pageIndex = 0
         }
-        // Only a modifier-only prefix is re-seeded. A real chord prefix (⌘K of ⌘K ⌘C) must
-        // survive the modifier being released between strokes, which is what used to drop the
-        // user back to the top level mid-chord.
-        //
-        // The seed is what the user is composing, not just what is down: a ticked ⌥ keeps
-        // narrowing after the physical key is let go. Latched modifiers are deliberately
-        // *not* cleared here — pressing a physical modifier while a sequence is being
-        // composed is the normal case, not a reason to abandon it.
-        if state.prefix.isEmpty || state.prefix.isModifierOnly {
-            let effective = state.pending.effective
-            state.prefix = effective.isEmpty ? .empty : .modifiers(effective)
-        }
-        state.panel.pageIndex = 0
         // Deliberately no `selectionIndex = -1` here. Narrowing is exactly the case where the
         // user is about to press Return, and a narrowed panel often has one row left: clearing
         // the selection here is what made Return do nothing.
@@ -878,6 +877,39 @@ final class ShortcutEngine: ObservableObject {
             // pressed while secure input is on is not ours to act on, and the log says so.
             logSecureInputOnce()
             return
+        }
+
+        // The token queue answers before the router: a letter that the filter owns must not
+        // become a chord stroke, and ⌫ while the queue is non-empty pops a token instead of
+        // going up a level.
+        switch PanelFilterPlan.decision(
+            for: event,
+            filter: state.panel.filter,
+            phase: state.phase,
+            shiftHintActive: state.panel.shiftHintActive,
+            triggerPending: state.panel.triggerNarrowPending,
+            triggerKey: state.settings.triggerKey
+        ) {
+        case .append(let character):
+            noteGestureUse(.none, event: event)
+            state.panel.filter.appendLetter(character)
+            state.panel.heldModifiers = state.panel.filter.modifiers
+            state.prefix = .empty
+            rebuildPanel()
+            updateKeyCapture()
+            return
+        case .popToken:
+            noteGestureUse(.none, event: event)
+            state.panel.filter.popLastToken()
+            state.panel.heldModifiers = state.panel.filter.modifiers
+            if state.panel.filter.isEmpty {
+                state.panel.pageIndex = 0
+            }
+            rebuildPanel()
+            updateKeyCapture()
+            return
+        case .none:
+            break
         }
 
         let action = routeKeyDown(event)
@@ -1088,6 +1120,7 @@ final class ShortcutEngine: ObservableObject {
             prefix: state.prefix,
             pending: state.pending,
             heldModifiers: state.panel.heldModifiers,
+            filter: state.panel.filter,
             runRowKey: state.settings.runRowKey,
             copyRowKey: state.settings.copyRowKey,
             catalogItems: state.catalog.items,
@@ -1317,8 +1350,9 @@ final class ShortcutEngine: ObservableObject {
             // ; / ' page through the list.
             capture(KeyCode.semicolon, [])
             capture(KeyCode.quote, [])
-            // Backspace only belongs to the panel while navigating a chord.
-            if !state.prefix.isEmpty {
+            // Backspace only belongs to the panel while navigating a chord or while the
+            // filter queue has a token to pop.
+            if !state.prefix.isEmpty || !state.panel.filter.isEmpty {
                 capture(KeyCode.delete, [])
             }
             // A bare `/` is the panel's own key: it opens the palette. Without capturing it

@@ -21,6 +21,8 @@ nonisolated struct ComposedSwallowState {
     var pending: PendingModifiers = PendingModifiers()
     /// Only the modifiers physically down — `PanelKeyIntake` subtracts these.
     var heldModifiers: ModifierSet = []
+    /// The panel's ordered filter tokens. Non-empty means letters and ⌫ belong to it.
+    var filter = PanelFilter()
     var runRowKey: HotkeySpec?
     var copyRowKey: HotkeySpec?
     var catalogItems: [BindingItem] = []
@@ -51,6 +53,13 @@ nonisolated enum ComposedSwallow {
         if state.shiftHintsActive,
            event.modifiers == [.shift],
            ShiftHintLayer.index(forCharacter: key.raw) != nil { return true }
+        // A non-empty token queue owns its own input: letters the filter accepts and ⌫
+        // would otherwise reach the front app as text or a deletion. The Shift hint layer
+        // keeps priority, and a search palette never reaches here (`panelIsActive`).
+        if !state.filter.isEmpty, !state.shiftHintsActive {
+            if event.keyCode == KeyCode.delete { return true }
+            if PanelFilterPlan.letter(for: event, filter: state.filter) != nil { return true }
+        }
         guard state.hasLatchedModifiers else { return false }
         if event.modifiers.isEmpty, key == .backspace { return true }
         if PanelKeyIntake.isConsumedBeforeComposition(

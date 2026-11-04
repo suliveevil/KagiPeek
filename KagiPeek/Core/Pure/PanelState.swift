@@ -65,9 +65,11 @@ nonisolated struct PanelState {
     /// the view.
     var flatRowIDs: [String] = []
     var selectionIndex = -1
-    /// The modifier set currently down. While the prefix is still modifier-only it also is
-    /// what narrows the list (`PrefixResolver`), and it is what `PanelHighlighter` lights up
-    /// in the surviving rows' chords.
+    /// The panel's ordered filter tokens: modifiers and letters in the order they were
+    /// added. Empty means "the whole list"; non-empty replaces the old prefix narrowing.
+    var filter = PanelFilter()
+    /// The modifier set currently down. It is kept in step with `filter.modifiers`, and it
+    /// is what `PanelHighlighter` lights up in the surviving rows' chords.
     var heldModifiers: ModifierSet = []
     /// Modifiers ticked in the title bar while the panel is open. They are sticky — unlike
     /// `heldModifiers`, which follows the physical keys — and are folded into the next
@@ -142,6 +144,8 @@ nonisolated struct PanelState {
         selectionIndex = -1
         completedRowID = nil
         prefixLabels = []
+        filter.clear()
+        heldModifiers = []
         shiftHintActive = false
         triggerNarrowPending = false
     }
