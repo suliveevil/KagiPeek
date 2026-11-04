@@ -30,10 +30,19 @@ nonisolated struct ModifierSet: OptionSet, Hashable, Codable, Sendable, Expressi
     static let option = ModifierSet(rawValue: 1 << 1)
     static let shift = ModifierSet(rawValue: 1 << 2)
     static let command = ModifierSet(rawValue: 1 << 3)
+    /// The Globe/Fn key, as it appears in menu shortcuts (`🌐F`, `🌐⌃F`).
+    ///
+    /// It is a modifier on the wire (`CGEventFlags.maskSecondaryFn`) but has no
+    /// narrow-by-hand chip: the four chips are the modifiers a user holds to filter the
+    /// catalogue, and Globe is not one of them.
+    static let function = ModifierSet(rawValue: 1 << 4)
 
-    /// Canonical macOS modifier order: Control, Option, Shift, Command.
+    /// Canonical macOS modifier order for the four filter chips: Control, Option, Shift, Command.
     static let canonicalOrder: [ModifierSet] = [.control, .option, .shift, .command]
     static let all: ModifierSet = [.control, .option, .shift, .command]
+
+    /// The order macOS renders a shortcut in: Globe/Fn first, then Control, Option, Shift, Command.
+    static let displayOrder: [ModifierSet] = [.function, .control, .option, .shift, .command]
 
     var isEmpty: Bool { rawValue == 0 }
 
@@ -51,9 +60,9 @@ nonisolated struct ModifierSet: OptionSet, Hashable, Codable, Sendable, Expressi
         ModifierSet(rawValue: rawValue & ~other.rawValue)
     }
 
-    /// Modifiers in canonical display order.
+    /// Modifiers in the order macOS renders them, Globe included.
     var ordered: [ModifierSet] {
-        ModifierSet.canonicalOrder.filter { contains($0) }
+        ModifierSet.displayOrder.filter { contains($0) }
     }
 
     var count: Int { ordered.count }

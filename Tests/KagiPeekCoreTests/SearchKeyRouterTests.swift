@@ -129,6 +129,29 @@ final class SearchKeyRouterTests: XCTestCase {
         )
     }
 
+    // MARK: Tab
+
+    /// 搜索框有焦点时，裸 Tab 归字段编辑器的焦点遍历，不切表面。
+    /// 只在面板层（没有文本输入）用 Tab 切到搜索。
+    func testBareTabPassesThroughWhileSearchHasFocus() {
+        XCTAssertEqual(
+            SearchKeyRouter.action(keyCode: KeyCode.tab, modifiers: [], isQueryEmpty: false),
+            .passThrough
+        )
+        XCTAssertEqual(
+            SearchKeyRouter.action(keyCode: KeyCode.tab, modifiers: [], isQueryEmpty: true),
+            .passThrough
+        )
+    }
+
+    /// ⇧Tab 仍是系统焦点键，不拦。
+    func testShiftTabPassesThrough() {
+        XCTAssertEqual(
+            SearchKeyRouter.action(keyCode: KeyCode.tab, modifiers: [.shift], isQueryEmpty: false),
+            .passThrough
+        )
+    }
+
     // MARK: 普通字符
 
     func testTypingPassesThrough() {

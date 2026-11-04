@@ -184,9 +184,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(
             withTitle: "\(localization.text(.aboutTitle)) KagiPeek",
-            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            action: #selector(openAboutPanel),
             keyEquivalent: ""
-        )
+        ).target = self
         appMenu.addItem(.separator())
         let settingsItem = appMenu.addItem(
             withTitle: localization.text(.menuSettings),
@@ -225,6 +225,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettingsFromMenu() { engine.showSettings() }
     @objc private func openSearchFromMenu() { engine.showSearch() }
+
+    /// The About panel, with the same version line every other surface shows.
+    ///
+    /// macOS would otherwise fill it from `CFBundleShortVersionString` plus
+    /// `CFBundleVersion` — the "2.2.0 (220)" spelling this change exists to retire. The
+    /// build number stays in the bundle for Apple's checks; it is not what identifies
+    /// the build to a person.
+    @objc private func openAboutPanel() {
+        NSApplication.shared.orderFrontStandardAboutPanel(options: [
+            .applicationVersion: Bundle.main.kagiPeekVersionDisplay,
+            .version: ""
+        ])
+    }
 
     // MARK: - Background lifetime
 

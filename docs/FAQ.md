@@ -7,11 +7,11 @@ Answers to questions that come up after the first launch. For installation and p
 Work through these in order:
 
 1. **Is KagiPeek running?** It is a menu bar app with no Dock icon. Look for the keyboard icon in the menu bar.
-2. **Is a trigger enabled?** Open Settings and check that the trigger mode is not **Off**. The default is *hold modifiers and pause*.
+2. **Is a trigger enabled?** Open **Settings → Trigger**. There are two independent switches: **Modifier gesture** and **Global hotkeys**. Turn on at least one. Both off is the pause state.
 3. **Is Accessibility granted?** Open **Settings → Permissions**. Accessibility is required for menu reading and for creating the key tap. If keys still do not arrive, grant **Input Monitoring** as a fallback and relaunch KagiPeek.
 4. **Are you in a password field?** Secure input hides the panel by design. Click into a normal window and try again.
 5. **Does the app have a menu bar?** Some games, overlays, and custom-drawn apps do not. With Accessibility granted but no menu bar, KagiPeek falls back to its built-in catalog; if the catalog is disabled you will see nothing.
-6. **Is the hold long enough?** The default pause is 0.5 s and can be set between 0.1 s and 1.5 s.
+6. **Is the hold long enough, and is the trigger key the one you think?** The default pause is 0.5 s (0.3–0.9 s). The default trigger key is **Right Command**; if you press the left one, the gesture deliberately does not fire.
 7. **Is another app grabbing the hotkey?** If you use the global hotkey trigger, check for a conflict with another launcher or automation tool. Hotkeys with three or more modifiers also match when a Hyper-key tool adds a fourth modifier, so check for that too.
 
 If the menu bar icon is missing entirely, quit any duplicate copy and relaunch KagiPeek from `/Applications`.
@@ -83,7 +83,7 @@ Press **⌃⌥⌘F** (default) to open the search palette, or press `/` while th
 - Better matches rank first; the ranking is not affected by the order you type the terms in.
 - **↑/↓** moves the selection.
 - **Return runs the selected shortcut.** The palette closes, the app you were in comes back, and that one chord is replayed into it. It is not a copy: the palette has no copy action at all.
-- To copy a chord without running it, use the copy key in the panel — ⌘↩ by default, a recorded binding.
+- To copy a chord without running it, use the copy key in the panel — Return by default, a recorded binding.
 - Menu commands can be destructive (Delete, Empty Trash, Quit), which is why nothing runs until you press Return; the first match is merely selected.
 
 ## What does the ⚠︎ next to a shortcut mean?
@@ -126,7 +126,7 @@ Esc is the panel's explicit "dismiss" gesture. It is handled while no other modi
 
 ## Why does the shortcut I press still reach the app?
 
-Because KagiPeek only **observes** keys; it does not remap them or replay them. When you press a complete shortcut, KagiPeek uses the event to highlight the matching row, closes the panel, and lets the same event continue to the frontmost app. That is why the command runs immediately, exactly as if the panel had never been open. The events KagiPeek actually consumes are only its own hotkeys and the panel's navigation keys (arrows, Return, Esc); a completed shortcut is never swallowed.
+Because KagiPeek only **observes** keys; it does not remap them or replay them. When you press a complete shortcut, KagiPeek uses the event to highlight the matching row, closes the panel, and lets the same event continue to the frontmost app. That is why the command runs immediately, exactly as if the panel had never been open. The events KagiPeek actually consumes are only its own hotkeys and the panel's navigation keys (arrows, Space/Return, Esc); a completed shortcut is never swallowed.
 
 ## Can I use a Hyper key (⌃⌥⇧⌘) with KagiPeek?
 
@@ -142,14 +142,14 @@ The panel is persistent, so keyboard operation is always available:
 | --- | --- |
 | ↑ / ↓ | Move the selection |
 | ← / → | Previous / next page |
-| Run key (↩ by default) | Close the panel and replay the selected row's shortcut into the front app |
-| Copy key (⌘↩ by default) | Copy the selected row's shortcut; the panel stays open |
+| Run key (Space by default) | Close the panel and replay the selected row's shortcut into the front app |
+| Copy key (Return by default) | Copy the selected row's shortcut; the panel stays open |
 | Esc | Close the panel (with or without modifiers) |
 | `;` / `'`, ⌃B / ⌃F | Previous / next page |
 | Click | Same as the run key |
 | The complete shortcut | Highlight the matching row for ~0.4 s, close the panel, and let the shortcut run |
 
-Both keys are recorded under **Settings → General → Row actions**, so the footer's `↵ run · ⌘↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two row keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
+Both keys are recorded under **Settings → General → Row actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two row keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 
 Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the rows the current prefix can reach. A row can be selected without being highlighted, and vice versa.
 
@@ -157,7 +157,7 @@ Pressing the run key on a row that still has further steps opens the next level 
 
 ## Why did the panel copy instead of running the command?
 
-It should not: the run key runs the row. If a row copies, you either pressed the copy key (⌘↩) or recorded the two keys the other way round under **Settings → General → Row actions**. The footer always shows which key does what, so check it first — and note that the search palette is the one surface where Return always runs and there is no copy key at all.
+It should not: the run key runs the row. If a row copies, you either pressed the copy key (Return) or recorded the two keys the other way round under **Settings → General → Row actions**. The footer always shows which key does what, so check it first — and note that the search palette is the one surface where Return always runs and there is no copy key at all.
 
 ## Why did nothing happen when I pressed the run key?
 
@@ -219,11 +219,13 @@ KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock ic
 
 ## Can I change the triggers or the hotkeys?
 
-Yes. **Settings → Trigger** configures the trigger mode (hold modifiers, double-⌘, global hotkey, or off), the hold delay, and all three hotkeys. The defaults are:
+Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the matching delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off is the pause state. The defaults are:
 
 | Action | Default |
 | --- | --- |
-| Hold to peek | ⌃/⌥/⌘ held for 0.5 s |
+| Hold to peek | Right Command held for 0.5 s |
+| Modifier gesture | On |
+| Global hotkeys | On |
 | Panel hotkey | ⌃⌥⌘K |
 | Search hotkey | ⌃⌥⌘F |
 | Switch panel/search | ⌃⌥⌘S |

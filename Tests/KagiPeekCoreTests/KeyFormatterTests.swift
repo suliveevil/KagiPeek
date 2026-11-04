@@ -18,6 +18,12 @@ final class KeyFormatterTests: XCTestCase {
         XCTAssertEqual(KeyFormatter.render(.combo([.command, .shift], KeyToken("z")), style: .words), "shift + command + Z")
     }
 
+    func testGlobeRendersFirst() {
+        XCTAssertEqual(KeyFormatter.render(.combo([.control, .function], KeyToken("f")), style: .symbols), "🌐⌃F")
+        XCTAssertEqual(KeyFormatter.render(.combo([.function, .command], KeyToken("e")), style: .symbols), "🌐⌘E")
+        XCTAssertEqual(KeyFormatter.render(.combo([.control, .function], KeyToken("f")), style: .words), "fn + control + F")
+    }
+
     func testChordStepsJoined() {
         let chord = KeyChord([
             KeyStep.combo([.command], KeyToken("k")),

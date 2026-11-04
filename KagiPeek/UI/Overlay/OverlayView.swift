@@ -16,9 +16,13 @@ import UniformTypeIdentifiers
 struct OverlayView: View {
     @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
+    /// The window's effectiveAppearance, expressed for SwiftUI: `system` themes follow it.
+    @Environment(\.colorScheme) private var systemColorScheme
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
-    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var palette: PanelPalette {
+        settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
+    }
     private var isSearch: Bool { state.search.isVisible }
 
     var body: some View {
@@ -59,10 +63,13 @@ private struct OverlayHeaderView: View {
     @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
+    @Environment(\.colorScheme) private var systemColorScheme
     @FocusState private var searchFocused: Bool
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
-    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var palette: PanelPalette {
+        settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
+    }
     private var isSearch: Bool { state.search.isVisible }
 
     var body: some View {
@@ -180,21 +187,25 @@ private struct OverlayHeaderView: View {
         }
     }
 
-    /// Reports, not controls: a scan in flight, conflicts found, and how many rows there are.
-    /// They sit between the controls and the close button, and none of them takes a click.
+    /// The scan spinner, the conflict badge and the row count.
+    ///
+    /// The conflict badge is the one exception: it is a button that opens the Conflicts page,
+    /// so a warning the user cannot act on does not become noise in a row of quiet glyphs.
     @ViewBuilder
     private func statusIndicators(layout: HeaderLayout) -> some View {
         if state.panel.isScanning {
             ProgressView().controlSize(.small).tint(palette.secondaryText)
         }
         if state.panel.hasConflicts {
-            // Informational, not a control: at full size and full orange it was the loudest
-            // thing in a row of quiet glyphs the user *can* click.
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 10))
-                .foregroundStyle(Theme.warning.opacity(0.75))
-                .help(localization.text(.overlayConflictHint))
-                .accessibilityLabel(localization.text(.overlayConflictHint))
+            Button(action: engine.showConflicts) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.warning.opacity(0.75))
+            }
+            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 22, cornerRadius: 5))
+            .help(localization.text(.overlayConflictOpen))
+            .accessibilityLabel(localization.text(.overlayConflictOpen))
+            .accessibilityHint(localization.text(.overlayConflictHint))
         }
         if layout.showsCount {
             // A bare "136" next to a warning triangle read as "136 conflicts"; the panel's
@@ -361,9 +372,9 @@ private struct OverlayHeaderView: View {
         guard let url = ExportPanel.run(defaultName: "\(title).md", pathExtension: "md") else { return }
         do {
             try engine.makeSearchMarkdown().write(to: url, atomically: true, encoding: .utf8)
-            engine.showHUD(chord: "✓", title: localization.text(.exportMarkdown))
+            engine.showHUD(chord: "", title: localization.text(.exportMarkdown))
         } catch {
-            engine.showHUD(chord: "!", title: error.localizedDescription)
+            engine.showHUD(chord: "!", title: error.localizedDescription, kind: .failure)
         }
     }
 
@@ -429,9 +440,12 @@ private struct OverlayPanelContentView: View {
     /// the action closes the panel straight away.
     @State private var pressedRowID: String?
     @State private var hoveredStarID: String?
+    @Environment(\.colorScheme) private var systemColorScheme
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
-    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var palette: PanelPalette {
+        settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
+    }
 
     var body: some View {
         content
@@ -634,7 +648,7 @@ private struct OverlayPanelContentView: View {
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(rowAccessibilityLabel(row)))
-            .accessibilityValue(Text(row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)))
+            .accessibilityValue(Text(rowAccessibilityValue(row)))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { engine.performPanelRow(rowID: row.id, action: .execute) }
             .onHover { inside in
@@ -701,10 +715,14 @@ private struct OverlayPanelContentView: View {
             .decorative()
     }
 
-    /// The right-click menu. Pinning, copying and the settings window: the row cannot offer
-    /// anything the panel itself does not, but these are the three worth a right-click.
+    /// The right-click menu. The draft's four items are pass through, pin, copy the shortcut
+    /// and locate it; locating needs a shortcut page this app cannot open yet, so the first
+    /// three are here, in that order, and settings stays below them as the fifth door.
     @ViewBuilder
     private func rowMenu(_ row: PanelRow) -> some View {
+        Button(localization.text(.panelPassThrough)) {
+            engine.activate(rowID: row.id)
+        }
         Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
             engine.toggleFavorite(rowID: row.id)
         }
@@ -770,12 +788,30 @@ private struct OverlayPanelContentView: View {
     /// A fixed width, not a natural one — the menu path has to start at the same x on every
     /// row, and that is only true if this column does not grow and shrink with its text.
     private func titleColumn(_ row: PanelRow, width: Double) -> some View {
-        Text(row.title)
-            .font(.system(size: 13.5, weight: row.isCompleted ? .semibold : .regular))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .foregroundStyle(rowTitleColor(row))
-            .frame(width: width, alignment: .leading)
+        HStack(spacing: 5) {
+            if state.panel.runningRowID == row.id {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .controlSize(.small)
+                    .frame(width: 10, height: 10)
+                    .accessibilityHidden(true)
+            }
+            Text(row.title)
+                .font(.system(size: 13.5, weight: row.isCompleted ? .semibold : .regular))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(rowTitleColor(row))
+        }
+        .frame(width: width, alignment: .leading)
+    }
+
+    /// Running is a state of the row, not a decoration: VoiceOver has to read it, otherwise a
+    /// row that is being resolved is indistinguishable from an idle one.
+    private func rowAccessibilityValue(_ row: PanelRow) -> String {
+        if state.panel.runningRowID == row.id {
+            return localization.text(.overlayRunning)
+        }
+        return row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)
     }
 
     /// The menu path, with the "has a sub-level" chevron in a slot of its own at the left.
@@ -834,17 +870,32 @@ private struct OverlayPanelContentView: View {
     /// used to overflow a two-column panel and, with the chord on the left, push the command
     /// name off the row entirely.
     private func keyLabel(_ row: PanelRow, width: Double, alignment: Alignment) -> some View {
-        HStack(spacing: 0) {
-            ForEach(Array(row.keySegments.enumerated()), id: \.offset) { _, segment in
-                Text(segment.text)
-                    // A word standing in for a chord ("No shortcut") is a note, not a key: at
-                    // chord size it no longer fits the slot the chord column was narrowed to.
-                    .font(.system(
-                        size: isLabel(segment) ? 10.5 : 12.5,
-                        weight: isEmphasized(segment) ? .bold : (isLabel(segment) ? .regular : .semibold),
-                        design: isLabel(segment) ? .default : .rounded
-                    ))
-                    .foregroundStyle(keySegmentColor(row, segment))
+        Group {
+            if let hint = row.hintLabel {
+                // Shift is held: the hint glyph stands in for the chord, so the row answers
+                // "which key runs me" without the user reading the shortcut first.
+                Text(hint)
+                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(palette.text)
+                    .frame(width: 17, height: 17)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.accentColor.opacity(palette.isLight ? Theme.hintBadgeFillLight : Theme.hintBadgeFillDark))
+                    )
+            } else {
+                HStack(spacing: 0) {
+                    ForEach(Array(row.keySegments.enumerated()), id: \.offset) { _, segment in
+                        Text(segment.text)
+                            // A word standing in for a chord ("No shortcut") is a note, not a key: at
+                            // chord size it no longer fits the slot the chord column was narrowed to.
+                            .font(.system(
+                                size: isLabel(segment) ? 10.5 : 12.5,
+                                weight: isEmphasized(segment) ? .bold : (isLabel(segment) ? .regular : .semibold),
+                                design: isLabel(segment) ? .default : .rounded
+                            ))
+                            .foregroundStyle(keySegmentColor(row, segment))
+                    }
+                }
             }
         }
         .monospacedDigit()
@@ -896,9 +947,12 @@ private struct OverlaySearchContentView: View {
     @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
+    @Environment(\.colorScheme) private var systemColorScheme
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
-    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var palette: PanelPalette {
+        settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1008,9 +1062,12 @@ private struct OverlayFooterView: View {
     @EnvironmentObject private var state: EngineState
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
+    @Environment(\.colorScheme) private var systemColorScheme
 
     private var settings: AppSettingsSnapshot { settingsStore.settings }
-    private var palette: PanelPalette { settings.panelTheme.palette }
+    private var palette: PanelPalette {
+        settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
+    }
     private var isSearch: Bool { state.search.isVisible }
 
     var body: some View {

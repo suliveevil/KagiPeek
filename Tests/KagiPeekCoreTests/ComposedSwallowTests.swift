@@ -125,4 +125,35 @@ final class ComposedSwallowTests: XCTestCase {
         // `z` 不在 catalog 里：⌘Z 不构成任何绑定，快照再旧也只会漏掉这一笔，不会误吞。
         XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("z"), keyCode: 6)))
     }
+
+    /// While the hint layer is up a Shift + glyph is a row address, not text: the press has
+    /// to be eaten or the front app receives a stray capital letter.
+    func testShiftHintPressIsSwallowedWhileHintsAreUp() {
+        var state = ComposedSwallowState()
+        state.panelIsActive = true
+        state.shiftHintsActive = true
+
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("A"), modifiers: [.shift])))
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("0"), modifiers: [.shift])))
+    }
+
+    /// The same glyph without Shift is still typing: the hint layer only owns the shifted
+    /// spelling.
+    func testUnshiftedGlyphIsNotSwallowedByTheHintLayer() {
+        var state = ComposedSwallowState()
+        state.panelIsActive = true
+        state.shiftHintsActive = true
+
+        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("a"))))
+    }
+
+    /// With the panel closed (the search palette is its own surface) Shift belongs to the
+    /// text field, so nothing is swallowed even if a stale snapshot still says hints are up.
+    func testHintLayerStaysOutOfTheSearchPalette() {
+        var state = ComposedSwallowState()
+        state.panelIsActive = false
+        state.shiftHintsActive = true
+
+        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("A"), modifiers: [.shift])))
+    }
 }

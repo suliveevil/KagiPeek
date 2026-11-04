@@ -7,7 +7,8 @@ nonisolated enum SearchKeyAction: Equatable, Sendable {
     case moveSelection(delta: Int)
     /// Close the search field; the event is swallowed.
     case close
-    /// Jump back to the panel (bare `/` on an empty query); the event is swallowed.
+    /// Jump back to the panel (bare `/` on an empty query); the event is swallowed. Tab
+    /// deliberately does not get this action while the search field is focused.
     case returnToPanel
     /// Let the text field handle the event (typing, or caret movement with the arrows).
     case passThrough
@@ -23,11 +24,20 @@ nonisolated enum SearchKeyRouter {
     static func action(
         keyCode: UInt16,
         modifiers: ModifierSet,
-        isQueryEmpty: Bool
+        isQueryEmpty: Bool,
+        characters: String? = nil
     ) -> SearchKeyAction {
-        if keyCode == KeyCode.slash, modifiers.isEmpty, isQueryEmpty {
+        if isQueryEmpty, NavigationKey.isSlash(
+            keyCode: keyCode,
+            modifiers: modifiers,
+            characters: characters
+        ) {
             return .returnToPanel
         }
+        // Bare Tab belongs to the field editor while the search box has focus: it is the
+        // system's focus-traversal key, not a surface switch. Swallowing it here trapped the
+        // caret in the query and made the two jobs compete for one keystroke. The panel,
+        // which has no text input, is the only layer where Tab switches surfaces.
         // Physical arrows (bare) plus the Emacs keys with ⌃ held.
         if let direction = NavigationKey.direction(keyCode: keyCode, modifiers: modifiers) {
             switch direction {

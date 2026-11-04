@@ -1,140 +1,86 @@
-# Permissions
+# PERMISSIONS
 
-KagiPeek needs **Accessibility** to work. **Input Monitoring** is an optional fallback for systems where macOS does not deliver key events to KagiPeek with Accessibility alone. Both are used locally, and neither gives KagiPeek access to your documents, accounts, or the text you type.
+macOS 权限、签名与运行环境的事实说明。写于 2026-11-04，依据是本仓库当时的代码、
+`scripts/Info.plist`、`scripts/build_swiftc.sh` 与 `codesign` 实测输出——不是泛泛的 macOS
+常识。代码变更后请重新核对，尤其是 tap 类型与签名配置。
 
-| Permission | Status | What KagiPeek uses it for | What happens without it |
+## 1. 这个 App 真正需要的系统权限
+
+| 权限 | 是否必需 | 代码依据 | 用户在哪里开 | 没开时的表现 |
+| --- | --- | --- | --- | --- |
+| 辅助功能（Accessibility） | **必需** | [KeyboardMonitor.swift:243-246](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/Input/KeyboardMonitor.swift#L243-L246) 创建 `.cgSessionEventTap`、`.defaultTap`（可吞事件的会话级 tap）；[CatalogLoader.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/CatalogLoader.swift) 用 `AXUIElementCreateApplication` 读菜单；[MenuTrigger.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/MenuTrigger.swift) 跨进程 `AXUIElementPerformAction` | 系统设置 → 隐私与安全性 → 辅助功能 → 勾选 KagiPeek | 面板不弹出；事件 tap 创建失败；菜单扫描为空；运行行时 press 失败。设置首页显示「未授权」并给出「打开设置」入口 |
+| 输入监控（Input Monitoring） | **可选兜底** | [PermissionCenter.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/PermissionCenter.swift) 用 `CGPreflightListenEventAccess()` 检查；只在辅助功能之外作为第二道判定 | 系统设置 → 隐私与安全性 → 输入监控 → 勾选 KagiPeek | 没有它 App 仍能工作（辅助功能已覆盖会话级 tap）；只影响少数按「输入监控」而非「辅助功能」判定的系统版本 |
+| 屏幕录制（Screen Recording） | **不需要** | 全仓库没有 `CGWindowListCreateImage`、`SCShareableContent` 或任何截图 API；面板定位只用 AX 窗口 frame（[WindowGeometry.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/WindowGeometry.swift)） | — | 与本 App 无关。截图/窗口捕获属于外部工具（见 STATUS 的环境坑） |
+| 自动化 / Apple Events | **不需要** | 没有 `NSAppleEventsUsageDescription`，没有 `AEDeterminePermissionToAutomateTarget`；跨 App 动作全部走 AX | — | — |
+| 完全磁盘访问 | **不需要** | 只读 `~/Library/Application Support/KagiPeek` 与用户显式选择的导出路径 | — | — |
+
+补充事实：
+
+- **tap 是会话级的、可吞事件的**：`CGEvent.tapCreate(tap: .cgSessionEventTap, ..., options:
+  .defaultTap)`，不是 HID 级（`.cghidEventTap`），也不是 `.listenOnly`。因此它既能观察也能
+  拦下按键，这也是为什么辅助功能是硬性前提。
+- **注入走 HID 层**：[ShortcutInjector.swift:180-181](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/Input/ShortcutInjector.swift#L180-L181)
+  用 `post(tap: .cghidEventTap)` 发送按下/抬起。事件来源标记为私有，面板自己的 tap 会忽略这
+  些事件，避免自触发。
+- **测试用的 tap 是 `.listenOnly`**：[ShortcutTester.swift:235-246](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/Input/ShortcutTester.swift#L235-L246)
+  只观察、不拦，测试失败最坏是「没观察到按键」，不会冻结输入。
+
+## 2. 签名与 TCC 授权的关系
+
+macOS 把授权记录绑在 App 的 **designated requirement** 上，而不只是路径。换签名 =
+  换身份 = 旧授权不再匹配，表现为「系统设置里勾着，但 App 仍说没权限」。
+
+| 签名方式 | 本轮实际状态 | 对 TCC 的影响 | 适用场景 |
 | --- | --- | --- | --- |
-| **Accessibility** | **Required** | Reading the frontmost app's menu bar through the Accessibility API, creating the global key tap, and pressing a menu item when you explicitly enable one of the execute options (search or panel) | No live menu data and no key tap: KagiPeek can only show the built-in fallback catalog and cannot react to your keys. |
-| **Input Monitoring** | Optional fallback | Receiving global key events on systems where the tap created with Accessibility alone does not receive them | On most Macs nothing. If your system gates key events, the panel cannot be triggered until this is granted. |
+| ad-hoc（`codesign -s -`） | 构建脚本在没有证书时的兜底 | 指纹随每次构建的代码内容变化；**每次重新构建都可能要重授** | 仅本机临时构建 |
+| `KagiPeek Local`（自签名证书） | **当前安装使用**；`codesign -dv` 显示 `Authority=KagiPeek Local` | 只要证书不变、bundle id 不变，重装后授权通常保留 | 本机日常使用 |
+| Developer ID | 未使用（无 `TeamIdentifier`） | 对外分发；公证后 Gatekeeper 不拦，TCC 同样绑定签名身份 | 发布版 |
 
-macOS sometimes labels these panes slightly differently between releases. Accessibility and Input Monitoring are always separate toggles.
+**换签名后最快恢复**：先确认系统设置里旧的 KagiPeek 条目已移除（必要时点 `−`），再启动
+App 让它重新请求；仍不生效时退出 App，执行
+`tccutil reset Accessibility com.voltline.kagipeek`（会清掉该 App 的所有辅助功能授权，
+需要重新勾选），然后重新打开 App。不要删除 `~/Library/Application Support/KagiPeek`，那会
+丢失设置与统计。
 
-## Why Accessibility is required
+保持授权稳定的做法：固定 bundle id（`com.voltline.kagipeek`）、固定签名证书（`KagiPeek
+Local`）、不要每次构建都改 `CFBundleVersion` 以外的身份字段。
 
-Accessibility is the primary grant, and it covers the three things KagiPeek does:
+## 3. entitlements 与运行环境
 
-- **Reading menus.** KagiPeek walks the frontmost app's `AXMenuBar` → `AXMenuBarItem` → `AXMenu` → `AXMenuItem` tree and reads `AXMenuItemCmdChar`, `AXMenuItemCmdVirtualKey`, `AXMenuItemCmdGlyph`, `AXMenuItemCmdModifiers`, and `AXEnabled`. It never reads window contents, text fields, or documents.
-- **Creating a global key tap.** The tap observes modifier and key state so the panel can open and be navigated. It passes events through untouched except its own panel, search, and switch hotkeys and the active panel's navigation keys, which it consumes so the front app does not also receive them. A shortcut that completes a row is not consumed: the front app still receives it. It never records or synthesizes events.
-- **Pressing a menu item on request.** If you turn on **Execute menu commands from search** or **Execute menu commands from the panel**, Return (or a click in the panel) calls `AXPress` on the selected menu item. Both are off by default and still use Accessibility, not synthetic keystrokes.
+- **没有 entitlements 文件**：仓库里不存在 `*.entitlements`，构建脚本也没有
+  `--entitlements` 参数。因此没有 `com.apple.security.app-sandbox`，也没有任何
+  `com.apple.security.*` 例外。
+- **不能沙盒**，原因都在代码里：
+  1. 会话级、可吞事件的全局 tap 在沙盒里不可用；
+  2. 需要跨进程读 AX 菜单树并 `AXPress`（[CatalogLoader.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/CatalogLoader.swift)、[MenuTrigger.swift](file:///Users/suliveevil/Documents/GitHub/KagiPeek/KagiPeek/Core/AX/MenuTrigger.swift)）；
+  3. 读取容器外的第三方配置（Karabiner/ Hammerspoon 等，见 `ConfigScanner`）；
+  4. 面板需要覆盖在其他 App 之上并按 AX 坐标定位。
+- **Hardened Runtime 已开启**：构建脚本用 `codesign --force --options runtime`，实测
+  `flags=0x10000(runtime)`。没有额外 entitlement，因此 hardened runtime 的默认限制
+  （如 JIT、任意 dylib 注入）保持启用；本 App 不依赖这些能力。
+- **`LSUIElement = true`**：菜单栏常驻、默认无 Dock 图标、无主窗口。设置里可以打开
+  「显示 Dock 图标」，那是运行期切换 `NSApp.setActivationPolicy(.regular)`，不改
+  Info.plist。因为没有主窗口，`agent-desktop` 之类的辅助工具在面板弹出前抓不到窗口
+  （见 STATUS 的环境坑）。
 
-The enabled macOS system shortcuts (Spotlight, Mission Control, …) that appear in the conflict list are read through Carbon's `CopySymbolicHotKeys`, which needs no privacy grant. KagiPeek only reads that list to report collisions; it never binds, changes, or disables a system shortcut.
+## 4. 一行自查
 
-## When Input Monitoring is needed
-
-Some macOS versions and configurations do not deliver key events to a tap created with Accessibility alone. On those systems, grant **Input Monitoring** as a fallback. KagiPeek checks the two grants separately and points to Input Monitoring only when it is the missing piece.
-
-In practice:
-
-1. Grant Accessibility first.
-2. Try holding ⌘. If the panel opens, you do not need Input Monitoring.
-3. If nothing happens, grant Input Monitoring and relaunch KagiPeek.
-
-Input Monitoring does not help with menu reading, and Accessibility alone cannot read a menu without being granted. They are never a substitute for each other; Input Monitoring is only about key delivery.
-
-## Granting permission
-
-1. Launch KagiPeek. No window opens — the app appears in the menu bar, and the menu carries a **Permission guide** item while Accessibility is missing. **Settings → Permissions** lists both grants, their current status, and marks Accessibility as required.
-2. In KagiPeek, open **Settings → Permissions** and click **Request** next to **Accessibility**. KagiPeek shows the system authorization prompt **and** opens **System Settings → Privacy & Security → Accessibility** for you; switch KagiPeek on there.
-   - If KagiPeek is not in the list, drag the KagiPeek icon shown in the Permissions tab straight into the list, or click **+**, choose **Applications → KagiPeek.app**, and switch it on.
-3. Try holding ⌘ in another app. If the panel appears, you are done.
-4. If no panel appears, quit KagiPeek. Click **Request** next to **Input Monitoring** (it likewise opens the matching pane), switch KagiPeek on there, then reopen KagiPeek.
-5. Check **Settings → Permissions** in KagiPeek to confirm the current state.
-
-KagiPeek also notices when the toggle is switched **off** while it is running: the panel and shortcuts stop immediately and the **Permission guide** menu item comes back — no relaunch needed.
-
-The macOS authorization dialog is shown by the system, not by KagiPeek. KagiPeek never asks for an administrator password and does not install a privileged helper.
-
-## The drag guide
-
-Whenever a request opens a permission pane — the **Grant Permission** button in the Permissions window, or **Request** / **Open Settings** in **Settings → Permissions** — a horizontal **drag guide** bar appears just below the bottom-right corner of the System Settings window and follows that window while it moves. It carries the KagiPeek icon as a real drag source, so granting is one gesture: drag the icon from the bar straight into the list above it, then flip the toggle.
-
-- The guide never takes focus (it is a non-activating panel), so System Settings stays frontmost for the whole drag.
-- Its instructions follow the remove-then-add order that solves stale entries: if KagiPeek is already listed but the toggle will not stick, remove it with **−** first, then drop the icon in again.
-- It dismisses itself when the toggle lands (with a brief confirmed state), when the System Settings window is closed, or from its own ✕ button.
-- The guide reads only the Settings window's bounds — never its title or contents — so it needs no permission of its own.
-
-The Permissions tab's icon is a real drag source. Dropping it on the Accessibility or Input Monitoring list adds the running app even when the list is empty; this is often faster than using **+**, and it is the same app macOS will later remember. The icon only adds the entry — you still have to toggle it on.
-
-> If you use a managed Mac, an MDM profile may pre-approve or block these permissions. In that case the toggles can be greyed out; contact your administrator.
-
-## Installing over an older version or replacing a build
-
-macOS remembers privacy grants by a combination of bundle identifier, code-signing identity, and app location. **Replacing KagiPeek with a build that has a different signature invalidates the old grant**, and the app will not work until the new copy is approved again.
-
-- **v1.1 → v1.2:** the bundle identifier changed from `com.Voltline.KagiPeek` to `com.voltline.kagipeek`, so macOS treats v1.2.0 as a new app. Re-grant Accessibility (and Input Monitoring if you use it).
-- **v1.2 → v2.0 and v2.0 → v2.1:** the bundle identifier did not change, so a signed update keeps its existing grants. The v1.1 → v1.2 exception above still applies if you skipped a release.
-- **Replacing a local or ad-hoc build:** every rebuild can look like a different app. Remove the old KagiPeek entry with the **−** button, add the new build, and enable it.
-- **Official signed releases:** a Developer ID build with a stable identity normally keeps its grant across updates, but the v1.1 → v1.2 bundle identifier change is an exception and requires re-approval.
-- **Two copies** (for example one in `/Applications` and one in `~/Downloads`) create separate entries. Keep a single copy.
-
-If the toggle looks enabled but KagiPeek still reports a missing permission, remove the entry and add it again, or reset the grant below.
-
-## Resetting permissions
-
-```bash
-# Reset the Accessibility grant for KagiPeek
-tccutil reset Accessibility com.voltline.kagipeek
-
-# Reset the Input Monitoring grant (only relevant if you granted it)
-tccutil reset ListenEvent com.voltline.kagipeek
-
-# Or reset every privacy grant for KagiPeek at once
-tccutil reset All com.voltline.kagipeek
+```
+codesign -dv --verbose=4 /Applications/KagiPeek.app && ls "$HOME/Library/Application Support/KagiPeek/logs"
 ```
 
-Then relaunch KagiPeek and grant the permissions again. The service names used by `tccutil` are not part of a public API, but `Accessibility` and `ListenEvent` are the names used by current macOS releases. If your macOS version does not recognise them, remove KagiPeek from each pane with the **−** button instead.
+- `Authority=KagiPeek Local`、`flags=0x10000(runtime)`、`TeamIdentifier=not set` 是本轮安装
+  的预期值；若变成 `Signature=adhoc`，说明用了兜底签名，TCC 授权可能已失效。
+- 日志在 `~/Library/Application Support/KagiPeek/logs/kagipeek-YYYY-MM-DD.log`；打开设置 →
+  诊断 → 启用诊断日志后，辅助功能/tap 的判定会写进 `input` 与 `ui` 分类。
+- 辅助功能是否通过的权威来源是 App 自己的设置首页状态，以及系统设置 → 隐私与安全性 →
+  辅助功能里的开关；不要只看 `AXIsProcessTrusted()` 的一次性返回值（它有缓存）。
 
-Resetting permissions only forgets that you approved KagiPeek. It does not delete KagiPeek's settings or usage statistics — those are separate JSON files in `~/Library/Application Support/KagiPeek/` (`settings.json`, `usage.json`), independent of the privacy database. Remove that folder if you want a full reset.
+## 5. 已知的文档与代码不一致（本轮核对发现）
 
-## Secure input
-
-Some apps — password fields, login windows, and certain terminals — turn on macOS **secure event input**. While it is active, macOS deliberately hides key events from event taps and from other apps. KagiPeek detects secure input and hides its panel immediately; if the panel was open, a brief on-screen notice explains why it vanished. This is intentional and is one of the reasons KagiPeek never records raw keystrokes.
-
-KagiPeek does post events in exactly one situation: when you run a row (the run key, a click, or Return in the search palette), it replays that row's single chord into the front app and stops. Nothing is posted while you browse the panel, and the copy key never posts anything.
-
-If the panel refuses to reappear after you leave a password field, another app may still be holding secure input. Quit the app that owns the focused password field, or log out and back in. You can inspect the current owner of secure input with:
-
-```bash
-ioreg -l -w 0 | grep SecureInput
-```
-
-## What KagiPeek never asks for
-
-KagiPeek does not request, and does not need:
-
-- Screen Recording
-- Full Disk Access
-- Automation / Apple Events
-- Camera, Microphone, Contacts, or Calendars
-- Network access for analytics or accounts
-
-The only network request KagiPeek makes is the manual update check: when you press **Check for updates** in **Settings → About**, it downloads the public GitHub release document once. The request carries no personal, app, or shortcut data, and nothing runs in the background.
-
-The app is distributed outside the Mac App Store with App Sandbox disabled, because reading another app's menu bar and observing global key events are incompatible with the sandbox. See the [FAQ](FAQ.md#why-isnt-kagipeek-on-the-mac-app-store) for the longer explanation.
-
-## Verifying a downloaded build
-
-If you want to check what you are running before granting permissions:
-
-```bash
-# Show the signing identity and bundle identifier
-codesign -dv --verbose=4 /Applications/KagiPeek.app
-
-# Verify the signature and sealed resources
-codesign --verify --deep --strict --verbose=2 /Applications/KagiPeek.app
-
-# Ask Gatekeeper how it assesses the app
-spctl --assess --type execute --verbose=4 /Applications/KagiPeek.app
-```
-
-A notarized release reports `source=Notarized Developer ID`. An ad-hoc build reports `Signature=adhoc` and will not be notarized; that is expected for local builds.
-
-## Troubleshooting
-
-| Symptom | What to try |
-| --- | --- |
-| Permission toggle is on, but KagiPeek says it is missing | Remove KagiPeek with **−** in that pane, add the current app again, and relaunch. Replacing the app changes its signature. |
-| KagiPeek does not appear in the Accessibility list | Launch the app first, then open the pane; drag the icon from **Settings → Permissions** into the list, or add `/Applications/KagiPeek.app` with **+**. |
-| Menu shortcuts work, but holding keys does nothing | Grant Input Monitoring (optional fallback), quit, and reopen KagiPeek. |
-| Panel disappears in password fields | Secure input is active; a brief notice explains it. This is intentional. |
-| Permission resets after every rebuild | Ad-hoc signing changes the app identity. Use a Developer ID build for stable grants, or re-add the build each time. |
+- 本文旧版本写过「打开 Execute menu commands 才有注入」，但当前代码已删除
+  `allowPanelExecute` / `allowSearchExecute` 两个开关（`AppSettingsModel` 的迁移注释：
+  version 2/3 把它们删掉了）。现在的语义是：面板与搜索这两类表面都接管键盘，执行行时关闭
+  表面并回放原快捷键。没有需要用户额外打开的「执行」开关。
+- 旧版本笼统写「tap 创建失败」；实际有两层：`.cgSessionEventTap` 创建失败（权限/环境）与
+  本地 run loop source 创建失败（代码内已回滚，见 `KeyboardMonitor` 的 tap 恢复路径）。

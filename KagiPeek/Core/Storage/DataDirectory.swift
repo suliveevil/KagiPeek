@@ -35,10 +35,23 @@ nonisolated enum DataDirectory {
 }
 
 /// Small JSON file store: atomic writes, corrupt files preserved next to the original.
-struct JsonFileStore {
+///
+/// `nonisolated` and `Sendable` on purpose: it carries no mutable state (a file name and a
+/// directory), and `UsageStore` runs its writes on a background utility queue. Under
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, an unannotated store would be main-actor
+/// isolated, so a GCD block that calls `save` off the main thread fails the runtime executor
+/// check and traps. The directory is injected (defaulting to the app data folder) so tests can
+/// point the store at a temporary location instead of touching Application Support.
+nonisolated struct JsonFileStore: Sendable {
     let fileName: String
+    let directory: URL
 
-    var fileURL: URL { DataDirectory.url(for: fileName) }
+    init(fileName: String, directory: URL = DataDirectory.url) {
+        self.fileName = fileName
+        self.directory = directory
+    }
+
+    var fileURL: URL { directory.appendingPathComponent(fileName) }
 
     func load<T: Decodable>(_ type: T.Type) -> T? {
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
@@ -69,8 +82,8 @@ struct JsonFileStore {
     }
 
     func save<T: Encodable>(_ value: T) {
-        DataDirectory.ensureExists()
         do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let data = try JSONEncoder().encode(value)
             try data.write(to: fileURL, options: [.atomic])
         } catch {

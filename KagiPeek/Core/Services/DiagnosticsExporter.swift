@@ -176,7 +176,10 @@ nonisolated enum DiagnosticsExporter {
 
     private static func summary(of settings: AppSettingsSnapshot) -> [String: String] {
         [
-            "triggerMode": settings.triggerMode.rawValue,
+            "modifierTriggerEnabled": String(settings.modifierTriggerEnabled),
+            "hotkeyTriggerEnabled": String(settings.hotkeyTriggerEnabled),
+            "triggerGesture": settings.triggerGesture.rawValue,
+            "triggerKey": settings.triggerKey.rawValue,
             "panelPlacement": settings.panelPlacement.rawValue,
             "panelTheme": settings.panelTheme.rawValue,
             "keyStyle": settings.keyStyle.rawValue,

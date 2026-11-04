@@ -6,6 +6,7 @@ import Foundation
 /// the character it produces depends on the layout and is not a substitute.
 nonisolated enum KeyCode {
     static let tab: UInt16 = 48
+    static let space: UInt16 = 49
     static let returnKey: UInt16 = 36
     static let keypadEnter: UInt16 = 76
     static let escape: UInt16 = 53

@@ -33,4 +33,22 @@ final class NavigationKeyTests: XCTestCase {
         XCTAssertNil(NavigationKey.pageStep(keyCode: 41, modifiers: [.shift]))
         XCTAssertNil(NavigationKey.pageStep(keyCode: 40, modifiers: []))
     }
+
+    /// 有字符证据时按字符判断：同一个物理键在别的布局上打出 `,` 时不能翻页。
+    func testCharactersDecidePagingOnForeignLayouts() {
+        XCTAssertEqual(NavigationKey.pageStep(keyCode: 41, modifiers: [], characters: ";"), -1)
+        XCTAssertEqual(NavigationKey.pageStep(keyCode: 39, modifiers: [], characters: "'"), 1)
+        XCTAssertNil(NavigationKey.pageStep(keyCode: 41, modifiers: [], characters: ","))
+        XCTAssertNil(NavigationKey.pageStep(keyCode: 39, modifiers: [], characters: "’"))
+        // 字符为 `;` 但物理键换到了别的位置：仍然按字符翻页。
+        XCTAssertEqual(NavigationKey.pageStep(keyCode: 12, modifiers: [], characters: ";"), -1)
+    }
+
+    /// `/` 同样先看字符；没有字符（未解码的事件）才退回 ANSI 键码。
+    func testSlashPrefersTheCharacterOverTheKeyCode() {
+        XCTAssertTrue(NavigationKey.isSlash(keyCode: KeyCode.slash, modifiers: []))
+        XCTAssertTrue(NavigationKey.isSlash(keyCode: 12, modifiers: [], characters: "/"))
+        XCTAssertFalse(NavigationKey.isSlash(keyCode: KeyCode.slash, modifiers: [], characters: ":"))
+        XCTAssertFalse(NavigationKey.isSlash(keyCode: KeyCode.slash, modifiers: [.command], characters: "/"))
+    }
 }

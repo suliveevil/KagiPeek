@@ -30,8 +30,15 @@ final class SurfacePanelController: PanelPresenting {
     private let panel: SurfacePanel
 
     private(set) var mode: Mode = .hidden
+    /// Cocoa-coordinate snapshots of the anchor window and the focused element, refreshed
+    /// off the main thread when the front app changes. Key presses only read these; they
+    /// never call the AX API themselves.
     private var anchorWindowFrame: CGRect?
+    private var focusedElementFrame: CGRect?
     private var anchorPid: pid_t = 0
+    private var lastPanelSettings: AppSettingsSnapshot?
+    private var geometryTask: Task<Void, Never>?
+    private var isRefreshingGeometry = false
     private var outsideClickMonitor: Any?
     private var searchKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
@@ -85,10 +92,18 @@ final class SurfacePanelController: PanelPresenting {
             switchToPanel()
         }
 
-        if !isVisible || anchorPid != engine.frontmostProcessIdentifier {
-            anchorPid = engine.frontmostProcessIdentifier
-            anchorWindowFrame = WindowGeometry.focusedWindowFrame(pid: anchorPid)
-                .map(WindowGeometry.cocoaRect(fromAX:))
+        lastPanelSettings = settings
+        let pid = engine.frontmostProcessIdentifier
+        if anchorPid != pid {
+            // A new front app invalidates both snapshots. Read the replacements in the
+            // background and position from the fallback for the frames in between: the
+            // previous app's window would put the panel somewhere meaningless.
+            anchorPid = pid
+            anchorWindowFrame = nil
+            focusedElementFrame = nil
+            refreshGeometry(for: pid)
+        } else if anchorWindowFrame == nil {
+            refreshGeometry(for: pid)
         }
 
         let natural = OverlayMetrics.size(for: state, settings: settings)
@@ -114,6 +129,36 @@ final class SurfacePanelController: PanelPresenting {
     func closePanel() {
         guard mode == .panel else { return }
         hide()
+    }
+
+    /// Reads the anchor/floating-element frames in the background and reposition once they
+    /// arrive. Dragging or resizing the panel is not involved: only the frame origin is
+    /// recomputed, so the content does not flash or reorder.
+    private func refreshGeometry(for pid: pid_t) {
+        guard !isRefreshingGeometry else { return }
+        isRefreshingGeometry = true
+        geometryTask = Task { [weak self] in
+            let snapshot = await PanelGeometryReader.read(pid: pid)
+            guard let self else { return }
+            self.isRefreshingGeometry = false
+            guard self.anchorPid == pid else {
+                // The front app changed while this read was in flight; get the new one.
+                self.refreshGeometry(for: self.anchorPid)
+                return
+            }
+            self.anchorWindowFrame = snapshot.windowFrame.map(WindowGeometry.cocoaRect(fromAX:))
+            self.focusedElementFrame = snapshot.focusedElementFrame.map(WindowGeometry.cocoaRect(fromAX:))
+            guard self.mode == .panel, let settings = self.lastPanelSettings else { return }
+            let size = self.panel.frame.size
+            self.panel.setFrame(
+                self.panelFrame(size: size, settings: settings, screen: self.targetScreen()),
+                display: true
+            )
+            self.engine.updateOutsideMouseSwallow(
+                panelFrame: WindowGeometry.cgRect(fromCocoa: self.panel.frame),
+                appWindowFrame: self.anchorWindowFrame.map(WindowGeometry.cgRect(fromCocoa:))
+            )
+        }
     }
 
     // MARK: - Search palette
@@ -219,7 +264,8 @@ final class SurfacePanelController: PanelPresenting {
                 switch SearchKeyRouter.action(
                     keyCode: event.keyCode,
                     modifiers: modifiers,
-                    isQueryEmpty: isQueryEmpty
+                    isQueryEmpty: isQueryEmpty,
+                    characters: event.characters
                 ) {
                 case .moveSelection(let delta):
                     self.engine.moveSearchSelection(delta)
@@ -361,7 +407,7 @@ final class SurfacePanelController: PanelPresenting {
         }
         candidate = clamp(candidate, to: visible)
 
-        if let focused = WindowGeometry.focusedElementFrame(pid: anchorPid).map(WindowGeometry.cocoaRect(fromAX:)),
+        if let focused = focusedElementFrame,
            focused.width > 1,
            candidate.intersects(focused) {
             var alternative = candidate

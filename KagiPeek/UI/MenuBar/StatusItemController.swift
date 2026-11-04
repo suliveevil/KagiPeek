@@ -168,31 +168,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     // MARK: - Menu
 
+    /// The draft asks for four entries, in this order: search, shortcut panel, settings, quit.
+    /// The permission wizard is a door, not a preference, so it appears only while
+    /// Accessibility is missing. Excluding the app in front is parked: the settings page
+    /// still owns the list, the menu bar no longer carries a shortcut to it.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        let header = NSMenuItem(
-            title: engine.state.appName.isEmpty ? engine.localization.text(.appName) : engine.state.appName,
-            action: nil,
-            keyEquivalent: ""
-        )
-        header.isEnabled = false
-        menu.addItem(header)
-        menu.addItem(.separator())
-
         menu.addItem(entry(.menuSearch, symbol: "magnifyingglass", action: #selector(openSearch)))
         menu.addItem(entry(.menuPanel, symbol: "rectangle.on.rectangle", action: #selector(togglePanel)))
-
         if !engine.state.hasAccessibility {
             menu.addItem(entry(.permissionWizard, symbol: "lock.shield", action: #selector(openPermissions)))
         }
 
         menu.addItem(.separator())
-        menu.addItem(entry(
-            engine.state.isPaused ? .menuResume : .menuPause,
-            symbol: engine.state.isPaused ? "play.circle" : "pause.circle",
-            action: #selector(togglePaused)
-        ))
         menu.addItem(entry(.menuSettings, symbol: "gearshape", action: #selector(openSettings)))
 
         menu.addItem(.separator())
@@ -215,7 +204,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func openSearch() { engine.showSearch() }
     @objc private func togglePanel() { engine.togglePinnedPanel() }
     @objc private func openPermissions() { engine.showPermissionsWindow() }
-    @objc private func togglePaused() { engine.togglePaused() }
     @objc private func openSettings() { engine.showSettings() }
     @objc private func quit() { NSApp.terminate(nil) }
 }

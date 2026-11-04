@@ -22,9 +22,6 @@ struct PermissionsView: View {
         .padding(20)
         .frame(width: 740, height: 380)
         .background(Color(nsColor: .windowBackgroundColor))
-        .onChange(of: permissions.state) { _, _ in
-            engine.bringPermissionsWindowForward()
-        }
     }
 
     private var header: some View {

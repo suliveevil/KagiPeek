@@ -1,51 +1,53 @@
 import Foundation
 
-/// The "press ⌘ twice to pin the panel" gesture, as a state machine.
+/// The "press the trigger modifier twice to pin the panel" gesture, as a state machine.
 ///
 /// The engine used to keep `lastCommandDownAt` and re-implement the same three branches
-/// inline in `handleModifiers`. The gesture is pure: it reads the modifier stream and the
-/// clock and answers "did this release complete a double-tap?". A test can feed it any
-/// stream of modifier events and pin the windowing behaviour.
-nonisolated struct CommandDoubleTap: Equatable {
-    /// When the current ⌘ press began, while a complete tap is still being formed.
-    var commandDownAt: Date? = nil
-    /// When the first complete ⌘ tap ended. The second tap must begin within the window.
-    var firstTapEndedAt: Date? = nil
-    /// When the second ⌘ press began. Its release must also land inside the window.
-    var secondTapDownAt: Date? = nil
+/// inline in `handleModifiers`. The gesture is pure: it reads the trigger key's pressed
+/// state and the clock and answers "did this release complete a double-tap?". A test can
+/// feed it any stream of press/release edges and pin the windowing behaviour.
+///
+/// `pressed` is the trigger key's state, not the whole modifier set: which physical key
+/// counts is decided by `TriggerKey`, which is the only thing that knows left from right.
+nonisolated struct ModifierDoubleTap: Equatable {
+    /// The trigger key's state on the previous event, for edge detection.
+    private var isPressed = false
+    /// When the current press began, while a complete tap is still being formed.
+    private var pressStartedAt: Date? = nil
+    /// When the first complete tap ended. The second tap must begin within the window.
+    private var firstTapEndedAt: Date? = nil
+    /// When the second press began. Its release must also land inside the window.
+    private var secondTapDownAt: Date? = nil
 
-    /// Feeds one `flagsChanged` event.
+    /// Feeds one `flagsChanged` event, as the trigger key's pressed state.
     ///
     /// A trigger is produced only by the second complete press-and-release pair. The first
     /// single tap is remembered, never acted on.
-    mutating func process(
-        modifiers: ModifierSet,
-        previous: ModifierSet,
-        now: Date,
-        window: TimeInterval
-    ) -> Bool {
-        // ⌘ went down alone. If a first tap is waiting, this begins the second tap; otherwise
-        // it begins a fresh candidate.
-        if modifiers == [.command], previous.isEmpty {
+    mutating func process(pressed: Bool, now: Date, window: TimeInterval) -> Bool {
+        defer { isPressed = pressed }
+
+        // The trigger key went down. If a first tap is waiting, this begins the second tap;
+        // otherwise it begins a fresh candidate.
+        if pressed, !isPressed {
             if let firstTapEndedAt,
                now.timeIntervalSince(firstTapEndedAt) > window {
                 // The gap was too long: this press starts a new first tap instead.
                 self.firstTapEndedAt = nil
                 secondTapDownAt = nil
             }
-            commandDownAt = now
+            pressStartedAt = now
             if firstTapEndedAt != nil {
                 secondTapDownAt = now
             }
             return false
         }
 
-        // ⌘ came back up alone. It completes the second tap only when that tap both started
-        // and ended inside the window. A lone first tap merely records its end time.
-        if modifiers.isEmpty, previous == [.command] {
+        // The trigger key came back up. It completes the second tap only when that tap both
+        // started and ended inside the window. A lone first tap merely records its end time.
+        if !pressed, isPressed {
             let secondDown = secondTapDownAt
-            let firstDown = commandDownAt
-            commandDownAt = nil
+            let firstDown = pressStartedAt
+            pressStartedAt = nil
             secondTapDownAt = nil
             if let secondDown {
                 let completed = now.timeIntervalSince(secondDown) <= window
@@ -60,19 +62,12 @@ nonisolated struct CommandDoubleTap: Equatable {
             return false
         }
 
-        // Any other modifier transition breaks the gesture. A real key press is reported by
-        // the engine through `cancel()`, because key events do not pass through this stream.
-        reset()
         return false
     }
 
     /// A key was typed between modifier edges: this was a chord, not a gesture.
     mutating func cancel() {
-        reset()
-    }
-
-    private mutating func reset() {
-        commandDownAt = nil
+        pressStartedAt = nil
         firstTapEndedAt = nil
         secondTapDownAt = nil
     }

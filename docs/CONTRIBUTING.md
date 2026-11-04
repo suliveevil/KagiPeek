@@ -88,6 +88,9 @@ them onto the prefix — and the documentation had been written from the comment
 
 ## Commits and releasing
 
+Branch first: every change starts on a new branch off `main` and is merged back when done —
+nothing is committed to `main` directly.
+
 Commit messages: a `type:` prefix (`feat:`, `fix:`, `docs:`, `test:`, `chore:`) and a body that
 says what changed and why. Update `CHANGELOG.md` under `[Unreleased]` in the same commit as the
 change — see [RELEASING.md](RELEASING.md) for the release steps.

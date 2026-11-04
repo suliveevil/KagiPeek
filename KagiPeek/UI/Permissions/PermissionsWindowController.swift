@@ -18,8 +18,10 @@ final class PermissionsWindowController {
         }
         guard let window else { return }
         window.title = engine.localization.text(.permissionsTitle)
+        // Activation belongs to the user's explicit open (or to the first-launch guide).
+        // Permission-state polling no longer funnels through here, and the window keeps the
+        // frame it already has instead of being re-centred under the pointer.
         NSApp.activate(ignoringOtherApps: true)
-        window.center()
         window.makeKeyAndOrderFront(nil)
     }
 

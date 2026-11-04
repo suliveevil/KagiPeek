@@ -16,23 +16,41 @@ final class SettingsWindowController {
     }
 
     func show() {
+        present(initialTab: nil)
+    }
+
+    /// Re-opens the settings window on the Conflicts page.
+    ///
+    /// `SettingsView` owns the selected tab, so the only way to force one without threading a
+    /// binding through every call site is to replace the hosted view with a freshly seeded one.
+    /// The panel's conflict badge does this once; ordinary settings opens keep their state.
+    private func present(initialTab: SettingsTab?) {
         if window == nil {
-            makeWindow()
+            makeWindow(initialTab: initialTab ?? .general)
+        } else if let initialTab, let window {
+            window.contentView = NSHostingView(rootView: makeRoot(initialTab: initialTab))
         }
         guard let window else { return }
         NSApp.activate(ignoringOtherApps: true)
-        window.center()
+        // Keep `.miniaturizable`: removing a window capability is a regression for users who
+        // rely on it. Restoring the window instead means the menu item always reaches it,
+        // minimised or merely behind another app, and the saved frame is not re-centred.
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func makeWindow() {
-        let root = SettingsView()
+    private func makeRoot(initialTab: SettingsTab) -> some View {
+        SettingsView(initialTab: initialTab)
             .environmentObject(engine)
             .environmentObject(engine.state)
             .environmentObject(engine.settingsStore)
             .environmentObject(engine.usageStore)
             .environmentObject(engine.localization)
+    }
 
+    private func makeWindow(initialTab: SettingsTab) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 680, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -41,7 +59,7 @@ final class SettingsWindowController {
         )
         window.title = engine.localization.text(.settingsTitle)
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: root)
+        window.contentView = NSHostingView(rootView: makeRoot(initialTab: initialTab))
         window.center()
         self.window = window
     }
@@ -51,4 +69,5 @@ final class SettingsWindowController {
 /// name for this is `show()`, which says nothing about what gets shown; the port says it.
 extension SettingsWindowController: SettingsPresenting {
     func showSettings() { show() }
+    func showConflicts() { present(initialTab: .conflicts) }
 }

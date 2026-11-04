@@ -23,20 +23,84 @@ nonisolated enum RowAction: String, Codable, CaseIterable, Hashable, Sendable {
     case copy
 }
 
+/// The pre-v5 "trigger mode". Decoded only: `SettingsMigrator` turns it into the three v5
+/// fields, and it is never written back.
 nonisolated enum TriggerMode: String, Codable, CaseIterable, Hashable, Sendable {
     case holdModifiers
     case doubleTapCommand
     case hotkey
     case disabled
+}
+
+/// How the modifier gesture fires the panel.
+nonisolated enum TriggerGesture: String, Codable, CaseIterable, Hashable, Sendable {
+    case hold
+    case doubleTap
 
     var titleKey: L10nKey {
         switch self {
-        case .holdModifiers: return .triggerHoldModifiers
-        case .doubleTapCommand: return .triggerDoubleTap
-        case .hotkey: return .triggerHotkey
-        case .disabled: return .triggerOff
+        case .hold: return .triggerGestureHold
+        case .doubleTap: return .triggerGestureDoubleTap
         }
     }
+}
+
+/// The single modifier that triggers the panel.
+///
+/// `ModifierSet` only knows which modifiers are down, not which side. The side comes from
+/// `flagsChanged`'s key code, which is why each case carries its physical code.
+nonisolated enum TriggerKey: String, Codable, CaseIterable, Hashable, Sendable {
+    case anyModifier
+    case leftControl
+    case leftOption
+    case leftCommand
+    case rightCommand
+    case rightOption
+
+    var titleKey: L10nKey {
+        switch self {
+        case .anyModifier: return .triggerKeyAnyModifier
+        case .leftControl: return .triggerKeyLeftControl
+        case .leftOption: return .triggerKeyLeftOption
+        case .leftCommand: return .triggerKeyLeftCommand
+        case .rightCommand: return .triggerKeyRightCommand
+        case .rightOption: return .triggerKeyRightOption
+        }
+    }
+
+    /// The physical key this trigger answers to. `anyModifier` covers every non-Shift
+    /// modifier: Shift alone is typing capitals, not a gesture.
+    var keyCodes: Set<UInt16> {
+        switch self {
+        case .anyModifier: return [55, 54, 58, 61, 59, 62] // ⌘ ⌥ ⌃, both sides
+        case .leftControl: return [59]
+        case .leftOption: return [58]
+        case .leftCommand: return [55]
+        case .rightCommand: return [54]
+        case .rightOption: return [61]
+        }
+    }
+
+    var modifier: ModifierSet? {
+        switch self {
+        case .anyModifier: return nil
+        case .leftControl: return .control
+        case .leftOption, .rightOption: return .option
+        case .leftCommand, .rightCommand: return .command
+        }
+    }
+
+    /// True when this `flagsChanged` is a press of the trigger key.
+    func isPressed(keyCode: UInt16, modifiers: ModifierSet) -> Bool {
+        if let modifier {
+            return keyCodes.contains(keyCode) && modifiers.contains(modifier)
+        }
+        return !modifiers.isEmpty && modifiers != [.shift]
+    }
+
+    /// Key codes the tap swallows while this trigger is live: the press and the release of
+    /// the same physical key. Shift and Caps Lock stay available to the front app.
+    var swallowedKeyCodes: Set<UInt16> { keyCodes }
 }
 
 /// A recorded key binding: a global hotkey, or one of the two row keys.
@@ -69,13 +133,28 @@ nonisolated struct HotkeySpec: Codable, Hashable, Sendable {
     static let panelDefault = HotkeySpec(keyCode: 40, modifiers: [.control, .option, .command]) // ⌃⌥⌘K
     static let searchDefault = HotkeySpec(keyCode: 3, modifiers: [.control, .option, .command]) // ⌃⌥⌘F
     static let switchDefault = HotkeySpec(keyCode: 1, modifiers: [.control, .option, .command]) // ⌃⌥⌘S
-    static let runRowDefault = HotkeySpec(keyCode: KeyCode.returnKey, modifiers: []) // ↩
-    static let copyRowDefault = HotkeySpec(keyCode: KeyCode.returnKey, modifiers: [.command]) // ⌘↩
+    /// Space runs a row and Return copies it: the two keys a person already uses on a
+    /// selected item, and the pair the draft asks for.
+    static let runRowDefault = HotkeySpec(keyCode: KeyCode.space, modifiers: []) // Space
+    static let copyRowDefault = HotkeySpec(keyCode: KeyCode.returnKey, modifiers: []) // ↩
+
+    /// The pair this build shipped before the row keys moved to Space/Return. A stored pair
+    /// that still matches both exactly is migrated; anything recorded by hand wins.
+    static let legacyRunRowDefault = HotkeySpec(keyCode: KeyCode.returnKey, modifiers: []) // ↩
+    static let legacyCopyRowDefault = HotkeySpec(keyCode: KeyCode.returnKey, modifiers: [.command]) // ⌘↩
 }
 
 /// Persisted user settings. Missing keys fall back to defaults so upgrades never break.
 nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
-    var triggerMode: TriggerMode = .holdModifiers
+    /// Legacy field: read once by `SettingsMigrator`, then cleared. Never written back.
+    var triggerMode: TriggerMode? = nil
+    /// Whether the modifier gesture is live. Independent of `hotkeyTriggerEnabled`.
+    var modifierTriggerEnabled: Bool = true
+    /// Whether the three global hotkeys are live. Independent of the modifier gesture:
+    /// both on is fine, one on is fine, and both off is the pause state.
+    var hotkeyTriggerEnabled: Bool = true
+    var triggerGesture: TriggerGesture = .hold
+    var triggerKey: TriggerKey = .rightCommand
     var holdDelay: Double = 0.5
     var doubleTapWindow: Double = 0.3
     var panelHotkey: HotkeySpec = .panelDefault
@@ -100,7 +179,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var excludedBundleIDs: [String] = []
     var launchAtLogin: Bool = false
     var ignoredCommands: [IgnoredCommand] = []
-    var panelTheme: PanelTheme = .graphite
+    var panelTheme: PanelTheme = .system
     var keyPosition: KeyPosition = .right
     var pinFavoritesToTop: Bool = true
     var favoritesCanBeFiltered: Bool = false
@@ -124,13 +203,17 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
 
     /// Bumped when a stored payload needs a rewrite. Version 3 removed `allowSearchExecute`
     /// after version 2 removed `allowPanelExecute`; both were plain deletions, so a file from
-    /// either version still decodes (see `SettingsMigrator`).
-    static let currentSchemaVersion = 3
+    /// either version still decodes. Version 4 moves the default row keys to Space/Return, so
+    /// that one rewrites a value (see `SettingsMigrator`). Version 5 replaces `triggerMode`
+    /// with `modifierTriggerEnabled` / `triggerGesture` / `triggerKey`; the old key is read
+    /// and never written back.
+    static let currentSchemaVersion = 5
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case triggerMode, holdDelay, doubleTapWindow, panelHotkey, searchHotkey, switchHotkey
+        case triggerMode, modifierTriggerEnabled, hotkeyTriggerEnabled, triggerGesture, triggerKey
+        case holdDelay, doubleTapWindow, panelHotkey, searchHotkey, switchHotkey
         case showExecutedHUD, keyStyle, columnCount, maxItemsPerPage, maxDescriptionLength
         case showDisabledItems, includeBuiltInCatalog, sortMode, language
         case showAppleMenu
@@ -157,7 +240,15 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         func decode<T: Decodable>(_ key: CodingKeys, _ fallback: T) throws -> T {
             try container.decodeIfPresent(T.self, forKey: key) ?? fallback
         }
-        triggerMode = try decode(.triggerMode, fallback.triggerMode)
+        // A legacy value this build does not know must not fail the whole file: only the
+        // trigger mapping is lost, and the v5 defaults take over.
+        if let legacy = try? container.decodeIfPresent(TriggerMode.self, forKey: .triggerMode) {
+            triggerMode = legacy
+        }
+        modifierTriggerEnabled = try decode(.modifierTriggerEnabled, fallback.modifierTriggerEnabled)
+        hotkeyTriggerEnabled = try decode(.hotkeyTriggerEnabled, fallback.hotkeyTriggerEnabled)
+        triggerGesture = try decode(.triggerGesture, fallback.triggerGesture)
+        triggerKey = try decode(.triggerKey, fallback.triggerKey)
         holdDelay = try decode(.holdDelay, fallback.holdDelay)
         doubleTapWindow = try decode(.doubleTapWindow, fallback.doubleTapWindow)
         panelHotkey = try decode(.panelHotkey, fallback.panelHotkey)
@@ -199,10 +290,51 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         showDockIcon = try decode(.showDockIcon, fallback.showDockIcon)
     }
 
+    /// Written by hand only to leave out `triggerMode`: the synthesized encoder would write
+    /// the legacy key as `null`, and a v5 file must not carry any trace of it.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(modifierTriggerEnabled, forKey: .modifierTriggerEnabled)
+        try container.encode(hotkeyTriggerEnabled, forKey: .hotkeyTriggerEnabled)
+        try container.encode(triggerGesture, forKey: .triggerGesture)
+        try container.encode(triggerKey, forKey: .triggerKey)
+        try container.encode(holdDelay, forKey: .holdDelay)
+        try container.encode(doubleTapWindow, forKey: .doubleTapWindow)
+        try container.encode(panelHotkey, forKey: .panelHotkey)
+        try container.encode(searchHotkey, forKey: .searchHotkey)
+        try container.encode(switchHotkey, forKey: .switchHotkey)
+        try container.encode(showExecutedHUD, forKey: .showExecutedHUD)
+        try container.encode(keyStyle, forKey: .keyStyle)
+        try container.encode(columnCount, forKey: .columnCount)
+        try container.encode(maxItemsPerPage, forKey: .maxItemsPerPage)
+        try container.encode(maxDescriptionLength, forKey: .maxDescriptionLength)
+        try container.encode(showDisabledItems, forKey: .showDisabledItems)
+        try container.encode(includeBuiltInCatalog, forKey: .includeBuiltInCatalog)
+        try container.encode(sortMode, forKey: .sortMode)
+        try container.encode(language, forKey: .language)
+        try container.encode(showAppleMenu, forKey: .showAppleMenu)
+        try container.encode(panelPlacement, forKey: .panelPlacement)
+        try container.encode(fixedPanelWidth, forKey: .fixedPanelWidth)
+        try container.encode(fixedPanelHeight, forKey: .fixedPanelHeight)
+        try container.encode(excludedBundleIDs, forKey: .excludedBundleIDs)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
+        try container.encode(ignoredCommands, forKey: .ignoredCommands)
+        try container.encode(panelTheme, forKey: .panelTheme)
+        try container.encode(keyPosition, forKey: .keyPosition)
+        try container.encode(pinFavoritesToTop, forKey: .pinFavoritesToTop)
+        try container.encode(favoritesCanBeFiltered, forKey: .favoritesCanBeFiltered)
+        try container.encode(runRowKey, forKey: .runRowKey)
+        try container.encode(copyRowKey, forKey: .copyRowKey)
+        try container.encode(scanConfigFiles, forKey: .scanConfigFiles)
+        try container.encode(diagnosticsEnabled, forKey: .diagnosticsEnabled)
+        try container.encode(verboseDiagnostics, forKey: .verboseDiagnostics)
+        try container.encode(showDockIcon, forKey: .showDockIcon)
+    }
+
     /// Persisted values are clamped back into these bounds. They are the same ranges the
     /// settings UI offers, so normalization can never disagree with the picker that set them.
     private enum Bounds {
-        static let holdDelay: ClosedRange<Double> = 0.1...1.5
+        static let holdDelay: ClosedRange<Double> = 0.3...0.9
         static let doubleTapWindow: ClosedRange<Double> = 0.15...0.8
         static let fixedPanelWidth: ClosedRange<Double> = 320...4000
         static let fixedPanelHeight: ClosedRange<Double> = 240...3000
@@ -218,7 +350,9 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// Keeps persisted values inside sane bounds.
     func normalized() -> AppSettingsSnapshot {
         var copy = self
-        copy.holdDelay = clamp(copy.holdDelay, to: Bounds.holdDelay)
+        // The settings UI steps `holdDelay` by 0.1. Rounding after the clamp drops the
+        // binary tail (0.9000000000000001) before it reaches settings.json.
+        copy.holdDelay = (clamp(copy.holdDelay, to: Bounds.holdDelay) * 10).rounded() / 10
         copy.doubleTapWindow = clamp(copy.doubleTapWindow, to: Bounds.doubleTapWindow)
         copy.fixedPanelWidth = clamp(copy.fixedPanelWidth, to: Bounds.fixedPanelWidth)
         copy.fixedPanelHeight = clamp(copy.fixedPanelHeight, to: Bounds.fixedPanelHeight)

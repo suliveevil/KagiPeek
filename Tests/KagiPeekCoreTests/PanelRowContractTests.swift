@@ -277,8 +277,8 @@ final class ChordDescentContractTests: XCTestCase {
 /// 用户按住 ⌘ 收窄列表时，系统报上来的事件自带 ⌘。若不把按住的修饰键剥掉，⌘↩ 会被
 /// 判成「复制」，收窄态下 Return 就变成了复制而不是执行 —— 正是本轮的诉求。
 final class RowKeyHeldModifierContractTests: XCTestCase {
-    private let run = HotkeySpec.runRowDefault // ↩
-    private let copy = HotkeySpec.copyRowDefault // ⌘↩
+    private let run = HotkeySpec.legacyRunRowDefault // ↩
+    private let copy = HotkeySpec.legacyCopyRowDefault // ⌘↩
 
     private func action(_ modifiers: ModifierSet, _ held: ModifierSet) -> RowAction? {
         RowKeyRouter.action(for: KeyCode.returnKey, modifiers: modifiers, held: held, run: run, copy: copy)

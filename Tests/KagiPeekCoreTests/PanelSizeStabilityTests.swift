@@ -28,7 +28,8 @@ final class PanelSizeStabilityTests: XCTestCase {
                         index: index,
                         isHighlighted: false,
                         isCompleted: false,
-                        isFavorite: false
+                        isFavorite: false,
+                        hintLabel: nil
                     )
                 }
             )

@@ -18,23 +18,24 @@ nonisolated enum AppLanguage: String, Codable, CaseIterable, Hashable, Sendable 
 /// Every user-visible string in the app.
 nonisolated enum L10nKey: String, CaseIterable, Sendable {
     // Application / menu bar
-    case appName, menuSearch, menuPanel, menuSettings, menuPause, menuResume, menuQuit
-    case statusReady, statusPaused, statusNoPermission, statusScanning
+    case appName, menuSearch, menuPanel, menuSettings, menuQuit
+    case statusLabel, statusReady, statusNoPermission
 
     // Permissions
     case permissionTitle, permissionAccessibility, permissionAccessibilityHint
     case permissionInputMonitoring, permissionInputMonitoringHint
     case permissionGranted, permissionMissing, permissionRequest, permissionOpenSettings
-    case permissionRecheck, permissionSecureInput, permissionDragHint
+    case permissionSecureInput, permissionDragHint
     case permissionsTitle, permissionsSubtitle, permissionsPrivacy
     case permissionWizard, permissionGrant, permissionGrantedDone, permissionContinue, permissionQuit
-    case panelFavoritesFilter, panelPin, panelUnpin, panelCopyShortcut, panelSettings, panelNoFavorites
+    case panelFavoritesFilter, panelPin, panelUnpin, panelCopyShortcut, panelPassThrough, panelSettings
+    case panelNoFavorites
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
     case searchResultCount, searchResultCountOne, searchClearHint
     case overlayCountFormat, overlayNoShortcut, searchNoResultsScopedFormat, searchNoResultsHint, ownerBuiltIn
     case searchSubtitle
-    case appearanceTheme, themeGraphite, themeMidnight, themePaper
+    case appearanceTheme, themeSystem, themeLight, themeDark
     case appearanceKeyPosition, keyPositionLeft, keyPositionRight
     case favoritesPinTop, favoritesFilterable
     case generalIgnoredCommands, generalIgnoredCommandsHint
@@ -54,9 +55,12 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case permissionWaitingForAccess, permissionContinueGrant
 
     // Trigger
-    case triggerTitle, triggerMode, triggerHoldModifiers, triggerDoubleTap, triggerHotkey, triggerOff
+    case triggerTitle, triggerModifierGesture, triggerGlobalHotkey, triggerGesture
+    case triggerGestureHold, triggerGestureDoubleTap
+    case triggerKey, triggerKeyAnyModifier, triggerKeyLeftControl, triggerKeyLeftOption
+    case triggerKeyLeftCommand, triggerKeyRightCommand, triggerKeyRightOption
     case triggerHoldDelay, triggerDoubleTapWindow, triggerPanelHotkey, triggerSearchHotkey
-    case triggerSwitchHotkey, triggerRecording, triggerRecordingHint
+    case triggerSwitchHotkey, triggerRecording, triggerRecordingHint, triggerStopRecording
 
     // Appearance
     case appearanceTitle, appearanceKeyStyle, appearanceStyleSymbols, appearanceStyleWords
@@ -66,7 +70,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case languageSystem, languageEnglish, languageChinese
 
     // Ranking
-    case rankingTitle, rankingMode, rankingModeHint
+    case rankingMode, rankingModeHint
     case statisticsTitle
     case sortSmart, sortFrequencyDesc, sortKeyOrder, sortAlphabetical
     case rankingUsageSummary, rankingReset, rankingHUD, rankingIncludeBuiltIn
@@ -81,7 +85,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case menuEdit, menuCut, menuCopy, menuPaste, menuSelectAll, menuSearchShortcuts
 
     // Statistics
-    case statsSection, statsByApp, statsGenericApp, statsNoData, statsOpenDataFolder, statsShortcuts
+    case statsSection, statsGenericApp, statsNoData, statsOpenDataFolder, statsShortcuts
     case statsShortcutsOne, statsPressesFormat, statsPressesOne
     case statsUnknownCommand
 
@@ -94,18 +98,15 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Overlay
     case overlayNoCandidates, overlayScanning, overlayPageFormat, overlayUnavailableBadge
-    case overlayBuiltInBadge
+    case overlayBuiltInBadge, overlayRunning
     case scanPermissionDenied, scanFallbackHint
-    case overlayConflictBadge, overlayConflictHint, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelIdleHint
+    case overlayConflictHint, overlayConflictOpen, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelRunFailed, injectTargetUnavailable, panelIdleHint
     case searchScopeLoading, searchBuiltInNotice, conflictScanFailed, conflictScanPartialFormat
     case rankingResetConfirmTitle, rankingResetConfirmMessage
     case rankingDefaultsConfirmTitle, rankingDefaultsConfirmMessage
 
-    // HUD
-    case hudExecuted
-
     // Search panel
-    case searchTitle, searchSubtitleScoped, searchPlaceholder, searchHintRun, searchNoResults
+    case searchSubtitleScoped, searchPlaceholder, searchHintRun, searchNoResults
     case searchBackToPanel
 
     // Conflicts
@@ -127,7 +128,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Conflict verdicts
     case conflictVerdictWinnerFormat, conflictVerdictTied, conflictVerdictMenuOrder
-    case conflictVerdictUnknown, conflictVerdictTitle, conflictLayerPrefix
+    case conflictVerdictUnknown
 
     // Conflict filters
     case conflictType, conflictTypeAllFormat, conflictTypeEmpty
@@ -142,7 +143,6 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Combo lookup
     case comboLookupTitle, comboLookupFree, comboLookupOwnerFormat, comboLookupOwnersFormat
-    case comboLookupHint
 
     // Diagnostics
     case diagnosticsTitle, diagnosticsEnable, diagnosticsEnableHint
@@ -164,7 +164,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case testSummaryRewritten, testSummaryNothingSeen
 
     // About
-    case aboutTitle, aboutVersion, aboutRepository, aboutLicense, aboutBuild, aboutSystem, aboutDataFolder, aboutDiagnostics, aboutMenuItems
+    case aboutTitle, aboutRepository, aboutLicense, aboutSystem, aboutDataFolder, aboutDiagnostics, aboutMenuItems
     case aboutExportDiagnostics, aboutDiagnosticsHint
 
     // Groups used by the built-in fallback catalog
@@ -174,7 +174,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case frontmostApp, exportMarkdown
 
     // Update check
-    case updateCheck, updateAvailable, updateNone, updateFailed, updateOpen
+    case updateCheck, updateCheckNow, updateChecking, updateAvailable, updateNone, updateFailed
 
     // Errors
     case errorEventTap, errorNoAccessibility, errorEventTapStalled, errorEventTapStalledPermanent
@@ -216,14 +216,11 @@ nonisolated enum L10n {
         .menuSearch: ("Search Shortcuts…", "搜索快捷键…"),
         .menuPanel: ("Shortcut Panel", "快捷键面板"),
         .menuSettings: ("Settings…", "设置…"),
-        .menuPause: ("Pause Hints", "暂停提示"),
-        .menuResume: ("Resume Hints", "恢复提示"),
         .menuQuit: ("Quit KagiPeek", "退出 KagiPeek"),
 
+        .statusLabel: ("Status", "状态"),
         .statusReady: ("Listening", "监听中"),
-        .statusPaused: ("Paused", "已暂停"),
         .statusNoPermission: ("Permission required", "需要授权"),
-        .statusScanning: ("Scanning menus…", "正在读取菜单…"),
 
         .permissionTitle: ("Permissions", "权限"),
         .permissionAccessibility: ("Accessibility", "辅助功能"),
@@ -240,7 +237,6 @@ nonisolated enum L10n {
         .permissionMissing: ("Not granted", "未授权"),
         .permissionRequest: ("Request", "请求授权"),
         .permissionOpenSettings: ("Open System Settings", "打开系统设置"),
-        .permissionRecheck: ("Re-check", "重新检查"),
         .permissionsTitle: ("Enable Permissions", "启用权限"),
         .permissionsSubtitle: (
             "KagiPeek needs these permissions to read the frontmost app's menu bar and to listen for shortcuts.",
@@ -254,6 +250,7 @@ nonisolated enum L10n {
         .panelPin: ("Pin", "收藏"),
         .panelUnpin: ("Unpin", "取消收藏"),
         .panelCopyShortcut: ("Copy Shortcut", "复制快捷键"),
+        .panelPassThrough: ("Run", "执行"),
         .panelSettings: ("Settings…", "设置…"),
         .panelClose: ("Close", "关闭"),
         .panelPreviousPage: ("Previous page", "上一页"),
@@ -270,11 +267,11 @@ nonisolated enum L10n {
         .keyPositionLeft: ("Keys left", "键位在左"),
         .keyPositionRight: ("Keys right", "键位在右"),
         .favoritesPinTop: ("Pin favourites to top", "收藏置顶"),
-        .favoritesFilterable: ("Filters can hide favourites", "收藏可被搜索/过滤隐藏"),
+        .favoritesFilterable: ("Let filters hide favorites", "允许搜索和过滤隐藏收藏"),
         .appearanceTheme: ("Panel theme", "面板主题"),
-        .themeGraphite: ("Graphite", "石墨"),
-        .themeMidnight: ("Midnight", "午夜蓝"),
-        .themePaper: ("Paper", "纸张"),
+        .themeSystem: ("System", "跟随系统"),
+        .themeLight: ("Light", "浅色"),
+        .themeDark: ("Dark", "深色"),
         .generalIgnoredCommands: ("Ignored commands", "忽略的命令"),
         .generalIgnoredCommandsHint: (
             "Commands listed here stay out of the panel and the search. A command can be hidden everywhere or only inside one app — “Reload Page” in a browser is not the same command as “Reload Page” in an editor.",
@@ -309,7 +306,7 @@ nonisolated enum L10n {
         .permissionGrant: ("Grant Permission", "授权"),
         .permissionGrantedDone: ("Permission granted", "已授权"),
         .permissionContinue: ("Continue", "继续"),
-        .permissionQuit: ("Quit", "退出"),
+        .permissionQuit: ("Quit KagiPeek", "退出 KagiPeek"),
         .permissionRequiredBadge: ("Required", "必需"),
         .permissionOptionalBadge: ("Optional", "可选"),
         .permissionAccessibilityDetail1: (
@@ -389,7 +386,7 @@ nonisolated enum L10n {
             "等待授权"
         ),
         .permissionContinueGrant: (
-            "Continue",
+            "Continue to grant",
             "继续授权"
         ),
         .permissionSecureInput: (
@@ -398,11 +395,18 @@ nonisolated enum L10n {
         ),
 
         .triggerTitle: ("Trigger", "触发"),
-        .triggerMode: ("Trigger mode", "触发方式"),
-        .triggerHoldModifiers: ("Hold modifiers", "按住修饰键停顿"),
-        .triggerDoubleTap: ("Double-tap ⌘", "连按两次 ⌘"),
-        .triggerHotkey: ("Global hotkey", "全局热键"),
-        .triggerOff: ("Off", "关闭"),
+        .triggerModifierGesture: ("Modifier gesture", "修饰键手势"),
+        .triggerGlobalHotkey: ("Global hotkeys", "全局快捷键"),
+        .triggerGesture: ("Trigger gesture", "触发手势"),
+        .triggerGestureHold: ("Hold still", "按住停顿"),
+        .triggerGestureDoubleTap: ("Press twice", "连按两次"),
+        .triggerKey: ("Trigger key", "触发键"),
+        .triggerKeyAnyModifier: ("Any modifier", "任意修饰键"),
+        .triggerKeyLeftControl: ("Left Control", "左 Control"),
+        .triggerKeyLeftOption: ("Left Option", "左 Option"),
+        .triggerKeyLeftCommand: ("Left Command", "左 Command"),
+        .triggerKeyRightCommand: ("Right Command", "右 Command"),
+        .triggerKeyRightOption: ("Right Option", "右 Option"),
         .triggerHoldDelay: ("Hold delay", "停顿延时"),
         .triggerDoubleTapWindow: ("Double-tap window", "双击间隔"),
         .triggerPanelHotkey: ("Panel hotkey", "面板热键"),
@@ -410,6 +414,7 @@ nonisolated enum L10n {
         .triggerSwitchHotkey: ("Switch panel/search", "切换面板/搜索"),
         .triggerRecording: ("Record", "录制"),
         .triggerRecordingHint: ("Press a new key combination…", "请按下新的组合键…"),
+        .triggerStopRecording: ("Stop", "停止"),
 
         .appearanceTitle: ("Appearance", "外观"),
         .appearanceKeyStyle: ("Key style", "按键显示"),
@@ -417,7 +422,7 @@ nonisolated enum L10n {
         .appearanceStyleWords: ("Words (command)", "文字（command）"),
         .appearanceColumns: ("Columns", "列数"),
         .appearanceMaxItems: ("Max rows per page", "每页最大行数"),
-        .appearanceMaxDescription: ("Max description length", "描述最大长度"),
+        .appearanceMaxDescription: ("Max description length", "说明文字最大长度"),
         .appearanceShowDisabled: ("Show unavailable items", "显示当前不可用的菜单项"),
         .appearancePlacement: ("Panel placement", "面板位置"),
         .placementCoverWindow: ("Cover the front window", "覆盖前台窗口"),
@@ -431,7 +436,6 @@ nonisolated enum L10n {
         .languageEnglish: ("English", "English"),
         .languageChinese: ("Chinese", "中文"),
 
-        .rankingTitle: ("Ranking", "排序"),
         .statisticsTitle: ("Statistics", "统计"),
         .rankingMode: ("Sort order", "排序方式"),
         .rankingModeHint: (
@@ -447,7 +451,7 @@ nonisolated enum L10n {
             "已学习 %d 个快捷键，累计 %d 次触发"
         ),
         .rankingReset: ("Reset statistics", "重置统计"),
-        .rankingHUD: ("Show “executed” HUD", "执行后显示轻提示"),
+        .rankingHUD: ("Show a confirmation HUD", "执行后显示确认提示"),
         .rankingIncludeBuiltIn: (
             "Use built-in catalog when menus are unavailable",
             "菜单不可用时使用内置快捷键目录"
@@ -466,18 +470,17 @@ nonisolated enum L10n {
             "Apple 菜单属于系统而非前台 App，其命令（“关于本机”“睡眠”等）默认隐藏。开启后会出现在每个 App 的列表里。"
         ),
         .statsSection: ("Statistics", "使用统计"),
-        .statsByApp: ("Presses by app", "按 App 统计"),
         .statsGenericApp: ("System / built-in", "系统 / 内置"),
         .statsNoData: ("No usage recorded yet", "还没有统计数据"),
         .statsOpenDataFolder: ("Show data folder", "显示数据目录"),
-        .statsShortcuts: ("shortcuts", "个快捷键"),
-        .statsShortcutsOne: ("shortcut", "个快捷键"),
+        .statsShortcuts: ("%d shortcuts", "%d 个快捷键"),
+        .statsShortcutsOne: ("1 shortcut", "1 个快捷键"),
         .statsPressesFormat: ("%d presses", "%d 次"),
         .statsPressesOne: ("1 press", "1 次"),
         .statsUnknownCommand: ("Not scanned yet", "尚未扫描到"),
         .generalExcludedAppsHint: (
-            "Apps in this list never show the panel. Add one with the + button (Finder opens), select a row and press − to remove it.",
-            "列表中的 App 不会弹出面板。用 + 从访达中添加，选中一行后按 − 移除。"
+            "Apps in this list never show the panel. Add one with the + button (Finder opens), select a row and click − to remove it.",
+            "列表中的 App 不会弹出面板。用 + 从访达中添加，选中一行后点击 − 移除。"
         ),
 
         .settingsTitle: ("Settings", "设置"),
@@ -502,18 +505,24 @@ nonisolated enum L10n {
             "内置目录 · 辅助功能未开启"
         ),
         .overlayBuiltInBadge: ("built-in", "内置"),
+        .overlayRunning: ("Running…", "正在运行…"),
         .overlayScanning: ("Scanning menu bar…", "正在读取菜单栏…"),
         .overlayPageFormat: ("%d/%d", "%d/%d"),
         .overlayUnavailableBadge: ("Unavailable", "不可用"),
-        .overlayConflictBadge: ("Conflict", "冲突"),
         .overlayConflictHint: (
             "Some shortcuts are bound more than once",
             "有快捷键被重复绑定"
         ),
+        .overlayConflictOpen: ("Open the conflicts list", "查看冲突列表"),
         .overlayHint: ("⌫ back · Esc close", "⌫ 返回 · Esc 关闭"),
         .panelCopied: ("Copied", "已复制"),
         .panelCopyFailed: ("Could not copy", "复制失败"),
         .panelNothingToCopy: ("No shortcut to copy", "没有可复制的快捷键"),
+        .panelRunFailed: ("Could not run this command", "无法运行该命令"),
+        .injectTargetUnavailable: (
+            "Could not bring the target app to the front — no shortcut was sent",
+            "无法将目标 App 切到前台，未发送快捷键"
+        ),
         .panelIdleHint: ("Press a shortcut to identify it · / searches · Esc closes", "按下快捷键查看说明 · / 搜索 · Esc 关闭"),
         .panelActionHint: (
             "↑↓ select · %1$@ run · %2$@ copy · Esc close",
@@ -529,11 +538,8 @@ nonisolated enum L10n {
         // One column, 300 pt: the two keys that do something and nothing else.
         .panelActionHintCompact: ("%1$@ run · Esc close", "%1$@ 执行 · Esc 关闭"),
 
-        .hudExecuted: ("%@  ✓", "%@  ✓"),
-
         .frontmostApp: ("Frontmost app", "前台 App"),
         .exportMarkdown: ("Export Markdown", "导出 Markdown"),
-        .searchTitle: ("Search Shortcuts", "搜索快捷键"),
         .searchPlaceholder: ("Search title or shortcut", "搜索名称或快捷键"),
         // The palette has no copy action: Return always replays the shortcut.
         .searchHintRun: ("↑↓ select · ↵ run · Esc close", "↑↓ 选择 · ↵ 执行 · Esc 关闭"),
@@ -543,7 +549,10 @@ nonisolated enum L10n {
         .overlayCountFormat: ("%d items", "%d 项"),
         .overlayNoShortcut: ("No shortcut", "无快捷键"),
         .ownerBuiltIn: ("Built-in", "内置"),
-        .searchBackToPanel: ("Back to the shortcut panel (/)", "返回快捷键面板（/）"),
+        .searchBackToPanel: (
+            "Back to the shortcut panel (/ when the search is empty)",
+            "清空搜索后按 / 返回面板"
+        ),
 
         .conflictTitle: ("Conflicts", "冲突"),
         .conflictListTitle: ("Findings", "冲突列表"),
@@ -624,8 +633,6 @@ nonisolated enum L10n {
         ),
 
         // Conflict verdicts
-        .conflictVerdictTitle: ("Who wins", "谁会生效"),
-        .conflictLayerPrefix: ("Layer", "所在层"),
         .conflictVerdictWinnerFormat: ("%@ most likely wins.", "%@ 最可能生效。"),
         .conflictVerdictTied: (
             "Several shortcuts hook the same layer, so whichever registered first wins. That order is not recorded anywhere KagiPeek can read.",
@@ -680,11 +687,6 @@ nonisolated enum L10n {
         .comboLookupFree: ("Nothing claims this combo.", "没有任何快捷键占用这个组合键。"),
         .comboLookupOwnerFormat: ("%@ claims this combo.", "%@ 占用了这个组合键。"),
         .comboLookupOwnersFormat: ("%d shortcuts claim this combo.", "有 %d 个快捷键占用了这个组合键。"),
-        .comboLookupHint: (
-            "Type a combo such as \"cmd shift 4\" to ask who owns it.",
-            "输入形如 “cmd shift 4” 的组合键，可以直接问是谁占用了它。"
-        ),
-
         // Live shortcut test
         .testTitle: ("Live test", "实测"),
         .testStart: ("Test this combo", "实测这个组合键"),
@@ -755,15 +757,13 @@ nonisolated enum L10n {
         ),
 
         .aboutTitle: ("About", "关于"),
-        .aboutVersion: ("Version", "版本"),
         .aboutRepository: ("Repository", "仓库"),
         .aboutLicense: ("License", "协议"),
-        .aboutBuild: ("Build", "构建号"),
         .aboutSystem: ("System", "系统"),
         .aboutDataFolder: ("Data folder", "数据目录"),
         .aboutDiagnostics: ("Diagnostics", "诊断"),
         .aboutMenuItems: ("Menu items", "菜单条目"),
-        .aboutExportDiagnostics: ("Export diagnostics…", "导出诊断…"),
+        .aboutExportDiagnostics: ("Export diagnostics report…", "导出诊断报告（JSON）…"),
         .aboutDiagnosticsHint: (
             "Writes a JSON report (permissions, scan result, settings, log excerpt) that can be attached to a bug report. Nothing is uploaded.",
             "导出一份 JSON 报告（权限、扫描结果、设置、日志摘要），可附在问题反馈里。不会上传任何内容。"
@@ -782,7 +782,7 @@ nonisolated enum L10n {
         ),
         .diagnosticsPath: ("Log folder", "日志位置"),
         .diagnosticsOpenFolder: ("Open log folder", "打开日志文件夹"),
-        .diagnosticsExport: ("Export diagnostics…", "导出诊断…"),
+        .diagnosticsExport: ("Export diagnostics archive…", "导出诊断包（.zip）…"),
         .diagnosticsPrivacyNote: (
             "Account names, tokens, URL parameters and e-mail addresses are redacted before anything reaches a log file. Filter text and clipboard content are never recorded; verbose mode does record which shortcut combinations were pressed.",
             "写入日志文件前会脱敏账号、令牌、URL 参数与邮箱；筛选框文本与剪贴板内容从不记录（详细级别会记录用过的组合键）。"
@@ -801,7 +801,7 @@ nonisolated enum L10n {
         .menuCopy: ("Copy", "拷贝"),
         .menuPaste: ("Paste", "粘贴"),
         .menuSelectAll: ("Select All", "全选"),
-        .menuSearchShortcuts: ("Search Shortcuts", "搜索快捷键"),
+        .menuSearchShortcuts: ("Search Shortcuts…", "搜索快捷键…"),
 
         .groupSystem: ("System", "系统"),
         .groupFinder: ("Finder", "Finder"),
@@ -812,10 +812,11 @@ nonisolated enum L10n {
 
 
         .updateCheck: ("Check for updates", "检查更新"),
+        .updateCheckNow: ("Check now", "立即检查"),
+        .updateChecking: ("Checking…", "正在检查…"),
         .updateAvailable: ("Version %@ is available", "有新版本 %@"),
         .updateNone: ("You're up to date", "已是最新版本"),
         .updateFailed: ("Could not check for updates", "检查更新失败"),
-        .updateOpen: ("Open release page", "打开发布页"),
 
         .searchScopeLoading: ("Loading this app's shortcuts…", "正在加载这个 App 的快捷键…"),
         .searchBuiltInNotice: ("Built-in shortcuts · menus unavailable", "内置快捷键 · 菜单不可用"),

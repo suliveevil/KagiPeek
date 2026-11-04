@@ -219,7 +219,8 @@ raise(sig);
 ```
 KagiPeek-diagnostics-20261023-141522/
 ├── session-info.json     # app 版本/构建号、macOS 版本、设备型号、本次运行时长、
-│                         # 关键设置摘要（triggerMode 等非敏感项）、权限当前状态
+│                         # 关键设置摘要（modifierTriggerEnabled / hotkeyTriggerEnabled /
+│                         # triggerGesture / triggerKey 等非敏感项）、权限当前状态
 ├── logs/                 # logs 目录整体（已过 Sanitizer）
 └── crash/                # crash 目录整体
 ```

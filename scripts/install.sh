@@ -3,12 +3,20 @@
 # Builds a Release app and replaces the copy in /Applications.
 #
 # The replacement is atomic and reversible: the new bundle is staged next to the target,
-# verified, swapped in with `mv`, and the previous bundle is kept as
-# `KagiPeek.previous.app`. Any failure between "the app is gone" and "the app is back"
-# restores the previous copy, so a failed install cannot leave the user without an app.
+# verified, swapped in with `mv`, and the bundle it replaced is copied to
+# `~/Library/Application Support/KagiPeek/backups/` as
+# `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` (the five most
+# recent are kept). Any failure between "the app is gone" and "the app is back" restores
+# the backup, so a failed install cannot leave the user without an app.
 #
-# Local-use helper: signing falls back to ad-hoc, which changes the code signature, so
-# macOS will ask for Accessibility again after every install.
+# Never leave a second `.app` in /Applications: LaunchServices registers every copy under
+# the same bundle id, and an ad-hoc copy gets its own TCC identity, which is how stale
+# names end up in System Settings → Input Monitoring.
+#
+# Only a build with a stable signature (`KagiPeek Local` or a Developer ID) may be
+# installed. An ad-hoc build changes cdhash on every compile, so macOS treats each
+# rebuild as a new app: permissions are asked again and old rows pile up. Ad-hoc builds
+# are for `codesign --verify` checks in a temporary directory only.
 
 set -euo pipefail
 
@@ -28,7 +36,6 @@ fi
 DERIVED="$ROOT/build/DerivedData"
 APP="$DERIVED/Build/Products/Release/KagiPeek.app"
 STAGE="${DEST}.new"
-PREV="${DEST%.app}.previous.app"
 
 KAGIPEEK_SKIP_DMG=1 "$ROOT/scripts/build_release.sh" || {
     # On machines where the Xcode build system cannot run (for example when `sandbox-exec`
@@ -69,14 +76,28 @@ if ! codesign --verify --strict "$STAGE" 2>/dev/null; then
     exit 1
 fi
 
-echo "==> Installing to $DEST"
-$SUDO rm -rf "$PREV"
-if [ -d "$DEST" ]; then
-    $SUDO mv "$DEST" "$PREV"
+if ! codesign -dv "$STAGE" 2>&1 | grep -qE "Authority=(KagiPeek Local|Developer ID Application)"; then
+    $SUDO rm -rf "$STAGE"
+    echo "error: the staged build is ad-hoc signed; refusing to install it." >&2
+    echo "       A stable identity is required: run ./scripts/setup_signing.sh" >&2
+    echo "       once, then rebuild. Ad-hoc packages are only for verification." >&2
+    exit 1
 fi
+
+BACKUP=""
+if [ -d "$DEST" ]; then
+    echo "==> Backing up the installed build"
+    BACKUP="$("$ROOT/scripts/backup_app.sh" "$DEST")"
+fi
+
+echo "==> Installing to $DEST"
+$SUDO rm -rf "$DEST"
 if ! $SUDO mv "$STAGE" "$DEST"; then
-    echo "error: could not move the new build into place; restoring the previous copy" >&2
-    if [ -d "$PREV" ]; then $SUDO mv "$PREV" "$DEST"; fi
+    echo "error: could not move the new build into place; restoring the backup" >&2
+    if [ -n "$BACKUP" ] && [ -d "$BACKUP" ]; then
+        $SUDO rm -rf "$DEST"
+        $SUDO ditto "$BACKUP" "$DEST"
+    fi
     exit 1
 fi
 
@@ -85,20 +106,14 @@ if [ -x "$LSREGISTER" ]; then
     "$LSREGISTER" -f "$DEST" >/dev/null 2>&1 || true
 fi
 
-if security find-identity -v -p codesigning 2>/dev/null | grep -F -- "KagiPeek Local" >/dev/null; then
-    echo "==> Signed with the stable local identity: the Accessibility grant survives rebuilds."
-else
-    echo "==> Ad-hoc signed: macOS will treat this build as a new app and ask again."
-    echo "    Run ./scripts/setup_signing.sh once to keep the grant across rebuilds."
-fi
+echo "==> Signed with a stable identity: the Accessibility grant survives rebuilds."
 
 echo "==> Launching"
 open "$DEST"
 
-if security find-identity -v -p codesigning 2>/dev/null | grep -F -- "KagiPeek Local" >/dev/null; then
-    cat <<'NOTICE'
+cat <<NOTICE
 
-KagiPeek installed and signed with the stable "KagiPeek Local" identity.
+KagiPeek installed and signed with a stable identity.
 
 If this is the first install signed with that identity, grant Accessibility once:
   System Settings → Privacy & Security → Accessibility → enable KagiPeek.
@@ -107,18 +122,15 @@ After that, rebuilds keep the grant: the designated requirement is
 not change when the code changes. Input Monitoring is only needed if key events
 do not arrive.
 
-The previous build is kept at the path printed above as "*.previous.app":
-  mv KagiPeek.previous.app KagiPeek.app     # roll back a bad install
+${BACKUP:+The replaced build is kept at:
+  $BACKUP
+
+}
+Backups: ~/Library/Application Support/KagiPeek/backups (five most recent).
+Roll back with:
+  osascript -e 'tell application id "com.voltline.kagipeek" to quit'; sleep 2
+  rm -rf "${DEST}.new" && ditto "<backup.app>" "${DEST}.new"
+  rm -rf "$DEST" && mv "${DEST}.new" "$DEST" && open "$DEST"
+  /usr/libexec/PlistBuddy -c "Print :KagiPeekCommit" "$DEST/Contents/Info.plist"
 NOTICE
-else
-    cat <<'NOTICE'
 
-KagiPeek installed (ad-hoc signed).
-
-Ad-hoc signatures change on every build, so macOS treats each rebuild as a new
-app and the previous Accessibility grant no longer applies:
-  1. Run ./scripts/setup_signing.sh once to create a stable local identity.
-  2. Reinstall; grant Accessibility once and keep it across rebuilds.
-
-NOTICE
-fi

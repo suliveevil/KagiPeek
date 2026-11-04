@@ -31,6 +31,7 @@ nonisolated extension ModifierSet {
     /// (`ShortcutInjector`). The mirror image of `from(cgEventFlags:)`.
     nonisolated static func cgEventFlags(for modifiers: ModifierSet) -> CGEventFlags {
         var flags: CGEventFlags = []
+        if modifiers.contains(.function) { flags.insert(.maskSecondaryFn) }
         if modifiers.contains(.control) { flags.insert(.maskControl) }
         if modifiers.contains(.option) { flags.insert(.maskAlternate) }
         if modifiers.contains(.shift) { flags.insert(.maskShift) }

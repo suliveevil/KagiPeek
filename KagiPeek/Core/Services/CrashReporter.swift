@@ -9,10 +9,11 @@ import Foundation
 ///
 /// * NSException — the handler runs before teardown, with a live runtime. It writes the full
 ///   report itself: name, reason, call stack, recent actions.
-/// * Fatal signal — the handler pre-opens a file descriptor and pre-serialises the context at
-///   launch, then `write()`s a one-line fragment containing the signal and the time, and
-///   re-raises. The system's own crash log supplies the stack; the next launch turns the
-///   fragment into a complete report with the recent actions and the log tail.
+/// * Fatal signal — the handler pre-computes the file path and pre-serialises the context at
+///   launch, then `open`s the fragment only when the signal actually fires, `write()`s a
+///   one-line fragment containing the signal and the time, and re-raises. The system's own
+///   crash log supplies the stack; the next launch turns the fragment into a complete report
+///   with the recent actions and the log tail.
 ///
 /// The sentinel (`logs/session.active`) is what distinguishes "the app crashed" from "the
 /// user force quit / the machine lost power": both leave no clean exit, but only the first
@@ -55,12 +56,14 @@ nonisolated enum CrashReporter {
 
     // MARK: - Signal state (written at arming, read by the handler)
 
-    private nonisolated(unsafe) static var partialDescriptor: Int32 = -1
-    private nonisolated(unsafe) static var partialHandle: FileHandle?
+    private nonisolated(unsafe) static var partialPathPointer: UnsafeMutablePointer<CChar>?
     private nonisolated(unsafe) static var partialURL: URL?
     private nonisolated(unsafe) static var contextPointer: UnsafeMutablePointer<CChar>?
     private nonisolated(unsafe) static var contextLength: Int = 0
     private nonisolated(unsafe) static var digitsPointer = UnsafeMutablePointer<CChar>.allocate(capacity: 24)
+    /// Set once the signal handler has opened the fragment for this crash. A second entry
+    /// for the same signal must not truncate the first fragment.
+    private nonisolated(unsafe) static var fragmentWritten: Int32 = 0
     /// Pre-encoded `sig=N\ntime=` per handled signal, so the handler never has to format.
     ///
     /// Six separate values rather than a dictionary: a `Dictionary` lookup is not on the
@@ -104,7 +107,7 @@ nonisolated enum CrashReporter {
     // MARK: - Session lifecycle
 
     /// Called right after `install()`. Reports what the previous session left behind, then
-    /// arms this session's sentinel and fragment.
+    /// arms this session's sentinel and fragment path.
     ///
     /// Order matters twice over:
     /// * the sweep for last session's fragments must run *before* today's fragment exists,
@@ -122,7 +125,7 @@ nonisolated enum CrashReporter {
         // diagnostics state that is otherwise invisible.
         Diag.info(.crash, """
             crash reporter armed signals=\(reportedSignals.count) \
-            fragment=\(partialDescriptor >= 0 ? "ready" : "unavailable")
+            fragment=\(partialPathPointer != nil ? "armed" : "unavailable")
             """)
     }
 
@@ -258,20 +261,22 @@ nonisolated enum CrashReporter {
         return buffer
     }
 
-    /// Pre-opens the fragment file and pre-serialises the context line.
+    /// Pre-computes the fragment path and pre-serialises the context line.
+    ///
+    /// The file itself is created by the signal handler, not here: a session that exits
+    /// cleanly must leave no `*.partial` behind, because a zero-byte file named like crash
+    /// evidence is indistinguishable from a crash that failed to write.
     private static func prepareSignalFragment() {
         let name = "kagipeek-crash-\(timestampString(Date()))-signal.partial"
         let url = crashDirectory.appendingPathComponent(name)
-        FileManager.default.createFile(atPath: url.path, contents: nil)
-        // A `FileHandle` is the reliable way to get a descriptor here: the C `open` imported
-        // into Swift is variadic, and a wrong overload silently means "no file, no handler".
-        guard let opened = try? FileHandle(forWritingTo: url) else {
-            Diag.error(.crash, "could not arm the signal reporter (no descriptor for \(name))")
-            return
+        let path = Array(url.path.utf8)
+        let pathPointer = UnsafeMutablePointer<CChar>.allocate(capacity: path.count + 1)
+        url.path.withCString { source in
+            pathPointer.initialize(from: source, count: path.count + 1)
         }
-        partialHandle = opened
-        partialDescriptor = opened.fileDescriptor
+        partialPathPointer = pathPointer
         partialURL = url
+        fragmentWritten = 0
 
         // One key per line: the OS version string contains spaces and parentheses, so a
         // space-separated format would parse back as the first word only.
@@ -293,17 +298,13 @@ nonisolated enum CrashReporter {
     }
 
     private static func cleanupPartial() {
-        if partialDescriptor >= 0 {
-            // Closing through the handle keeps Swift's ownership rules satisfied; the raw
-            // descriptor is only ever written from the signal handler.
-            partialHandle?.closeFile()
-            partialHandle = nil
-            partialDescriptor = -1
-        }
         if let partialURL {
             try? FileManager.default.removeItem(at: partialURL)
             CrashReporter.partialURL = nil
         }
+        // The path buffer is deliberately not deallocated: the signal handler can fire on
+        // another thread until the process actually exits, and a small one-time allocation
+        // is cheaper than reasoning about that race.
     }
 
     // MARK: - Report files
@@ -380,7 +381,7 @@ nonisolated enum CrashReporter {
     // MARK: - Helpers
 
     private static var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        Bundle.main.kagiPeekVersionDisplay
     }
 
     private static var appBuild: String {
@@ -403,28 +404,32 @@ nonisolated private func kagiUncaughtExceptionHandler(_ exception: NSException) 
 
 // MARK: - Signal handler
 
-/// Global, capture-free, and restricted to `write`/`time`/`close`/`signal`/`raise`.
+/// Global, capture-free, and restricted to `open`/`write`/`time`/`close`/`signal`/`raise`.
 ///
-/// Everything it needs was prepared before arming: the descriptor is open, the context string
+/// Everything it needs was prepared before arming: the path is pre-encoded, the context string
 /// is pre-formatted, each signal's prefix is pre-encoded, and the digit buffer is allocated.
-/// The only value computed here is the timestamp.
+/// The only values computed here are the descriptor and the timestamp. `open` is on the
+/// POSIX async-signal-safe list, which is why the file can be created here instead of at
+/// launch — a clean session leaves no empty `*.partial` behind.
 nonisolated private func crashSignalHandler(_ signalNumber: Int32) {
-    let descriptor = CrashReporter.partialDescriptorForHandler
-    if CrashReporter.exceptionHandledForHandler == 0, descriptor >= 0 {
-        writeAll(descriptor, CrashReporter.contextPointerForHandler, CrashReporter.contextLengthForHandler)
-        let text = CrashReporter.signalTextForHandler(signalNumber)
-        if let pointer = text.pointer {
-            writeAll(descriptor, pointer, text.length)
-        } else {
-            let fallback = CrashReporter.fallbackTextForHandler
-            writeAll(descriptor, fallback.pointer, fallback.length)
+    if CrashReporter.exceptionHandledForHandler == 0,
+       CrashReporter.fragmentWrittenForHandler == 0,
+       let path = CrashReporter.partialPathForHandler {
+        let descriptor = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
+        if descriptor >= 0 {
+            CrashReporter.markFragmentWritten()
+            writeAll(descriptor, CrashReporter.contextPointerForHandler, CrashReporter.contextLengthForHandler)
+            let text = CrashReporter.signalTextForHandler(signalNumber)
+            if let pointer = text.pointer {
+                writeAll(descriptor, pointer, text.length)
+            } else {
+                let fallback = CrashReporter.fallbackTextForHandler
+                writeAll(descriptor, fallback.pointer, fallback.length)
+            }
+            writeEpochSeconds(descriptor)
+            writeAll(descriptor, CrashReporter.newlineForHandler, 1)
+            close(descriptor)
         }
-        writeEpochSeconds(descriptor)
-        writeAll(descriptor, CrashReporter.newlineForHandler, 1)
-        close(descriptor)
-        // A handler can be entered twice for the same signal; without this, the second entry
-        // would close a descriptor number someone else may already own.
-        CrashReporter.markDescriptorClosed()
     }
     // Default disposition, then re-raise: the system's own crash report is the one that
     // carries a symbolicated stack, and it only exists if the signal is left to kill us.
@@ -469,16 +474,16 @@ nonisolated private func writeEpochSeconds(_ descriptor: Int32) {
 nonisolated extension CrashReporter {
     // Exposed to the C-style handler above without making the rest of the state public.
     fileprivate static var exceptionHandledForHandler: Int32 { exceptionHandled }
-    fileprivate static var partialDescriptorForHandler: Int32 { partialDescriptor }
+    fileprivate static var fragmentWrittenForHandler: Int32 { fragmentWritten }
+    fileprivate static var partialPathForHandler: UnsafeMutablePointer<CChar>? { partialPathPointer }
     fileprivate static var contextPointerForHandler: UnsafeMutablePointer<CChar>? { contextPointer }
     fileprivate static var contextLengthForHandler: Int { contextLength }
     fileprivate static var digitsForHandler: UnsafeMutablePointer<CChar> { digitsPointer }
     fileprivate static var fallbackTextForHandler: Preencoded { fallbackText }
     fileprivate static var newlineForHandler: UnsafeMutablePointer<CChar>? { newlinePointer }
 
-    fileprivate static func markDescriptorClosed() {
-        partialDescriptor = -1
-        partialHandle = nil
+    fileprivate static func markFragmentWritten() {
+        fragmentWritten = 1
     }
 
     /// A `switch` over the six handled signals: no dictionary, no array search, no closure —

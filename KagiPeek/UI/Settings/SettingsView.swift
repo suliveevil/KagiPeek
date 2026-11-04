@@ -317,36 +317,63 @@ struct SettingsView: View {
 
     private var triggerTab: some View {
         Form {
-            Picker(localization.text(.triggerMode), selection: $store.settings.triggerMode) {
-                ForEach(TriggerMode.allCases, id: \.self) { mode in
-                    Text(localization.text(mode.titleKey)).tag(mode)
-                }
-            }
-            .pickerStyle(.radioGroup)
+            Section(localization.text(.triggerTitle)) {
+                // Two independent paths: the gesture and the three hotkeys. Either one can
+                // be live, both can, and both off is the pause state.
+                HStack(spacing: 8) {
+                    Toggle(localization.text(.triggerModifierGesture),
+                           isOn: $store.settings.modifierTriggerEnabled)
+                    Picker("", selection: $store.settings.triggerGesture) {
+                        ForEach(TriggerGesture.allCases, id: \.self) { gesture in
+                            Text(localization.text(gesture.titleKey)).tag(gesture)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 140)
+                    .disabled(!settings.modifierTriggerEnabled)
 
-            LabeledContent(localization.text(.triggerHoldDelay)) {
-                HStack {
-                    Slider(value: $store.settings.holdDelay, in: 0.1...1.5, step: 0.05)
-                    Text(String(format: "%.2fs", settings.holdDelay))
-                        .font(.system(.body, design: .monospaced))
-                        .frame(width: 56, alignment: .trailing)
-                }
-            }
-            .disabled(settings.triggerMode != .holdModifiers)
+                    Picker("", selection: $store.settings.triggerKey) {
+                        ForEach(TriggerKey.allCases, id: \.self) { key in
+                            Text(localization.text(key.titleKey)).tag(key)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 160)
+                    .disabled(!settings.modifierTriggerEnabled)
 
-            LabeledContent(localization.text(.triggerDoubleTapWindow)) {
-                HStack {
-                    Slider(value: $store.settings.doubleTapWindow, in: 0.15...0.8, step: 0.05)
-                    Text(String(format: "%.2fs", settings.doubleTapWindow))
-                        .font(.system(.body, design: .monospaced))
-                        .frame(width: 56, alignment: .trailing)
+                    Spacer(minLength: 0)
                 }
-            }
-            .disabled(settings.triggerMode != .doubleTapCommand)
 
-            hotkeyRow(title: localization.text(.triggerPanelHotkey), target: .panel, spec: settings.panelHotkey)
-            hotkeyRow(title: localization.text(.triggerSearchHotkey), target: .search, spec: settings.searchHotkey)
-            hotkeyRow(title: localization.text(.triggerSwitchHotkey), target: .switcher, spec: settings.switchHotkey)
+                LabeledContent(localization.text(.triggerHoldDelay)) {
+                    HStack {
+                        Slider(value: $store.settings.holdDelay, in: 0.3...0.9, step: 0.1)
+                        Text(String(format: "%.2fs", settings.holdDelay))
+                            .font(.system(.body, design: .monospaced))
+                            .frame(width: 56, alignment: .trailing)
+                    }
+                }
+                .disabled(!settings.modifierTriggerEnabled || settings.triggerGesture != .hold)
+
+                LabeledContent(localization.text(.triggerDoubleTapWindow)) {
+                    HStack {
+                        Slider(value: $store.settings.doubleTapWindow, in: 0.15...0.8, step: 0.05)
+                        Text(String(format: "%.2fs", settings.doubleTapWindow))
+                            .font(.system(.body, design: .monospaced))
+                            .frame(width: 56, alignment: .trailing)
+                    }
+                }
+                .disabled(!settings.modifierTriggerEnabled || settings.triggerGesture != .doubleTap)
+
+                Toggle(localization.text(.triggerGlobalHotkey),
+                       isOn: $store.settings.hotkeyTriggerEnabled)
+
+                Group {
+                    hotkeyRow(title: localization.text(.triggerPanelHotkey), target: .panel, spec: settings.panelHotkey)
+                    hotkeyRow(title: localization.text(.triggerSearchHotkey), target: .search, spec: settings.searchHotkey)
+                    hotkeyRow(title: localization.text(.triggerSwitchHotkey), target: .switcher, spec: settings.switchHotkey)
+                }
+                .disabled(!settings.hotkeyTriggerEnabled)
+            }
 
             Text(localization.text(.overlayHint))
                 .font(.footnote)
@@ -365,7 +392,7 @@ struct SettingsView: View {
                     KeycapView(text: KeyFormatter.render(spec.chord, style: settings.keyStyle), compact: true)
                 }
                 Button(state.recordingTarget == target
-                       ? localization.text(.triggerOff)
+                       ? localization.text(.triggerStopRecording)
                        : localization.text(.triggerRecording)) {
                     if state.recordingTarget == target {
                         engine.cancelRecording()
@@ -563,8 +590,8 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
                 Text(summary.shortcutCount == 1
-                     ? "\(summary.shortcutCount) \(localization.text(.statsShortcutsOne))"
-                     : "\(summary.shortcutCount) \(localization.text(.statsShortcuts))")
+                     ? localization.text(.statsShortcutsOne)
+                     : localization.format(.statsShortcuts, summary.shortcutCount))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -817,7 +844,7 @@ struct SettingsView: View {
             )
 
             Section {
-                LabeledContent(localization.text(.statusReady)) {
+                LabeledContent(localization.text(.statusLabel)) {
                     Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
                         .foregroundStyle(state.isListening ? .green : .orange)
                 }
@@ -904,6 +931,27 @@ struct SettingsView: View {
                 }
             }
 
+            Section(localization.text(.aboutDiagnostics)) {
+                LabeledContent(localization.text(.permissionAccessibility)) {
+                    Text(state.hasAccessibility ? "✓" : "—")
+                }
+                LabeledContent(localization.text(.permissionInputMonitoring)) {
+                    Text(state.hasInputMonitoring ? "✓" : "—")
+                }
+                LabeledContent(localization.text(.statusLabel)) {
+                    Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
+                }
+                LabeledContent(localization.text(.aboutMenuItems)) {
+                    Text("\(state.catalogSize)").monospacedDigit()
+                }
+                Button(localization.text(.aboutExportDiagnostics)) {
+                    exportDiagnostics()
+                }
+                Text(localization.text(.aboutDiagnosticsHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Text(localization.text(.diagnosticsPrivacyNote))
                     .font(.caption)
@@ -929,17 +977,42 @@ struct SettingsView: View {
             do {
                 try DiagnosticsExporter.export(to: url, settings: snapshot)
                 DispatchQueue.main.async {
-                    engine.showHUD(chord: "✓", title: localization.text(.diagnosticsExportDone))
+                    engine.showHUD(chord: "", title: localization.text(.diagnosticsExportDone))
                 }
             } catch {
                 let message = error.localizedDescription
                 DispatchQueue.main.async {
                     engine.showHUD(
                         chord: "!",
-                        title: localization.format(.diagnosticsExportFailed, message)
+                        title: localization.format(.diagnosticsExportFailed, message),
+                        kind: .failure
                     )
                 }
             }
+        }
+    }
+
+    /// Writes the report the Diagnostics tab shows, plus the settings snapshot, to a file the
+    /// user can attach to a bug report.
+    ///
+    /// Both failures now end the same way. They used not to: a failed serialization returned
+    /// `nil` and the button just looked dead, while the failed write right below it showed a
+    /// HUD. The wording and the HUD chord match the other export path in this file.
+    ///
+    /// The log line is not redundant with the HUD: when this fails there is **no file**, so
+    /// the log is the only durable trace. A HUD disappears and leaves nothing to attach.
+    private func exportDiagnostics() {
+        do {
+            let data = try engine.diagnosticsReport()
+            guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            Diag.error(.ui, "diagnostics export failed: \(error.localizedDescription)")
+            engine.showHUD(
+                chord: "!",
+                title: localization.format(.diagnosticsExportFailed, error.localizedDescription),
+                kind: .failure
+            )
         }
     }
 
@@ -989,49 +1062,8 @@ struct SettingsView: View {
                     Text("GNU GPL v2.0").foregroundStyle(.secondary)
                 }
             }
-
-            Section(localization.text(.aboutDiagnostics)) {
-                LabeledContent(localization.text(.permissionAccessibility)) {
-                    Text(state.hasAccessibility ? "✓" : "—")
-                }
-                LabeledContent(localization.text(.permissionInputMonitoring)) {
-                    Text(state.hasInputMonitoring ? "✓" : "—")
-                }
-                LabeledContent(localization.text(.statusReady)) {
-                    Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
-                }
-                LabeledContent(localization.text(.aboutMenuItems)) {
-                    Text("\(state.catalogSize)").monospacedDigit()
-                }
-                Button(localization.text(.aboutExportDiagnostics)) {
-                    exportDiagnostics()
-                }
-                Text(localization.text(.aboutDiagnosticsHint))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
         .formStyle(.grouped)
-    }
-
-    /// Writes the same report the About tab shows, plus the settings snapshot, to a file the
-    /// user can attach to a bug report.
-    ///
-    /// Both failures now end the same way. They used not to: a failed serialization returned
-    /// `nil` and the button just looked dead, while the failed write right below it showed a
-    /// HUD. The wording and the HUD chord match the other export path in this file.
-    ///
-    /// The log line is not redundant with the HUD: when this fails there is **no file**, so
-    /// the log is the only durable trace. A HUD disappears and leaves nothing to attach.
-    private func exportDiagnostics() {
-        do {
-            let data = try engine.diagnosticsReport()
-            guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
-            try data.write(to: url, options: [.atomic])
-        } catch {
-            Diag.error(.ui, "diagnostics export failed: \(error.localizedDescription)")
-            engine.showHUD(chord: "!", title: localization.format(.diagnosticsExportFailed, error.localizedDescription))
-        }
     }
 
     private func appDisplayName(for bundleID: String) -> String {
@@ -1042,15 +1074,7 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private var appVersion: String {
-        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        // The parentheses carry the commit, stamped into Info.plist at build time
-        // (`scripts/stamp_commit.sh`): a build is only identifiable by what it was built
-        // from, and a monotonic build number says nothing about which source that was.
-        // Bundles built outside the script (an Xcode Run, a downloaded release without the
-        // key) fall back to the build number they do have.
-        let commit = Bundle.main.infoDictionary?["KagiPeekCommit"] as? String
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        return "v\(short) (\(commit ?? build))"
+        Bundle.main.kagiPeekVersionDisplay
     }
 }
 
@@ -1063,7 +1087,7 @@ private struct UpdateCheckRow: View {
         LabeledContent(localization.text(.updateCheck)) {
             HStack(spacing: 10) {
                 status
-                Button(localization.text(.updateCheck)) {
+                Button(localization.text(.updateCheckNow)) {
                     checker.check(currentVersion: currentVersion)
                 }
                 .disabled(checker.state == .checking)
@@ -1077,7 +1101,12 @@ private struct UpdateCheckRow: View {
         case .idle:
             EmptyView()
         case .checking:
-            ProgressView().controlSize(.small)
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text(localization.text(.updateChecking))
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
         case .upToDate:
             Text(localization.text(.updateNone))
                 .foregroundStyle(.secondary)

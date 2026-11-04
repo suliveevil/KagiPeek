@@ -21,7 +21,9 @@ final class UsageStore: ObservableObject {
     /// settings migration would silently claim the statistics file had changed too.
     static let currentSchemaVersion = 1
 
-    private struct Payload: Codable {
+    // nonisolated + Sendable: the payload is built on the main actor, then handed to a
+    // nonisolated work item that runs on the background write queue.
+    private nonisolated struct Payload: Codable, Sendable {
         var schemaVersion: Int
         var statistics: UsageStatistics
         var favorites: Set<String>?
@@ -91,18 +93,26 @@ final class UsageStore: ObservableObject {
     func flush() {
         pendingWrite?.cancel()
         pendingWrite = nil
-        let payload = makePayload()
-        let store = fileStore
-        writeQueue.sync { store.save(payload) }
+        let item = Self.makeWriteItem(store: fileStore, payload: makePayload())
+        writeQueue.sync(execute: item)
     }
 
     private func schedulePersist() {
         pendingWrite?.cancel()
-        let payload = makePayload()
-        let store = fileStore
-        let item = DispatchWorkItem { store.save(payload) }
+        let item = Self.makeWriteItem(store: fileStore, payload: makePayload())
         pendingWrite = item
         writeQueue.asyncAfter(deadline: .now() + Self.writeDelay, execute: item)
+    }
+
+    /// Builds the disk-write item off the main actor. A DispatchWorkItem formed inside this
+    /// MainActor-isolated type would itself be MainActor-isolated and trap when the background
+    /// write queue runs it (the runtime executor check). Forming it in a nonisolated context
+    /// keeps the block safe to run on `writeQueue`; every capture is Sendable.
+    private nonisolated static func makeWriteItem(
+        store: JsonFileStore,
+        payload: Payload
+    ) -> DispatchWorkItem {
+        DispatchWorkItem { store.save(payload) }
     }
 
     private func makePayload() -> Payload {

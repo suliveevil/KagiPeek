@@ -83,6 +83,7 @@ nonisolated enum KeyFormatter {
     }
 
     static func symbol(for modifier: ModifierSet) -> String {
+        if modifier == .function { return "🌐" }
         if modifier == .control { return "⌃" }
         if modifier == .option { return "⌥" }
         if modifier == .shift { return "⇧" }
@@ -90,6 +91,7 @@ nonisolated enum KeyFormatter {
     }
 
     static func word(for modifier: ModifierSet) -> String {
+        if modifier == .function { return "fn" }
         if modifier == .control { return "control" }
         if modifier == .option { return "option" }
         if modifier == .shift { return "shift" }

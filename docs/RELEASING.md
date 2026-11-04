@@ -61,18 +61,39 @@ downloadable release, use a Developer ID Application certificate instead
    ```
 
 7. **Install locally and smoke test.** `./scripts/install.sh` (it stages the bundle, verifies the
-   signature, swaps atomically and keeps `KagiPeek.previous.app`). Then the short list:
+   signature, copies the replaced build to `~/Library/Application Support/KagiPeek/backups/`,
+   then swaps the new one in). The installer refuses an ad-hoc build: only `KagiPeek Local` or a
+   Developer ID signature may sit in `/Applications`. Then the short list:
    trigger the panel, narrow it with ⌘, run a row, copy a row, open the palette with `/`, switch
    its app scope, export Markdown, search and press Return, open Settings and check the
    Statistics and Conflicts tabs.
 
-## Rollback
+## Backups and rollback
 
-An install keeps the previous bundle:
+Every install keeps one backup, named for the day, the build and the identity it carried:
+
+```
+KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app
+```
+
+They live in `~/Library/Application Support/KagiPeek/backups/`, never in `/Applications`
+(a second copy of the same bundle id is registered by LaunchServices, and an ad-hoc copy gets
+its own TCC identity). The newest five are kept; older ones are pruned by
+`scripts/backup_app.sh`. Raise or lower the count with `KAGIPEEK_BACKUP_KEEP`.
+
+Roll back to one of them (copy-paste; replace `<backup.app>` with the full path):
 
 ```sh
-mv /Applications/KagiPeek.previous.app /Applications/KagiPeek.app
+osascript -e 'tell application id "com.voltline.kagipeek" to quit'; sleep 2
+rm -rf /Applications/KagiPeek.app.new && ditto "<backup.app>" /Applications/KagiPeek.app.new
+rm -rf /Applications/KagiPeek.app && mv /Applications/KagiPeek.app.new /Applications/KagiPeek.app
+open /Applications/KagiPeek.app
+/usr/libexec/PlistBuddy -c "Print :KagiPeekCommit" /Applications/KagiPeek.app/Contents/Info.plist
 ```
+
+The last command must print the commit embedded in the backup's name; compare the two before
+declaring the rollback good. A backup carries the signature it was installed with, so a
+`local` backup keeps the Accessibility grant, while restoring an `adhoc` one asks again.
 
 A bad release: delete the GitHub release and mark the tag as withdrawn; the DMG is immutable, so
 publish a new patch version rather than replacing the asset.

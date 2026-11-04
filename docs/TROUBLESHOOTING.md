@@ -56,7 +56,7 @@ without asking the user to reproduce it.
 
 ## The panel never appears
 
-1. **Is a trigger mode enabled?** **Settings → Trigger → Trigger mode** must not be *Off*.
+1. **Is a trigger switch on?** **Settings → Trigger** has two independent switches, **Modifier gesture** and **Global hotkeys**. With both off, nothing triggers — that is the pause state.
 2. **Is Accessibility granted?** **Settings → Permissions** shows both grants. A missing
    Accessibility grant disables the key tap entirely.
 3. **Is secure input active?** Password fields, login windows and some terminals hide key
@@ -94,11 +94,11 @@ Log category: `input` (event tap installed / failed), `ui` (permission state).
 3. **The chord is incomplete.** A row that still has further steps descends a level instead of
    running; the breadcrumb tells you where you are.
 
-## Only ⌘↩ copies, and Return runs — is that right?
+## Space runs, Return copies — is that right?
 
-Yes. They are two recorded bindings: the run key (↩ by default) replays the row into the front
-app, the copy key (⌘↩ by default) only writes it to the clipboard. Change either one under
-**Settings → General → Row actions**; the footer shows what the two keys currently do.
+Yes. They are two recorded bindings: the run key (Space by default) replays the row into the
+front app, the copy key (Return by default) only writes it to the clipboard. Change either one
+under **Settings → General → Row actions**; the footer shows what the two keys currently do.
 
 The search palette is different on purpose: Return always runs there and there is no copy
 action.

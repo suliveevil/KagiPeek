@@ -32,16 +32,37 @@ protocol PanelPresenting: AnyObject {
     var keyFocusDescription: String { get }
 }
 
+/// What the toast is saying. Success earns the `✓`; a failure must not carry a success
+/// marker, and it stays on screen long enough to be read.
+nonisolated enum NoticeKind: Sendable {
+    case success
+    case failure
+    /// Explanatory, not an outcome: secure-input notices and similar.
+    case info
+}
+
 /// The small confirmation window: a chord and a title, or one line of text.
 @MainActor
 protocol NoticePresenting: AnyObject {
-    func show(chord: String, title: String)
-    func showNotice(text: String)
+    func show(chord: String, title: String, kind: NoticeKind)
+    func showNotice(text: String, kind: NoticeKind)
+}
+
+extension NoticePresenting {
+    func show(chord: String, title: String) {
+        show(chord: chord, title: title, kind: .success)
+    }
+
+    func showNotice(text: String) {
+        showNotice(text: text, kind: .info)
+    }
 }
 
 @MainActor
 protocol SettingsPresenting: AnyObject {
     func showSettings()
+    /// Open the same window already showing the Conflicts page.
+    func showConflicts()
 }
 
 @MainActor

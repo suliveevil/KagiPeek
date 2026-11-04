@@ -155,7 +155,18 @@ nonisolated enum KeyEventRouter {
     ) -> OwnedKey {
         // `/` is the panel's one text entry: it swaps the list for the search palette,
         // which is where typing belongs.
-        if event.keyCode == KeyCode.slash, event.modifiers.isEmpty {
+        if NavigationKey.isSlash(
+            keyCode: event.keyCode,
+            modifiers: event.modifiers,
+            characters: event.characters
+        ) {
+            return .action(.showSearch)
+        }
+
+        // Tab is the other door between the same two surfaces, so switching costs one key
+        // whether the user remembers `/` or only the tab they press everywhere else. Each
+        // opening is a fresh search — nothing typed last time is carried over.
+        if event.keyCode == KeyCode.tab, event.modifiers.isEmpty {
             return .action(.showSearch)
         }
 
@@ -174,7 +185,11 @@ nonisolated enum KeyEventRouter {
             }
         }
 
-        if let step = NavigationKey.pageStep(keyCode: event.keyCode, modifiers: pressed) {
+        if let step = NavigationKey.pageStep(
+            keyCode: event.keyCode,
+            modifiers: pressed,
+            characters: event.characters
+        ) {
             return .action(.page(step))
         }
 
@@ -233,7 +248,10 @@ nonisolated enum KeyEventRouter {
     }
 
     /// The first configured hotkey the event matches, in the order the engine applies them.
+    /// The whole hotkey path is off when its switch is off: the keys then reach the front app
+    /// untouched, which is what makes "both triggers off" behave like the old pause.
     static func hotkey(_ event: KeyEvent, settings: AppSettingsSnapshot) -> HotkeyChoice? {
+        guard settings.hotkeyTriggerEnabled else { return nil }
         if HotkeyMatcher.matches(
             keyCode: event.keyCode,
             modifiers: event.modifiers,

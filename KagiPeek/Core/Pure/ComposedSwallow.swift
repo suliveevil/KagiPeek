@@ -24,6 +24,9 @@ nonisolated struct ComposedSwallowState {
     var runRowKey: HotkeySpec = HotkeySpec(keyCode: 0, modifiers: [])
     var copyRowKey: HotkeySpec = HotkeySpec(keyCode: 0, modifiers: [])
     var catalogItems: [BindingItem] = []
+    /// `panel.shiftHintActive`: the first 36 rows are addressed by 0–9 / a–z, so a
+    /// Shift + glyph press belongs to the panel and must not reach the front app as text.
+    var shiftHintsActive = false
 }
 
 /// Whether a key event has to be consumed because the panel is composing a stroke.
@@ -39,16 +42,24 @@ nonisolated struct ComposedSwallowState {
 nonisolated enum ComposedSwallow {
     static func decide(_ state: ComposedSwallowState, event: KeyEvent) -> Bool {
         guard !state.isTestingShortcut else { return false }
-        guard state.hasLatchedModifiers else { return false }
         guard state.panelIsActive else { return false }
         guard let key = event.key else { return false }
+        // The Shift-hint layer owns a Shift + glyph press. It reaches here before the
+        // composition rules because nothing is latched while hints are up: the panel is
+        // open, Shift is down, and the glyph is a row address — if it were let through the
+        // app would get a stray capital letter.
+        if state.shiftHintsActive,
+           event.modifiers == [.shift],
+           ShiftHintLayer.index(forCharacter: key.raw) != nil { return true }
+        guard state.hasLatchedModifiers else { return false }
         if event.modifiers.isEmpty, key == .backspace { return true }
         if PanelKeyIntake.isConsumedBeforeComposition(
             keyCode: event.keyCode,
             modifiers: event.modifiers,
             held: state.heldModifiers,
             run: state.runRowKey,
-            copy: state.copyRowKey
+            copy: state.copyRowKey,
+            characters: event.characters
         ) { return false }
         let resolution = ChordComposition.resolve(
             prefix: state.prefix,

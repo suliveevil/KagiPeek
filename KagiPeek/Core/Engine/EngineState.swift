@@ -24,7 +24,6 @@ final class EngineState: ObservableObject {
     @Published var isListening = false
     @Published var hasAccessibility = false
     @Published var hasInputMonitoring = false
-    @Published var isPaused = false
     @Published var conflicts: [BindingConflict] = []
     /// Conflicts across every running app, with ids scoped to their owner. Only the
     /// Conflicts page reads this; the panel keeps using `conflicts`.
@@ -73,6 +72,24 @@ final class EngineState: ObservableObject {
     }
     @Published var showsFavoritesOnly = false
 
+    /// The favorite filters, derived once here so the panel and the palette cannot disagree.
+    var favoritesPolicy: FavoritesPolicy {
+        FavoritesPolicy(
+            showsFavoritesOnly: showsFavoritesOnly,
+            pinToTop: settings.pinFavoritesToTop,
+            canBeFiltered: settings.favoritesCanBeFiltered
+        )
+    }
+
+    /// Whether a binding is on the user's ignored list. Shared by both surfaces.
+    func isIgnored(_ item: BindingItem) -> Bool {
+        IgnoredCommands.isIgnored(
+            item.title,
+            bundleID: item.appBundleID,
+            in: settings.ignoredCommands
+        )
+    }
+
     // MARK: - Session state (coordination reads and writes these)
 
     /// The panel session phase, shared with `KeyEventRouter` through the pure `EnginePhase`.
@@ -86,8 +103,9 @@ final class EngineState: ObservableObject {
     }
     /// The modifier set that was down on the previous `flagsChanged`, for edge detection.
     var previousModifiers: ModifierSet = []
-    /// The "press ⌘ twice to pin" gesture, as a pure state machine (see `CommandDoubleTap`).
-    var doubleTapCommand = CommandDoubleTap()
+    /// The "press the trigger modifier twice to pin" gesture, as a pure state machine
+    /// (see `ModifierDoubleTap`).
+    var modifierDoubleTap = ModifierDoubleTap()
     /// Karabiner-style hyper (⌃⌥⇧⌘) used as a single "Escape" key, as a pure state machine
     /// (see `HyperEscape`).
     var hyperEscape = HyperEscape()

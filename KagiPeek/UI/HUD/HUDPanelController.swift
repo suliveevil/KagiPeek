@@ -35,7 +35,13 @@ final class HUDPanelController: NoticePresenting {
         effect.layer?.masksToBounds = true
 
         label.font = .systemFont(ofSize: 12.5, weight: .medium)
-        label.lineBreakMode = .byTruncatingTail
+        // Long errors are sentences, not chord titles: wrap up to three lines instead of
+        // truncating at 460 pt. The width cap only bounds the toast, it no longer decides
+        // how much of the message survives.
+        label.lineBreakMode = .byWordWrapping
+        label.maximumNumberOfLines = 3
+        label.cell?.wraps = true
+        label.cell?.isScrollable = false
         label.textColor = .white
         label.alignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -48,23 +54,41 @@ final class HUDPanelController: NoticePresenting {
         panel.contentView = effect
     }
 
-    func show(chord: String, title: String) {
-        present("\(chord)   \(title) ✓", after: 0.75)
+    func show(chord: String, title: String, kind: NoticeKind) {
+        let body = chord.isEmpty ? title : "\(chord)   \(title)"
+        // Only a success gets the marker. A failure that ended with "✓" contradicted its
+        // own message; the "!" prefix the callers pass is enough.
+        present(kind == .success ? "\(body) ✓" : body, after: duration(for: kind))
     }
 
-    /// Same toast, without the chord/✓ framing: standalone explanations such as why the
-    /// panel just vanished under secure input, which read better a beat longer.
-    func showNotice(text: String) {
-        present(text, after: 1.2)
+    /// Same toast, without the chord/marker framing: standalone explanations such as why
+    /// the panel just vanished under secure input.
+    func showNotice(text: String, kind: NoticeKind) {
+        present(text, after: duration(for: kind))
+    }
+
+    /// Failures need reading time: 5 s against 0.75 s for a success and 2.5 s for an
+    /// explanation. The old 0.75 s failure vanished mid-sentence.
+    private func duration(for kind: NoticeKind) -> TimeInterval {
+        switch kind {
+        case .success: 0.75
+        case .failure: 5.0
+        case .info: 2.5
+        }
     }
 
     private func present(_ text: String, after delay: TimeInterval) {
         hideWorkItem?.cancel()
         label.stringValue = text
         // An uncapped toast grew to the width of the longest command title and hung across
-        // the screen; past this the label truncates instead.
-        let width = min(460, max(180, label.intrinsicContentSize.width + 34))
-        panel.setContentSize(NSSize(width: width, height: 44))
+        // the screen, so the width stays capped. The cap is 520 pt and the label wraps at
+        // it; the height grows to fit up to three lines.
+        let width = min(520, max(180, label.intrinsicContentSize.width + 34))
+        label.preferredMaxLayoutWidth = width - 28
+        let fitting = label.sizeThatFits(
+            NSSize(width: width - 28, height: .greatestFiniteMagnitude)
+        )
+        panel.setContentSize(NSSize(width: width, height: max(44, fitting.height + 20)))
         position()
         panel.alphaValue = 0
         panel.orderFrontRegardless()

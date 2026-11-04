@@ -164,3 +164,34 @@ KagiPeek 已历经三轮审查并持续重构，当前是一个**质量显著高
 ## 8. 交付说明
 
 本报告与改动均位于项目目录，可直接 `git diff` 审阅或提交。建议将本轮三项重构作为一个或多个聚焦提交（如 `refactor: share conflict ordering comparator`、`refactor: extract text config scan template`、`refactor: extract search key router with tests`），保持提交意图单一。
+
+---
+
+## 9. 安装后运行时崩溃修复（EXC_BREAKPOINT / 隔离不匹配）
+
+本轮重构构建并覆盖安装后，应用在后台持久化时闪退。该问题不在静态精读与编译期可见，属运行时隔离断言，故独立记录。
+
+### 9.1 现象与证据（confirmed）
+
+- 系统报告 `~/Library/Logs/DiagnosticReports/KagiPeek-2026-11-03-020959.ips`：`EXC_BREAKPOINT (SIGTRAP)`，崩溃线程位于后台队列 `com.voltline.kagipeek.usage-write`，栈为 `_dispatch_assert_queue_fail → dispatch_assert_queue → _swift_task_checkIsolatedSwift → swift_task_isCurrentExecutorWithFlagsImpl → closure #1 in UsageStore.flush()/schedulePersist()`。
+- 即运行时检测到“当前 executor 与声明的 actor 隔离不符”，主动触发 trap。
+
+### 9.2 根因（两层，均与默认 MainActor 隔离有关）
+
+1. **存储类型被隐式隔离**：`JsonFileStore`（`DataDirectory.swift` 内）未标注 `nonisolated`，在应用目标 `-default-isolation MainActor` 下被推断为 `@MainActor`，其 `save` 成为 MainActor 隔离方法，被派到后台队列执行时执行器检查失败。
+2. **闭包本身被隔离（更易漏）**：即使把 `JsonFileStore` 改为 `nonisolated`，在 `@MainActor` 上下文里直接形成的 `DispatchWorkItem` 闭包，**闭包自身**仍被推断为 `@MainActor`，后台执行时运行时输出 `warning: data race detected: @MainActor function ... was not called on the main thread`。
+
+### 9.3 修复（confirmed）
+
+- `JsonFileStore` 改为 `nonisolated struct ... Sendable`，并支持注入 `directory`（默认 `DataDirectory.url`），`save` 内部自行 `createDirectory`，使存储可用临时目录测试且不污染真实 Application Support。
+- `UsageStore` 新增 `nonisolated static func makeWriteItem(...)` 工厂，在非隔离上下文中创建 `DispatchWorkItem`，使闭包非隔离；私有 `Payload` 显式标注 `nonisolated ... Sendable`，让 MainActor 上构建的载荷可安全传入。`flush`/`schedulePersist` 统一改用该工厂。
+
+### 9.4 验证（confirmed）
+
+- 新增 `scripts/verify_usage_store_isolation.sh`：以与应用相同的默认 MainActor 隔离编译，在后台队列真实执行 `DispatchWorkItem` 写入；以 `-warnings-as-errors` 与运行时 grep `data race detected` 双重防护。**负向**：修复前代码运行时稳定输出 `data race detected`；**正向**：修复后无警告、输出 `ok`。
+- 真实应用：重装启动后 `init` 的后台 `flush` 写入成功（`usage.json` 重新生成、内容有效），进程持续存活，无新系统崩溃报告、无 data race；真实按键经 event tap 后进程仍健康。`swift test` 557 全绿，Debug/Release 应用目标构建零警告。
+- 说明：SPM 的 Core target 仅指向 `Core/Pure`，无法访问 `Core/Storage`，且 Xcode 工程无单元测试 target，故 Storage 层以独立脚本而非 SPM 测试验证；独立最小程序无法稳定复现生产的硬 trap（只到 data race warning 级别），生产硬 trap 以真实 `.ips` 为准。
+
+### 9.5 教训（inferred）
+
+在 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` 下，“编译通过”不代表后台执行安全：不仅类型方法会被隐式隔离，**在 MainActor 上下文形成的逃逸闭包也会被隔离**。跨 actor/队列的工作项应在显式 `nonisolated` 工厂中构造，并以 `Sendable` 传递不可变载荷；这类问题需在真实后台队列运行时验证，纯静态精读与编译无法覆盖。

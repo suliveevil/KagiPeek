@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
+## Trigger settings v5 (2026-11-04)
+
+- Trigger settings are now two independently switchable paths: the modifier gesture and the three global hotkeys. Either can be live, both can, or both can be off — both off is the pause state.
+- The gesture chooses **hold still** (default) or **press twice**, plus one trigger key: any non-Shift modifier, Left Control, Left Option, Left Command, Right Command (default), or Right Option. Caps Lock is not offered and combinations are not supported.
+- Hold delay is 0.3–0.9 s in 0.1 s steps; the double-tap window stays 0.15–0.8 s.
+- While the gesture is live the trigger key's press and release are swallowed, so the front app never sees the modifier edge; a cancelled hold is not replayed. Shift and Caps Lock are never swallowed.
+- Settings v5 migration maps the four old trigger modes onto the two switches; the legacy `triggerMode` key is decoded once and never written back.
+
 ## Added
 
 - Initial MVP: global key listening via `CGEventTap`, a modifier state machine, a prefix trie, and a floating overlay panel.

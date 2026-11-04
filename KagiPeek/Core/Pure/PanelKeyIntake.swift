@@ -26,16 +26,21 @@ nonisolated enum PanelKeyIntake {
         modifiers: ModifierSet,
         held: ModifierSet,
         run: HotkeySpec,
-        copy: HotkeySpec
+        copy: HotkeySpec,
+        characters: String? = nil
     ) -> Bool {
-        if keyCode == KeyCode.slash, modifiers.isEmpty { return true }
+        if NavigationKey.isSlash(keyCode: keyCode, modifiers: modifiers, characters: characters) {
+            return true
+        }
         // By key code, not by token: the tap claims Esc whether or not it decoded a
         // character for it, and a virtual keyboard (Caps Lock remapped to Esc) can send
         // the key with no character attached.
         if keyCode == KeyCode.escape { return true }
         let pressed = modifiers.subtracting(held)
         if NavigationKey.direction(keyCode: keyCode, modifiers: pressed) != nil { return true }
-        if NavigationKey.pageStep(keyCode: keyCode, modifiers: pressed) != nil { return true }
+        if NavigationKey.pageStep(keyCode: keyCode, modifiers: pressed, characters: characters) != nil {
+            return true
+        }
         if RowKeyRouter.action(
             for: keyCode,
             modifiers: modifiers,

@@ -73,6 +73,22 @@ final class KeyEventRouterTests: XCTestCase {
         XCTAssertEqual(action, .hotkey(.panel))
     }
 
+    /// With the hotkey switch off the whole hotkey path is silent, so the chord falls
+    /// through to the front app — the pause behaviour.
+    func testHotkeysAreSilentWhenTheHotkeySwitchIsOff() {
+        var settings = Self.neutralSettings
+        settings.panelHotkey = HotkeySpec(keyCode: KeyCode.returnKey, modifiers: [.command])
+        settings.hotkeyTriggerEnabled = false
+        let action = route(
+            keyCode: KeyCode.returnKey,
+            key: KeyToken("return"),
+            modifiers: [.command],
+            phase: .idle,
+            settings: settings
+        )
+        XCTAssertEqual(action, .none)
+    }
+
     /// Two hotkeys sharing a chord answer to the first: `panelHotkey`, then `searchHotkey`,
     /// then `switchHotkey` — the order the engine used to ask them.
     func testHotkeyPrecedence() {
@@ -129,6 +145,20 @@ final class KeyEventRouterTests: XCTestCase {
     /// `/` alone is the panel's one text entry; the palette is where typing belongs.
     func testSlashAloneOpensSearch() {
         XCTAssertEqual(route(keyCode: KeyCode.slash, key: "/"), .showSearch)
+    }
+
+    /// Tab is the other door to the same palette: the draft makes switching cost one key,
+    /// whichever of the two the user remembers.
+    func testTabAloneOpensSearch() {
+        XCTAssertEqual(route(keyCode: KeyCode.tab, key: "tab"), .showSearch)
+    }
+
+    /// ⇧Tab belongs to the system's focus walk, so the panel leaves it alone.
+    func testShiftTabIsNotShowSearch() {
+        XCTAssertEqual(
+            route(keyCode: KeyCode.tab, key: "tab", modifiers: [.shift]),
+            .noMatch(heldModifiers: [.shift])
+        )
     }
 
     /// `/` with a modifier is not the text-entry key: it falls through to composition.

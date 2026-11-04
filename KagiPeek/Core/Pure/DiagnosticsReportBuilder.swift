@@ -54,7 +54,10 @@ nonisolated enum DiagnosticsReportBuilder {
         let bundleID = bundle.bundleIdentifier ?? "?"
         var payload: [String: Any] = [
             "generatedAt": ISO8601DateFormatter().string(from: input.generatedAt),
-            "version": info?["CFBundleShortVersionString"] as? String ?? "?",
+            "version": AppVersion.display(
+                shortVersion: info?["CFBundleShortVersionString"] as? String,
+                commit: info?["KagiPeekCommit"] as? String
+            ),
             "build": info?["CFBundleVersion"] as? String ?? "?",
             "bundleID": bundleID,
             "bundlePath": bundle.bundlePath,

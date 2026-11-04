@@ -199,7 +199,7 @@ nonisolated enum DeviceInfo {
     }
 
     static var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        Bundle.main.kagiPeekVersionDisplay
     }
 
     static var appBuild: String {

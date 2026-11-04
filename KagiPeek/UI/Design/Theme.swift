@@ -41,6 +41,10 @@ enum Theme {
     static let tickedChipStroke: Double = 0.55
     static let tickedChipFillLight: Double = 0.16
     static let tickedChipFillDark: Double = 0.26
+    /// Shift-hint glyphs: a quiet badge, so 36 labels do not turn the chord column into a
+    /// wall of accent colour.
+    static let hintBadgeFillLight: Double = 0.14
+    static let hintBadgeFillDark: Double = 0.24
 
     /// Materials do not survive `cacheDisplay`, so screenshot previews use a flat colour.
     @ViewBuilder
@@ -72,54 +76,55 @@ struct PanelPalette {
 }
 
 extension PanelTheme {
-    var palette: PanelPalette {
+    /// The palette after the setting meets the window's appearance: an explicit choice wins,
+    /// `system` follows what the window reports.
+    func palette(isDarkSystem: Bool) -> PanelPalette {
         switch self {
-        case .graphite:
-            return PanelPalette(
-                isLight: false,
-                backgroundSolid: Color(white: 0.10),
-                text: .white.opacity(0.92),
-                secondaryText: .white.opacity(0.62),
-                tertiaryText: .white.opacity(0.32),
-                rule: .white.opacity(0.10),
-                selection: .white.opacity(0.12),
-                hover: .white.opacity(0.06),
-                controlHover: .white.opacity(0.13),
-                key: .white.opacity(0.72),
-                keyHighlight: Color.accentColor,
-                border: .white.opacity(0.16)
-            )
-        case .midnight:
-            return PanelPalette(
-                isLight: false,
-                backgroundSolid: Color(red: 0.03, green: 0.06, blue: 0.13),
-                text: .white.opacity(0.94),
-                secondaryText: Color(red: 0.64, green: 0.74, blue: 0.90),
-                tertiaryText: .white.opacity(0.36),
-                rule: .white.opacity(0.12),
-                selection: Color(red: 0.24, green: 0.38, blue: 0.62).opacity(0.55),
-                hover: .white.opacity(0.07),
-                controlHover: .white.opacity(0.14),
-                key: Color(red: 0.72, green: 0.82, blue: 0.98),
-                keyHighlight: Color(red: 0.45, green: 0.72, blue: 1.0),
-                border: .white.opacity(0.18)
-            )
-        case .paper:
-            return PanelPalette(
-                isLight: true,
-                backgroundSolid: Color(white: 0.98),
-                text: Color.black.opacity(0.88),
-                secondaryText: Color.black.opacity(0.58),
-                tertiaryText: Color.black.opacity(0.34),
-                rule: Color.black.opacity(0.12),
-                selection: Color.accentColor.opacity(0.14),
-                hover: Color.black.opacity(0.05),
-                controlHover: Color.black.opacity(0.08),
-                key: Color.black.opacity(0.66),
-                keyHighlight: Color.accentColor,
-                border: Color.black.opacity(0.12)
-            )
+        case .light: return Self.lightPalette
+        case .dark: return Self.darkPalette
+        case .system: return isDarkSystem ? Self.darkPalette : Self.lightPalette
         }
+    }
+
+    /// Graphite, kept as the dark palette.
+    private static var darkPalette: PanelPalette {
+        PanelPalette(
+            isLight: false,
+            backgroundSolid: Color(white: 0.10),
+            text: .white.opacity(0.92),
+            secondaryText: .white.opacity(0.62),
+            // 0.32 measured ~2.9:1 on the 10 % grey surface, below the 3:1 minimum for
+            // auxiliary text. 0.45 measures ~4.5:1 and still reads as clearly quieter than
+            // secondaryText at 0.62.
+            tertiaryText: .white.opacity(0.45),
+            rule: .white.opacity(0.10),
+            selection: .white.opacity(0.12),
+            hover: .white.opacity(0.06),
+            controlHover: .white.opacity(0.13),
+            key: .white.opacity(0.72),
+            keyHighlight: Color.accentColor,
+            border: .white.opacity(0.16)
+        )
+    }
+
+    /// Paper, kept as the light palette.
+    private static var lightPalette: PanelPalette {
+        PanelPalette(
+            isLight: true,
+            backgroundSolid: Color(white: 0.98),
+            text: Color.black.opacity(0.88),
+            secondaryText: Color.black.opacity(0.58),
+            // 0.34 measured below 3:1 on the 98 % paper surface. 0.55 measures ~4.7:1 and
+            // keeps the same relationship to secondaryText at 0.58.
+            tertiaryText: Color.black.opacity(0.55),
+            rule: Color.black.opacity(0.12),
+            selection: Color.accentColor.opacity(0.14),
+            hover: Color.black.opacity(0.05),
+            controlHover: Color.black.opacity(0.08),
+            key: Color.black.opacity(0.66),
+            keyHighlight: Color.accentColor,
+            border: Color.black.opacity(0.12)
+        )
     }
 }
 

@@ -36,8 +36,39 @@ nonisolated enum SettingsMigrator {
     /// Upgrade hook. Steps for a future incompatible change go here, in order, keyed by the
     /// version they bring the payload up to.
     static func migrate(_ payload: SettingsPayload) -> AppSettingsSnapshot {
-        // Nothing to rewrite for versions 1...current: the fields that changed were removed,
-        // and a removed key needs no value.
-        payload.settings.normalized()
+        var settings = payload.settings
+        // v3 stored the old default pair (↩ runs, ⌘↩ copies). Only that exact pair moves:
+        // a pair the user recorded is a decision, and a default they never touched is not.
+        // One half changed on its own is also left alone, so a custom pair never ends up
+        // half-new and half-old.
+        if payload.schemaVersion < 4,
+           settings.runRowKey == .legacyRunRowDefault,
+           settings.copyRowKey == .legacyCopyRowDefault {
+            settings.runRowKey = .runRowDefault
+            settings.copyRowKey = .copyRowDefault
+        }
+        // v5 split the old four-way `triggerMode` into two independent switches plus a
+        // gesture and a key. The old hotkeys were always live, so only `disabled` turns
+        // them off; `hotkey` meant the gesture alone was off.
+        if payload.schemaVersion < 5, let legacy = settings.triggerMode {
+            settings.hotkeyTriggerEnabled = legacy != .disabled
+            switch legacy {
+            case .holdModifiers:
+                settings.modifierTriggerEnabled = true
+                settings.triggerGesture = .hold
+                settings.triggerKey = .anyModifier
+            case .doubleTapCommand:
+                settings.modifierTriggerEnabled = true
+                settings.triggerGesture = .doubleTap
+                settings.triggerKey = .anyModifier
+            case .hotkey, .disabled:
+                settings.modifierTriggerEnabled = false
+                settings.triggerGesture = .hold
+                settings.triggerKey = .rightCommand
+            }
+        }
+        // The legacy key is never written back: `nil` encodes as absent.
+        settings.triggerMode = nil
+        return settings.normalized()
     }
 }

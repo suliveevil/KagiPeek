@@ -72,6 +72,9 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
     /// and Escape. One value instead of three parallel collections, so the decision and the
     /// data it reads cannot drift apart — see `KeySwallowRules`, where it is tested.
     private var swallowRules = KeySwallowRules()
+    /// Physical modifier keys whose `flagsChanged` events are swallowed: the trigger key's
+    /// press and release while the gesture is live. Shift and Caps Lock are never in here.
+    private var modifierSwallowKeyCodes: Set<UInt16> = []
     private var decodesKeyEvents = false
     /// While a surface owns the pointer, the rects a click has to fall between for the tap to
     /// eat it: inside the front app's window — that is where a stray click changes the
@@ -95,6 +98,9 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
     /// attempts and burn the whole budget in one stalled second. Scheduled on the tap run
     /// loop — a wedged main thread must not be able to keep a dead tap installed.
     private var pendingReEnable: DispatchWorkItem? = nil
+    /// Whether a re-enable is on the books. Kept in step with `pendingReEnable` under the
+    /// same lock, including the paths where the work item is cancelled or never scheduled.
+    private var recoveryGate = TapRecoveryGate()
 
     // MARK: Input watchdog
 
@@ -151,6 +157,12 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         withLock { swallowRules.rules = rules }
     }
 
+    /// Publishes the modifier keys the trigger gesture owns. The tap answers this on its own
+    /// thread, so a cancelled hold cannot replay the press it already swallowed.
+    func updateModifierSwallow(keyCodes: Set<UInt16>) {
+        withLock { modifierSwallowKeyCodes = keyCodes }
+    }
+
     /// The engine's picture of the composed-stroke state, published after every change that
     /// affects the swallow decision. The tap thread reads it instead of calling the engine:
     /// the engine keeps the main actor, the input path keeps its own thread.
@@ -201,8 +213,11 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         guard tap == nil else { return }
         guard PermissionCenter.hasAccessibility else { throw KeyboardMonitorError.accessibilityDenied }
 
-        pendingReEnable?.cancel()
-        pendingReEnable = nil
+        withLock {
+            pendingReEnable?.cancel()
+            pendingReEnable = nil
+            recoveryGate.finish()
+        }
 
         // Assembled statement-by-statement: one long `|` chain — even with typed bases —
         // exceeds the type-check budget of Xcode 16.4 (the CI toolchain), while the
@@ -236,14 +251,18 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
             throw KeyboardMonitorError.tapCreationFailed
         }
 
-        tap = created
-        source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, created, 0)
-        guard source != nil else {
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, created, 0) else {
             // The tap exists but nothing ever drains it: every shortcut in the session is
-            // dead, and there is no error path to say so.
+            // dead, and there is no error path to say so. Roll the half-built tap back so
+            // the next `start()` sees `tap == nil` and can retry instead of silently
+            // returning because a dead port was left installed.
             Diag.error(.tap, "run-loop source creation failed: the tap will never deliver events")
+            CGEvent.tapEnable(tap: created, enable: false)
+            CFMachPortInvalidate(created)
             throw KeyboardMonitorError.tapCreationFailed
         }
+        tap = created
+        self.source = source
         enableTap(created)
         isRunning = true
 
@@ -287,8 +306,11 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
 
     func stop() {
         stopWatchdog()
-        pendingReEnable?.cancel()
-        pendingReEnable = nil
+        withLock {
+            pendingReEnable?.cancel()
+            pendingReEnable = nil
+            recoveryGate.finish()
+        }
         let (tapPort, runLoop) = withLock { () -> (CFMachPort?, CFRunLoop?) in
             let ports = (tap, tapRunLoop)
             tap = nil
@@ -325,8 +347,9 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
     private func handleDisable(trigger: TapDiagnostics.Trigger) {
         guard let tapPort = withLock({ tap }), withLock({ isRunning }) else { return }
         // Already waiting out a pause: the tap is off and further notifications describe the
-        // same failure, not a new one.
-        guard withLock({ pendingReEnable == nil }) else { return }
+        // same failure, not a new one. The gate is cleared on every exit path of the pending
+        // work item, so a failed recovery cannot lock this out for the rest of the session.
+        guard withLock({ recoveryGate.shouldHandleDisable(isRunning: isRunning) }) else { return }
 
         let trusted = hasAccessibility()
         let recovery = withLock { health.recordDisable(trusted: trusted) }
@@ -376,22 +399,48 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
     private func scheduleReEnable(_ tapPort: CFMachPort, after delay: TimeInterval) {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            withLock { self.pendingReEnable = nil }
+            // Every exit from this work item reopens the gate, including the early return
+            // when the monitor was stopped while the pause was pending.
+            defer {
+                withLock {
+                    self.pendingReEnable = nil
+                    self.recoveryGate.finish()
+                }
+            }
             guard withLock({ self.isRunning }) else { return }
             self.enableTap(tapPort)
         }
         let runLoop = withLock { () -> CFRunLoop? in
             pendingReEnable = work
+            recoveryGate.schedule()
             return tapRunLoop
         }
-        guard let runLoop else { return }
+        guard let runLoop else {
+            // No run loop to drain the work item: leaving the gate closed would drop every
+            // later disable notification until relaunch. Clear both before returning.
+            withLock {
+                work.cancel()
+                pendingReEnable = nil
+                recoveryGate.finish()
+            }
+            return
+        }
 
         CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue) { [weak work] in
             work?.perform()
         }
         CFRunLoopWakeUp(runLoop)
-        DispatchQueue.global().asyncAfter(deadline: .now() + delay + 5) { [weak work] in
-            work?.cancel()
+        DispatchQueue.global().asyncAfter(deadline: .now() + delay + 5) { [weak self, weak work] in
+            guard let self, let work, work.isCancelled == false else { return }
+            work.cancel()
+            // A cancelled work item never runs its `defer`, so clear the bookkeeping here.
+            // Guarded by identity: this stale safety net must not clear a newer recovery.
+            withLock {
+                if self.pendingReEnable === work {
+                    self.pendingReEnable = nil
+                    self.recoveryGate.finish()
+                }
+            }
         }
     }
 
@@ -490,15 +539,19 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         }
         switch type {
         case .flagsChanged:
+            // The key code is what tells left from right (55/54 ⌘, 58/61 ⌥, 59/62 ⌃), so it
+            // cannot stay the placeholder 0: the trigger gesture reads it.
+            let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             emit(KeyEvent(
                 kind: .flagsChanged,
                 modifiers: ModifierSet.from(cgEventFlags: event.flags),
                 key: nil,
-                keyCode: 0,
+                keyCode: keyCode,
                 isRepeat: false,
                 happenedAt: Date()
             ))
-            return Unmanaged.passUnretained(event)
+            let consume = withLock { modifierSwallowKeyCodes.contains(keyCode) }
+            return consume ? nil : Unmanaged.passUnretained(event)
 
         case .keyDown:
             let (keyCode, keyEvent) = describe(event, kind: .keyDown)

@@ -106,6 +106,10 @@ if [ -n "$IDENTITY" ]; then
 else
     echo "==> Ad-hoc signing"
     codesign --force --options runtime --sign - "$APP"
+    # Verification only: ad-hoc output must not be installed into /Applications. Its cdhash
+    # changes on every build, so macOS treats each rebuild as a new app and asks for
+    # permissions again. `scripts/install.sh` refuses it; use `scripts/setup_signing.sh`.
+    echo "    note: ad-hoc builds are for verification only; use setup_signing.sh before installing." >&2
 fi
 codesign --verify --strict --verbose=2 "$APP"
 

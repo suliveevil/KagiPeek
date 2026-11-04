@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the v2.2.0 architecture. A development branch (the v2.3.0 refactor) has since pulled the engine's decision logic into pure, unit-tested modules — see [Engine state and key routing](#engine-state-and-key-routing-development-after-v220). KagiPeek 2.1.0 builds on the v2.0.0 actionable panel — the v1.2.0 rewrite replaced the v1.1 static list with live Accessibility (AX) menu scanning, a chord resolver, a search index, and a set of small SwiftUI panels; v2.0 made the panel keyboard-driven and clickable; and v2.1.0 makes it **persistent**. The panel is persistent: it stays open until you press Esc or toggle it off. Holding modifiers to summon it seeds a prefix, so the list narrows which-key style; the hotkey and double-⌘ summon it with an empty prefix, where every row is a complete combination. v2.1.0 added four placement modes, tokenized/pinyin search, Hyper-key hotkey matching, JSON storage in Application Support with per-app statistics, guided permission onboarding, a dedicated About tab, and a panel/search switch hotkey. v2.2.0 removes the separate browser window — the search palette took over its two jobs, app scope and Markdown export — puts the panel's rows in two cards ordered by the shortcut itself, gives the rows one contract with two recorded row keys, makes the title bar responsive, drops the two no-op "execute menu commands" switches, splits Settings into eight tabs, and isolates the app's own activation from the frontmost-app input. The panel is ordered by the shortcut itself — the menu path is a note on the row instead of a section heading — the title bar carries checkable ⌃ ⌥ ⇧ ⌘ chips that narrow the list, and a modifier held down is lit inside every surviving row's chord rather than stripped from it. The update check is still the only network code, and it runs only when you press the button.
+This document describes the v2.2.0 architecture. A development branch (the v2.3.0 refactor) has since pulled the engine's decision logic into pure, unit-tested modules — see [Engine state and key routing](#engine-state-and-key-routing-development-after-v220). KagiPeek 2.1.0 builds on the v2.0.0 actionable panel — the v1.2.0 rewrite replaced the v1.1 static list with live Accessibility (AX) menu scanning, a chord resolver, a search index, and a set of small SwiftUI panels; v2.0 made the panel keyboard-driven and clickable; and v2.1.0 makes it **persistent**. The panel is persistent: it stays open until you press Esc or toggle it off. Holding the trigger key to summon it seeds a prefix, so the list narrows which-key style; the hotkey and the trigger-key double tap summon it with an empty prefix, where every row is a complete combination. v2.1.0 added four placement modes, tokenized/pinyin search, Hyper-key hotkey matching, JSON storage in Application Support with per-app statistics, guided permission onboarding, a dedicated About tab, and a panel/search switch hotkey. v2.2.0 removes the separate browser window — the search palette took over its two jobs, app scope and Markdown export — puts the panel's rows in two cards ordered by the shortcut itself, gives the rows one contract with two recorded row keys, makes the title bar responsive, drops the two no-op "execute menu commands" switches, splits Settings into eight tabs, and isolates the app's own activation from the frontmost-app input. The panel is ordered by the shortcut itself — the menu path is a note on the row instead of a section heading — the title bar carries checkable ⌃ ⌥ ⇧ ⌘ chips that narrow the list, and a modifier held down is lit inside every surviving row's chord rather than stripped from it. The update check is still the only network code, and it runs only when you press the button.
 
 The governing constraints are:
 
@@ -109,7 +109,16 @@ KagiPeek/
 │   │   ├── ConflictCache.swift    # conflicts-cache.json, read at launch
 │   │   └── UpdateChecker.swift    # manual GitHub release check
 │   └── Engine/
-│       └── ShortcutEngine.swift   # binds scan → index → panel state
+│       ├── ShortcutEngine.swift   # input router + lifecycle + collaborator wiring
+│       ├── EngineState.swift      # @Published state container
+│       ├── PanelSession.swift     # panel rows, ordering, paging, row actions
+│       ├── SearchSession.swift    # palette open/close, scope, results
+│       ├── CatalogCoordinator.swift # what to scan, stale-result guards, config files
+│       ├── RowRunner.swift        # resolve element → press menu → replay chord
+│       ├── BindingEditor.swift    # recording target + binding writes
+│       ├── LiveTestCoordinator.swift # shortcut test listening and verdict
+│       ├── DiagnosticsReporter.swift # support report assembly
+│       └── ConflictCenter.swift   # conflict ownership index
 ├── UI/
 │   ├── Surface/                   # one NSPanel hosting panel + search palette
 │   ├── Overlay/                   # panel and palette views, cards, rows, footer
@@ -125,7 +134,8 @@ Package.swift                      # KagiPeekCore library + KagiPeekCoreTests
 Tests/KagiPeekCoreTests/           # XCTest coverage for Core/Pure
 scripts/build_release.sh           # build → sign → notarize (optional) → DMG
 scripts/build_swiftc.sh            # fallback build for hosts where xcodebuild cannot run
-scripts/install.sh                 # atomic install, keeps the previous bundle
+scripts/install.sh                 # atomic install, refuses ad-hoc; backups go to Application Support
+scripts/backup_app.sh              # dated, commit-tagged pre-install backups; keeps the newest 5
 scripts/publish_release.sh         # upload the DMG as a GitHub release
 scripts/setup_signing.sh           # create the stable "KagiPeek Local" identity
 Distribution/kagipeek.rb           # Homebrew cask template
@@ -172,7 +182,7 @@ Distribution/kagipeek.rb           # Homebrew cask template
                           │ events
                  ┌────────┴─────────────────────────────┐
                  │ KeyboardMonitor → HotkeyMatcher      │
-                 │ hold / double-⌘ / 3 hotkeys / secure  │
+                 │ gesture / 3 hotkeys / secure input  │
                  └──────────────────────────────────────┘
 
   JsonFileStore ◄── SettingsStore ──► every component
@@ -381,22 +391,24 @@ It never records events. The one thing it synthesises is a single chord, on requ
 
 | Phase | Meaning | Entered by | Left by |
 | --- | --- | --- | --- |
-| `idle` | Nothing is showing | dismissal, a released hold, Esc | hold delay, double-⌘, a hotkey |
-| `armed` | A hold is being timed; the panel is not visible yet | a non-empty ⌃/⌥/⌘ set with no other key | the delay elapsing (→ `active`), or a key press/release (→ `idle`) |
+| `idle` | Nothing is showing | dismissal, a released hold, Esc | hold delay, trigger-key double tap, a hotkey |
+| `armed` | A hold is being timed; the panel is not visible yet | the trigger key being released, or another key being pressed | the delay elapsing (→ `active`) |
 | `active` | The panel is visible and persistent | `activatePanel()` | a complete shortcut (after ~0.4 s highlight), Esc, the panel hotkey again |
 
 | Trigger | Detection |
 | --- | --- |
-| Hold modifiers and pause | A non-empty ⌃/⌥/⌘ set held for 0.5 s by default (configurable 0.1–1.5 s) with no other key during the interval |
-| Double-⌘ | Two ⌘ key-down events less than 300 ms apart, with no other key between |
+| Modifier gesture, hold | `modifierTriggerEnabled`; the chosen `triggerKey` is held for `holdDelay` (0.5 s by default, 0.3–0.9 s in 0.1 s steps) with no other key during the interval |
+| Modifier gesture, double tap | `modifierTriggerEnabled`; two complete presses and releases of `triggerKey` inside `doubleTapWindow` (0.3 s by default, 0.15–0.8 s), with no other key between |
+| Trigger key | One of any non-Shift modifier, left Control, left Option, left Command, right Command (default), or right Option. `flagsChanged`'s key code tells left from right; combinations are not supported |
 | Panel hotkey | Global hotkey, default ⌃⌥⌘K; toggles the panel and refreshes it in place when the frontmost app changes |
 | Search hotkey | Global hotkey, default ⌃⌥⌘F; opens or closes the search palette |
 | Switch hotkey | Global hotkey, default ⌃⌥⌘S; swaps between the panel and search (see below) |
-| Off | No trigger; hotkeys can still be disabled individually |
+| Hotkey switch | `hotkeyTriggerEnabled` gates all three hotkeys independently of the gesture; with both switches off nothing triggers (the pause state) |
 
 Additional rules:
 
-- **Holding modifiers to summon the panel seeds the prefix.** `activatePanel(seedPrefix:)` pushes the held set onto `prefix` when the long-press path calls it, so the panel narrows which-key style; the hotkey and double-⌘ paths pass `seedPrefix: false` and start empty, which is where every row is a complete combination. While the panel is open, a modifier change re-seeds a modifier-only prefix (`handleModifiers`); a chord prefix that already contains a key (⌘K of ⌘K ⌘C) survives the modifier being released between strokes. A lone ⇧ never counts. `panel.heldModifiers` records the same set, and while the prefix is still modifier-only it is also what highlighting matches against. The title bar's ⌃ ⌥ ⇧ ⌘ chips are a second, sticky way to narrow: a tick narrows exactly like holding the key (`panel.latchedModifiers`), and it also composes — a ticked ⌥ plus a pressed C is ⌥⌘C. Ticks survive until unticked or until the panel is dismissed.
+- **The gesture owns its key.** While `modifierTriggerEnabled` is on, the tap swallows the press and release of `triggerKey`'s physical key code, so the front app never sees the modifier edge that may fire the panel; a cancelled hold is not replayed. Shift and Caps Lock are never swallowed. While recording a hotkey, no modifier is swallowed. The hotkey path publishes its own swallow rules only while `hotkeyTriggerEnabled` is on.
+- **Holding modifiers to summon the panel seeds the prefix.** `activatePanel(seedPrefix:)` pushes the held set onto `prefix` when the long-press path calls it, so the panel narrows which-key style; the hotkey and double-tap paths pass `seedPrefix: false` and start empty, which is where every row is a complete combination. While the panel is open, a modifier change re-seeds a modifier-only prefix (`handleModifiers`); a chord prefix that already contains a key (⌘K of ⌘K ⌘C) survives the modifier being released between strokes. A lone ⇧ never counts. `panel.heldModifiers` records the same set, and while the prefix is still modifier-only it is also what highlighting matches against. The title bar's ⌃ ⌥ ⇧ ⌘ chips are a second, sticky way to narrow: a tick narrows exactly like holding the key (`panel.latchedModifiers`), and it also composes — a ticked ⌥ plus a pressed C is ⌥⌘C. Ticks survive until unticked or until the panel is dismissed.
 - Pressing a non-modifier key cancels a pending hold; in `active` the key is routed to the completion/chord resolver.
 - **Releasing modifiers does not dismiss the panel.** There is no idle timer and no auto-hide task; the panel is dismissed by Esc, the panel/switch hotkey, or a completed shortcut. Switching the frontmost app or the active Space dismisses it as well, because its contents belong to the app it was opened over.
 - Secure input is checked before showing anything; if it is active, the panel is hidden and the trigger is ignored.
@@ -407,7 +419,7 @@ Additional rules:
 The decision half of the engine has been moving into `Core/Pure`, where the XCTest suite can reach it:
 
 - **`KeyEventRouter` replaces the inline decision tree in `handleKeyDown`.** The engine now calls `KeyEventRouter.route(...)` and executes the returned `KeyDownAction`; routing order is unchanged (hotkeys in any phase → the phase transition → the panel's own keys → chord composition), so the panel behaves as before, but every branch is a named, tested action instead of nested `if`s inside a long method. The characterize tests pin the pre-existing behaviour branch by branch.
-- **`CommandDoubleTap` and `HyperEscape` are the two gesture state machines.** The double-⌘ pin and the hyper-tap-as-Escape gesture used to keep three date/flag fields on the engine (`lastCommandDownAt`, `hyperArmedAt`, `hyperUsedKey`) with the timing rules inline; each is now one pure struct with its own tests. `HyperEscape` still owns the 1 s release window and the "a key was used meanwhile" flag.
+- **`ModifierDoubleTap` and `HyperEscape` are the two gesture state machines.** The trigger-key double-tap pin and the hyper-tap-as-Escape gesture used to keep three date/flag fields on the engine (`lastCommandDownAt`, `hyperArmedAt`, `hyperUsedKey`) with the timing rules inline; each is now one pure struct with its own tests. `ModifierDoubleTap` reads the trigger key's pressed state, so the same machine serves any of the six trigger keys; `HyperEscape` still owns the 1 s release window and the "a key was used meanwhile" flag.
 - **`FavoritesPolicy` aggregates the three favorites booleans.** The star toggle (`showsFavoritesOnly`) and the two settings (`pinFavoritesToTop`, `favoritesCanBeFiltered`) used to be passed into every rebuild separately and repeated in both cache keys (`OrderedHitsKey`, `RowBudgetKey`); a cache key now holds one `FavoritesPolicy` value, so a change to any of the three invalidates the order and budget together.
 - **`SearchSnapshot` is the palette's state.** `comboAnswer`, the `searchQuery`/`searchResults`/`searchSelection` trio, `isSearchVisible` and the three scope publishers are one `@Published var search` snapshot; the scope icon stays engine-side because it is an `NSImage`. Only a `query` change re-runs the search — `refreshSearch()` writes results/selection/visibility back into the snapshot without looping.
 - **`EnginePhase` replaces the engine's private `Phase` enum** so the pure router can read the panel phase without importing the engine.
@@ -416,11 +428,45 @@ The decision half of the engine has been moving into `Core/Pure`, where the XCTe
 
 `ShortcutEngine` used to be one `@MainActor` class holding ~40 `@Published` values, session state, caches, gesture machines and in-flight tasks next to every collaborator and every behaviour method. The P0-2 step splits that in two, without changing any behaviour:
 
-- **`Core/Engine/EngineState.swift`** is a new `@MainActor final class EngineState: ObservableObject` holding everything the UI binds or the coordination reads and writes: the 29 published values (`panel`, `settings`, `search`, `conflicts`, `catalogSize`, …), the session state (`phase`, `prefix`, `previousModifiers`, the `CommandDoubleTap`/`HyperEscape`/`ModifierTapTracker` machines, `lastSecureInputLog`), the catalog and caches (`catalog`, `catalogGeneration`, `orderedHitsCache`, `rowBudgetCache`, `usageBreakdownCache`, `conflictIDs`), the search scope (`searchScopeCatalog`, `searchCorpus`, `searchCorpusKey`), and the in-flight task handles. It also computes the palette title/icon (`searchPaletteTitle`, `searchPaletteIcon`) and the filtered Conflicts list (`visibleConflicts`, `conflictTypeOptions`) from that state.
+- **`Core/Engine/EngineState.swift`** is a new `@MainActor final class EngineState: ObservableObject` holding everything the UI binds or the coordination reads and writes: the 29 published values (`panel`, `settings`, `search`, `conflicts`, `catalogSize`, …), the session state (`phase`, `prefix`, `previousModifiers`, the `ModifierDoubleTap`/`HyperEscape`/`ModifierTapTracker` machines, `lastSecureInputLog`), the catalog and caches (`catalog`, `catalogGeneration`, `orderedHitsCache`, `rowBudgetCache`, `usageBreakdownCache`, `conflictIDs`), the search scope (`searchScopeCatalog`, `searchCorpus`, `searchCorpusKey`), and the in-flight task handles. It also computes the palette title/icon (`searchPaletteTitle`, `searchPaletteIcon`) and the filtered Conflicts list (`visibleConflicts`, `conflictTypeOptions`) from that state.
 - **Two collaboration injection points keep the container pure.** `defaultTitle` is set by the engine from the localised app name; `searchChangeHandler` is the engine's `refreshSearch`, installed so that a query change re-searches without the container knowing about the catalog. `search`'s `didSet` only fires the handler when the *query* changed, so `refreshSearch()` writing results/selection/visibility back cannot loop.
 - **`ShortcutEngine` is now the coordinator**: collaborators (`settingsStore`, `usageStore`, `surface`, `hud`, `appContext`, …) plus all behaviour methods, and a single `let state = EngineState()` in place of the former declaration block. The engine seeds `state.settings`/`state.defaultTitle`/`state.searchChangeHandler` in `init` and writes state as before; SwiftUI surfaces bind straight to the container.
 - **UI wiring.** `OverlayView`, `SettingsView` and `ConflictRowView` gain `@EnvironmentObject private var state: EngineState` and read `state.panel` / bind `$state.search.query`; the hosting controllers (`SurfacePanelController`, `SettingsWindowController`) inject `.environmentObject(engine.state)`, so the `engine` environment object remains for collaborators only.
 - **Types shared between engine and state moved to file scope**: `HotkeyTarget` is now a file-level enum, and the cache keys `OrderedHitsKey`/`RowBudgetKey` live at the bottom of `EngineState.swift` (they no longer nest inside the engine). `EngineState` is part of the AppKit target, not the SwiftPM `KagiPeekCore` target, so the pure layer stays AppKit-free.
+
+### Engine collaborators split (development, R-3)
+
+After `EngineState` took the state, `ShortcutEngine` was still one file holding every
+collaborator next to the input router. R-3 splits the collaborators out without changing
+behaviour: the engine keeps the state machine, the event tap calls and the pointer, and
+delegates everything else.
+
+| Module | Owns | Depends on |
+| --- | --- | --- |
+| `Core/Engine/ShortcutEngine.swift` | `handleKeyDown` routing, phase/prefix, panel open/close, tap capture, pointer return | all collaborators |
+| `PanelSession.swift` | rows, ordering, pagination, selection, favourites, copy, activate/descend, completion | `EngineState`, `RowRunner`, `UsageStore`, `Presenters` |
+| `SearchSession.swift` | palette open/close, scope switch and load, result ranking, Markdown export | `EngineState`, `RowRunner`, `CatalogCoordinator` |
+| `CatalogCoordinator.swift` | frontmost catalog scans, generation guard, exclusion, system hotkeys, config scans | `CatalogLoader`, `AppDirectory`, `EngineState` |
+| `RowRunner.swift` | element resolution (including restored-snapshot re-walk), menu press, chord replay, HUD/failure | `CatalogLoader`, `UsageStore`, `Presenters` |
+| `BindingEditor.swift` | recording target, `RecordingPolicy` application, settings writes | `EngineState`, `SettingsStore`, `RecordingPolicy` |
+| `LiveTestCoordinator.swift` | shortcut test start/cancel/verdict/polling | `EngineState`, `ShortcutTester` |
+| `DiagnosticsReporter.swift` | support report fields | `EngineState`, stores |
+
+Dependency direction stays inward: `Core/Pure` (policy, plans, state shapes) knows nothing
+about AppKit, I/O or `Core/Engine`; the collaborators above hold AppKit only because they
+perform effects, and `Ports/PresentationPorts` keeps their outward calls behind protocols.
+The engine's public surface is kept as one-line forwarders so the UI and
+`PreviewScenarios` call sites did not move.
+
+Deliberate boundaries:
+- **Input routing stays in the engine.** `handleKeyDown`, the phase transitions, the
+  captured-key set, the double-tap/hyper machines and pointer return are one state machine;
+  splitting them across modules would turn every key into a distributed transaction.
+- **Open/close stays with routing.** `activatePanel`/`dismissPanel` manipulate the phase,
+  the tap and the pointer, so they remain next to the router, while `PanelSession` starts
+  from "the panel is visible".
+- **Recording rules are pure.** `RecordingPolicy` and `SearchScopePlan` live in
+  `Core/Pure`; their tests pin the branches the settings UI can reach.
 
 ### Live shortcut test as a pure session machine (development, P1-3)
 
@@ -448,7 +494,7 @@ sub-views, each subscribing to its own slice of state through `@EnvironmentObjec
 
 `OverlayView` stays a thin shell (frame, background, corner radius, and the
 panel↔palette switch), so a change inside one area no longer redraws the others. Behaviour
-and appearance are unchanged; the Debug app build and the 416 tests pass.
+and appearance are unchanged; the Debug app build and the 656 tests pass.
 
 ### Concurrency boundaries
 
@@ -505,11 +551,11 @@ Two seams had to close for that table to hold. `PanelKeyIntake.isConsumedBeforeC
 
 ⌫ undoes one tick, last first, and only then pops a level. A half-built sequence is dropped when the panel is dismissed and when Esc closes it.
 
-The panel has no text field of its own. `/` swaps it for the search palette (`showSearchFromPanel()`), and in the palette `/` swaps back (`returnToPanelFromSearch()`) — but only while the field is **empty**: with nothing typed there is nothing to lose, so `/` closes the round trip; once there is a query, `/` is an ordinary character, because a search box that refuses a slash mid-word is the worse bug. The query survives the trip either way, so the next `/` lands on the same search. macOS's ⌘/ (Help) is never touched: the toggle requires a bare slash.
+The panel has no text field of its own. `/` swaps it for the search palette (`showSearchFromPanel()`), and in the palette `/` swaps back (`returnToPanelFromSearch()`) — but only while the field is **empty**: with nothing typed there is nothing to lose, so `/` closes the round trip; once there is a query, `/` is an ordinary character, because a search box that refuses a slash mid-word is the worse bug. macOS's ⌘/ (Help) is never touched: the toggle requires a bare slash.
 
-The round trip keeps the query: the palette opens on the text it was last left with (`openSearch(keepingQuery: true)`), so going back to look at the list and pressing `/` again resumes the same search instead of an empty one. The palette's header also carries a back chevron, because the field takes focus immediately and `/` would otherwise be a one-way door.
+The round trip starts a fresh search every time. `openSearch()` resets the query, the results, the selection, the scroll request, the combo answer and the scope before the palette is shown (`SearchSnapshot.beginNewSession()`), so a query typed ten minutes ago cannot masquerade as today's search. The palette's header carries a back chevron, because the field takes focus immediately and `/` would otherwise be a one-way door.
 
-Pagination is a presentation concern, not a data concern: the page size is configurable (default 24 rows, 6–60) and bounded by what fits the current screen. The overlay renders page `n/m` and pages via clickable ‹ › or scroll wheel. Rows can be laid out in one to three columns (default two), and description text is truncated to a configurable length (default 30 characters) with an ellipsis before layout.
+Pagination is a presentation concern, not a data concern: the page size is configurable (default 24 rows, 6–60) and bounded by what fits the current screen. The overlay renders page `n/m` and pages via clickable ‹ › or scroll wheel. Rows can be laid out in one to three columns (default two), and description text is truncated to a configurable length (default 30 characters) with an ellipsis before layout. Page keys form a loop: next on the last page returns to the first, previous on the first jumps to the last. A one-page list ignores both keys — `PaginationPlan.moved` reports no movement, so the panel is not rebuilt and shows no "turned a page" state.
 
 ## Panel interaction and execution
 
@@ -518,9 +564,10 @@ Because every panel is persistent, it is usable without the shortcut that opened
 | Input | Action |
 | --- | --- |
 | ↑ / ↓ | Move the selection by one row, clamped to the current page |
-| ← / → | Previous / next page; the selection returns to the first row |
-| Run key (`settings.runRowKey`, ↩ by default) | Run the selected row |
-| Copy key (`settings.copyRowKey`, ⌘↩ by default) | Copy the selected row's chord |
+| ← / → | Previous / next page, wrapping at the ends; the selection returns to the first row. A one-page list does not move |
+| `;` / `'` | Same paging loop by typed character (ANSI key code only for undecoded events) |
+| Run key (`settings.runRowKey`, Space by default) | Run the selected row |
+| Copy key (`settings.copyRowKey`, Return by default) | Copy the selected row's chord |
 | Esc | Close the panel |
 | ⌫ | Undo the most recently ticked modifier, then pop one chord level. With nothing left to undo the key is let through — it never closes the panel |
 | Click | Same as the run key |
@@ -593,13 +640,13 @@ no file I/O, which is why it is unit tested without AppKit.
 | Tab | Contents |
 | --- | --- |
 | General | Interface language, launch at login, executed HUD, built-in catalog, *Include the Apple menu*, *Show Dock icon*, **row actions** (the two recorded row keys), **excluded apps** (a selectable list filled from an `NSOpenPanel`, not a text field of bundle identifiers), ignored commands (one disclosure group per scope) |
-| Trigger | Trigger mode, hold delay, double-tap window, and the three recordable hotkeys (panel, search, switch) |
-| Appearance | Key style, panel theme, key position, columns, rows per page, description length, disabled items, favourite pinning and filtering, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected |
+| Trigger | Two independent switches: **Modifier gesture** (hold still / press twice, one trigger key, and the matching delay) and **Global hotkeys** (the three recordable hotkeys: panel, search, switch). Both can be on, either one alone, or both off — both off is the pause state |
+| Appearance | Key style, panel theme (System / Light / Dark), key position, columns, rows per page, description length, disabled items, favourite pinning and filtering, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected |
 | Statistics | Sort order, per-app statistics (press count and shortcut count per app, one collapsible section per app, *Show data folder*, *Reset statistics*), *Restore defaults* |
 | Conflicts | Config file sources (what was read, counts, rescan), type filter, related-app filter, scan timestamp, manual rescan, paged findings with **Test this combo** |
 | Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt + opening the matching System Settings pane), and a draggable KagiPeek icon |
-| Diagnostics | Logging on/off, verbose logging, log folder, **Export diagnostics…** |
-| About | Icon, version and build number, system version, manual update check, data folder (open button), repository and license, diagnostics export |
+| Diagnostics | Logging on/off, verbose logging, log folder, **Export diagnostics archive…** (.zip), live status (Accessibility, Input Monitoring, listening, catalog count), **Export diagnostics report…** (.json) |
+| About | Icon, version with commit (`v2.2.0 (836e3c3)`), system version, manual update check, data folder (open button), repository and license |
 
 The statistics tab is fed by `UsageStore.summariesByApp()`: one row per bundle identifier with the total presses and the number of distinct shortcuts, plus **System / built-in** for `*`, ordered by `UsageOrdering.apps` and expanded per app through `usageEntries(for:)` (which puts `sortMode` in its cache signature so changing the picker cannot serve the previous list). **Show data folder** opens `~/Library/Application Support/KagiPeek` in Finder.
 
@@ -631,6 +678,9 @@ The About tab of **Settings** offers a manual release check, and it is the only 
 
   Placement is recalculated each time the panel is shown or resized, so moving the window and reopening the panel picks up the new frame.
 - **The panel is sized for the widest list of the session, not for the page on screen.** Pressing a modifier narrows the list by definition, so a window sized from the current page changed height on every press and again on release — on screen that read as the panel jumping. `PanelState.rowBudget` / `headingBudget` carry how many rows and headings the un-narrowed list shows (nothing composed, paginated, with one heading reserved for the system section), and `OverlayMetrics` sizes from the larger of that budget and the rows actually drawn, so the frame holds while the list moves inside it and can never clip a row. The budget is recomputed when the catalog, the chips, the favourites-only toggle, the ignored titles or the page size change — never per keystroke. An inline filter used to have a budget of its own; the filter is gone, and with it the question of what "the list before the query" means.
+- `PanelTheme` stores System / Light / Dark, resolves against the window's
+  `effectiveAppearance`, and decodes old Graphite / Midnight / Paper files onto the dark and
+  light palettes so an existing panel does not change look.
 - `Theme` uses a dark translucent material, honours **Reduce Transparency** (opaque background) and **Increase Contrast** (stronger borders and text), and keeps keycaps legible in both.
 - `HUDPanelController` renders the short "executed" toast; it can be disabled in Settings.
 - The app is an `LSUIElement` agent: no Dock icon, no app switcher entry, and no window at launch. `Main.swift` builds the app as plain AppKit rather than a SwiftUI `App` with scenes, because a `Settings` scene opened an empty window on launch and a `MenuBarExtra` made the status item impossible to own. `showDockIcon` switches the activation policy to `.regular` and `applicationShouldHandleReopen` then opens Settings; ⌘, opens Settings at any time.
@@ -676,6 +726,8 @@ Settings and statistics live in `~/Library/Application Support/KagiPeek/` as pla
 `AppSettingsModel` owns defaults, ranges, and validation in pure Swift, so settings can be tested without AppKit. v2.0.0 made `sortMode` default to `.smart`. v2.1.0 added `panelPlacement` (default `.coverWindow`), `fixedPanelWidth` (720, clamped 320–4000), `fixedPanelHeight` (620, clamped 240–3000), and `switchHotkey` (⌃⌥⌘S), and **removed `autoHideDelay`**. v2.2.0 added the two recorded row keys (`runRowKey`, `copyRowKey`), `excludedBundleIDs`, `ignoredCommands`, `showAppleMenu`, `showDockIcon` and the diagnostics switches, and removed `allowPanelExecute` and `allowSearchExecute`, which had stopped controlling anything, plus `keepBrowserOpenAfterRun` and the `contextFirst` sort mode, which lost their subjects when the browser window and the redundant mode went.
 
 **Removing a key needs no migration step.** `AppSettingsSnapshot` only implements `init(from:)`, and every field there is `decodeIfPresent` with the default as fallback, so an older payload decodes, the unknown key is ignored by `CodingKeys`, and the next save drops it. `SettingsPayload`/`SettingsMigrator` exist so that the *version* is read and not only written: `isOutdated(_:)` reports that a file came from an older build, and a future incompatible change has one place to add its step. The invariant that keeps "no migration step" honest — decode an old payload, re-encode without the removed key — has a unit test. `usage.json` carries its own version now: sharing the settings constant meant a settings migration would silently claim the statistics file had changed too.
+
+Trigger settings v5 replaced the four-way `triggerMode` with `modifierTriggerEnabled`, `hotkeyTriggerEnabled`, `triggerGesture` and `triggerKey`. `SettingsMigrator` maps `holdModifiers` to the gesture on / hold / **Any modifier**, `doubleTapCommand` to the gesture on / double tap / **Any modifier**, `hotkey` to the gesture off with the hotkeys still on, and `disabled` to both switches off; the legacy key is decoded once and is not written back. The 2.0 `UserDefaults` blob has no schema envelope, so it goes through the same migration step.
 
 `UsageStatistics` is the pure value both `UsageStore` and the tests use:
 
@@ -732,11 +784,11 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - the nameless-row contract: an empty title cleans to `DescriptionCleaner.placeholder`, which is what a system hotkey macOS cannot name shows
 - `IgnoredCommands`: normalizing drops duplicates within a scope, the same title in two scopes stays two rules, and the legacy flat title list migrates to global rules
 - `KeyEventRouter`: hotkeys answer in any phase with panel→search→switcher precedence; idle passes through, armed cancels, active routes; Escape by key code works with no decoded character; a bare `/` opens search; navigation (arrows, ⌃N/⌃P) and paging (`;`/`'`) work while narrowed, where held modifiers are stripped; the row keys answer runs/copies but not repeats; ⌫ pops a tick before a level; an unknown or `nil` key with no match keeps the panel
-- `CommandDoubleTap`: pins only on a clean ⌘ press–release–press inside the window, forgets on any other modifier, and never pins from a held ⌘
+- `ModifierDoubleTap`: fires only on two complete press–release pairs of the trigger key inside the window, forgets its candidate on a typed key, and never fires from a held trigger key; it reads the trigger key's pressed state, so one machine serves all six trigger keys
 - `HyperEscape`: arms on the hyper set, dismisses on a clean release inside the window, clears on any other press, and a key used meanwhile cancels the dismiss
 - `FavoritesPolicy`: the star toggle narrows to favorites, pin-to-top moves favorites first keeping each group's order, and equality covers all three rules
 
-AppKit/AX/UI behaviour is not unit tested: the Xcode project has a single app target and no test target, so `Core/AX`, `Core/Engine`, `Core/Input`, `Core/Storage` and `UI` (about 6,300 lines after the v2.3.0 refactor) have nowhere to run assertions. The response so far has been to move what *can* be pure into `Core/Pure` — `RowKeyRouter`, `PanelRowBuilder`, `HeaderLayout`, `PanelState`, `PanelSections`, `UsageOrdering`, and in the v2.3.0 refactor `KeyEventRouter`, `CommandDoubleTap`, `HyperEscape`, `FavoritesPolicy`, `SearchSnapshot` and `EnginePhase` — and test it there. The engine's `handleKeyDown` is now a thin side-effect executor over `KeyEventRouter`, so the routing half of the largest AppKit class is under test.
+AppKit/AX/UI behaviour is not unit tested: the Xcode project has a single app target and no test target, so `Core/AX`, `Core/Engine`, `Core/Input`, `Core/Storage` and `UI` (about 6,300 lines after the v2.3.0 refactor) have nowhere to run assertions. The response so far has been to move what *can* be pure into `Core/Pure` — `RowKeyRouter`, `PanelRowBuilder`, `HeaderLayout`, `PanelState`, `PanelSections`, `UsageOrdering`, and in the v2.3.0 refactor `KeyEventRouter`, `ModifierDoubleTap`, `HyperEscape`, `FavoritesPolicy`, `SearchSnapshot` and `EnginePhase` — and test it there. The engine's `handleKeyDown` is now a thin side-effect executor over `KeyEventRouter`, so the routing half of the largest AppKit class is under test.
 
 GitHub Actions runs on `macos-15`: a Debug build, a Release build (both with signing disabled), `swift test`, then a coverage report for the pure target. The 70 % line-coverage floor is a hard gate: a run below it fails the job. It runs on every branch push and on pull requests. See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
@@ -744,7 +796,7 @@ GitHub Actions runs on `macos-15`: a Debug build, a Release build (both with sig
 
 `scripts/build_release.sh` builds Release, reads the version **from the built bundle** (`CFBundleShortVersionString`), and cross-checks it against `MARKETING_VERSION`; a mismatch or an empty value is a hard error, because a `sed` that picked the wrong copy of that setting once produced `KagiPeek-.dmg` and a `v` release tag. It signs with a Developer ID Application identity when available (and attempts `notarytool` notarization; missing credentials skip it with a warning), otherwise falls back to the stable local identity or ad-hoc signing. The self-signed branch skips `--timestamp`, so an offline build does not fail at the last step. The `.app` and the `.dmg` are both signed and verified, both are stapled when notarizing, and a `SHA256SUMS` line is written next to the image.
 
-`scripts/install.sh` builds, stages the bundle next to the destination, verifies the signature, swaps it in with `mv`, and keeps the previous copy as `KagiPeek.previous.app`; a failure mid-swap restores it. It quits the app by bundle identifier instead of `pkill -f`, which used to match build copies and other users' instances too. `scripts/build_swiftc.sh` is the fallback build for hosts where the Xcode build system cannot run at all, because it wraps every compile in `sandbox-exec` and nested sandboxing can be denied.
+`scripts/install.sh` builds, stages the bundle next to the destination, verifies the signature, swaps it in with `mv`, and copies the replaced bundle to `~/Library/Application Support/KagiPeek/backups/` through `scripts/backup_app.sh`. Backups are named `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` and the five most recent are kept; a failure mid-swap restores the newest backup. Nothing but `KagiPeek.app` is ever placed in `/Applications`: a second copy of the same bundle id is picked up by LaunchServices, and an ad-hoc copy becomes a separate TCC identity. The installer refuses an ad-hoc build outright — a stable `KagiPeek Local` or Developer ID signature is required — because an ad-hoc cdhash changes on every compile, so macOS treats each rebuild as a new app and permissions are asked again. Ad-hoc output from `scripts/build_swiftc.sh` is for `codesign --verify` in a temporary directory only. It quits the app by bundle identifier instead of `pkill -f`, which used to match build copies and other users' instances too. `scripts/build_swiftc.sh` is the fallback build for hosts where the Xcode build system cannot run at all, because it wraps every compile in `sandbox-exec` and nested sandboxing can be denied.
 
 `Distribution/kagipeek.rb` is a Homebrew cask template. It must be copied into a `homebrew-tap` repository before `brew install --cask kagipeek` works.
 
@@ -763,6 +815,6 @@ The app is not distributed through the Mac App Store. The sandbox is disabled be
 - **Panel execution needs live menu items.** Fallback-catalog rows copy instead of executing, and disabled menu items are not run at all.
 - **The update check is manual.** It needs network access, only compares versions, and opens the release page instead of downloading or installing anything.
 - **No remapping.** KagiPeek reports shortcuts and can optionally press a menu item; it does not define custom bindings.
-- **The copy key is ambiguous while narrowing.** With ⌘ held, `⌘↩` *is* `⌘` + `↩` and the two cannot be told apart, so `⌘↩` answers run. Copying means releasing ⌘ first, recording the copy key on a modifier that is not used for narrowing (⇧↩), or ticking ⌘ in the title bar instead of holding it — the tick is not in the event, so `⌘↩` stays a copy.
+- **A copy key recorded on a narrowing modifier is ambiguous.** Held modifiers are stripped while narrowing, so the old default copy key ⌘↩ could not be told apart from `⌘` + `↩` and answered run. The default copy key is now plain Return and has no such collision; a custom copy key on ⌘ meets the old rule again, so copying then means releasing ⌘ first, recording it on ⇧↩, or ticking ⌘ in the title bar instead of holding it — the tick is not in the event.
 - **The tap's key-up memory is per key code.** A consumed key-down makes the tap consume that key's release whatever the modifiers are by then, which is the safe direction; it cannot distinguish two keyboards.
 - **macOS only.** It relies on AppKit, Accessibility, and Core Graphics event taps.

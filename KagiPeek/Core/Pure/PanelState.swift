@@ -24,6 +24,9 @@ nonisolated struct PanelRow: Identifiable {
     let isCompleted: Bool
     /// Pinned by the user.
     let isFavorite: Bool
+    /// The Shift-hint glyph (0–9, a–z) standing in for the chord while Shift is held. Nil
+    /// means the chord column shows the shortcut as usual.
+    let hintLabel: String?
 
     /// The chord as plain text — the segmented form joined back together, so the two can
     /// never drift.
@@ -76,6 +79,14 @@ nonisolated struct PanelState {
     /// ⌃⌥⇧⌘ order — ticking ⌘ and then ⌥ and pressing ⌫ must drop the ⌥.
     var latchedOrder: [ModifierSet] = []
     var completedRowID: String?
+    /// Shift is down with no other modifier: the first 36 rows show their hint labels and a
+    /// Shift + glyph press runs the matching row. Kept in the snapshot because the tap's
+    /// swallow decision reads it, and because the rows have to be rebuilt when it flips.
+    var shiftHintActive = false
+    /// The row whose menu element is being resolved off the main thread. Non-nil means a run
+    /// is already in flight, and further activations are refused until it finishes or the
+    /// panel closes.
+    var runningRowID: String?
 
     /// Rows the window is sized for: how many rows the widest list of this panel session
     /// shows — the same filters, with nothing composed.
@@ -102,6 +113,33 @@ nonisolated struct PanelState {
     /// For display only (a footer hint, emphasising the one remaining row). Which row is
     /// *selected* is `PanelSelection.resolved`'s job: a boolean cannot say "the first one".
     var hasSingleMatch: Bool { flatRowIDs.count == 1 }
+
+    /// Claims the run slot for `rowID`. Returns false when another run is already in flight,
+    /// so a double click cannot queue two activations of the same row.
+    mutating func beginRunning(rowID: String) -> Bool {
+        guard runningRowID == nil else { return false }
+        runningRowID = rowID
+        return true
+    }
+
+    /// Releases the slot only when it still belongs to this row: a stale completion after
+    /// the panel moved to another app must not clear the new row's state.
+    mutating func endRunning(rowID: String) {
+        if runningRowID == rowID { runningRowID = nil }
+    }
+
+    /// Resets the transient state one panel session owns, before the first rebuild.
+    ///
+    /// `shiftHintActive` matters here: the Shift hint layer belongs to the session that
+    /// raised it, so a panel opened again must not start with 0–9 / a–z standing in for the
+    /// chords. The other fields are the selection and page position the rebuild replaces.
+    mutating func beginNewSession() {
+        pageIndex = 0
+        selectionIndex = -1
+        completedRowID = nil
+        prefixLabels = []
+        shiftHintActive = false
+    }
 
     static let hidden = PanelState()
 }

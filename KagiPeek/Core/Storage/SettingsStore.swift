@@ -63,7 +63,9 @@ final class SettingsStore: ObservableObject {
         } else if let data = defaults.data(forKey: Self.storageKey),
                   let decoded = try? JSONDecoder().decode(AppSettingsSnapshot.self, from: data) {
             Diag.info(.settings, "importing settings from the 2.0 UserDefaults blob")
-            settings = decoded.normalized()
+            // The 2.0 blob has no schema envelope, so it goes through the same migration
+            // steps as an old file: `triggerMode` must not survive into the v5 payload.
+            settings = SettingsMigrator.migrate(SettingsPayload(schemaVersion: 1, settings: decoded))
         } else {
             settings = Self.migrateLegacy(defaults: defaults).normalized()
         }

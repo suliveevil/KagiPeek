@@ -285,12 +285,19 @@ nonisolated enum MenuScanner {
 
         guard character != nil || virtualKey != nil else { return nil }
 
-        var modifiers: ModifierSet = []
-        if modifierBits & (1 << 0) != 0 { modifiers.insert(.shift) }
-        if modifierBits & (1 << 1) != 0 { modifiers.insert(.option) }
-        if modifierBits & (1 << 2) != 0 { modifiers.insert(.control) }
-        // Command is implied unless the "no command" bit is set.
-        if modifierBits & (1 << 3) == 0 { modifiers.insert(.command) }
+        let decoded = MenuShortcutModifiers.decode(rawValue: modifierBits)
+        guard decoded.isComplete else {
+            // A bit we cannot name is a modifier we cannot replay. Building the chord from
+            // the known bits only would post a *different* shortcut, so the row keeps its
+            // menu path and no keystroke instead.
+            Diag.warning(.scan, """
+                menu shortcut has unknown AX modifier bits raw=\(modifierBits) \
+                unknown=\(decoded.unknownBits) \
+                title=\(AXValueReader.string(kAXTitleAttribute, of: element) ?? "?")
+                """)
+            return nil
+        }
+        let modifiers = decoded.modifiers
 
         let characterToken = character.flatMap { KeyMapper.normalize(character: $0) }
         let physicalToken = virtualKey.flatMap { KeyMapper.token(forKeyCode: Int64($0)) }

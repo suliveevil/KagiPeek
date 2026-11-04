@@ -78,7 +78,9 @@ extension ShortcutEngine {
         }
         settingsStore.settings.maxItemsPerPage = 24
         settingsStore.settings.panelPlacement = .coverWindow
-        settingsStore.settings.panelTheme = .graphite
+        // Pinned dark: the generated previews are compared by eye and by test, so they must
+        // not change with the machine's appearance.
+        settingsStore.settings.panelTheme = .dark
         settingsStore.settings.keyPosition = .right
         settingsStore.settings.showDisabledItems = false
         settingsStore.settings.sortMode = .smart
