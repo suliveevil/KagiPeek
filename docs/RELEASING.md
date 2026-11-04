@@ -6,11 +6,81 @@
 ./scripts/setup_signing.sh
 ```
 
-Creates the stable self-signed `KagiPeek Local` identity. Its designated requirement
+Creates the stable self-signed `KagiPeek Local` identity in its own keychain (see
+[Signing keychain](#signing-keychain)), not in the login keychain. Its designated requirement
 (`identifier com.voltline.kagipeek and certificate root = …`) does not change when the code
 does, so the Accessibility grant survives rebuilds **on this machine and keychain**. For a
 downloadable release, use a Developer ID Application certificate instead
 (`KAGIPEEK_SIGN_IDENTITY`) and a `notarytool` keychain profile (`KAGIPEEK_NOTARY_PROFILE`).
+
+## Signing keychain
+
+The `KagiPeek Local` private key lives in a dedicated keychain so `codesign` never has to ask
+for authorization:
+
+| Item | Path | Mode |
+| --- | --- | --- |
+| Keychain | `~/Library/Keychains/kagipeek-signing.keychain-db` | `600` |
+| Keychain passphrase | `~/Library/Application Support/KagiPeek/signing/keychain-pass` | `600` |
+| `.p12` backup | `~/Library/Application Support/KagiPeek/signing/KagiPeek-Local.p12` | `600` |
+| `.p12` passphrase | `~/Library/Application Support/KagiPeek/signing/p12-pass` | `600` |
+
+The `signing/` directory is `700`. Nothing here is in the repository. `scripts/build_swiftc.sh`
+reads the passphrase, runs `security unlock-keychain`, and passes `--keychain` to `codesign`;
+the passphrase is never echoed. The keychain auto-locks after 12 hours (`-t 43200`) so an
+unattended build day never hits a lock, while the file stays encrypted at rest.
+
+**Why not the login keychain.** The key there is visible to `codesign`, but macOS still shows
+the "wants to use your key" dialog. Clicking **Always Allow** does not stick for CLI signing:
+the effective grant is the key's ACL and partition list, which the login keychain manages and
+resets per process. A dedicated keychain imported with `-A` and configured with
+`set-key-partition-list` signs without any prompt.
+
+### Move an existing identity (one time)
+
+Keep the same certificate. A new certificate changes the designated requirement and every TCC
+permission would have to be granted again.
+
+```sh
+KC="$HOME/Library/Keychains/kagipeek-signing.keychain-db"
+SIGN="$HOME/Library/Application Support/KagiPeek/signing"
+LOGIN="$HOME/Library/Keychains/login.keychain-db"
+
+# 1. Export the identity to a .p12 (use a random passphrase, store it in "$SIGN/p12-pass", 600)
+security export -k "$LOGIN" -t identities -f pkcs12 -P "<p12 passphrase>" \
+  -o "$SIGN/KagiPeek-Local.p12" "KagiPeek Local"
+
+# 2. Create the keychain; store a random passphrase in "$SIGN/keychain-pass" (600). The dir is 700.
+security create-keychain -p "<keychain passphrase>" "$KC"
+security set-keychain-settings -t 43200 "$KC"
+
+# 3. Import with -A (allow codesign to use the key without a prompt), then set the partition list
+security import "$SIGN/KagiPeek-Local.p12" -k "$KC" -f pkcs12 -P "<p12 passphrase>" -A
+security unlock-keychain -p "<keychain passphrase>" "$KC"
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "<keychain passphrase>" "$KC"
+security list-keychains -d user -s "$LOGIN" "$KC"
+
+# 4. Prove signing works, then remove the login copy
+codesign --force --sign "KagiPeek Local" --keychain "$KC" /tmp/some-binary-copy
+security find-identity -v -p codesigning   # exactly one KagiPeek Local line
+security delete-identity -c "KagiPeek Local" "$LOGIN"
+```
+
+`security delete-identity` removes both the certificate and its private key from the login
+keychain; omit `-t` so the user trust settings survive. Afterwards
+`security find-identity -v -p codesigning` must print exactly one **KagiPeek Local** line.
+The designated requirement can be compared before and after with `codesign -d -r-`; the
+`certificate root = H"…"` hash must stay identical, which is the evidence that Accessibility
+was not re-asked.
+
+### New machine / restore
+
+Run `./scripts/setup_signing.sh`. It creates the identity directly in the dedicated keychain,
+writes the passphrase file, sets the partition list and the 12-hour lock, and refuses to
+create a second certificate when one already exists outside that keychain. To restore from a
+`.p12` backup, follow step 3 above and then verify with step 4. The certificate must be
+trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain Access) for
+`find-identity -v` to list it; trust settings are user-wide and survive moving the key.
 
 ## Steps
 

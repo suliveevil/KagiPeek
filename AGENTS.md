@@ -17,6 +17,10 @@ KagiPeek 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）�
 - `/Applications` 下**只放一份** `KagiPeek.app`；备份不放 `/Applications`，也不放废纸篓。
 - ad-hoc 包只用于临时目录里的 `codesign --verify --deep --strict`。ad-hoc 没有稳定代码
   身份，每次构建 cdhash 都变，TCC 会当成新 app：权限反复授权、设置里堆僵尸条目。
+- 签名密钥**不在登录钥匙串**：`~/Library/Keychains/kagipeek-signing.keychain-db`，口令在
+  `~/Library/Application Support/KagiPeek/signing/keychain-pass`（600，绝不入库）。
+  `scripts/build_swiftc.sh` 自动解锁并显式指定该钥匙串；迁移与换机器步骤见
+  [docs/RELEASING.md](docs/RELEASING.md) 的「Signing keychain」。
 - 回滚命令见 [docs/RELEASING.md](docs/RELEASING.md) 的「Backups and rollback」。
 
 ## 文档索引
