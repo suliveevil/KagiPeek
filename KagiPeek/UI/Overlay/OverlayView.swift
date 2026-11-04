@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -24,6 +25,23 @@ struct OverlayView: View {
         settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
     }
     private var isSearch: Bool { state.search.isVisible }
+
+    /// The panel's material, kept on the shell so the content area cannot accidentally
+    /// paint its own layer over the header and footer.
+    ///
+    /// `popover` for the light theme and `hudWindow` for the dark one are AppKit visual
+    /// effect materials; SwiftUI's `Material` has no equivalents. The palette tint sits on
+    /// top so the contrast ratios the text was tuned against do not move with the wallpaper.
+    /// Reduce Transparency replaces the whole thing with a solid fill.
+    @ViewBuilder
+    private var panelSurface: some View {
+        if Theme.reduceTransparency {
+            palette.backgroundSolid
+        } else {
+            PanelSurfaceView(material: palette.isLight ? .popover : .hudWindow)
+                .overlay(palette.backgroundSolid.opacity(palette.isLight ? 0.35 : 0.45))
+        }
+    }
 
     var body: some View {
         // The footer is a sibling of the content, never a layer over it: the content takes
@@ -496,17 +514,6 @@ private struct OverlayPanelContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 16)
         .padding(.top, kind == .scanning ? 0 : 12)
-    }
-
-    @ViewBuilder
-    private var panelSurface: some View {
-        if Theme.reduceTransparency {
-            palette.backgroundSolid
-        } else {
-            Rectangle()
-                .fill(palette.isLight ? Material.popover : Material.hudWindow)
-                .overlay(palette.backgroundSolid.opacity(palette.isLight ? 0.35 : 0.45))
-        }
     }
 
     @ViewBuilder
@@ -1456,5 +1463,25 @@ private struct SearchResultRow: View {
             attributed.append(piece)
         }
         return Text(attributed)
+    }
+}
+
+/// The AppKit visual-effect layer behind the surface.
+///
+/// SwiftUI's `Material` cannot express the two materials this app uses — `.popover` for the
+/// light theme and `.hudWindow` for the dark one — so the shell hosts one `NSVisualEffectView`
+/// instead. It is decoration only: the palette tint on top of it keeps the text contrast.
+private struct PanelSurfaceView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
     }
 }
