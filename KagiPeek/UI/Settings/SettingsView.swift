@@ -116,6 +116,20 @@ struct SettingsView: View {
                 Text(localization.text(.rowActionHint))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+
+                Divider()
+
+                Text(localization.text(.rowActionPagingTitle))
+                    .font(.headline)
+                ForEach(PagingPair.allCases, id: \.self) { pair in
+                    Toggle(
+                        localization.text(pair.titleKey),
+                        isOn: pagingPairBinding(pair)
+                    )
+                }
+                Text(localization.text(.rowActionPagingHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section(localization.text(.generalExcludedApps)) {
@@ -378,6 +392,19 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// A checkbox over the set: enabling one pair leaves the others alone, and unchecking the
+    /// last pair is allowed (the arrows still page).
+    private func pagingPairBinding(_ pair: PagingPair) -> Binding<Bool> {
+        Binding(
+            get: { store.settings.pagingPairs.contains(pair) },
+            set: { enabled in
+                var pairs = store.settings.pagingPairs
+                if enabled { pairs.insert(pair) } else { pairs.remove(pair) }
+                store.settings.pagingPairs = pairs
+            }
+        )
     }
 
     private func hotkeyRow(title: String, target: HotkeyTarget, spec: HotkeySpec?) -> some View {

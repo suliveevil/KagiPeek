@@ -25,6 +25,8 @@ nonisolated struct ComposedSwallowState {
     var filter = PanelFilter()
     var runRowKey: HotkeySpec?
     var copyRowKey: HotkeySpec?
+    /// The punctuation pairs the settings currently enable, for `PanelKeyIntake`.
+    var pagingPairs: Set<PagingPair> = [.semicolonQuote]
     var catalogItems: [BindingItem] = []
     /// `panel.shiftHintActive`: the first 36 rows are addressed by 0–9 / a–z, so a
     /// Shift + glyph press belongs to the panel and must not reach the front app as text.
@@ -68,6 +70,7 @@ nonisolated enum ComposedSwallow {
             held: state.heldModifiers,
             run: state.runRowKey,
             copy: state.copyRowKey,
+            pagingPairs: state.pagingPairs,
             characters: event.characters
         ) { return false }
         let resolution = ChordComposition.resolve(

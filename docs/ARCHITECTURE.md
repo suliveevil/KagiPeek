@@ -33,7 +33,8 @@ KagiPeek/
 │   │   ├── UsageOrdering.swift    # sort order applied to search results and statistics
 │   │   ├── KeyFormatter.swift     # ⌘⇧C formatting, glyphs, localization
 │   │   ├── KeyMapper.swift        # virtual key codes ↔ characters
-│   │   ├── NavigationKey.swift    # arrows, ⌃F/⌃B/⌃N/⌃P, ; / ' paging
+│   │   ├── NavigationKey.swift    # arrows, ⌃F/⌃B/⌃N/⌃P
+│   │   ├── PagingKeyPlan.swift    # four optional paging pairs, character-first decision
 │   │   ├── DescriptionCleaner.swift # whitespace, trailing chord hints, the "—" placeholder
 │   │   ├── SearchIndex.swift      # SearchCorpus + Pinyin + tokenized scoring
 │   │   ├── ConflictDetector.swift # same chord claimed by multiple bindings, typed findings
@@ -386,11 +387,11 @@ While modifiers are held, the menu items that can be reached from them keep the 
 `KeyboardMonitor` installs one global event tap under the Accessibility grant. It observes `flagsChanged` and `keyDown` (plus tap-disabled notifications) and passes events through unchanged, with these exceptions:
 
 - the three recorded hotkeys (panel, search, switch) are consumed so the front app does not also receive them — through the same `HotkeyMatcher` rule used for activation, including the Hyper superset tolerance;
-- while a panel is active, its navigation keys (↑/↓/←/→, `;`, `'`, ⌃F/⌃B/⌃N/⌃P), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
+- while a panel is active, its navigation keys (↑/↓/←/→, ⌃F/⌃B/⌃N/⌃P), the characters of every enabled paging pair (`,`/`.`, `[`/`]`, `-`/`=`, `;`/`'`), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
 - a key that **completes** a shortcut is not swallowed: the panel closes and the event continues to the front app.
 - repeats of a captured key are swallowed too. Letting them through would move the panel selection and scroll the front app at the same time; the engine separately ignores repeats for actions that should not fire twice.
 
-Characters are decoded lazily: `KeyboardMonitor` only reads the Unicode string while a surface is taking keys or a binding is being recorded (`updateDecodesKeyEvents`), because the tap sees every key press in the session. Hotkey matching is done on the virtual key code, so it works without decoding.
+Characters are decoded lazily: `KeyboardMonitor` only reads the Unicode string while a surface is taking keys or a binding is being recorded (`updateDecodesKeyEvents`), because the tap sees every key press in the session. While the panel is active, `ShortcutEngine` also publishes the enabled paging characters with `updateCapturedCharacters`, so the swallow check compares the character the layout actually produced (`；` on a Pinyin layout) instead of hard-coded ASCII key codes; the key codes remain the fallback for events with no decoded character. Hotkey matching is done on the virtual key code, so it works without decoding.
 
 It never records events. The one thing it synthesises is a single chord, on request: `ShortcutInjector` posts it when a menu item runs (see [Panel interaction](#panel-interaction-and-execution)). The run-loop source is attached to the main run loop, so callbacks arrive on the main thread and must stay fast. If the tap cannot receive events on a particular system, `PermissionCenter` offers Input Monitoring as the fallback.
 
@@ -552,7 +553,7 @@ There are two ways to take a token back, and neither is the release edge:
 
 `PanelFilterPlan.matchingIDs` answers the row question through `SearchCorpus.search`: `PanelFilter.query` is the modifier glyphs and lowercase letters in queue order, and the corpus the palette already uses returns the ids. There is no second string matcher, so the panel and the palette cannot disagree about what "⌃ f" means; an empty queue returns nil ("no filter") rather than an empty set. The query runs over the combined app and system sequence after ordering, so the filter decides which rows survive and never their order.
 
-The boundaries live in one guard (`PanelFilterPlan.decision`): only `.active` filters, `shiftHintActive` hands `0–9` / `a–z` to the hint layer, and `triggerNarrowPending` consumes the summoning press before any token. Shift is stripped from the event and is never a dimension — it is the hint layer — and a letter is taken only when the event's physical modifiers (minus Shift) are already in the queue, which is why a bare letter filters the panel while ⌘F stays the front app's chord or a hotkey. The search palette keeps its letters because opening it dismisses the panel and leaves the phase `.idle`; arrows and the page keys (`←`/`→`, `;`/`'`) carry no single lowercase character and never append.
+The boundaries live in one guard (`PanelFilterPlan.decision`): only `.active` filters, `shiftHintActive` hands `0–9` / `a–z` to the hint layer, and `triggerNarrowPending` consumes the summoning press before any token. Shift is stripped from the event and is never a dimension — it is the hint layer — and a letter is taken only when the event's physical modifiers (minus Shift) are already in the queue, which is why a bare letter filters the panel while ⌘F stays the front app's chord or a hotkey. The search palette keeps its letters because opening it dismisses the panel and leaves the phase `.idle`; arrows and the page keys (`←`/`→` and any enabled punctuation pair) carry no single lowercase character and never append.
 
 **Highlight data flow.** The menu items and their visual state are recomputed together, so there is no partial highlight state to go stale:
 
@@ -576,7 +577,7 @@ The consequence is that **swallowing and injecting are the same decision**. `Key
 | true | `complete` / `descend` | consumes the key (and its release) | replays the **assembled** chord through `ShortcutInjector`, or pushes the prefix one level down and clears the tick |
 | true | `noMatch` | lets the event through | nothing; the tick is kept, the user is mid-sequence |
 
-Two seams had to close for that table to hold. `PanelKeyIntake.isConsumedBeforeComposition` lists the keys the panel consumes as *itself* — `/`, Escape, the arrows, `;`/`'` and the action keys — because with a ticked modifier those arrive carrying nothing, and `⌥;` being a real binding would otherwise let the tap eat a `;` that only ever pages the list; the tap and `handleKeyDown` read the one list. And the tap remembers a key-down it consumed and consumes the release too, which matters exactly when the modifiers change under the key — a composed stroke makes that certain, because the panel dismisses itself on the key-down and by the release there is no tick left to recognise.
+Two seams had to close for that table to hold. `PanelKeyIntake.isConsumedBeforeComposition` lists the keys the panel consumes as *itself* — `/`, Escape, the arrows, the enabled paging pairs and the action keys — because with a ticked modifier those arrive carrying nothing, and `⌥;` being a real binding would otherwise let the tap eat a `;` that only ever pages the list; the tap and `handleKeyDown` read the one list. And the tap remembers a key-down it consumed and consumes the release too, which matters exactly when the modifiers change under the key — a composed stroke makes that certain, because the panel dismisses itself on the key-down and by the release there is no tick left to recognise.
 
 ⌫ pops the filter's tail first; a tick and a chord level are what remain once the queue is empty. A half-built sequence is dropped when the panel is dismissed and when Esc closes it.
 
@@ -594,7 +595,7 @@ Because every panel is persistent, it is usable without the shortcut that opened
 | --- | --- |
 | ↑ / ↓ | Move the selection by one row, clamped to the current page |
 | ← / → | Previous / next page, wrapping at the ends; the selection returns to the first row. A one-page list does not move |
-| `;` / `'` | Same paging loop by typed character (ANSI key code only for undecoded events) |
+| Enabled paging pairs (`;` / `'` by default; `,` / `.`, `[` / `]`, `-` / `=` optional) | Same paging loop, decided by the typed character (`+`, Shift+=, is never a paging character; the ANSI key code only for undecoded events) |
 | Run key (`settings.runRowKey`, Space by default) | Run the selected menu item |
 | Copy key (`settings.copyRowKey`, Return by default) | Copy the selected menu item's chord |
 | Esc | Close the panel |
@@ -805,12 +806,14 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - `PanelOrdering`: fewer strokes first, then fewer modifiers, then the modifier order, then the key; the filter rule is "carries every filtered modifier"
 - `PanelFilter` / `PanelFilterPlan`: a press edge appends a modifier once, a release changes nothing, a third press becomes the tail, ⌫ pops the tail one token at a time, Shift and the trigger key never become tokens, an extra ⌘ is not stepped on, and matching goes through `SearchCorpus` (⌃ then f finds only the ⌃F shortcut)
 - `PanelSortOrder`: **By modifier** equals the old order exactly; **By menu group** keeps each top-level menu contiguous in menu-bar order, keeps the shortcut order inside a menu, and puts unranked groups after ranked ones with an empty group last; switching the order moves the `0`–`9` / `a`–`z` Shift labels to the new positions
-- the settings schema writes version 6, and a v5 payload without `panelOrder` migrates to **By modifier**
+- the settings schema writes version 8; a v7 payload without `pagingPairs` migrates to the default `;` / `'` pair, unknown members of the set are dropped rather than rolling the whole file back, and a v5 payload without `panelOrder` migrates to **By modifier**
 - `PanelSelection`: zero rows select nothing, one row selects it, a stale index is dropped rather than clamped to the last row
 - `RowLayout`: the note column disappears below 300 pt, the key column is capped in both directions, and the title floor of 60 pt engages only at the narrowest supported row
 - `KeyChord.isFinalStroke`: one source of truth for "this stroke is the last one", shared by descent and menu item activation
 - `PendingModifiers` and `ChordComposition`: held vs latched, the lone-⇧ rule, the `composed` guard rail, and the full swallow truth table
-- `PanelKeyIntake`: navigation, paging, the action keys, `/` and Escape are claimed before composition; ⌫ is deliberately not on the list
+- `PanelKeyIntake`: navigation, the enabled paging pairs, the action keys, `/` and Escape are claimed before composition; ⌫ is deliberately not on the list
+- `PagingKeyPlan`: either the first character of an enabled pair (previous) or the second (next), matched on the typed character first and the ANSI key code only when the event has none; arrows are never part of it, several pairs can be on at once without swallowing each other, the third pair is `-` / `=` (unshifted), and `+` (Shift+=) is not a paging character at all — so it neither pages nor collides with the Shift-hint layer's `0`–`9` / `a`–`z` labels
+- `SearchKeyRouter`: all eight paging characters pass through to the search field, so a focused query field never pages
 - narrowing is preserved: a live ⌘ filter keeps ⇧⌘A, because the query is "⌘" and not an exact-chord comparison
 - menu-path weighting: a title match outranks a menu-name match, and the nearer level outranks the deeper ancestor
 - `OverlayMetrics` sizing is stable: narrowing the list keeps the session's height, a budget smaller than the rows on screen cannot clip them, an empty budget falls back to the rows drawn, and a heading reserved by the widest list stays reserved
@@ -825,7 +828,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - `SystemHotkeyNames`: known chords get a name in either language, a reassigned chord and a multi-step sequence get none, and the table has no duplicate chord
 - the nameless-entry contract: an empty title cleans to `DescriptionCleaner.placeholder`, which is what a system hotkey macOS cannot name shows
 - `IgnoredCommands`: normalizing drops duplicates within a scope, the same title in two scopes stays two rules, and the legacy flat title list migrates to global rules
-- `KeyEventRouter`: hotkeys answer in any phase with panel→search→switcher precedence; idle passes through, armed cancels, active routes; Escape by key code works with no decoded character; a bare `/` opens search; navigation (arrows, ⌃N/⌃P) and paging (`;`/`'`) work while narrowed, where held modifiers are stripped; the action keys answer runs/copies but not repeats; ⌫ pops a tick before a level; an unknown or `nil` key with no match keeps the panel
+- `KeyEventRouter`: hotkeys answer in any phase with panel→search→switcher precedence; idle passes through, armed cancels, active routes; Escape by key code works with no decoded character; a bare `/` opens search; navigation (arrows, ⌃N/⌃P) and the enabled paging pairs work while narrowed, where held modifiers are stripped; the action keys answer runs/copies but not repeats; ⌫ pops a tick before a level; an unknown or `nil` key with no match keeps the panel
 - `ModifierDoubleTap`: fires on two clean press–release pairs of the trigger key when the gap between them is inside the window, times only that gap (a slow press still counts), forgets its candidate on a typed key, and never fires from a held trigger key; it reads the trigger key's pressed state, so one machine serves all six trigger keys
 - `DoubleTapTiming`: derives the window from the system double-click speed and clamps it to 0.25–0.6 s, so the gesture has no separate user setting
 - `HyperEscape`: arms on the hyper set, dismisses on a clean release inside the window, clears on any other press, and a key used meanwhile cancels the dismiss

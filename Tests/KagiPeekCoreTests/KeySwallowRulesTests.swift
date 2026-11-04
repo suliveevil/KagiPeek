@@ -89,6 +89,26 @@ final class KeySwallowRulesTests: XCTestCase {
         XCTAssertFalse(rules.shouldSwallow(keyCode: 9, modifiers: [.command]))
     }
 
+    /// The character channel exists for layouts that type something other than ASCII: the
+    /// semicolon key on a Pinyin layout sends `；`, and the tap must eat it, not pass it to
+    /// the front app while the panel pages.
+    func testCharacterChannelFoldsCJKPunctuation() {
+        var rules = KeySwallowRules()
+        rules.capturedCharacters = PagingKeyPlan.characters(for: [.semicolonQuote, .commaPeriod])
+        XCTAssertFalse(rules.isEmpty)
+        XCTAssertTrue(rules.shouldSwallow(keyCode: KeyCode.semicolon, modifiers: [], characters: "；"))
+        XCTAssertTrue(rules.shouldSwallow(keyCode: KeyCode.comma, modifiers: [], characters: "，"))
+        XCTAssertTrue(rules.shouldSwallow(keyCode: KeyCode.comma, modifiers: [], characters: ","))
+        // A shortcut layer is not the paging key, even if the character is the same.
+        XCTAssertFalse(
+            rules.shouldSwallow(keyCode: KeyCode.semicolon, modifiers: [.command], characters: ";")
+        )
+        // `=` is the unshifted page key; `+` (Shift+=) is not part of any pair.
+        rules.capturedCharacters.formUnion(PagingKeyPlan.characters(for: [.minusEqual]))
+        XCTAssertTrue(rules.shouldSwallow(keyCode: KeyCode.equal, modifiers: [], characters: "="))
+        XCTAssertFalse(rules.shouldSwallow(keyCode: KeyCode.equal, modifiers: [.shift], characters: "+"))
+    }
+
     func testRulesAndCapturesAreIndependentChannels() {
         var rules = KeySwallowRules(
             rules: [SwallowRule(keyCode: 8, modifiers: [.command], tolerant: false)]

@@ -8,15 +8,15 @@ as of **2026-11-05**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`ac1b392`（`feature/panel-sections`），在 `a438e44` 之上依次为 `e98c206`
-  （草稿：面板输入即搜索，只记录不实施）、`8360744`（修复上一批 UI 留下的编译错误）、
-  `ac1b392`（面板三来源分区 + 六个受限动作）；本轮文档同步是这条线上最后一个提交。
-  `main` 最后停在 `ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）。
+- 代码 HEAD：`feature/panel-sections` 上的合并提交（合并 `feature/paging-key-pair`），其前
+  一条为 `6acc027`（文档：三来源分区与受限动作）；`a438e44` 之上依次为 `e98c206`（草稿：
+  面板输入即搜索，只记录不实施）、`8360744`（修复上一批 UI 留下的编译错误）、`ac1b392`
+  （面板三来源分区 + 六个受限动作）、`6acc027`。`main` 最后停在 `15471dd`
+  （`docs(status): 记录首帧覆盖修复与本次安装验证`）。
 - 工作区：本文件所在分支为 `feature/panel-sections`（从 `fix/panel-footer-clearance`
-  开），另有 `feature/paging-key-pair`（`b690de9`）**未合并**，等用户确认后再合。三支都未
-  push、未合 main。`swift test` 743 → 768，0 failures。本轮**未**构建、未安装、未 amend、
+  开）；`feature/paging-key-pair`（`b690de9`）已于本轮合并进该分支。所有分支均未 push、
+  未合 main。`swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、
   未 squash、未碰 `backups/`。
-- 设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
   未 reset、未强推。旧历史保留在本地 `backup/pre-squash-20261104-192838`。
@@ -68,6 +68,14 @@ as of **2026-11-05**（Asia/Shanghai）。
   N 行不会被缩放算成 N−1；连一行都放不下时仍保证一行。`OverlayPlacement.containedFrame`
   把贴近屏幕底部的面板整体上移，不再裁掉最后几行。删除内容区底部的 18pt 渐隐——它会盖住
   最后一行。`swift test` 684 → 693。
+- **前后翻页键可配置（`feature/paging-key-pair`，已并入 `feature/panel-sections`）**：新增
+  `Core/Pure/PagingKeyPlan`，四对键（`,`/`.`、`[`/`]`、`-`/`=`、`;`/`'`）按实际产生的
+  字符判定，物理键码只在事件没有解码字符时兜底；设置 → 通用 → 菜单项操作下改为四个勾选项，
+  可同时启用多对或一对都不勾，默认只勾 `;`/`'`（原来写死的那一对）；←/→ 永久生效且不在
+  设置组里。搜索框有焦点时八个字符全部作为输入透传；Shift 提示层激活时 `+`（Shift+=）
+  既不是翻页键也不是 `0-9/a-z` 提示标签，按普通输入落到前台。设置 schema 7→8，
+  缺字段→默认 `;`/`'`，集合内未知值丢弃而不整份回退；`apply(settings:)` 与
+  `logSettingsDelta` 同步集合字段。`swift test` 768 → 789。
 - **面板定位修正**（提交见 `git log`）：提示面板的 `coverWindow` 高度不再被内容高度整段替换，
   改为取覆盖高度与内容高度的较大者并夹在可见区内；横向仍按屏幕可见区中心对称计算。
   搜索面板从「屏幕居中 + 距顶 140pt 的 680×460」改为「前台窗口居中」：宽度固定 680，
@@ -103,7 +111,7 @@ as of **2026-11-05**（Asia/Shanghai）。
   切换下沉为 `Core/Pure/RecordingPolicy`、`Core/Pure/SearchScopePlan`。InputRouter 按计划
   永久留在引擎里。详见 `outputs/refactor-engine.md`。
 - **面板翻页闭环**：`Core/Pure/PaginationPlan` 实现首尾循环与页码夹取；单页时两键不动作、
-  不重建、不闪。面板路由、按键语义未变（仍是 ←/→ 与 `;`/`'`）。
+  不重建、不闪。页码语义未变；按键来源后来改由 `PagingKeyPlan` 提供（见本轮条目）。
 - **设置页诊断合并**：把「关于」页的诊断区（辅助功能、输入监控、监听状态、菜单项数、
   导出诊断报告、说明）整段并入「诊断」页，排在日志目录之后、隐私说明之前；`关于` 页只留
   图标/版本、系统版本、更新检查、数据目录、仓库与许可证。`exportDiagnostics()` 移到诊断区，
@@ -149,6 +157,7 @@ as of **2026-11-05**（Asia/Shanghai）。
 | `swift test`（G1–G4 代码批次） | `Executed 726 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（面板筛选提交 `428c925`） | `Executed 741 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（面板三来源分区 + 受限动作） | `Executed 768 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（合并翻页键 `feature/paging-key-pair` 后） | `Executed 789 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
 | 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
 | `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |
@@ -161,7 +170,8 @@ as of **2026-11-05**（Asia/Shanghai）。
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
 本次安装标记为 `1c1eee5-dirty`，比 HEAD（`ee18e08`）旧一个提交：修复在安装之后才提交。
-二进制已含该修复，重装一次只是让 Info.plist 里的 commit 与 HEAD 相等。
+二进制已含该修复，重装一次只是让 Info.plist 里的 commit 与 HEAD 相等。本轮翻页键改动
+**未构建、未安装**：`/Applications/KagiPeek.app` 仍是上述旧包，没有翻页键设置。
 签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
@@ -194,7 +204,8 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
   非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
   `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
   `launchAtLogin=true`、`keyStyle=symbols`、`panelOrder=byModifier`）；
-  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。schema 仍为 7。
+  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。该文件仍是 7；
+  本轮代码已写 8，运行新构建后才会迁移并把 `pagingPairs` 落盘为 `["semicolonQuote"]`。
 
 ## 已知环境坑
 
