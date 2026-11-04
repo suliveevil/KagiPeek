@@ -7,7 +7,7 @@ Answers to questions that come up after the first launch. For installation and p
 Work through these in order:
 
 1. **Is KagiPeek running?** It is a menu bar app with no Dock icon. Look for the keyboard icon in the menu bar.
-2. **Is a trigger enabled?** Open **Settings → Trigger**. There are two independent switches: **Modifier gesture** and **Global hotkeys**. Turn on at least one. Both off is the pause state.
+2. **Is a trigger enabled?** Open **Settings → Trigger**. There are two independent switches: **Modifier gesture** and **Global hotkeys**. Turn on at least one. Both off means no trigger fires.
 3. **Is Accessibility granted?** Open **Settings → Permissions**. Accessibility is required for menu reading and for creating the key tap. If keys still do not arrive, grant **Input Monitoring** as a fallback and relaunch KagiPeek.
 4. **Are you in a password field?** Secure input hides the panel by design. Click into a normal window and try again.
 5. **Does the app have a menu bar?** Some games, overlays, and custom-drawn apps do not. With Accessibility granted but no menu bar, KagiPeek falls back to its built-in catalog; if the catalog is disabled you will see nothing.
@@ -141,15 +141,15 @@ The panel is persistent, so keyboard operation is always available:
 | Key | Action |
 | --- | --- |
 | ↑ / ↓ | Move the selection |
-| ← / → | Previous / next page |
+| ← / → | Previous / next page, always available and not configurable |
 | Run key (Space by default) | Close the panel and replay the selected menu item's shortcut into the front app |
 | Copy key (Return by default) | Copy the selected menu item's shortcut; the panel stays open |
 | Esc | Close the panel (with or without modifiers) |
-| `;` / `'`, ⌃B / ⌃F | Previous / next page |
+| `;` / `'` (default), or any enabled pair: `,` / `.`, `[` / `]`, `-` / `+`, `;` / `'`; ⌃B / ⌃F | Previous / next page |
 | Click | Same as the run key |
 | The complete shortcut | Highlight the matching menu item for ~0.4 s, close the panel, and let the shortcut run |
 
-Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
+Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. The punctuation pairs live in the same section under **Page navigation**: four checkboxes that can be combined freely (several pairs on at once, or none, leaving the arrows); semicolon/quote is the default, the other three start unticked. They are matched by the character they type rather than the physical key, so `+` is Shift+= and `[`/`]` work on layouts where they are unshifted; `+` still pages while the Shift-hint layer is up. When the search field has focus, none of these characters page — they type normally. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 
 Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa.
 
@@ -219,7 +219,7 @@ KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock ic
 
 ## Can I change the triggers or the hotkeys?
 
-Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the hold delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off is the pause state. The double-tap window is not a setting: it follows the system double-click speed, clamped to 0.25–0.6 s, and only the gap between the two taps is timed. The defaults are:
+Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the hold delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off means no trigger fires. The double-tap window is not a setting: it follows the system double-click speed, clamped to 0.25–0.6 s, and only the gap between the two taps is timed. The defaults are:
 
 | Action | Default |
 | --- | --- |

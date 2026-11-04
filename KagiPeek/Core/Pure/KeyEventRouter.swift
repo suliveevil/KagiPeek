@@ -185,7 +185,8 @@ nonisolated enum KeyEventRouter {
             }
         }
 
-        if let step = NavigationKey.pageStep(
+        if let step = PagingKeyPlan.step(
+            pairs: context.settings.pagingPairs,
             keyCode: event.keyCode,
             modifiers: pressed,
             characters: event.characters

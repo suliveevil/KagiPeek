@@ -35,6 +35,10 @@ nonisolated enum SettingsMigrator {
 
     /// Upgrade hook. Steps for a future incompatible change go here, in order, keyed by the
     /// version they bring the payload up to.
+    ///
+    /// v8 added `pagingPairs`. There is no step because the field decodes tolerantly: a v7
+    /// file has no key, so the default (`[.semicolonQuote]`) applies without a rewrite, and a
+    /// set containing an unknown member keeps the known members instead of failing the file.
     static func migrate(_ payload: SettingsPayload) -> AppSettingsSnapshot {
         var settings = payload.settings
         // v3 stored the old default pair (↩ runs, ⌘↩ copies). Only that exact pair moves:

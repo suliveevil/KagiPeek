@@ -187,6 +187,10 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var favoritesCanBeFiltered: Bool = false
     var runRowKey: HotkeySpec? = .runRowDefault
     var copyRowKey: HotkeySpec? = .copyRowDefault
+    /// Punctuation pairs that page the panel alongside ←/→. Checkboxes, not a picker: several
+    /// pairs may be on at once, and none may be on. The arrows are always available and are
+    /// deliberately not part of this set.
+    var pagingPairs: Set<PagingPair> = [.semicolonQuote]
     /// Whether the third-party config scanners run. Off means no file outside KagiPeek's
     /// own data folder is ever opened.
     var scanConfigFiles: Bool = true
@@ -211,8 +215,11 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// and never written back. Version 6 adds `panelOrder`; a v5 file has no key, so the
     /// default (`byModifier`) applies without a rewrite. Version 7 removes `doubleTapWindow`:
     /// the double-tap window now follows the system double-click speed, so an old value is
-    /// ignored and disappears on the next save.
-    static let currentSchemaVersion = 7
+    /// ignored and disappears on the next save. Version 8 adds `pagingPairs`; a v7 file has
+    /// no key, so the default (`semicolonQuote`, the pair the app used to hard-code) applies
+    /// without a rewrite, and unknown
+    /// members of the set are dropped rather than resetting the whole file.
+    static let currentSchemaVersion = 8
 
     init() {}
 
@@ -226,7 +233,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         case excludedBundleIDs, launchAtLogin
         case ignoredCommands
         case panelTheme, keyPosition, panelOrder, pinFavoritesToTop, favoritesCanBeFiltered
-        case runRowKey, copyRowKey, scanConfigFiles
+        case runRowKey, copyRowKey, pagingPairs, scanConfigFiles
         case diagnosticsEnabled, verboseDiagnostics, showDockIcon
     }
 
@@ -295,6 +302,14 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         favoritesCanBeFiltered = try decode(.favoritesCanBeFiltered, fallback.favoritesCanBeFiltered)
         runRowKey = try decodeHotkey(.runRowKey, fallback.runRowKey)
         copyRowKey = try decodeHotkey(.copyRowKey, fallback.copyRowKey)
+        // The set is tolerant on purpose: an unknown member from a newer build is dropped and
+        // the known members survive. Only a field that is not a string array at all falls back
+        // to the default, and even then the rest of the file is kept.
+        if let raw = try? container.decodeIfPresent([String].self, forKey: .pagingPairs) {
+            pagingPairs = Set(raw.compactMap(PagingPair.init(rawValue:)))
+        } else {
+            pagingPairs = fallback.pagingPairs
+        }
         scanConfigFiles = try decode(.scanConfigFiles, fallback.scanConfigFiles)
         diagnosticsEnabled = try decode(.diagnosticsEnabled, fallback.diagnosticsEnabled)
         verboseDiagnostics = try decode(.verboseDiagnostics, fallback.verboseDiagnostics)
@@ -336,6 +351,12 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         try container.encode(favoritesCanBeFiltered, forKey: .favoritesCanBeFiltered)
         try container.encode(runRowKey, forKey: .runRowKey)
         try container.encode(copyRowKey, forKey: .copyRowKey)
+        // Fixed order, not `Set` iteration order: the file must be byte-stable when nothing
+        // changed, or every save would look like a diff.
+        try container.encode(
+            PagingPair.allCases.filter(pagingPairs.contains).map(\.rawValue),
+            forKey: .pagingPairs
+        )
         try container.encode(scanConfigFiles, forKey: .scanConfigFiles)
         try container.encode(diagnosticsEnabled, forKey: .diagnosticsEnabled)
         try container.encode(verboseDiagnostics, forKey: .verboseDiagnostics)

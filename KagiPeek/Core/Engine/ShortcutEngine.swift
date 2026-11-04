@@ -375,6 +375,11 @@ final class ShortcutEngine: ObservableObject {
         if previous.keyStyle != newValue.keyStyle {
             state.searchCorpus = nil
         }
+        if previous.pagingPairs != newValue.pagingPairs {
+            // The tap's swallow list is derived from the enabled pairs; without this the old
+            // pair would keep being eaten and the new one would reach the app behind the panel.
+            updateKeyCapture()
+        }
 
         if previous.language != newValue.language
             || previous.includeBuiltInCatalog != newValue.includeBuiltInCatalog
@@ -430,6 +435,13 @@ final class ShortcutEngine: ObservableObject {
         if old.scanConfigFiles != new.scanConfigFiles { changed.append("scanConfigFiles") }
         if old.excludedBundleIDs != new.excludedBundleIDs { changed.append("excludedBundleIDs") }
         if old.ignoredCommands != new.ignoredCommands { changed.append("ignoredCommands") }
+        if old.pagingPairs != new.pagingPairs {
+            let enabled = PagingPair.allCases
+                .filter(new.pagingPairs.contains)
+                .map(\.rawValue)
+                .joined(separator: ",")
+            changed.append("pagingPairs=[\(enabled)]")
+        }
         if old.diagnosticsEnabled != new.diagnosticsEnabled { changed.append("diagnosticsEnabled") }
         if old.verboseDiagnostics != new.verboseDiagnostics { changed.append("verboseDiagnostics") }
         guard !changed.isEmpty else { return }
@@ -1051,6 +1063,7 @@ final class ShortcutEngine: ObservableObject {
             heldModifiers: state.panel.heldModifiers,
             runRowKey: state.settings.runRowKey,
             copyRowKey: state.settings.copyRowKey,
+            pagingPairs: state.settings.pagingPairs,
             catalogItems: state.catalog.items,
             shiftHintsActive: state.panel.shiftHintActive
         )
@@ -1240,6 +1253,7 @@ final class ShortcutEngine: ObservableObject {
     private func updateKeyCapture() {
         var identifiers: Set<UInt32> = []
         var capturedKeyCodes: Set<UInt16> = []
+        var activePagingCharacters: Set<Character> = []
         if state.panel.isVisible, state.phase == .active {
             // While the list is narrowed the user is physically holding the modifiers, so
             // every key the panel consumes arrives carrying them. Both spellings have to be
@@ -1270,9 +1284,14 @@ final class ShortcutEngine: ObservableObject {
             for keyCode in [KeyCode.ctrlF, KeyCode.ctrlB, KeyCode.ctrlP, KeyCode.ctrlN] {
                 capture(keyCode, [.control])
             }
-            // ; / ' page through the list.
-            capture(KeyCode.semicolon, [])
-            capture(KeyCode.quote, [])
+            // The enabled punctuation pairs page through the list. The key codes describe
+            // the physical spelling; the characters are published separately because a CJK
+            // layout types `；` for the semicolon key.
+            for pair in PagingPair.allCases where state.settings.pagingPairs.contains(pair) {
+                capture(pair.previous.keyCode, pair.previous.modifiers)
+                capture(pair.next.keyCode, pair.next.modifiers)
+            }
+            activePagingCharacters = PagingKeyPlan.characters(for: state.settings.pagingPairs)
             // Backspace only belongs to the panel while navigating a chord.
             if !state.prefix.isEmpty {
                 capture(KeyCode.delete, [])
@@ -1284,6 +1303,7 @@ final class ShortcutEngine: ObservableObject {
         }
         monitor.updateCapturedKeys(identifiers)
         monitor.updateCapturedKeyCodes(capturedKeyCodes)
+        monitor.updateCapturedCharacters(activePagingCharacters)
         refreshKeyDecoding()
     }
 

@@ -183,6 +183,12 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         withLock { swallowRules.capturedKeyCodes = keyCodes }
     }
 
+    /// Characters the panel is using as paging keys. A CJK layout types `；` where the ANSI
+    /// code is the semicolon, so the character channel is what makes the pair work there.
+    func updateCapturedCharacters(_ characters: Set<Character>) {
+        withLock { swallowRules.capturedCharacters = characters }
+    }
+
     /// Arms the click that dismisses a surface: pressing inside `appWindowFrame` but outside
     /// `panelFrame` closes the surface and is swallowed, so the app behind it never sees it.
     ///
@@ -557,8 +563,11 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
             let (keyCode, keyEvent) = describe(event, kind: .keyDown)
             // A repeat of a captured key has to be consumed too: letting it through would
             // move the panel selection and scroll the front app at the same time.
-            let consume = shouldSwallow(keyCode: keyCode, modifiers: keyEvent.modifiers)
-                || shouldSwallowComposed(keyEvent)
+            let consume = shouldSwallow(
+                keyCode: keyCode,
+                modifiers: keyEvent.modifiers,
+                characters: keyEvent.characters
+            ) || shouldSwallowComposed(keyEvent)
             if consume { recordSwallowedKeyDown(keyCode) }
             emit(keyEvent)
             return consume ? nil : Unmanaged.passUnretained(event)
@@ -569,9 +578,11 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
             // leave the front app holding a key that never came up. The press is remembered
             // by key code because the modifiers may have changed under it.
             let releaseOfSwallowedPress = takeSwallowedKeyDown(keyCode)
-            let consume = shouldSwallow(keyCode: keyCode, modifiers: keyEvent.modifiers)
-                || shouldSwallowComposed(keyEvent)
-                || releaseOfSwallowedPress
+            let consume = shouldSwallow(
+                keyCode: keyCode,
+                modifiers: keyEvent.modifiers,
+                characters: keyEvent.characters
+            ) || shouldSwallowComposed(keyEvent) || releaseOfSwallowedPress
             emit(keyEvent)
             return consume ? nil : Unmanaged.passUnretained(event)
 
@@ -669,8 +680,18 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
     /// The plain half of the decision — hotkeys, navigation keys, Escape. The answer lives
     /// in `KeySwallowRules`, which is a value type and therefore testable; this method only
     /// supplies the current rules under the lock.
-    private func shouldSwallow(keyCode: UInt16, modifiers: ModifierSet) -> Bool {
-        withLock { swallowRules.shouldSwallow(keyCode: keyCode, modifiers: modifiers) }
+    private func shouldSwallow(
+        keyCode: UInt16,
+        modifiers: ModifierSet,
+        characters: String?
+    ) -> Bool {
+        withLock {
+            swallowRules.shouldSwallow(
+                keyCode: keyCode,
+                modifiers: modifiers,
+                characters: characters
+            )
+        }
     }
 
     /// The composed-stroke half of the decision, answered on the tap thread from the

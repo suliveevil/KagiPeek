@@ -33,7 +33,8 @@ KagiPeek/
 │   │   ├── UsageOrdering.swift    # sort order applied to search results and statistics
 │   │   ├── KeyFormatter.swift     # ⌘⇧C formatting, glyphs, localization
 │   │   ├── KeyMapper.swift        # virtual key codes ↔ characters
-│   │   ├── NavigationKey.swift    # arrows, ⌃F/⌃B/⌃N/⌃P, ; / ' paging
+│   │   ├── NavigationKey.swift    # arrows, ⌃F/⌃B/⌃N/⌃P
+│   │   ├── PagingKeyPlan.swift    # four optional paging pairs, character-first decision
 │   │   ├── DescriptionCleaner.swift # whitespace, trailing chord hints, the "—" placeholder
 │   │   ├── SearchIndex.swift      # SearchCorpus + Pinyin + tokenized scoring
 │   │   ├── ConflictDetector.swift # same chord claimed by multiple bindings, typed findings
@@ -380,11 +381,11 @@ While modifiers are held, the menu items that can be reached from them keep the 
 `KeyboardMonitor` installs one global event tap under the Accessibility grant. It observes `flagsChanged` and `keyDown` (plus tap-disabled notifications) and passes events through unchanged, with these exceptions:
 
 - the three recorded hotkeys (panel, search, switch) are consumed so the front app does not also receive them — through the same `HotkeyMatcher` rule used for activation, including the Hyper superset tolerance;
-- while a panel is active, its navigation keys (↑/↓/←/→, `;`, `'`, ⌃F/⌃B/⌃N/⌃P), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
+- while a panel is active, its navigation keys (↑/↓/←/→, ⌃F/⌃B/⌃N/⌃P), the characters of every enabled paging pair (`,`/`.`, `[`/`]`, `-`/`+`, `;`/`'`), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
 - a key that **completes** a shortcut is not swallowed: the panel closes and the event continues to the front app.
 - repeats of a captured key are swallowed too. Letting them through would move the panel selection and scroll the front app at the same time; the engine separately ignores repeats for actions that should not fire twice.
 
-Characters are decoded lazily: `KeyboardMonitor` only reads the Unicode string while a surface is taking keys or a binding is being recorded (`updateDecodesKeyEvents`), because the tap sees every key press in the session. Hotkey matching is done on the virtual key code, so it works without decoding.
+Characters are decoded lazily: `KeyboardMonitor` only reads the Unicode string while a surface is taking keys or a binding is being recorded (`updateDecodesKeyEvents`), because the tap sees every key press in the session. While the panel is active, `ShortcutEngine` also publishes the enabled paging characters with `updateCapturedCharacters`, so the swallow check compares the character the layout actually produced (`；` on a Pinyin layout) instead of hard-coded ASCII key codes; the key codes remain the fallback for events with no decoded character. Hotkey matching is done on the virtual key code, so it works without decoding.
 
 It never records events. The one thing it synthesises is a single chord, on request: `ShortcutInjector` posts it when a menu item runs (see [Panel interaction](#panel-interaction-and-execution)). The run-loop source is attached to the main run loop, so callbacks arrive on the main thread and must stay fast. If the tap cannot receive events on a particular system, `PermissionCenter` offers Input Monitoring as the fallback.
 
@@ -773,12 +774,14 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - `HeaderLayout`: the 460/600 thresholds and which controls each density keeps
 - `PanelOrdering`: fewer strokes first, then fewer modifiers, then the modifier order, then the key; the filter rule is "carries every filtered modifier"
 - `PanelSortOrder`: **By modifier** equals the old order exactly; **By menu group** keeps each top-level menu contiguous in menu-bar order, keeps the shortcut order inside a menu, and puts unranked groups after ranked ones with an empty group last; switching the order moves the `0`–`9` / `a`–`z` Shift labels to the new positions
-- the settings schema writes version 6, and a v5 payload without `panelOrder` migrates to **By modifier**
+- the settings schema writes version 8; a v7 payload without `pagingPairs` migrates to the default `;` / `'` pair, unknown members of the set are dropped rather than rolling the whole file back, and a v5 payload without `panelOrder` migrates to **By modifier**
 - `PanelSelection`: zero rows select nothing, one row selects it, a stale index is dropped rather than clamped to the last row
 - `RowLayout`: the note column disappears below 300 pt, the key column is capped in both directions, and the title floor of 60 pt engages only at the narrowest supported row
 - `KeyChord.isFinalStroke`: one source of truth for "this stroke is the last one", shared by descent and menu item activation
 - `PendingModifiers` and `ChordComposition`: held vs latched, the lone-⇧ rule, the `composed` guard rail, and the full swallow truth table
-- `PanelKeyIntake`: navigation, paging, the action keys, `/` and Escape are claimed before composition; ⌫ is deliberately not on the list
+- `PanelKeyIntake`: navigation, the enabled paging pairs, the action keys, `/` and Escape are claimed before composition; ⌫ is deliberately not on the list
+- `PagingKeyPlan`: either the first character of an enabled pair (previous) or the second (next), matched on the typed character first and the ANSI key code only when the event has none; arrows are never part of it, several pairs can be on at once without swallowing each other, and `+` (Shift+=) still pages while the Shift-hint layer is up because it is not a `0`–`9` / `a`–`z` label
+- `SearchKeyRouter`: all eight paging characters pass through to the search field, so a focused query field never pages
 - narrowing is preserved: a held or ticked ⌘ keeps ⇧⌘A, because the rule is "carries every held modifier", not "equals it"
 - menu-path weighting: a title match outranks a menu-name match, and the nearer level outranks the deeper ancestor
 - `OverlayMetrics` sizing is stable: narrowing the list keeps the session's height, a budget smaller than the rows on screen cannot clip them, an empty budget falls back to the rows drawn, and a heading reserved by the widest list stays reserved

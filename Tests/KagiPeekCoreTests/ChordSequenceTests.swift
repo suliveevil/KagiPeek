@@ -227,11 +227,32 @@ final class PanelKeyIntakeTests: XCTestCase {
     private func intake(
         _ keyCode: UInt16,
         modifiers: ModifierSet = [],
-        held: ModifierSet = []
+        held: ModifierSet = [],
+        pagingPairs: Set<PagingPair> = [.semicolonQuote],
+        characters: String? = nil
     ) -> Bool {
         PanelKeyIntake.isConsumedBeforeComposition(
-            keyCode: keyCode, modifiers: modifiers, held: held, run: run, copy: copy
+            keyCode: keyCode,
+            modifiers: modifiers,
+            held: held,
+            run: run,
+            copy: copy,
+            pagingPairs: pagingPairs,
+            characters: characters
         )
+    }
+
+    /// Four pairs, four toggles: the enabled pair pages, the disabled pair is free for a chord.
+    func testEnabledPagingPairsAreIntakeAndDisabledOnesAreNot() {
+        XCTAssertFalse(intake(KeyCode.comma, pagingPairs: [.semicolonQuote]))
+        XCTAssertTrue(intake(KeyCode.comma, pagingPairs: [.commaPeriod]))
+        XCTAssertTrue(intake(KeyCode.semicolon, pagingPairs: [.semicolonQuote]))
+        XCTAssertTrue(intake(KeyCode.leftBracket, pagingPairs: [.brackets]))
+        XCTAssertFalse(intake(KeyCode.leftBracket, pagingPairs: [.semicolonQuote]))
+        XCTAssertTrue(intake(KeyCode.minus, pagingPairs: [.minusPlus]))
+        XCTAssertTrue(intake(KeyCode.equal, modifiers: [.shift], pagingPairs: [.minusPlus]))
+        // No pair enabled: only the arrows and Esc remain.
+        XCTAssertFalse(intake(KeyCode.semicolon, pagingPairs: []))
     }
 
     /// The bug this list exists for: `⌥;` is a binding, but the `;` was pressed to page.
@@ -246,13 +267,15 @@ final class PanelKeyIntakeTests: XCTestCase {
     ///   composition is free to run `⌥;`. That is the ordinary shortcut path, untouched.
     func testPageKeyIsIntakeWhenTheModifierIsTicked() {
         // Ticked: the event carries nothing.
-        XCTAssertTrue(intake(KeyCode.semicolon))
-        XCTAssertTrue(intake(KeyCode.quote))
+        XCTAssertTrue(intake(KeyCode.semicolon, pagingPairs: [.semicolonQuote]))
+        XCTAssertTrue(intake(KeyCode.quote, pagingPairs: [.semicolonQuote]))
         // Held and stripped back out — the event carried ⌥ and the user is holding it.
-        XCTAssertTrue(intake(KeyCode.semicolon, modifiers: [.option], held: [.option]))
+        XCTAssertTrue(
+            intake(KeyCode.semicolon, modifiers: [.option], held: [.option], pagingPairs: [.semicolonQuote])
+        )
         // Held and *not* stripped: a physical ⌥ the panel does not know about is part of the
         // stroke, so `;` is not navigation and must not be claimed here.
-        XCTAssertFalse(intake(KeyCode.semicolon, modifiers: [.option]))
+        XCTAssertFalse(intake(KeyCode.semicolon, modifiers: [.option], pagingPairs: [.semicolonQuote]))
     }
 
     func testArrowsAreIntake() {

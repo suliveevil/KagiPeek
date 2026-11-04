@@ -96,6 +96,8 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Row actions
     case rowActionSection, rowActionExecute, rowActionCopy, rowActionHint
+    case rowActionPagingTitle, rowActionPagingHint
+    case pagingPairCommaPeriod, pagingPairBrackets, pagingPairMinusPlus, pagingPairSemicolonQuote
     case panelActionHint, panelActionHintSearch, panelActionHintCompact
     case panelCopyHintCompact, panelEscCloseHint
 
@@ -503,6 +505,15 @@ nonisolated enum L10n {
             "Clicking a menu item uses the run key. Both keys are recorded: a modifier is optional for keys such as Return, while a bare letter is refused so that filtering still works. The run key wins if both are recorded to the same chord.",
             "点击菜单项等同于执行键。两个键都可录制：Return 这类键可以不按修饰键，纯字母会被拒绝，以免影响筛选输入。若两个键录成同一组合，执行键优先。"
         ),
+        .rowActionPagingTitle: ("Page navigation", "前后翻页"),
+        .rowActionPagingHint: (
+            "← / → always work and are not controlled here. Enable as many pairs as you like; with none ticked, only the arrows page.",
+            "← / → 始终可用，且不受这里控制。可以同时启用多对；一对都不勾选时，仅方向键翻页。"
+        ),
+        .pagingPairCommaPeriod: ("Comma / Period  ( , . )", "逗号、句号（, .）"),
+        .pagingPairBrackets: ("Brackets  ( [ ] )", "方括号（[ ]）"),
+        .pagingPairMinusPlus: ("Minus / Plus  ( - + )", "减号、加号（- +）"),
+        .pagingPairSemicolonQuote: ("Semicolon / Quote  ( ; ' )", "分号、引号（; '）"),
 
         .overlayNoCandidates: ("No matching shortcuts", "没有匹配的快捷键"),
         .scanPermissionDenied: (

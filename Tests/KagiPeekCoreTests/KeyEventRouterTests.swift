@@ -36,7 +36,8 @@ final class KeyEventRouterTests: XCTestCase {
         panel: PanelState = .hidden,
         prefix: KeyChord = .empty,
         pending: PendingModifiers = PendingModifiers(),
-        items: [BindingItem] = []
+        items: [BindingItem] = [],
+        characters: String? = nil
     ) -> KeyDownAction {
         KeyEventRouter.route(
             KeyEvent(
@@ -45,7 +46,8 @@ final class KeyEventRouterTests: XCTestCase {
                 key: key,
                 keyCode: keyCode,
                 isRepeat: isRepeat,
-                happenedAt: Date()
+                happenedAt: Date(),
+                characters: characters
             ),
             in: RoutingContext(
                 phase: phase,
@@ -182,9 +184,61 @@ final class KeyEventRouterTests: XCTestCase {
         XCTAssertEqual(route(keyCode: KeyCode.ctrlP, key: "p", modifiers: [.control]), .moveSelection(-1))
     }
 
-    func testPageKeys() {
+    func testDefaultPageKeys() {
         XCTAssertEqual(route(keyCode: KeyCode.semicolon, key: ";"), .page(-1))
         XCTAssertEqual(route(keyCode: KeyCode.quote, key: "'"), .page(1))
+        XCTAssertFalse(isPage(route(keyCode: KeyCode.comma, key: ",")))
+        XCTAssertFalse(isPage(route(keyCode: KeyCode.period, key: ".")))
+    }
+
+    /// The pair is a setting now: the disabled pair must not page, and several enabled pairs
+    /// all page.
+    func testConfiguredPagingPairsPage() {
+        var settings = Self.neutralSettings
+        settings.pagingPairs = [.brackets]
+        XCTAssertEqual(route(keyCode: KeyCode.leftBracket, key: "[", settings: settings), .page(-1))
+        XCTAssertEqual(route(keyCode: KeyCode.rightBracket, key: "]", settings: settings), .page(1))
+        XCTAssertFalse(isPage(route(keyCode: KeyCode.semicolon, key: ";", settings: settings)))
+
+        settings.pagingPairs = [.commaPeriod, .brackets, .minusPlus, .semicolonQuote]
+        for (keyCode, key) in [
+            (KeyCode.comma, ","), (KeyCode.period, "."),
+            (KeyCode.leftBracket, "["), (KeyCode.rightBracket, "]"),
+            (KeyCode.minus, "-"), (KeyCode.semicolon, ";"), (KeyCode.quote, "'")
+        ] {
+            XCTAssertTrue(isPage(route(keyCode: keyCode, key: KeyToken(key), settings: settings)))
+        }
+        XCTAssertEqual(
+            route(keyCode: KeyCode.equal, key: "+", modifiers: [.shift], settings: settings),
+            .page(1)
+        )
+    }
+
+    /// The character decides: on a Pinyin layout the semicolon key types `；`, and that must
+    /// page even though the ANSI key code is the same.
+    func testFullWidthPunctuationStillPages() {
+        XCTAssertEqual(
+            route(keyCode: KeyCode.semicolon, key: "；", characters: "；"),
+            .page(-1)
+        )
+        XCTAssertFalse(isPage(route(keyCode: KeyCode.comma, key: "，", characters: "，")))
+        var settings = Self.neutralSettings
+        settings.pagingPairs = [.commaPeriod]
+        XCTAssertEqual(
+            route(keyCode: KeyCode.comma, key: "，", settings: settings, characters: "，"),
+            .page(-1)
+        )
+    }
+
+    /// The search field owns its keys: while the panel is not the active surface, nothing pages.
+    func testSearchPhaseDoesNotPage() {
+        XCTAssertEqual(route(keyCode: KeyCode.semicolon, key: ";", phase: .idle), .none)
+        XCTAssertEqual(route(keyCode: KeyCode.left, key: "left", phase: .idle), .none)
+    }
+
+    private func isPage(_ action: KeyDownAction) -> Bool {
+        if case .page = action { return true }
+        return false
     }
 
     func testRowKeys() {
