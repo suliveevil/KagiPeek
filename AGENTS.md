@@ -6,6 +6,10 @@ KagiPeek 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）�
 - 构建：`scripts/build_swiftc.sh Release`（本机 `xcodebuild` 不可用，见 STATUS 的环境坑）
 - 测试：`swift test`
 
+## git
+
+每次都在新分支上修改代码，测试没问题之后merge入main，然后build重装app
+
 ## 安装、备份与签名
 
 - 安装：`scripts/install.sh`。它拒绝 ad-hoc 包；`/Applications/KagiPeek.app` 必须是
