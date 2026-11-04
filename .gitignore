@@ -126,3 +126,12 @@ qwenwork/
 # and qwenwork/ above: local working data, not part of the project.
 # ---------------------------------------------------------------------------
 .zcode/
+
+# ---------------------------------------------------------------------------
+# Agent workspace
+#
+# Local plans, specs and MCP configuration for the coding agent. Session data
+# by nature, like .workbuddy/ and .zcode/ above — it records how the work was
+# planned, not what the project is.
+# ---------------------------------------------------------------------------
+.trae/
