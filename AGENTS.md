@@ -9,6 +9,7 @@ KagiPeek 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）�
 ## git
 
 每次都在新分支上修改代码，测试没问题之后merge入main，然后build重装app
+如果没有代码改动，merge后不进行build重装
 
 ## 安装、备份与签名
 
