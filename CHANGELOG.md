@@ -6,6 +6,7 @@ All notable changes to this project are documented here, in the order the work h
 
 - The hint panel keeps covering the window: widening it for a tall window recomputes the content height, but the larger of that and the cover height wins, so a short list can no longer shrink the panel below the window. It stays centred on the visible frame.
 - The search palette now belongs to the front window instead of the screen: its width stays 680 pt, its height follows the window (clamped to the visible frame), and its centre is the window's centre, clamped so it stays on screen. With no window frame it falls back to the screen centre.
+- The first panel after switching apps covers the front window immediately. The window frame is read asynchronously, so the panel used to open at a shrunken 80 % × 70 % guess and only resize on the next presentation — in practice after the modifier was released. It now opens on the whole visible frame and, when the frame arrives, is resized by the same rule as a normal presentation, so the panel is never smaller than the window it covers.
 
 ## Automatic double-tap window (2026-11-04)
 

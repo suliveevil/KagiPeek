@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 22:54**（Asia/Shanghai）。
+as of **2026-11-04 23:03**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,8 +8,8 @@ as of **2026-11-04 22:54**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`3e4532a`（`docs(status): 记录设置页改动、签名迁移与本次安装验证`）；面板定位改动
-  紧随其后提交，本文件最后提交，所以安装标记是 `3e4532a-dirty`。
+- 代码 HEAD：`1c1eee5`（`test(placement): 锁定全屏时 visibleFrame 等于整屏的边界`），其上还有
+  一条未提交的「前台 app 切换后面板首帧覆盖」修复。
 - 工作区：干净（提交前只剩本文件）。设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 未合并分支：无，当前在 `main`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
@@ -23,7 +23,14 @@ as of **2026-11-04 22:54**（Asia/Shanghai）。
   搜索面板从「屏幕居中 + 距顶 140pt 的 680×460」改为「前台窗口居中」：宽度固定 680，
   高度至少等于前台窗口高度（夹在可见区内），帧以窗口中心为基准并夹回可见区，无窗口帧时
   回退屏幕中心；前台 pid 在 `NSApp.activate()` 之前读取。新增 `Core/Pure/OverlayPlacement`
-  承接这套几何，`swift test` 672 → 682。
+  承接这套几何，`swift test` 672 → 682；再补两条全屏边界断言（前台窗口铺满屏幕时
+  `visibleFrame == screen.frame`，24pt 余量被裁、提示面板恰好等于屏幕，搜索面板高度取到屏高）
+  后为 684。
+- **前台 app 切换后的首帧覆盖**：`SurfacePanelController` 里窗口帧是异步读的，切到新 app 后
+  第一次按住修饰键时 `anchorWindowFrame` 还是 nil，面板按 0.8×0.7 的兜底尺寸画出，之后
+  `refreshGeometry` 只移动位置、沿用兜底尺寸，所以要到松开修饰键、`presentPanel` 再跑一次
+  才覆盖。现在兜底尺寸取整个可见区（任何窗口都在其中），几何到达后按与 `presentPanel` 相同的
+  规则重算尺寸再落位，首帧起就完整覆盖。
 - **设置页文案与触发卡片**（`d4321ea`）：`rankingModeHint` 改为「面板顺序在外观页设置，搜索面板按匹配度
   排序」；删除触发页误用的面板提示脚注。触发页拆成两张卡片「修饰键触发 / Modifier trigger」
   与「快捷键触发 / Shortcut trigger」，各自带启用开关。
@@ -87,20 +94,20 @@ as of **2026-11-04 22:54**（Asia/Shanghai）。
 
 | 命令 | 结果 |
 | --- | --- |
-| `swift test`（提交后） | `Executed 672 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（本次安装前） | `Executed 684 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
 | 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
 | `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |
 | `codesign -d -r-`（安装包 vs 上一份备份） | 两行都是 `certificate root = H"6c0ac5…a929"`，TCC designated requirement 未变 |
-| `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local` |
+| `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`flags=0x10000(runtime)` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `valid on disk` / `satisfies its Designated Requirement` |
-| `KagiPeekCommit` / 版本串 | `3e4532a-dirty` / `v2.2.0 (3e4532a-dirty)` |
-| `pgrep -x KagiPeek` | `7622`（单实例） |
-| `scripts/install.sh` | 成功；`xcodebuild` BUILD SUCCEEDED；备份 `KagiPeek-2026-11-04-225041-a0b1401-dirty-local.app`，按命名保留最近 5 份 |
+| `KagiPeekCommit` / 版本串 | `1c1eee5-dirty` / `v2.2.0 (1c1eee5-dirty)` |
+| `pgrep -x KagiPeek` | `12554`（单实例） |
+| `scripts/install.sh` | 成功；`xcodebuild` BUILD SUCCEEDED；已装包替换前备份 `KagiPeek-2026-11-04-230313-3e4532a-dirty-local.app`，按命名保留最近 5 份 |
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
 
-本次安装标记为 `3e4532a-dirty`：`docs/STATUS.md` 的更新在构建之后才提交；重装一次即可让
-Info.plist 里的 commit 与 HEAD 相等。签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
+本次安装标记为 `1c1eee5-dirty`：面板首帧覆盖的修复与这份 STATUS 的更新在构建时都还没提交。
+签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
 的授权框会反复出现；新钥匙串用 `-A` 导入并设置 partition list，`codesign` 不再弹窗。证书
@@ -116,17 +123,17 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (3e4532a-dirty)`
+- 版本串原文：`v2.2.0 (1c1eee5-dirty)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`3e4532a-dirty`（安装时的 main HEAD + 尚未提交的 STATUS）
+- `KagiPeekCommit`（Info.plist）：`1c1eee5-dirty`（安装时的 main HEAD + 尚未提交的首帧修复）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持；私钥只在独立钥匙串中
-- 运行中 PID：`7622`（`pgrep -x KagiPeek`，单实例）
+- 运行中 PID：`12554`（`pgrep -x KagiPeek`，单实例）
 - 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
   `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  本次为 `KagiPeek-2026-11-04-225041-a0b1401-dirty-local.app`。
+  本次为 `KagiPeek-2026-11-04-230313-3e4532a-dirty-local.app`。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、

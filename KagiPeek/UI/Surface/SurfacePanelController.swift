@@ -96,8 +96,9 @@ final class SurfacePanelController: PanelPresenting {
         let pid = engine.frontmostProcessIdentifier
         if anchorPid != pid {
             // A new front app invalidates both snapshots. Read the replacements in the
-            // background and position from the fallback for the frames in between: the
-            // previous app's window would put the panel somewhere meaningless.
+            // background and cover the whole visible frame in the meantime: the previous
+            // app's window would put the panel somewhere meaningless, and a shrunken guess
+            // would leave the new window partly uncovered until the read returns.
             anchorPid = pid
             anchorWindowFrame = nil
             focusedElementFrame = nil
@@ -106,20 +107,8 @@ final class SurfacePanelController: PanelPresenting {
             refreshGeometry(for: pid)
         }
 
-        let natural = OverlayMetrics.size(for: state, settings: settings)
         let screen = targetScreen()
-        var size = panelSize(natural: natural, settings: settings, screen: screen)
-        if settings.panelPlacement == .coverWindow {
-            // A wider panel fits more columns, so the content height follows the final width —
-            // but the cover height must survive that. Taking the larger of the two keeps the
-            // window covered; a panel that shrank to its content stopped covering a tall window.
-            let contentHeight = OverlayMetrics.size(for: state, settings: settings, width: size.width).height
-            size.height = OverlayPlacement.coveredHeight(
-                contentHeight: contentHeight,
-                coverHeight: size.height,
-                limit: screen?.visibleFrame.height ?? size.height
-            )
-        }
+        let size = panelSize(for: state, settings: settings, screen: screen)
         panel.setContentSize(size)
         panel.setFrame(panelFrame(size: size, settings: settings, screen: screen), display: true)
         panel.orderFrontRegardless()
@@ -138,9 +127,9 @@ final class SurfacePanelController: PanelPresenting {
         hide()
     }
 
-    /// Reads the anchor/floating-element frames in the background and reposition once they
-    /// arrive. Dragging or resizing the panel is not involved: only the frame origin is
-    /// recomputed, so the content does not flash or reorder.
+    /// Reads the anchor/floating-element frames in the background and re-lays the panel out
+    /// once they arrive. The content is swapped by `setContentSize` only, never rebuilt, so it
+    /// does not flash or reorder; the frame settles onto the window that was just read.
     private func refreshGeometry(for pid: pid_t) {
         guard !isRefreshingGeometry else { return }
         isRefreshingGeometry = true
@@ -159,9 +148,14 @@ final class SurfacePanelController: PanelPresenting {
             switch self.mode {
             case .panel:
                 guard let settings = self.lastPanelSettings else { return }
-                let size = self.panel.frame.size
+                // The frame that arrived may be the first one for this app, so the panel was
+                // drawn from the fallback size. Recompute it here as well: repositioning the
+                // fallback left a tall window uncovered until the next `presentPanel`.
+                let screen = self.targetScreen()
+                let size = self.panelSize(for: self.engine.state.panel, settings: settings, screen: screen)
+                self.panel.setContentSize(size)
                 self.panel.setFrame(
-                    self.panelFrame(size: size, settings: settings, screen: self.targetScreen()),
+                    self.panelFrame(size: size, settings: settings, screen: screen),
                     display: true
                 )
                 self.engine.updateOutsideMouseSwallow(
@@ -370,7 +364,25 @@ final class SurfacePanelController: PanelPresenting {
         return screenContainingMouse() ?? NSScreen.main ?? NSScreen.screens.first
     }
 
-    private func panelSize(natural: CGSize, settings: AppSettingsSnapshot, screen: NSScreen?) -> CGSize {
+    /// The panel's frame size for a given state, including the cover-height correction.
+    private func panelSize(for state: PanelState, settings: AppSettingsSnapshot, screen: NSScreen?) -> CGSize {
+        let natural = OverlayMetrics.size(for: state, settings: settings)
+        var size = placementSize(natural: natural, settings: settings, screen: screen)
+        if settings.panelPlacement == .coverWindow {
+            // A wider panel fits more columns, so the content height follows the final width —
+            // but the cover height must survive that. Taking the larger of the two keeps the
+            // window covered; a panel that shrank to its content stopped covering a tall window.
+            let contentHeight = OverlayMetrics.size(for: state, settings: settings, width: size.width).height
+            size.height = OverlayPlacement.coveredHeight(
+                contentHeight: contentHeight,
+                coverHeight: size.height,
+                limit: screen?.visibleFrame.height ?? size.height
+            )
+        }
+        return size
+    }
+
+    private func placementSize(natural: CGSize, settings: AppSettingsSnapshot, screen: NSScreen?) -> CGSize {
         guard let screen else { return natural }
         let visible = screen.visibleFrame
         switch settings.panelPlacement {
@@ -383,7 +395,11 @@ final class SurfacePanelController: PanelPresenting {
             )
         case .coverWindow:
             guard let window = anchorWindowFrame else {
-                return CGSize(width: visible.width * 0.8, height: visible.height * 0.7)
+                // The front window's frame arrives asynchronously, so the first frame after an
+                // app switch has no window to cover. A shrunken guess left the window half
+                // exposed; the visible frame covers every window, so start there and settle
+                // onto the window once its frame is known.
+                return visible.size
             }
             return OverlayPlacement.coverWindowSize(windowFrame: window, visible: visible, natural: natural)
         case .besideWindow:
