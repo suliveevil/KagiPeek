@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-05 00:55**（Asia/Shanghai）。
+as of **2026-11-05 01:02**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,12 +8,13 @@ as of **2026-11-05 00:55**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：见 `git log -1`。本轮 UI 批次的基线是 `553fcca`；`main` 最后停在
-  `ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）；全屏边界测试在
+- 代码 HEAD：`bd2b6b0`（`fix/panel-footer-clearance`），在 `ee18e08` 之上依次为
+  `80d5810`、`29f1f8f`、`c28895e`、`bd2b6b0`（本轮 G1–G4）；`main` 最后停在 `ee18e08`
+  （`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）。更早的全屏边界测试在
   `1c1eee5`，面板定位修正 `4d7abed`。
 - 工作区：本文件所在分支为 `fix/panel-footer-clearance`（从 `main` 开），另有
-  `feature/paging-key-pair` 未合并；两分支都未 push、未合 main。本轮在 `553fcca` 之上
-  按 UI / 设置与材质 / 文档三组提交，**未** amend、未建分支、未构建、未安装。
+  `feature/paging-key-pair` 未合并；两分支都未 push、未合 main。G1–G4 的四个代码提交
+  已各自提交完，文档改动在本次单独提交；本轮**未** amend、未建分支、未构建、未安装。
 - 设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
@@ -21,6 +22,20 @@ as of **2026-11-05 00:55**（Asia/Shanghai）。
 
 ## 本轮完成
 
+- **面板几何失效与 Space 重扫（G1–G4）**：`containedFrame` 先把尺寸夹到可见区，再按方向判断
+  8pt `screenMargin` 是否放得下，放不下该方向取 0，整屏大小的帧不再被边距推出去（`80d5810`）。
+  新增纯类型 `PanelAnchorCache`（`invalidate` / `beginRead(pid:)` / `apply`，陈旧 pid 的结果被
+  丢弃）；`SurfacePanelController.hide()` 取消在途 `geometryTask`、复位 `isRefreshingGeometry`
+  并清空快照，控制器自行观察 Space 与屏幕参数变化并清空快照，下次展示后台重读；无快照期间
+  `OverlayPlacement.coverSize` 以整块可见区兜底，首帧就完整覆盖（`29f1f8f`）。新增
+  `topInset(safeAreaTop:) = max(safeAreaTop, screenMargin)`、`fillScreenFrame`（只缩高度、原点
+  不动）与 `clampedTop`；`.fillScreen` 避开顶部安全区，`.fixedSize` / `.coverWindow` 在
+  `containedFrame` 后不再顶进菜单栏或刘海（`c28895e`）。新增 `SpaceRescanGate`（0.75s、按
+  pid 去抖）与 `CatalogPublishPolicy`：切 Space 先 `dismissEverything()`，再强制重扫当前前台
+  App，日志 `space changed → forced rescan <app>`；`CatalogCoordinator.reload` 的
+  `preserveOnEmpty` 在空列表且无菜单栏时保留旧目录并复位加载状态（`bd2b6b0`）。新增
+  `PanelAnchorCacheTests`、`SpaceRescanGateTests` 与 `OverlayGeometryTests`；`swift test`
+  708 → 726。
 - **面板可读性、设置窗口与材质收口**（基线 `553fcca`，本轮三组提交）：选中菜单项左侧加
   3pt 高亮竖条、标题提亮，VoiceOver 暴露 `.isSelected`，朗读顺序「菜单项名 → 快捷键 →
   状态」，行容器由 `.ignore` 改为 `.contain`，装饰元素 `accessibilityHidden`；不可用菜单项
@@ -120,6 +135,7 @@ as of **2026-11-05 00:55**（Asia/Shanghai）。
 | --- | --- |
 | `swift test`（本次安装前） | `Executed 684 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（本轮 UI 批次提交前） | `Executed 708 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（G1–G4 代码批次） | `Executed 726 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
 | 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
 | `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |

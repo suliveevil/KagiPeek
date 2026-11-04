@@ -285,12 +285,18 @@ A menu item with no key equivalent has no shortcut, so the column stays empty ra
 
 That depends on **Settings → Appearance → Panel placement**:
 
-- **Cover the front window** (default) makes the panel large enough to cover the front window in both dimensions and centers it on the screen.
-- **Fixed size** uses the width and height you set (720 × 620 by default) and centers it.
-- **Fill the screen** uses the whole visible screen area.
+- **Cover the front window** (default) makes the panel large enough to cover the front window in both dimensions, centres it on that window, and keeps it inside the visible area.
+- **Fixed size** uses the width and height you set (720 × 620 by default) and centres it.
+- **Fill the screen** uses the whole visible screen area, stopping below the top safe area so the menu bar or notch never covers its first rows.
 - **Beside the front window** is the old v1.x/v2.0 behavior: the panel sits beside or below the window and tries not to cover the focused element.
 
 The geometry is computed when the panel opens. If the window moved after that, or if an app reports unusual window frames, full-screen spaces, or multiple displays confuse the anchor, the panel can look misplaced. Close and reopen it, or choose a different placement.
+
+## Does the panel end up off-screen in fullscreen or after switching Space?
+
+No. A window frame read before a Space or display change would be stale, so the panel drops its cached anchor frame when it hides, when the active Space changes, and when the displays change, and reads the new frames on the next presentation. Until that read returns it uses the whole visible screen area as the cover size instead of a shrunken guess, so the first frame is already complete.
+
+On a full-screen space the visible frame is the screen minus the top safe area — the menu bar, or the notch on a display that has one — and the panel fills that area without drawing under it, so its first rows and its footer both stay reachable. Switching Space also forces a fresh scan of the app now in front; if macOS has not put that app's menu bar back yet, the previous list is kept rather than replaced by an empty panel.
 
 ## Does KagiPeek use much CPU or battery?
 
