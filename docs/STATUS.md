@@ -16,9 +16,14 @@ as of **2026-11-05**（Asia/Shanghai）。
   `docs/terminology-menu-item`、`feature/auto-double-tap`、`feature/paging-key-pair`、
   `feature/panel-sort`、`fix/panel-footer-clearance`）。本地还剩开发分支
   `feature/panel-sections`、旧历史备份 `backup/pre-squash-20261104-192838`（branch 与 tag
-  同指向 `de32cb6`），以及 16 个 pre-squash 时期的迭代分支（tip 均在该备份的祖先上，
-  未合入 main）。这 16 个分支的删除被工具安全策略拒绝（有用户口头批准，但策略禁止删除
-  未合入 main 的分支），需在终端里手动清理。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
+  同指向 `de32cb6`）。16 个 pre-squash 时期的迭代分支（`chore/backup-signing-convention`、
+  `chore/round2-consistency`、`docs/handoff-snapshot`、`docs/status-fixup`、
+  `docs/status-fixup-3`、`docs/status-head-3`、`docs/status-refactor-3`、
+  `docs/trigger-settings-v5-alignment`、`feature/pagination-wrap`、`feature/trigger-settings-v5`、
+  `fix/context-menu-wording`、`fix/gui-test-20261104`、`fix/query-reset-and-version-stamp`、
+  `fix/round2-bugs`、`refactor/engine-split`、`ui/settings-diagnostics-merge`）已逐个核对：
+  各自目的在 main 中都有对应实现，且 tip 均可从备份 ref 到达，因此已删除分支标签，
+  提交历史仍保留在这份 backup 上。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
   suliveevil/KagiPeek。
 - `swift test` 768 → 789，0 failures。本轮**未**构建、未安装、未 amend、未 squash、
   未碰 `backups/`。
