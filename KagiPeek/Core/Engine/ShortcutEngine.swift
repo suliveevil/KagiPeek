@@ -1300,9 +1300,11 @@ final class ShortcutEngine: ObservableObject {
     func rebuildPanel() { panel.rebuildPanel() }
     func panelSequence() -> [PanelEntry] { panel.panelSequence() }
     func toggleFavoritesFilter() { panel.toggleFavoritesFilter() }
+    func toggleToolSection() { panel.toggleToolSection() }
     func toggleModifier(_ modifier: ModifierSet) { panel.toggleModifier(modifier) }
     func toggleFavorite(rowID: String) { panel.toggleFavorite(rowID: rowID) }
     func copyShortcut(rowID: String) { panel.copyShortcut(rowID: rowID) }
+    func copyMenuPath(rowID: String) { panel.copyMenuPath(rowID: rowID) }
     func copyRow(rowID: String) { panel.copyRow(rowID: rowID) }
     func showSettings() { panel.showSettings() }
     func showConflicts() { panel.showConflicts() }
@@ -1311,6 +1313,7 @@ final class ShortcutEngine: ObservableObject {
     func moveSelection(_ delta: Int) { panel.moveSelection(delta) }
     func performSelectedPanelRow(action: RowAction) { panel.performSelectedPanelRow(action: action) }
     func performPanelRow(rowID: String, action: RowAction) { panel.performPanelRow(rowID: rowID, action: action) }
+    func clickPanelRow(rowID: String) { panel.clickPanelRow(rowID: rowID) }
     func select(rowID: String) { panel.select(rowID: rowID) }
     func activate(rowID: String) { panel.activate(rowID: rowID) }
 

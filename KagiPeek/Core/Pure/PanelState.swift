@@ -27,10 +27,21 @@ nonisolated struct PanelRow: Identifiable {
     /// The Shift-hint glyph (0–9, a–z) standing in for the chord while Shift is held. Nil
     /// means the chord column shows the shortcut as usual.
     let hintLabel: String?
+    /// Which source owns this row. The view uses it to decide whether a right-click may
+    /// offer Run at all (config rows never run).
+    var source: BindingSource = .menu
+    /// Set for a restricted system action the panel shows but never runs. The view paints
+    /// the title red and drops Run from the context menu.
+    var restriction: RestrictedAction? = nil
+    /// Whether the item has a chord at all. A row without one cannot copy a shortcut and
+    /// falls back to its menu path.
+    var hasChord: Bool = true
 
     /// The chord as plain text — the segmented form joined back together, so the two can
     /// never drift.
     var keyLabel: String { keySegments.map(\.text).joined() }
+
+    var isRestricted: Bool { restriction != nil }
 }
 
 nonisolated struct PanelGroup: Identifiable {
@@ -43,6 +54,10 @@ nonisolated struct PanelGroup: Identifiable {
     /// count on *this* page — "System hotkeys 15" while 79 exist. Nil means "the count is the
     /// rows here", which is true for every single-page group.
     var totalCount: Int?
+    /// A card whose rows can be hidden by clicking its title — the tool sections.
+    var isCollapsible = false
+    /// Whether a collapsible card currently shows its rows. Fixed for every other card.
+    var isExpanded = true
 }
 
 /// Immutable snapshot the overlay renders. SwiftUI observes the engine, so every field here
@@ -56,6 +71,7 @@ nonisolated struct PanelState {
     var pageIndex = 0
     var pageCount = 1
     var totalCount = 0
+    /// Every row of all three sources, including the tool rows while that section is folded.
     var appName = ""
     var hasConflicts = false
     var usedBuiltInCatalog = false
@@ -85,6 +101,10 @@ nonisolated struct PanelState {
     /// Shift + glyph press runs the matching row. Kept in the snapshot because the tap's
     /// swallow decision reads it, and because the rows have to be rebuilt when it flips.
     var shiftHintActive = false
+    /// The config-tool section is open. Starts folded on every panel session: the tool
+    /// shortcuts are the third source and should not push the app's own list off the first
+    /// page before the user asks for them.
+    var toolSectionExpanded = false
     /// The panel was opened by the modifier gesture and the trigger key is still down.
     /// Until that key is released, a `flagsChanged` must not narrow the list: the press
     /// that summoned the panel is a trigger, not a filter. Cleared by the release edge.
@@ -113,8 +133,8 @@ nonisolated struct PanelState {
     ///
     /// Derived, never stored: a second copy of "how many rows there are" is another thing to
     /// keep in sync, and this class of bug is what drift looks like. It also deliberately
-    /// reads `flatRowIDs` and not `totalCount` — `totalCount` counts every row of both
-    /// sections, while the page in front of the user holds only some of them.
+    /// reads `flatRowIDs` and not `totalCount` — `totalCount` counts every row of all three
+    /// sources, while the page in front of the user holds only some of them.
     ///
     /// For display only (a footer hint, emphasising the one remaining row). Which row is
     /// *selected* is `PanelSelection.resolved`'s job: a boolean cannot say "the first one".
@@ -147,6 +167,7 @@ nonisolated struct PanelState {
         filter.clear()
         heldModifiers = []
         shiftHintActive = false
+        toolSectionExpanded = false
         triggerNarrowPending = false
     }
 

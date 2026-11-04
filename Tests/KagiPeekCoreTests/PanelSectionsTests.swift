@@ -1,17 +1,35 @@
 import XCTest
 @testable import KagiPeekCore
 
-// 面板现在有两个分区：前台 App 的命令在前，系统热键在后，两个分区不交错。
-// 分区内部沿用原来的和弦排序，所以这些测试只需要钉住「边界」和「不交错」。
+// 面板现在有三个来源：前台 App 的命令、系统热键、配置工具（Keyboard Maestro / Alfred / …）。
+// 三块永远按固定顺序拼接、不交错，所以这些测试钉住「顺序」「计数」「边界」和「不合并」。
 
 final class PanelSectionsTests: XCTestCase {
-    private func item(_ title: String, chord: KeyChord, source: BindingSource = .menu, bundle: String? = "com.example.App") -> BindingItem {
-        BindingItem(chord: chord, title: title, group: ["File"], source: source, appBundleID: bundle)
+    private func item(
+        _ title: String,
+        chord: KeyChord,
+        source: BindingSource = .menu,
+        bundle: String? = "com.example.App",
+        tool: ConfigTool? = nil
+    ) -> BindingItem {
+        BindingItem(
+            chord: chord,
+            title: title,
+            group: tool.map { [$0.displayName] } ?? ["File"],
+            source: source,
+            appBundleID: bundle,
+            configTool: tool
+        )
     }
 
     private func hit(_ title: String, chord: KeyChord, bundle: String? = "com.example.App") -> PrefixHit {
         let item = item(title, chord: chord, bundle: bundle)
         return PrefixHit(item: item, nextKey: chord.steps.first?.key, remainingSteps: 0, relation: .exact)
+    }
+
+    private func toolHit(_ title: String, chord: KeyChord, tool: ConfigTool) -> PrefixHit {
+        let item = item(title, chord: chord, source: .configFile, bundle: nil, tool: tool)
+        return PrefixHit(item: item, nextKey: nil, remainingSteps: 0, relation: .exact)
     }
 
     func testAppSectionComesEntirelyBeforeSystemSection() {
@@ -21,8 +39,8 @@ final class PanelSectionsTests: XCTestCase {
         ])
         let entries = PanelSections.combine(app: app, system: system)
         XCTAssertEqual(entries.count, 2)
-        XCTAssertFalse(entries[0].isSystem)
-        XCTAssertTrue(entries[1].isSystem)
+        XCTAssertEqual(entries[0].section, .app)
+        XCTAssertEqual(entries[1].section, .system)
         XCTAssertEqual(PanelSections.boundary(in: entries), 1)
     }
 
@@ -58,5 +76,134 @@ final class PanelSectionsTests: XCTestCase {
         XCTAssertNil(hits[0].nextKey)
         XCTAssertEqual(hits[0].remainingSteps, 0)
         XCTAssertTrue(hits[0].item.chord.isFinalStroke(after: .empty))
+    }
+
+    /// 三个来源的顺序是固定的：App → 系统 → 各工具（工具之间按传入顺序）。
+    func testThreeSourceOrderIsAppSystemThenTools() {
+        let app = [hit("Copy", chord: .combo([.command], KeyToken("c")))]
+        let system = PanelSections.hits(for: [
+            item("Screenshot", chord: .combo([.command, .shift], KeyToken("3")), source: .system, bundle: nil)
+        ])
+        let tools: [(ConfigTool, [PrefixHit])] = [
+            (.alfred, [toolHit("Alfred Search", chord: .combo([.command], KeyToken("space")), tool: .alfred)]),
+            (.skhd, [toolHit("Focus", chord: .combo([.option], KeyToken("h")), tool: .skhd)])
+        ]
+        let entries = PanelSections.combine(app: app, system: system, tool: tools)
+        XCTAssertEqual(entries.map(\.section), [.app, .system, .tool(.alfred), .tool(.skhd)])
+        XCTAssertEqual(PanelSections.boundary(in: entries), 1)
+    }
+
+    /// 30 个 App 行、20 个系统热键、12 个工具行：三段各算各的，工具绝不能并进 App 的计数。
+    func testCountsKeepToolsSeparateFromApp() {
+        let app = (0..<30).map { hit("App \($0)", chord: .combo([.command], KeyToken("a"))) }
+        let system = PanelSections.hits(for: (0..<20).map {
+            item("System \($0)", chord: .combo([.command, .shift], KeyToken("s")), source: .system, bundle: nil)
+        })
+        let tools: [(ConfigTool, [PrefixHit])] = [
+            (.keyboardMaestro, (0..<7).map {
+                toolHit("KM \($0)", chord: .combo([.control], KeyToken("k")), tool: .keyboardMaestro)
+            }),
+            (.hammerspoon, (0..<5).map {
+                toolHit("HS \($0)", chord: .combo([.control], KeyToken("h")), tool: .hammerspoon)
+            })
+        ]
+        let entries = PanelSections.combine(app: app, system: system, tool: tools)
+        let counts = PanelSections.counts(in: entries)
+        XCTAssertEqual(entries.count, 62)
+        XCTAssertEqual(counts[.app], 30)
+        XCTAssertEqual(counts[.system], 20)
+        XCTAssertEqual(counts[.tool(.keyboardMaestro)], 7)
+        XCTAssertEqual(counts[.tool(.hammerspoon)], 5)
+        XCTAssertNil(counts[.tool(.alfred)])
+    }
+
+    /// App 区即使为空也占一张 card；工具区为空时不多算一张。
+    func testEmptyToolSectionAddsNoHeading() {
+        XCTAssertEqual(
+            PanelSections.nonEmptySectionCount(appCount: 0, systemCount: 0, toolCount: 0),
+            1
+        )
+        XCTAssertEqual(
+            PanelSections.nonEmptySectionCount(appCount: 5, systemCount: 0, toolCount: 0),
+            1
+        )
+        XCTAssertEqual(
+            PanelSections.nonEmptySectionCount(appCount: 5, systemCount: 3, toolCount: 0),
+            2
+        )
+        XCTAssertEqual(
+            PanelSections.nonEmptySectionCount(appCount: 5, systemCount: 0, toolCount: 12),
+            2
+        )
+        XCTAssertEqual(
+            PanelSections.nonEmptySectionCount(appCount: 5, systemCount: 3, toolCount: 12),
+            3
+        )
+    }
+
+    /// 同一个和弦出现在两个来源：两行都保留，不合并。
+    func testSameChordInTwoSourcesKeepsBothRows() {
+        let chord = KeyChord.combo([.command], KeyToken("k"))
+        let app = [hit("Show Palette", chord: chord)]
+        let alfred = [toolHit("Alfred", chord: chord, tool: .alfred)]
+        let entries = PanelSections.combine(app: app, system: [], tool: [(.alfred, alfred)])
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(entries.map(\.section), [.app, .tool(.alfred)])
+        XCTAssertEqual(PanelSections.counts(in: entries)[.app], 1)
+        XCTAssertEqual(PanelSections.counts(in: entries)[.tool(.alfred)], 1)
+    }
+
+    /// 系统区为空时，边界直接指向工具区，而不是停在一个不存在的标题上。
+    func testBoundarySkipsEmptySystemAndPointsAtTool() {
+        let app = [
+            hit("Copy", chord: .combo([.command], KeyToken("c"))),
+            hit("Paste", chord: .combo([.command], KeyToken("v")))
+        ]
+        let tools: [(ConfigTool, [PrefixHit])] = [
+            (.alfred, [toolHit("Alfred Search", chord: .combo([.command], KeyToken("space")), tool: .alfred)])
+        ]
+        let entries = PanelSections.combine(app: app, system: [], tool: tools)
+        XCTAssertEqual(PanelSections.boundary(in: entries), 2)
+        XCTAssertEqual(entries[2].section, .tool(.alfred))
+    }
+
+    /// sectionOrder 只陈述来源顺序，不排序工具。
+    func testSectionOrderIsAppSystemThenTools() {
+        XCTAssertEqual(
+            PanelSections.sectionOrder(tool: [.alfred, .skhd]),
+            [.app, .system, .tool(.alfred), .tool(.skhd)]
+        )
+        XCTAssertEqual(PanelSections.sectionOrder(), [.app, .system])
+    }
+
+    /// 折叠时工具行不进入面板走的序列，但计数（也就是标题上的总数）仍包含它们；
+    /// 展开后同一批行回到序列里。
+    func testFoldedToolRowsLeaveTheSequenceButStayInTheCounts() {
+        let app = [
+            hit("Copy", chord: .combo([.command], KeyToken("c"))),
+            hit("Paste", chord: .combo([.command], KeyToken("v")))
+        ]
+        let system = PanelSections.hits(for: [
+            item("Screenshot", chord: .combo([.command, .shift], KeyToken("3")), source: .system, bundle: nil)
+        ])
+        let alfred = (0..<4).map {
+            toolHit("Alfred \($0)", chord: .combo([.command], KeyToken("k")), tool: .alfred)
+        }
+        let entries = PanelSections.combine(app: app, system: system, tool: [(.alfred, alfred)])
+        XCTAssertEqual(entries.count, 7)
+
+        let folded = PanelSections.visible(entries, includeToolSection: false)
+        XCTAssertEqual(folded.count, 3)
+        XCTAssertFalse(folded.contains { entry in
+            if case .tool = entry.section { return true }
+            return false
+        })
+        // 折叠卡的「总数」来自整份列表，而不是序列。
+        XCTAssertEqual(PanelSections.counts(in: entries)[.tool(.alfred)], 4)
+        XCTAssertEqual(folded.count + (PanelSections.counts(in: entries)[.tool(.alfred)] ?? 0), entries.count)
+
+        let expanded = PanelSections.visible(entries, includeToolSection: true)
+        XCTAssertEqual(expanded.count, 7)
+        XCTAssertEqual(expanded.map(\.section).last, PanelSectionID.tool(.alfred))
     }
 }

@@ -582,10 +582,11 @@ private struct OverlayPanelContentView: View {
     /// One section of the panel, drawn as a card — the same treatment the search palette gives
     /// its categories: a title strip, a hairline under it, and a border around the whole block.
     ///
-    /// The panel only ever has two sections (the app's commands and the system's hotkeys), and
-    /// they used to be told apart by a heading in the middle of the list. A card makes the
-    /// boundary a shape instead of a line of text: it survives scrolling, it survives the
-    /// narrow layout, and it matches what the palette already looks like.
+    /// The panel has three sources (the app's commands, the system's hotkeys and each config
+    /// tool's file), and they used to be told apart by a heading in the middle of the list. A
+    /// card makes the boundary a shape instead of a line of text: it survives scrolling, it
+    /// survives the narrow layout, and it matches what the palette already looks like.
+    /// A tool's card is collapsible: its title strip is the click target and carries a chevron.
     private func groupSection(
         _ group: PanelGroup,
         columns: Int,
@@ -595,6 +596,11 @@ private struct OverlayPanelContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             if !group.title.isEmpty {
                 HStack(spacing: 7) {
+                    if group.isCollapsible {
+                        Image(systemName: group.isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(palette.secondaryText)
+                    }
                     Text(group.title)
                         .font(.system(size: 12.5, weight: .medium))
                         .lineLimit(1)
@@ -608,6 +614,14 @@ private struct OverlayPanelContentView: View {
                 .frame(height: Theme.groupHeaderHeight, alignment: .center)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(palette.selection)
+                // The tool card's header is the toggle: the rows are hidden, the count and the
+                // source stay visible so the user can see what there is to open.
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if group.isCollapsible {
+                        engine.toggleToolSection()
+                    }
+                }
                 Rectangle()
                     .fill(palette.rule)
                     .frame(height: 1)
@@ -701,8 +715,9 @@ private struct OverlayPanelContentView: View {
             }
             .onTapGesture {
                 press(row.id)
-                // A click means "run": the run key's action, whatever key that ends up being.
-                engine.performPanelRow(rowID: row.id, action: .execute)
+                // A click copies a restricted or config-tool row and runs everything else;
+                // the plan decides, so the view does not have to special-case either.
+                engine.clickPanelRow(rowID: row.id)
             }
             .animation(.easeOut(duration: 0.1), value: isSelected)
             .contextMenu { rowMenu(row) }
@@ -762,25 +777,63 @@ private struct OverlayPanelContentView: View {
     /// The right-click menu. The draft's four items are pass through, pin, copy the shortcut
     /// and locate it; locating needs a shortcut page this app cannot open yet, so the first
     /// three are here, in that order, and settings stays below them as the fifth door.
+    ///
+    /// Rows KagiPeek refuses to run get a shorter menu instead: copying stays, running does
+    /// not, and the reason is written where the action would have been.
     @ViewBuilder
     private func rowMenu(_ row: PanelRow) -> some View {
-        if !row.isEnabled {
-            // The menu states the reason instead of offering an action that cannot run.
-            Text(localization.text(.panelDisabledReason))
+        if row.isRestricted {
+            if row.hasChord {
+                Button(localization.text(.panelCopyShortcut)) {
+                    engine.copyShortcut(rowID: row.id)
+                }
+            }
+            Button(localization.text(.panelCopyMenuItem)) {
+                engine.copyMenuPath(rowID: row.id)
+            }
             Divider()
-        }
-        Button(localization.text(.panelPassThrough)) {
-            engine.activate(rowID: row.id)
-        }
-        Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
-            engine.toggleFavorite(rowID: row.id)
-        }
-        Button(localization.text(.panelCopyShortcut)) {
-            engine.copyShortcut(rowID: row.id)
-        }
-        Divider()
-        Button(localization.text(.panelSettings)) {
-            engine.showSettings()
+            Text(localization.text(.panelRestrictedReason))
+        } else if row.source == .configFile {
+            if !row.isEnabled {
+                Text(localization.text(.panelDisabledReason))
+                Divider()
+            }
+            if row.hasChord {
+                Button(localization.text(.panelCopyShortcut)) {
+                    engine.copyShortcut(rowID: row.id)
+                }
+            }
+            Button(localization.text(.panelCopyMenuItem)) {
+                engine.copyMenuPath(rowID: row.id)
+            }
+            Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
+                engine.toggleFavorite(rowID: row.id)
+            }
+            Divider()
+            Text(localization.text(.panelUnsupportedSource))
+            Divider()
+            Button(localization.text(.panelSettings)) {
+                engine.showSettings()
+            }
+        } else {
+            if !row.isEnabled {
+                // The menu states the reason instead of offering an action that cannot run.
+                Text(localization.text(.panelDisabledReason))
+                Divider()
+            }
+            Button(localization.text(.panelPassThrough)) {
+                engine.activate(rowID: row.id)
+            }
+            Button(row.isFavorite ? localization.text(.panelUnpin) : localization.text(.panelPin)) {
+                engine.toggleFavorite(rowID: row.id)
+            }
+            Button(localization.text(.panelCopyShortcut)) {
+                engine.copyShortcut(rowID: row.id)
+            }
+            Divider()
+            Button(localization.text(.panelSettings)) {
+                engine.showSettings()
+            }
         }
     }
 
@@ -872,7 +925,10 @@ private struct OverlayPanelContentView: View {
         if state.panel.runningRowID == row.id {
             return localization.text(.overlayRunning)
         }
-        return row.isEnabled ? "" : localization.text(.overlayUnavailableBadge)
+        var values: [String] = []
+        if !row.isEnabled { values.append(localization.text(.overlayUnavailableBadge)) }
+        if row.isRestricted { values.append(localization.text(.panelRestrictedReason)) }
+        return values.joined(separator: ", ")
     }
 
     /// The menu path, with the "has a sub-level" chevron in a slot of its own at the left.
@@ -984,6 +1040,9 @@ private struct OverlayPanelContentView: View {
     }
 
     private func rowTitleColor(_ row: PanelRow) -> Color {
+        // Red is a statement about safety, not decoration: these rows are shown precisely so
+        // the user can see that the shortcut exists, and that KagiPeek will not run it.
+        if row.isRestricted { return palette.restrictedText }
         if row.isCompleted { return palette.text }
         if !row.isEnabled { return palette.tertiaryText }
         return row.isHighlighted ? palette.text : palette.text.opacity(0.88)
@@ -1355,11 +1414,24 @@ private struct SearchResultRow: View {
     /// what lets the eye run down one column and ignore the text beside it.
     private let keyColumn: CGFloat = 78
 
+    private var restriction: Restriction {
+        RestrictedActionPolicy.restriction(for: item)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             if keyPosition == .left { shortcut }
             titleBlock
             Spacer(minLength: 8)
+            if restriction.isRestricted {
+                // The row is still searchable and selectable — that is the point of showing it
+                // — but the trailing text says why pressing it will not run.
+                Text(localization.text(.panelRestrictedReason))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(palette.restrictedText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             if keyPosition == .right { shortcut }
         }
         .padding(.horizontal, 12)
@@ -1404,6 +1476,7 @@ private struct SearchResultRow: View {
             highlightedTitle
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .foregroundStyle(restriction.isRestricted ? palette.restrictedText : palette.text)
             if let subgroup = item.subgroup {
                 Text(subgroup)
                     .font(.system(size: 10.5))

@@ -62,6 +62,9 @@ struct PanelPalette {
     let isLight: Bool
     let backgroundSolid: Color
     let text: Color
+    /// Red used for titles of actions KagiPeek will never run. The dark theme needs a
+    /// brighter red than `systemRed` to stay legible on graphite.
+    let restrictedText: Color
     let secondaryText: Color
     let tertiaryText: Color
     let rule: Color
@@ -92,6 +95,7 @@ extension PanelTheme {
             isLight: false,
             backgroundSolid: Color(white: 0.10),
             text: .white.opacity(0.92),
+            restrictedText: Color(.sRGB, red: 1.0, green: 0.45, blue: 0.45, opacity: 1.0),
             secondaryText: .white.opacity(0.62),
             // 0.32 measured ~2.9:1 on the 10 % grey surface, below the 3:1 minimum for
             // auxiliary text. 0.45 measures ~4.5:1 and still reads as clearly quieter than
@@ -113,6 +117,7 @@ extension PanelTheme {
             isLight: true,
             backgroundSolid: Color(white: 0.98),
             text: Color.black.opacity(0.88),
+            restrictedText: Color(nsColor: .systemRed),
             secondaryText: Color.black.opacity(0.58),
             // 0.34 measured below 3:1 on the 98 % paper surface. 0.55 measures ~4.7:1 and
             // keeps the same relationship to secondaryText at 0.58.

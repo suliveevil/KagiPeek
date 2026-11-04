@@ -29,6 +29,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case permissionsTitle, permissionsSubtitle, permissionsPrivacy
     case permissionWizard, permissionGrant, permissionGrantedDone, permissionContinue, permissionQuit
     case panelFavoritesFilter, panelPin, panelUnpin, panelCopyShortcut, panelPassThrough, panelSettings
+    case panelRestrictedReason, panelRestrictedNotice, panelUnsupportedSource, panelCopyMenuItem
     case panelNoFavorites
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
@@ -256,6 +257,19 @@ nonisolated enum L10n {
         .panelPin: ("Pin", "收藏"),
         .panelUnpin: ("Unpin", "取消收藏"),
         .panelCopyShortcut: ("Copy Shortcut", "复制快捷键"),
+        .panelCopyMenuItem: ("Copy menu item", "复制菜单项"),
+        .panelRestrictedReason: (
+            "This action affects the whole Mac and is not offered",
+            "该动作会影响整台 Mac，不提供执行"
+        ),
+        .panelRestrictedNotice: (
+            "This action is not available to run",
+            "该动作不提供执行"
+        ),
+        .panelUnsupportedSource: (
+            "This source is shown only, not executed",
+            "该来源只展示不执行"
+        ),
         .panelPassThrough: ("Run", "执行"),
         .panelSettings: ("Settings…", "设置…"),
         .panelClose: ("Close", "关闭"),
