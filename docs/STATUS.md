@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-04 23:03**（Asia/Shanghai）。
+as of **2026-11-05 00:55**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,10 +8,12 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：见 `git log -1`。`main` 最后停在 `ee18e08`（`fix(placement): 前台 app 切换后
-  面板首帧即完整覆盖`）；全屏边界测试在 `1c1eee5`，面板定位修正 `4d7abed`。
+- 代码 HEAD：见 `git log -1`。本轮 UI 批次的基线是 `553fcca`；`main` 最后停在
+  `ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）；全屏边界测试在
+  `1c1eee5`，面板定位修正 `4d7abed`。
 - 工作区：本文件所在分支为 `fix/panel-footer-clearance`（从 `main` 开），另有
-  `feature/paging-key-pair` 未合并；两分支都未 push、未合 main。
+  `feature/paging-key-pair` 未合并；两分支都未 push、未合 main。本轮在 `553fcca` 之上
+  按 UI / 设置与材质 / 文档三组提交，**未** amend、未建分支、未构建、未安装。
 - 设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
@@ -19,6 +21,20 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 
 ## 本轮完成
 
+- **面板可读性、设置窗口与材质收口**（基线 `553fcca`，本轮三组提交）：选中菜单项左侧加
+  3pt 高亮竖条、标题提亮，VoiceOver 暴露 `.isSelected`，朗读顺序「菜单项名 → 快捷键 →
+  状态」，行容器由 `.ignore` 改为 `.contain`，装饰元素 `accessibilityHidden`；不可用菜单项
+  行尾加 `lock.slash`，右键菜单首行「该菜单项当前不可用」，点击弹 HUD 解释，`DisabledNoticeGate`
+  （纯类型）限制同一菜单项 3 秒内只提示一次。新增 `PanelEmptyKind`（纯枚举），统一四种空态并
+  按「权限未就绪 > 扫描中 > 无匹配」定优先级，权限态带「打开权限向导」。`maxItemsPerPage`
+  明确为上限，实际取 `min(设置值, 几何容量)`；设置文案改为「每个分组最多显示 N 个菜单项 /
+  Max menu items per group」；组标题只在「按菜单栏分组」时绘制且单独计入高度。快捷键列改
+  等宽字体、固定列宽、默认右对齐，无快捷键留空；纯选中只写 `selectionIndex` 不重建面板，
+  选中态 0.1s 过渡，`MenuTrigger.press` 以 `@concurrent` 与 250ms 超时离开主线程。切换
+  面板排序时只闪一行 HUD，不常驻标签。首次启动用一次 `KagiPeekTriggerTipShown`
+  提示，触发页可重看。设置窗口 `styleMask` 去掉 `.miniaturizable`，权限向导在设置可见时以
+  sheet 依附。材质改为浅色 `.popover`、深色 `.hudWindow`，外边距 16、内容内边距 8/10、
+  圆角 12。新增 `DisabledNoticeGateTests`、`PanelEmptyKindTests`；`swift test` 693 → 708。
 - **页脚不再遮挡菜单项**（`fix/panel-footer-clearance`）：`OverlayMetrics` 把标题栏 54pt、
   分隔线 1pt、页脚 32pt、列表内边距 18pt 合成 `chromeHeight`，SwiftUI 三个固定高度也读同一组
   常量，页脚是内容区的兄弟而不是叠层。新增 `rowsPerColumn` / `fittedPageSize`：每页行数取
@@ -103,6 +119,7 @@ as of **2026-11-04 23:03**（Asia/Shanghai）。
 | 命令 | 结果 |
 | --- | --- |
 | `swift test`（本次安装前） | `Executed 684 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（本轮 UI 批次提交前） | `Executed 708 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
 | 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
 | `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |
@@ -181,8 +198,9 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 2. **`ShortcutEngine` 拆分已做一轮（R-3）**：七个协作模块与两个 Pure 策略已落地，InputRouter
    按计划留在引擎里。若继续瘦身，下一刀是 `CatalogQuery` 参数对象（架构报告 H1/M1）；不要
    把 InputRouter 硬拆走。
-3. **面板 VoiceOver 可达性**（HIG 报告 H2）：先给面板根视图加 `.accessibilityElement` 容器
-   与行级标签，再处理行内按钮；需要实机开 VoiceOver 验收。
+3. **面板 VoiceOver 可达性**（HIG 报告 H2）：本轮已补选中态 `.isSelected`、行的 `.contain`
+   容器、装饰元素隐藏与「菜单项名 → 快捷键 → 状态」朗读顺序；剩余是根容器与行内按钮的实机
+   VoiceOver 验收。
 4. **设置页信息架构**（HIG 报告 M4 / §7.1）：先画 8 段→侧边栏的交互稿并确认窗口尺寸，再动
    `SettingsView`；本轮明确不做。
 5. **菜单栏 extras 的 HIG 行为**（HIG 报告 H3）：先确认左键开面板、右键开菜单是否产品意图，
@@ -193,6 +211,8 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 按审查报告编号列出本轮**明确降级或未处理**的条目（修复说明见
 `/Users/suliveevil/.trae-cn/assistant/2026-11-04/kagipeek-code-review-2/outputs/fix-round2.md`）：
 
+- **设置页缩略面板实时预览（「按下试试」测试区）未实现**：复用 `OverlayView` 需要先把
+  engine 解耦，风险高，本轮降级，文档不宣称它存在。
 - 并发报告：M1（注入任务取消后仍可能发键）、M2（两条延迟 Task 无人持有）、M3
   （`ShortcutTester` tap 未拆）、M5（缓存/崩溃报告无淘汰）、M6（日志含菜单标题）、M7
   （退出路径主线程写盘）、M8（预览态 loading 不复位）、L1–L5。

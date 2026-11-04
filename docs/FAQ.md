@@ -27,6 +27,17 @@ KagiPeek reads the app's **menu bar** through Accessibility. It can only show wh
 
 The built-in catalog (about 100 system, text-editing, Finder, and screenshot shortcuts) fills in common cases but cannot know an app's private shortcuts.
 
+## Why is the panel empty even though KagiPeek is running?
+
+An empty panel always says which of four states it is in, in this priority:
+
+1. **Accessibility is missing** — this state wins over everything else, because no scan can finish without it. The panel shows **Open the permission guide**, which is the way out.
+2. **Still scanning** — a spinner, not a verdict. Wait for the scan to finish (large menus can take a moment).
+3. **Favourites-only with nothing pinned** — turn the filter off, or pin something with the star.
+4. **No match** — the current prefix, search terms, or filters exclude every menu item.
+
+If the message is the permission one, grant Accessibility and reopen the panel; see [PERMISSIONS.md](PERMISSIONS.md).
+
 ## Can I browse another app's shortcuts without switching to it?
 
 Yes. The search palette's app menu lists the frontmost app plus every running regular app. Choose one and the palette scans and searches that app's menu shortcuts; its header then names that app, and Return runs the menu item inside it.
@@ -151,7 +162,7 @@ The panel is persistent, so keyboard operation is always available:
 
 Both keys are recorded under **Settings → General → Menu item actions**, so the footer's `space run · ↩ copy` always names the keys you actually chose. With no modifier held, the navigation keys and the two action keys are consumed by the panel and do not reach the front app. ⌫ backs out one chord stroke and is only handled with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 
-Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa.
+Two visual states are easy to confuse: the **selection** (↑/↓ or the pointer) is a cursor you move yourself, while the **key highlight** marks the menu items the current prefix can reach. A menu item can be selected without being highlighted, and vice versa. The selected menu item also draws a 3 pt accent bar on its leading edge and a slightly brighter title, so it stays visible on the light panel; VoiceOver announces it as selected, in the order name → shortcut → state.
 
 Pressing the run key on a menu item that still has further steps opens the next level instead of running it.
 
@@ -217,6 +228,10 @@ This is a macOS privacy protection, not a KagiPeek bug. See [PERMISSIONS.md](PER
 
 KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock icon and opens no window at launch. The menu bar icon opens the panel, the palette and Settings; ⌘, opens Settings from inside any of its windows.
 
+## Why can't I minimise the Settings window?
+
+Because Settings uses `[.titled, .closable, .resizable]` only. A minimised copy used to sit in the Dock while the menu-bar app had no way to bring it back except the icon's **Settings…** item, which reopened a second window. Close and reopen it from the menu bar instead; the same window comes forward. When Settings is visible, **Open the permission guide** attaches to it as a sheet rather than opening a separate window that could end up behind it or in another Space.
+
 ## Can I change the triggers or the hotkeys?
 
 Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the hold delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off is the pause state. The double-tap window is not a setting: it follows the system double-click speed, clamped to 0.25–0.6 s, and only the gap between the two taps is timed. The defaults are:
@@ -234,6 +249,10 @@ KagiPeek does not remap application shortcuts. It reports what the app already d
 
 macOS system shortcuts are read-only here as well: KagiPeek reports collisions with them in the conflict list, but it cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
 
+## How do I see the trigger hint again?
+
+The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and writes `KagiPeekTriggerTipShown` to `UserDefaults` so it never repeats. To replay it, open **Settings → Trigger** and press **Show the trigger tip again**; the button calls the same HUD and does not clear the flag or affect either trigger switch.
+
 ## What is Smart order?
 
 The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
@@ -244,7 +263,23 @@ All four orders live in **Settings → Statistics → Sort order**: smart order,
 
 ## Can I hide disabled menu items?
 
-Yes. Menu items whose `AXEnabled` state is false are greyed out by default and can be hidden entirely in Settings. This is useful in apps where most of a menu is contextually unavailable.
+Yes. Menu items whose `AXEnabled` state is false are greyed out by default, end with a `lock.slash`, and can be hidden entirely in Settings. This is useful in apps where most of a menu is contextually unavailable.
+
+## Why does clicking a greyed-out menu item show a message?
+
+Because the app reported the menu item as unavailable, so there is no action to run. Right-clicking it opens a menu whose first line is **This menu item is unavailable right now** above the actions, and clicking the row shows the same sentence in a HUD. The notice is rate-limited: the same menu item explains itself at most once per three seconds, so repeated clicks do not stack identical toasts. A greyed row is not an error; the lock and the sentence simply say that the app's own state, not KagiPeek, is refusing.
+
+## Why does the panel show fewer menu items than I set?
+
+**Max menu items per group** (Settings → Appearance) is an upper bound. Before drawing, the panel computes `min(setting, geometry)`: the chrome, card insets, group headings and gaps are subtracted from the available height, and only what fits is shown. A 60-item setting in a 720 pt window can therefore display 36 menu items. This is deliberate — the alternative was pushing the last menu items under the footer. Group headings are counted in that height, which is why turning **By menu group** on can reduce the visible count by one heading's worth.
+
+## Why does the panel flash a message when I change Panel order?
+
+Changing **Panel order** between **By modifier** and **By menu group** while the panel is visible shows the new order in a one-line HUD and rebuilds the list. It is a one-off announcement, not a permanent badge: the panel itself carries no mode label, so the same space stays available for menu items.
+
+## Why is the shortcut column blank on some rows?
+
+A menu item with no key equivalent has no shortcut, so the column stays empty rather than drawing an em dash. The dash is reserved for a different fact: a **system hotkey** whose name macOS does not expose. The column is a fixed-width slot in a monospaced face, right-aligned when the shortcut sits on the right, so the keys line up and the titles do not shift as the list changes.
 
 ## Why does the panel sometimes appear in an odd place?
 
