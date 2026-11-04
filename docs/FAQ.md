@@ -109,6 +109,18 @@ macOS keeps its own system-wide shortcuts (Spotlight, Mission Control, screensho
 
 That list is read-only. KagiPeek never binds, changes, or disables a system shortcut; change those in **System Settings → Keyboard → Keyboard Shortcuts**.
 
+## Why are some system shortcuts shown as a key combination instead of a name?
+
+macOS does not publish the name of its own hotkeys; the description field is always empty. KagiPeek keeps a table of the assignments a stock Mac ships with, so common ones read as **Spotlight**, **Screenshot**, **Mission Control**. A chord outside that table — one you reassigned, or one of the enabled slots that has no function behind it — keeps the chord itself as the title and is labelled as a system hotkey. It is not a placeholder and not a missing shortcut, and the panel no longer shows an em dash for it.
+
+## Why can't I run a shortcut that came from Karabiner, skhd or another config tool?
+
+Those tools implement shortcuts in their own keyboard layer, below the menu bar. KagiPeek reads their config files to warn about collisions, and those rows do appear in the panel and in search, but they are **shown only, never executed**: clicking copies the shortcut, and the context menu says so. Replaying a key would not reach the tool's layer anyway, and guessing at it could fire the wrong action. Bind those shortcuts in the tool itself.
+
+## Why won't KagiPeek run sleep, restart, shut down, lock, log out or force quit?
+
+Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by KagiPeek: a click copies the shortcut, Space explains why, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.
+
 ## Why does the panel stay open after ⌘K?
 
 Because `⌘K` is the first stroke of a **multi-stroke shortcut** (a chord), such as `⌘K ⌘C` in VS Code-style editors. When the current stroke has further completions, the panel descends one level and shows what can follow; the breadcrumb shows the prefix.

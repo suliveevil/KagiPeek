@@ -1,6 +1,6 @@
 # STATUS
 
-as of **2026-11-05 01:29**（Asia/Shanghai）。
+as of **2026-11-05**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
 `swift test`，再按下面「最后一次验证」的命令重跑；任何一项与当前输出不符，以当前输出为准，
@@ -8,15 +8,14 @@ as of **2026-11-05 01:29**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`428c925`（`fix/panel-footer-clearance`），在 `ee18e08` 之上依次为
-  `80d5810`、`29f1f8f`、`c28895e`、`bd2b6b0`（G1–G4）、`403ea63`（文档）、`428c925`
-  （本轮面板筛选）；`main` 最后停在 `ee18e08`
-  （`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）。更早的全屏边界测试在
-  `1c1eee5`，面板定位修正 `4d7abed`。
-- 工作区：本文件所在分支为 `fix/panel-footer-clearance`（从 `main` 开），另有
-  `feature/paging-key-pair` 未合并；两分支都未 push、未合 main。G1–G4 的四个代码提交与
-  `428c925` 已各自提交完，四份文档改动在本次单独提交；本轮**未** amend、未建分支、未构建、
-  未安装。
+- 代码 HEAD：`ac1b392`（`feature/panel-sections`），在 `a438e44` 之上依次为 `e98c206`
+  （草稿：面板输入即搜索，只记录不实施）、`8360744`（修复上一批 UI 留下的编译错误）、
+  `ac1b392`（面板三来源分区 + 六个受限动作）；本轮文档同步是这条线上最后一个提交。
+  `main` 最后停在 `ee18e08`（`fix(placement): 前台 app 切换后面板首帧即完整覆盖`）。
+- 工作区：本文件所在分支为 `feature/panel-sections`（从 `fix/panel-footer-clearance`
+  开），另有 `feature/paging-key-pair`（`b690de9`）**未合并**，等用户确认后再合。三支都未
+  push、未合 main。`swift test` 743 → 768，0 failures。本轮**未**构建、未安装、未 amend、
+  未 squash、未碰 `backups/`。
 - 设置页改动在 `d4321ea`，签名钥匙串迁移在 `a0b1401`。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：用户明确说 squash/push 仍待确认，本轮只改工作区，未建 tag、
@@ -149,6 +148,7 @@ as of **2026-11-05 01:29**（Asia/Shanghai）。
 | `swift test`（本轮 UI 批次提交前） | `Executed 708 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（G1–G4 代码批次） | `Executed 726 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（面板筛选提交 `428c925`） | `Executed 741 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `swift test`（面板三来源分区 + 受限动作） | `Executed 768 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with KagiPeek Local`；无钥匙串弹窗；`codesign --verify` 通过 |
 | 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=KagiPeek Local` |
 | `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "KagiPeek Local"` |
