@@ -219,7 +219,7 @@ KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock ic
 
 ## Can I change the triggers or the hotkeys?
 
-Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the matching delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off is the pause state. The defaults are:
+Yes. **Settings → Trigger** has two independent switches: **Modifier gesture** (hold still or press twice, the trigger key, and the hold delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both off is the pause state. The double-tap window is not a setting: it follows the system double-click speed, clamped to 0.25–0.6 s, and only the gap between the two taps is timed. The defaults are:
 
 | Action | Default |
 | --- | --- |

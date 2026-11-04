@@ -21,27 +21,46 @@ final class ModifierDoubleTapTests: XCTestCase {
         XCTAssertTrue(gesture.process(pressed: false, now: t0.addingTimeInterval(0.25), window: 0.3))
     }
 
+    /// A gap just inside the window completes. The boundary itself is not asserted:
+    /// `Date` arithmetic makes an exact 0.3 s gap ambiguous in floating point.
+    func testGapJustInsideTheWindowCompletes() {
+        var gesture = ModifierDoubleTap()
+        _ = gesture.process(pressed: true, now: t0, window: 0.3)
+        _ = gesture.process(pressed: false, now: t0.addingTimeInterval(0.1), window: 0.3)
+        _ = gesture.process(pressed: true, now: t0.addingTimeInterval(0.39), window: 0.3)
+        XCTAssertTrue(gesture.process(pressed: false, now: t0.addingTimeInterval(0.44), window: 0.3))
+    }
+
     /// A real key press between the two taps means the user typed a chord, not a gesture.
     func testTypedKeyCancelsTheCandidate() {
         var gesture = ModifierDoubleTap()
         _ = gesture.process(pressed: true, now: t0, window: 0.3)
         gesture.cancel()
+        // The chord's release must not be recorded as a first tap.
         XCTAssertFalse(gesture.process(pressed: false, now: t0.addingTimeInterval(0.1), window: 0.3))
+        // A later clean pair still needs two taps.
+        XCTAssertFalse(gesture.process(pressed: true, now: t0.addingTimeInterval(0.2), window: 0.3))
+        XCTAssertFalse(gesture.process(pressed: false, now: t0.addingTimeInterval(0.25), window: 0.3))
     }
 
-    /// The second tap must release inside the window too, not merely start inside it.
-    func testSlowSecondReleaseDoesNotComplete() {
+    /// A second tap may stay down longer than the window: only the gap between the taps is
+    /// timed, so a slow finger is not a missed gesture.
+    func testSecondTapMayBeHeldLongerThanTheWindow() {
         var gesture = ModifierDoubleTap()
         _ = gesture.process(pressed: true, now: t0, window: 0.3)
         _ = gesture.process(pressed: false, now: t0.addingTimeInterval(0.1), window: 0.3)
         _ = gesture.process(pressed: true, now: t0.addingTimeInterval(0.2), window: 0.3)
-        XCTAssertFalse(gesture.process(pressed: false, now: t0.addingTimeInterval(0.6), window: 0.3))
+        XCTAssertTrue(gesture.process(pressed: false, now: t0.addingTimeInterval(0.6), window: 0.3))
     }
 
-    func testReleaseBeyondWindowDoesNotComplete() {
+    /// A first tap held past the window still counts as a tap; the window measures the gap
+    /// to the next one, not the time a finger spends on the key.
+    func testSlowFirstPressStillCountsAsTheFirstTap() {
         var gesture = ModifierDoubleTap()
-        _ = gesture.process(pressed: true, now: t0, window: 0.3)
+        XCTAssertFalse(gesture.process(pressed: true, now: t0, window: 0.3))
         XCTAssertFalse(gesture.process(pressed: false, now: t0.addingTimeInterval(0.5), window: 0.3))
+        XCTAssertFalse(gesture.process(pressed: true, now: t0.addingTimeInterval(0.7), window: 0.3))
+        XCTAssertTrue(gesture.process(pressed: false, now: t0.addingTimeInterval(0.75), window: 0.3))
     }
 
     /// A second press after the window is a fresh first tap, not the second half of the old

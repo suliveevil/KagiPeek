@@ -415,7 +415,6 @@ final class ShortcutEngine: ObservableObject {
         if old.triggerGesture != new.triggerGesture { changed.append("triggerGesture") }
         if old.triggerKey != new.triggerKey { changed.append("triggerKey") }
         if old.holdDelay != new.holdDelay { changed.append("holdDelay") }
-        if old.doubleTapWindow != new.doubleTapWindow { changed.append("doubleTapWindow") }
         if old.panelHotkey != new.panelHotkey { changed.append("panelHotkey") }
         if old.searchHotkey != new.searchHotkey { changed.append("searchHotkey") }
         if old.switchHotkey != new.switchHotkey { changed.append("switchHotkey") }
@@ -712,7 +711,9 @@ final class ShortcutEngine: ObservableObject {
            state.modifierDoubleTap.process(
                pressed: pressed,
                now: event.happenedAt,
-               window: state.settings.doubleTapWindow
+               window: DoubleTapTiming.window(
+                   systemDoubleClickInterval: NSEvent.doubleClickInterval
+               )
            ) {
             togglePinnedPanel()
             return

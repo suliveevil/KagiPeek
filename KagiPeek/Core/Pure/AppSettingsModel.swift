@@ -156,7 +156,6 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var triggerGesture: TriggerGesture = .hold
     var triggerKey: TriggerKey = .rightCommand
     var holdDelay: Double = 0.5
-    var doubleTapWindow: Double = 0.3
     var panelHotkey: HotkeySpec = .panelDefault
     var searchHotkey: HotkeySpec = .searchDefault
     var switchHotkey: HotkeySpec = .switchDefault
@@ -210,14 +209,16 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// that one rewrites a value (see `SettingsMigrator`). Version 5 replaces `triggerMode`
     /// with `modifierTriggerEnabled` / `triggerGesture` / `triggerKey`; the old key is read
     /// and never written back. Version 6 adds `panelOrder`; a v5 file has no key, so the
-    /// default (`byModifier`) applies without a rewrite.
-    static let currentSchemaVersion = 6
+    /// default (`byModifier`) applies without a rewrite. Version 7 removes `doubleTapWindow`:
+    /// the double-tap window now follows the system double-click speed, so an old value is
+    /// ignored and disappears on the next save.
+    static let currentSchemaVersion = 7
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
         case triggerMode, modifierTriggerEnabled, hotkeyTriggerEnabled, triggerGesture, triggerKey
-        case holdDelay, doubleTapWindow, panelHotkey, searchHotkey, switchHotkey
+        case holdDelay, panelHotkey, searchHotkey, switchHotkey
         case showExecutedHUD, keyStyle, columnCount, maxItemsPerPage, maxDescriptionLength
         case showDisabledItems, includeBuiltInCatalog, sortMode, language
         case showAppleMenu
@@ -254,7 +255,6 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         triggerGesture = try decode(.triggerGesture, fallback.triggerGesture)
         triggerKey = try decode(.triggerKey, fallback.triggerKey)
         holdDelay = try decode(.holdDelay, fallback.holdDelay)
-        doubleTapWindow = try decode(.doubleTapWindow, fallback.doubleTapWindow)
         panelHotkey = try decode(.panelHotkey, fallback.panelHotkey)
         searchHotkey = try decode(.searchHotkey, fallback.searchHotkey)
         switchHotkey = try decode(.switchHotkey, fallback.switchHotkey)
@@ -304,7 +304,6 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         try container.encode(triggerGesture, forKey: .triggerGesture)
         try container.encode(triggerKey, forKey: .triggerKey)
         try container.encode(holdDelay, forKey: .holdDelay)
-        try container.encode(doubleTapWindow, forKey: .doubleTapWindow)
         try container.encode(panelHotkey, forKey: .panelHotkey)
         try container.encode(searchHotkey, forKey: .searchHotkey)
         try container.encode(switchHotkey, forKey: .switchHotkey)
@@ -341,7 +340,6 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// settings UI offers, so normalization can never disagree with the picker that set them.
     private enum Bounds {
         static let holdDelay: ClosedRange<Double> = 0.3...0.9
-        static let doubleTapWindow: ClosedRange<Double> = 0.15...0.8
         static let fixedPanelWidth: ClosedRange<Double> = 320...4000
         static let fixedPanelHeight: ClosedRange<Double> = 240...3000
         static let columnCount: ClosedRange<Int> = 1...3
@@ -359,7 +357,6 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         // The settings UI steps `holdDelay` by 0.1. Rounding after the clamp drops the
         // binary tail (0.9000000000000001) before it reaches settings.json.
         copy.holdDelay = (clamp(copy.holdDelay, to: Bounds.holdDelay) * 10).rounded() / 10
-        copy.doubleTapWindow = clamp(copy.doubleTapWindow, to: Bounds.doubleTapWindow)
         copy.fixedPanelWidth = clamp(copy.fixedPanelWidth, to: Bounds.fixedPanelWidth)
         copy.fixedPanelHeight = clamp(copy.fixedPanelHeight, to: Bounds.fixedPanelHeight)
         copy.columnCount = clamp(copy.columnCount, to: Bounds.columnCount)

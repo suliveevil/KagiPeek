@@ -60,7 +60,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case triggerGestureHold, triggerGestureDoubleTap
     case triggerKey, triggerKeyAnyModifier, triggerKeyLeftControl, triggerKeyLeftOption
     case triggerKeyLeftCommand, triggerKeyRightCommand, triggerKeyRightOption
-    case triggerHoldDelay, triggerDoubleTapWindow, triggerPanelHotkey, triggerSearchHotkey
+    case triggerHoldDelay, triggerPanelHotkey, triggerSearchHotkey
     case triggerSwitchHotkey, triggerRecording, triggerRecordingHint, triggerStopRecording
 
     // Appearance
@@ -149,6 +149,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case diagnosticsTitle, diagnosticsEnable, diagnosticsEnableHint
     case diagnosticsVerbose, diagnosticsVerboseHint
     case diagnosticsPath, diagnosticsOpenFolder, diagnosticsExport
+    case diagnosticsDoubleTapWindow, diagnosticsDoubleTapWindowHint
     case diagnosticsPrivacyNote, diagnosticsExportDone, diagnosticsExportFailed
 
     // Live shortcut test
@@ -412,7 +413,6 @@ nonisolated enum L10n {
         .triggerKeyRightCommand: ("Right Command", "右 Command"),
         .triggerKeyRightOption: ("Right Option", "右 Option"),
         .triggerHoldDelay: ("Hold delay", "停顿延时"),
-        .triggerDoubleTapWindow: ("Double-tap window", "双击间隔"),
         .triggerPanelHotkey: ("Panel hotkey", "面板热键"),
         .triggerSearchHotkey: ("Search hotkey", "搜索热键"),
         .triggerSwitchHotkey: ("Switch panel/search", "切换面板/搜索"),
@@ -786,6 +786,11 @@ nonisolated enum L10n {
         .diagnosticsPath: ("Log folder", "日志位置"),
         .diagnosticsOpenFolder: ("Open log folder", "打开日志文件夹"),
         .diagnosticsExport: ("Export diagnostics archive…", "导出诊断包（.zip）…"),
+        .diagnosticsDoubleTapWindow: ("Double-tap detection", "双击判定窗口"),
+        .diagnosticsDoubleTapWindowHint: (
+            "Follows the system double-click speed, clamped to 0.25–0.6 s. There is no separate setting.",
+            "跟随系统“双击速度”，并限制在 0.25–0.6 秒。没有单独的设置项。"
+        ),
         .diagnosticsPrivacyNote: (
             "Account names, tokens, URL parameters and e-mail addresses are redacted before anything reaches a log file. Filter text and clipboard content are never recorded; verbose mode does record which shortcut combinations were pressed.",
             "写入日志文件前会脱敏账号、令牌、URL 参数与邮箱；筛选框文本与剪贴板内容从不记录（详细级别会记录用过的组合键）。"

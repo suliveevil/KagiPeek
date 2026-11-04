@@ -354,16 +354,6 @@ struct SettingsView: View {
                 }
                 .disabled(!settings.modifierTriggerEnabled || settings.triggerGesture != .hold)
 
-                LabeledContent(localization.text(.triggerDoubleTapWindow)) {
-                    HStack {
-                        Slider(value: $store.settings.doubleTapWindow, in: 0.15...0.8, step: 0.05)
-                        Text(String(format: "%.2fs", settings.doubleTapWindow))
-                            .font(.system(.body, design: .monospaced))
-                            .frame(width: 56, alignment: .trailing)
-                    }
-                }
-                .disabled(!settings.modifierTriggerEnabled || settings.triggerGesture != .doubleTap)
-
                 Toggle(localization.text(.triggerGlobalHotkey),
                        isOn: $store.settings.hotkeyTriggerEnabled)
 
@@ -951,6 +941,16 @@ struct SettingsView: View {
                 LabeledContent(localization.text(.aboutMenuItems)) {
                     Text("\(state.catalogSize)").monospacedDigit()
                 }
+                LabeledContent(localization.text(.diagnosticsDoubleTapWindow)) {
+                    Text(String(
+                        format: "%.2fs",
+                        DoubleTapTiming.window(systemDoubleClickInterval: NSEvent.doubleClickInterval)
+                    ))
+                    .monospacedDigit()
+                }
+                Text(localization.text(.diagnosticsDoubleTapWindowHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 Button(localization.text(.aboutExportDiagnostics)) {
                     exportDiagnostics()
                 }

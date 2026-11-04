@@ -208,7 +208,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 | Trigger gesture | Hold still / Press twice | Hold still |
 | Trigger key | Any modifier / Left Control / Left Option / Left Command / Right Command / Right Option | Right Command |
 | Hold delay | 0.3–0.9 s, 0.1 s steps | 0.5 s |
-| Double-tap window | 0.15–0.8 s | 0.3 s |
+| Double-tap detection | Follows the system double-click speed, clamped to 0.25–0.6 s | Automatic |
 | Global hotkeys | On / Off (their own checkbox) | On |
 | Panel hotkey | Any key combination | ⌃⌥⌘K |
 | Search hotkey | Any key combination | ⌃⌥⌘F |
@@ -493,7 +493,7 @@ open KagiPeek.xcodeproj
 | 触发方式 | 操作 | 说明 |
 | --- | --- | --- |
 | 修饰键手势：按住 | 按住触发键 0.5 秒（0.3–0.9 秒可调，步进 0.1 秒），期间不按其他键 | 手势触发键可选：任意修饰键、左 Control、左 Option、左 Command、右 Command（默认）、右 Option，单选，不支持组合键，不含 Caps Lock。按住的修饰键会成为前缀；单独按 ⇧ 不算。 |
-| 修饰键手势：连按两次 | 在 0.3 秒窗口（0.15–0.8 秒可调）内完整按下并松开触发键两次 | 与“按住”二选一。两次之间按了别的键会取消。 |
+| 修饰键手势：连按两次 | 完整按下并松开触发键两次，两次之间没有别的键；只有两次之间的间隔计时，跟随系统“双击速度”（限制在 0.25–0.6 秒） | 与“按住”二选一。按多久都算一次，不需要单独调窗口。 |
 | 面板热键 | 默认 ⌃⌥⌘K | 三条全局快捷键之一；面板保持到按 Esc 或再次按热键。切换前台 App 或桌面会关闭面板，重新唤出即可看到新 App 的快捷键。 |
 | 搜索 | 默认 ⌃⌥⌘F | 独立打开搜索面板，热键可自定义。 |
 | 切换面板/搜索 | 默认 ⌃⌥⌘S | 搜索可见 → 面板；面板可见 → 搜索；都不可见 → 打开面板。同一时间只显示一个，热键可在设置中录制。 |
@@ -554,7 +554,7 @@ KagiPeek 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打�
 | 触发手势 | 按住停顿 / 连按两次 | 按住停顿 |
 | 触发键 | 任意修饰键 / 左 Control / 左 Option / 左 Command / 右 Command / 右 Option | 右 Command |
 | 停顿时间 | 0.3–0.9 秒，步进 0.1 秒 | 0.5 秒 |
-| 双击间隔 | 0.15–0.8 秒 | 0.3 秒 |
+| 双击判定 | 跟随系统“双击速度”，限制在 0.25–0.6 秒 | 自动 |
 | 全局快捷键 | 开 / 关（独立勾选框） | 开 |
 | 面板热键 | 任意组合键 | ⌃⌥⌘K |
 | 搜索热键 | 任意组合键 | ⌃⌥⌘F |
