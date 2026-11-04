@@ -94,10 +94,9 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持
 - 运行中 PID：用 `pgrep -x KagiPeek` 取（单实例）
-- 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下现有
-  `KagiPeek-2026-11-04-200843-836e3c3-local.app` 与
-  `KagiPeek-2026-11-04-202348-05e424e-local.app`；命名符合
-  `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，默认保留最近 5 份。
+- 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
+  `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
+  每次 `scripts/install.sh` 的输出会报出本次备份的完整路径。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留：`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
