@@ -83,14 +83,22 @@ fi
 # plist template: the template may now live in scripts/, and inheriting whichever icons the
 # last installed copy happened to carry is how a stale icon survives a redesign. actool ships
 # with Xcode, which this path already requires for the SDK and the toolchain.
+# One actool invocation compiles both sources into a single Assets.car: the
+# Icon Composer .icon supplies the layered Kaname app icon, and the catalog
+# keeps MenuBarIcon (loaded at runtime with NSImage(named:)). Two separate
+# invocations would overwrite each other's Assets.car. actool accepts .icon
+# even at deployment target 14.0 and emits Kaname.icns for older macOS.
+# The generated partial plist names Kaname for both icon keys; the template
+# above carries those values because this path copies Info.plist verbatim.
+ICON_SOURCE="$ROOT/KagiPeek/Kaname.icon"
 CATALOG="$ROOT/KagiPeek/Assets.xcassets"
-if [ -d "$CATALOG" ]; then
-    echo "==> Compiling the asset catalog"
+if [ -d "$ICON_SOURCE" ] && [ -d "$CATALOG" ]; then
+    echo "==> Compiling Kaname.icon + asset catalog"
     xcrun actool --compile "$APP/Contents/Resources" \
         --platform macosx --minimum-deployment-target 14.0 \
-        --app-icon AppIcon \
+        --app-icon Kaname \
         --output-partial-info-plist "$OUT/asset-partial.plist" \
-        "$CATALOG" >/dev/null || {
+        "$ICON_SOURCE" "$CATALOG" >/dev/null || {
         echo "warning: actool failed; the app will build without an icon" >&2
     }
 fi

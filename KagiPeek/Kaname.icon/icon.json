@@ -1,0 +1,56 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "srgb:0.07059,0.13725,0.14902,1.00000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": "automatic"
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "name": "Command key",
+          "glass": false,
+          "fill": "none",
+          "image-name": "command-key.png"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.12
+      }
+    },
+    {
+      "layers": [
+        {
+          "name": "Reuleaux rotor",
+          "glass": true,
+          "fill": "none",
+          "image-name": "keys.png"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.18
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

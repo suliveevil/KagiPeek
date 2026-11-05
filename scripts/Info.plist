@@ -20,9 +20,9 @@
 	<key>CFBundleExecutable</key>
 	<string>KagiPeek</string>
 	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<string>Kaname</string>
 	<key>CFBundleIconName</key>
-	<string>AppIcon</string>
+	<string>Kaname</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.voltline.kagipeek</string>
 	<key>CFBundleInfoDictionaryVersion</key>
