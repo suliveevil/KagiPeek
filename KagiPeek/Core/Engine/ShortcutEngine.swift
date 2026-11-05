@@ -349,6 +349,10 @@ final class ShortcutEngine: ObservableObject {
         state.liveTestPollingTask?.cancel()
         state.configScanTask?.cancel()
         state.crossAppRefreshTask?.cancel()
+        // First, before the monitor goes: a replay still waiting out its activation delay
+        // would otherwise post its chord after the app has stopped listening.
+        state.injectionTask?.cancel()
+        state.injectionTask = nil
         monitorRetry?.cancel()
         monitorRetry = nil
         monitor.stop()
@@ -1073,8 +1077,12 @@ final class ShortcutEngine: ObservableObject {
                 title: item.title
             )
         }
-        Task { @MainActor in
-            await ShortcutInjector.post(probe, delay: 0.12)
+        // Same rule as `RowRunner.runSystemHotkey`: one pending replay, and a handle the
+        // shutdown path can cancel before it posts.
+        let chord = probe
+        state.injectionTask?.cancel()
+        state.injectionTask = Task { @MainActor in
+            await ShortcutInjector.post(chord, delay: 0.12)
         }
     }
 

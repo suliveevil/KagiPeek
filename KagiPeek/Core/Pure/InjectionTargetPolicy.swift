@@ -15,7 +15,8 @@ nonisolated struct InjectionTarget: Equatable, Sendable {
     }
 }
 
-/// How a replay ended. Anything but `.sent` means no key event reached the system.
+/// How a replay ended. Anything but `.sent` means the chord did not go out as a whole;
+/// `.cancelled` is the one case that can follow a partly posted multi-step chord.
 nonisolated enum InjectionOutcome: Equatable, Sendable {
     case sent
     /// The chord had no key steps, so there was nothing to type.
@@ -26,6 +27,13 @@ nonisolated enum InjectionOutcome: Equatable, Sendable {
     case targetNotFrontmost
     /// `CGEvent` creation failed; the chord could not be posted.
     case eventCreationFailed
+    /// The replay was cancelled at one of its checkpoints.
+    ///
+    /// Unlike the cases above this is neither success nor failure: the engine stopped the
+    /// hand-off (shutdown, or a newer replay replacing this one), so the caller must not
+    /// report it as a command that failed. A multi-step chord can be cancelled between
+    /// strokes, so "cancelled" promises only that no *further* key was posted.
+    case cancelled
 }
 
 /// Whether the app in front is the one the chord was built for.

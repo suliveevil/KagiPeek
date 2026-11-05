@@ -284,8 +284,12 @@ final class RowRunner {
             chord: KeyFormatter.render(system.chord, style: state.settings.keyStyle),
             title: system.title
         )
-        Task { @MainActor in
-            await ShortcutInjector.post(system.chord, delay: 0.12)
+        // One pending replay at a time: a second hotkey pressed before the first one has
+        // posted would otherwise leave two chords racing into the same app.
+        let chord = system.chord
+        state.injectionTask?.cancel()
+        state.injectionTask = Task { @MainActor in
+            await ShortcutInjector.post(chord, delay: 0.12)
         }
     }
 
@@ -303,16 +307,23 @@ final class RowRunner {
     /// A replay that never posted a key has to say so: the success toast is the opposite
     /// outcome, and closing quietly is what made "nothing happened" unreadable.
     private func reportInjectionFailure(_ outcome: InjectionOutcome) {
-        Diag.error(.inject, "replay ended without a key event: \(outcome)")
         switch outcome {
         case .sent:
-            break
+            return
+        case .cancelled:
+            // Neither success nor failure: the engine stopped the hand-off. A "run failed"
+            // notice here would blame the target app for the engine's own decision, and a
+            // success toast would claim a chord that was never posted.
+            Diag.info(.inject, "replay cancelled, no failure reported")
+            return
         case .targetMissing, .targetNotFrontmost:
+            Diag.error(.inject, "replay ended without a key event: \(outcome)")
             presenters.notices.showNotice(
                 text: localization.text(.injectTargetUnavailable),
                 kind: .failure
             )
         case .emptyChord, .eventCreationFailed:
+            Diag.error(.inject, "replay ended without a key event: \(outcome)")
             presenters.notices.showNotice(
                 text: localization.text(.panelRunFailed),
                 kind: .failure
