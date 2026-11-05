@@ -26,13 +26,32 @@ nonisolated final class FileLogStore: @unchecked Sendable {
     private let nowProvider: () -> Date
     private let timeZone: TimeZone
 
+    /// A line waiting for the next write, with the level kept alongside it.
+    ///
+    /// The level survives the buffer because a failed write has to decide what is worth
+    /// keeping without parsing the rendered line back apart. `isSummary` marks the line this
+    /// store writes about its own losses, so repeated failures do not accumulate summaries.
+    private struct PendingLine {
+        var text: String
+        var level: DiagLevel
+        var isSummary = false
+    }
+
+    /// How many warning/error lines are retained after a write failure. The failed batch is
+    /// otherwise dropped: retrying it forever would turn a full disk into an I/O storm, and
+    /// the lines that explain the failure are exactly the ones worth a bounded retry.
+    private static let retainedFailureLines = batchSize * 2
+
     // State owned by `queue`.
-    private var pending: [String] = []
+    private var pending: [PendingLine] = []
     private var flushScheduled = false
     private var handle: FileHandle?
     private var openFileName: String?
     private var openFileSize = 0
     private var droppedBelowWarning = 0
+    /// Lines that never reached disk, for either the daily size cap or a failed write. Never
+    /// reset: the diagnostics report needs the session total, not the last batch's.
+    private var droppedLineCountTotal = 0
     private var lastPreparedDay: String?
     /// When the last attempt to open a file for the day happened. A failed open (read-only
     /// folder, full disk) is retried at most once a minute — retrying per line would turn a
@@ -60,6 +79,12 @@ nonisolated final class FileLogStore: @unchecked Sendable {
 
     var folderURL: URL { directory }
 
+    /// Lines this session could not write. Exposed so a diagnostics report can say the log
+    /// is incomplete instead of presenting a gap as if nothing had happened.
+    var droppedLineCount: Int {
+        queue.sync { droppedLineCountTotal }
+    }
+
     // MARK: - Writing
 
     func enqueue(level: DiagLevel, tag: DiagTag, message: String) {
@@ -77,12 +102,13 @@ nonisolated final class FileLogStore: @unchecked Sendable {
         // cap exists to preserve.
         if openFileSize > LogRotationPolicy.dailyFileLimitBytes, level < .warning {
             droppedBelowWarning += 1
+            droppedLineCountTotal += 1
             return
         }
 
         let clean = Sanitizer.prepare(message, homePrefix: NSHomeDirectory())
         let line = "\(lineFormatter.string(from: now)) \(level.character) \(tag.keyword) \(clean)\n"
-        pending.append(line)
+        pending.append(PendingLine(text: line, level: level))
         openFileSize += line.utf8.count
 
         if pending.count >= Self.batchSize {
@@ -105,19 +131,61 @@ nonisolated final class FileLogStore: @unchecked Sendable {
         flushScheduled = false
         guard !pending.isEmpty else { return }
         if droppedBelowWarning > 0 {
-            pending.append("\(lineFormatter.string(from: nowProvider())) W [settings] dropped \(droppedBelowWarning) verbose lines (daily size cap)\n")
+            let count = droppedBelowWarning
             droppedBelowWarning = 0
+            pending.append(PendingLine(
+                text: "\(lineFormatter.string(from: nowProvider())) W [settings] dropped \(count) verbose lines (daily size cap)\n",
+                level: .warning
+            ))
         }
-        let text = pending.joined()
-        pending.removeAll(keepingCapacity: true)
 
-        guard let handle else { return }
+        guard let handle else {
+            // No file is open: the open failed, or the previous write broke the handle.
+            // Keeping every line until the folder recovers would grow without bound, so the
+            // batch is reduced to what explains a failure and the rest is counted.
+            dropPending(reason: "the log file is not open")
+            return
+        }
+
+        let text = pending.map(\.text).joined()
         do {
             try handle.write(contentsOf: Data(text.utf8))
+            pending.removeAll(keepingCapacity: true)
         } catch {
-            // Nothing sensible to do: a log that cannot write must not recurse into logging.
+            // The handle is no longer trustworthy. `prepareIfNeeded` reopens at most once a
+            // minute; until then the lines below are the bounded retry.
             self.handle = nil
             openFileName = nil
+            openFileSize = 0
+            dropPending(reason: error.localizedDescription)
+        }
+    }
+
+    /// Discards the part of `pending` that is not worth retrying, and leaves a line that says
+    /// how much was lost.
+    ///
+    /// Warning and error lines are kept (bounded by `retainedFailureLines`) because they are
+    /// the ones that explain the failure; everything else is counted in `droppedLineCountTotal`
+    /// and reported. The summary line is itself `isSummary`, so a long outage leaves one
+    /// explanation rather than one per failed batch.
+    private func dropPending(reason: String) {
+        let priorSummary = pending.last(where: \.isSummary)
+        let retained = pending
+            .filter { $0.level >= .warning && !$0.isSummary }
+            .suffix(Self.retainedFailureLines)
+        let realLost = pending.filter { !$0.isSummary }.count - retained.count
+        droppedLineCountTotal += max(0, realLost)
+
+        pending = Array(retained)
+        if realLost > 0 {
+            pending.append(PendingLine(
+                text: "\(lineFormatter.string(from: nowProvider())) W [settings] dropped \(realLost) diagnostic lines: \(reason)\n",
+                level: .warning,
+                isSummary: true
+            ))
+        } else if let priorSummary {
+            // Nothing new was lost, but the existing explanation has not reached disk yet.
+            pending.append(priorSummary)
         }
     }
 
@@ -133,16 +201,27 @@ nonisolated final class FileLogStore: @unchecked Sendable {
     }
 
     /// Last `count` lines of the file for `date`, for the crash report's tail.
-    func tail(of date: Date, lines count: Int = 200) -> [String] {
+    ///
+    /// The result separates "no log file that day" from "the file could not be read": a crash
+    /// report with no tail is ambiguous otherwise, and the ambiguous version is the one that
+    /// hides a broken log folder.
+    func tail(of date: Date, lines count: Int = 200) -> LogTailResult {
         let url = directory.appendingPathComponent(
             LogRotationPolicy.fileName(for: date, timeZone: timeZone)
         )
         // Read through the queue so a pending batch is on disk before the tail is taken.
         flushNow(timeout: 0.2)
-        guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return [] }
-        let all = text.split(separator: "\n", omittingEmptySubsequences: true)
-        return all.suffix(count).map(String.init)
+        guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
+        do {
+            let data = try Data(contentsOf: url)
+            guard let text = String(data: data, encoding: .utf8) else {
+                return .unreadable("the file is not valid UTF-8")
+            }
+            let all = text.split(separator: "\n", omittingEmptySubsequences: true)
+            return .lines(all.suffix(count).map(String.init))
+        } catch {
+            return .unreadable(error.localizedDescription)
+        }
     }
 
     // MARK: - Opening, rolling, pruning (queue only)
@@ -191,6 +270,12 @@ nonisolated final class FileLogStore: @unchecked Sendable {
         } catch {
             handle = nil
             openFileName = nil
+            // Without a file the log is silent, and "my log is empty" is indistinguishable
+            // from "the folder is read-only". One warning per retry window says which; the
+            // retry gate in `prepareIfNeeded` keeps a bad folder from becoming a storm.
+            Diag.warning(.settings, """
+                could not open the log file \(name): \(error.localizedDescription)
+                """)
         }
     }
 

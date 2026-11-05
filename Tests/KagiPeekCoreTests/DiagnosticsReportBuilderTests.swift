@@ -8,7 +8,10 @@ import XCTest
 final class DiagnosticsReportBuilderTests: XCTestCase {
     private func input(
         generatedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
-        scanState: ScanState = .ok
+        scanState: ScanState = .ok,
+        crashRecoveryErrors: [String] = [],
+        actionMirrorError: String? = nil,
+        logLinesDropped: Int = 0
     ) -> DiagnosticsReportBuilder.Input {
         DiagnosticsReportBuilder.Input(
             generatedAt: generatedAt,
@@ -31,7 +34,10 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
             usageTotalPresses: 512,
             favoriteCount: 6,
             dataFolderPath: "/tmp/kagipeek",
-            windowTitles: ["KagiPeek", "KagiPeek Settings"]
+            windowTitles: ["KagiPeek", "KagiPeek Settings"],
+            crashRecoveryErrors: crashRecoveryErrors,
+            actionMirrorError: actionMirrorError,
+            logLinesDropped: logLinesDropped
         )
     }
 
@@ -92,5 +98,29 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
         let payload = try object(from: input())
         let command = try XCTUnwrap(payload["logCommand"] as? String)
         XCTAssertTrue(command.contains("subsystem == \"" + (Bundle.main.bundleIdentifier ?? "?") + "\""), command)
+    }
+
+    /// 部分成功必须把理由写进产物：读不到的崩溃片段、写不出的动作镜像、被丢弃的日志行，
+    /// 三者都是「报告看起来正常但内容有洞」的来源。
+    func testPartialFailuresAreWrittenIntoTheReport() throws {
+        let payload = try object(from: input(
+            crashRecoveryErrors: ["kagipeek-crash-1-signal.partial could not be read and was kept: permission denied"],
+            actionMirrorError: "the recent-action mirror could not be written: disk full",
+            logLinesDropped: 7
+        ))
+        XCTAssertEqual(
+            payload["crashRecoveryErrors"] as? [String],
+            ["kagipeek-crash-1-signal.partial could not be read and was kept: permission denied"]
+        )
+        XCTAssertEqual(payload["actionMirrorError"] as? String, "the recent-action mirror could not be written: disk full")
+        XCTAssertEqual(payload["logLinesDropped"] as? Int, 7)
+    }
+
+    /// 一切正常时这些字段缺席，而不是带着空值出现在报告里——与 `settingsError` 的约定一致。
+    func testPartialFailureFieldsAreAbsentWhenNothingFailed() throws {
+        let payload = try object(from: input())
+        XCTAssertNil(payload["crashRecoveryErrors"])
+        XCTAssertNil(payload["actionMirrorError"])
+        XCTAssertNil(payload["logLinesDropped"])
     }
 }

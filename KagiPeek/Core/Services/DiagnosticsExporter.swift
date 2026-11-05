@@ -47,6 +47,14 @@ nonisolated enum DiagnosticsExporter {
         /// archive — with content this table exists to remove, which is the one failure in this
         /// file that outlives the session.
         var sanitizerFailedPatterns: [String]
+        /// Crash fragments the launch sweep could not complete. **Absent** when there was
+        /// nothing left to recover, or when everything was recovered.
+        var crashRecoveryErrors: [String]?
+        /// Why the recent-action mirror is not current. **Absent** in a healthy session.
+        var actionMirrorError: String?
+        /// Log lines this session could not write (or dropped at the daily cap). **Absent**
+        /// when the attached log has no holes.
+        var logLinesDropped: Int?
     }
 
     static func defaultFileName(now: Date = Date()) -> String {
@@ -69,6 +77,9 @@ nonisolated enum DiagnosticsExporter {
         let crashFolder = DataDirectory.url(for: "crash")
         let logCopy = copyContents(of: logsFolder, into: bundle.appendingPathComponent("logs", isDirectory: true))
         let crashCopy = copyContents(of: crashFolder, into: bundle.appendingPathComponent("crash", isDirectory: true))
+        let recoveryMessages = CrashReporter.recoveryStatus.messages
+        let mirrorError = ActionRecorder.shared.mirrorError
+        let droppedLines = FileLogStore.shared.droppedLineCount
 
         let info = SessionInfo(
             generatedAt: ISO8601DateFormatter().string(from: now),
@@ -87,7 +98,10 @@ nonisolated enum DiagnosticsExporter {
             crashFiles: crashCopy.copied,
             logFilesError: logCopy.note,
             crashFilesError: crashCopy.note,
-            sanitizerFailedPatterns: Sanitizer.failedPatterns
+            sanitizerFailedPatterns: Sanitizer.failedPatterns,
+            crashRecoveryErrors: recoveryMessages.isEmpty ? nil : recoveryMessages,
+            actionMirrorError: mirrorError,
+            logLinesDropped: droppedLines > 0 ? droppedLines : nil
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

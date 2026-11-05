@@ -46,6 +46,27 @@ final class CrashLogFormatterTests: XCTestCase {
         XCTAssertEqual(report.signalName, "SIGSEGV")
     }
 
+    /// 空的 recentActions / logTail 有两种含义：这一段时间真的没有内容，或者读取失败了。
+    /// 报告必须把第二种说出来，否则读者会把一次权限失败当成「崩溃前什么都没做」。
+    func testPartialReportFailuresTravelWithTheReport() {
+        var failingContext = context(kind: "signal")
+        failingContext.recentActions = []
+        failingContext.recentActionsError = "the action mirror could not be read: permission denied"
+        let report = CrashLogFormatter.makeReport(
+            context: failingContext,
+            logTail: [],
+            logTailError: "the file is not valid UTF-8"
+        )
+        XCTAssertEqual(report.recentActionsError, "the action mirror could not be read: permission denied")
+        XCTAssertEqual(report.logTailError, "the file is not valid UTF-8")
+    }
+
+    func testHealthyPartialReportHasNoFailureFields() {
+        let report = CrashLogFormatter.makeReport(context: context(), logTail: ["one line"])
+        XCTAssertNil(report.recentActionsError)
+        XCTAssertNil(report.logTailError)
+    }
+
     func testRenderedJSONIsReadableAndStable() throws {
         let report = CrashLogFormatter.makeReport(context: context())
         let text = CrashLogFormatter.render(report)

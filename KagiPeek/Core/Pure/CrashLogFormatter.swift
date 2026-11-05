@@ -15,6 +15,9 @@ nonisolated struct CrashContext {
     var modelIdentifier: String
     var isAppActive: Bool
     var recentActions: [ActionRecord]
+    /// Why `recentActions` is empty when that is a failure rather than a clean session.
+    /// The signal path reads the on-disk mirror at the next launch; that read can fail.
+    var recentActionsError: String? = nil
     /// Symbolicated frames, available only on the NSException path.
     var callStack: [String]?
 }
@@ -38,10 +41,15 @@ nonisolated struct CrashReport: Codable, Equatable {
     var modelIdentifier: String
     var isAppActive: Bool
     var recentActions: [ActionRecord]
+    /// Why `recentActions` is empty or partial. Absent when nothing went wrong.
+    var recentActionsError: String?
     var callStack: [String]?
     /// The tail of the day's log file, added when the report is completed at the next
     /// launch (the dying process could not have read its own log).
     var logTail: [String]?
+    /// Why `logTail` is empty when the file existed but could not be read. Absent when the
+    /// day simply had no log file.
+    var logTailError: String?
 }
 
 /// Assembles and renders crash reports; parses the minimal `.partial` fragment the signal
@@ -61,7 +69,11 @@ nonisolated enum CrashLogFormatter {
         }
     }
 
-    static func makeReport(context: CrashContext, logTail: [String]? = nil) -> CrashReport {
+    static func makeReport(
+        context: CrashContext,
+        logTail: [String]? = nil,
+        logTailError: String? = nil
+    ) -> CrashReport {
         CrashReport(
             format: CrashReport.currentFormat,
             kind: context.kind,
@@ -76,8 +88,10 @@ nonisolated enum CrashLogFormatter {
             modelIdentifier: context.modelIdentifier,
             isAppActive: context.isAppActive,
             recentActions: context.recentActions,
+            recentActionsError: context.recentActionsError,
             callStack: context.callStack,
-            logTail: logTail
+            logTail: logTail,
+            logTailError: logTailError
         )
     }
 

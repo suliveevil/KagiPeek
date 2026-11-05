@@ -46,6 +46,14 @@ nonisolated enum DiagnosticsReportBuilder {
         /// Supplied by the caller because reading them means asking `NSApp`, which is the one
         /// thing this file should not need.
         var windowTitles: [String]
+        /// Crash fragments the launch-time sweep could not turn into a report. Empty when
+        /// there was nothing left behind, or when everything left behind was completed.
+        var crashRecoveryErrors: [String] = []
+        /// Why the recent-actions mirror could not be written. Absent in a healthy session.
+        var actionMirrorError: String? = nil
+        /// Log lines the file sink could not write (or had to drop at the daily cap). Zero is
+        /// the normal value; a non-zero one means the attached log has holes.
+        var logLinesDropped: Int = 0
     }
 
     static func report(_ input: Input) throws -> Data {
@@ -89,6 +97,17 @@ nonisolated enum DiagnosticsReportBuilder {
             "windowTitles": input.windowTitles,
             "logCommand": "log show --last 10m --predicate 'subsystem == \"\(bundleID)\"'"
         ]
+        // Partial-success facts: the values that are empty for a reason. Absent when there is
+        // nothing to explain, in the same shape as `settingsError` below.
+        if !input.crashRecoveryErrors.isEmpty {
+            payload["crashRecoveryErrors"] = input.crashRecoveryErrors
+        }
+        if let actionMirrorError = input.actionMirrorError {
+            payload["actionMirrorError"] = actionMirrorError
+        }
+        if input.logLinesDropped > 0 {
+            payload["logLinesDropped"] = input.logLinesDropped
+        }
         do {
             let encoded = try JSONEncoder().encode(input.settings)
             payload["settings"] = try JSONSerialization.jsonObject(with: encoded)
