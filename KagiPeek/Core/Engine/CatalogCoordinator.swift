@@ -114,6 +114,8 @@ final class CatalogCoordinator {
             self.state.panel.isScanning = false
             self.state.searchCorpus = nil
             self.state.orderedHitsCache = nil
+            self.state.panelFilterCorpus = nil
+            self.state.panelFilterCorpusKey = nil
             self.publishInputState()
             self.evaluateExclusion()
             if self.state.panel.isVisible {
@@ -231,6 +233,8 @@ final class CatalogCoordinator {
             Diag.info(.ui, "system hotkeys: \(state.systemBindings.count) read, \(named) named, first: \(state.systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
         }
         state.searchCorpus = nil
+        state.panelFilterCorpus = nil
+        state.panelFilterCorpusKey = nil
         recomputeConflicts(state.catalog.items)
         resetConflictOwnerFilter()
     }
@@ -265,6 +269,8 @@ final class CatalogCoordinator {
         state.configScan = result
         state.configBindings = result.items
         state.searchCorpus = nil
+        state.panelFilterCorpus = nil
+        state.panelFilterCorpusKey = nil
         recomputeConflicts(state.catalog.items)
         resetConflictOwnerFilter()
         Diag.info(.scan, "config scan: \(result.totalCount) shortcuts")
