@@ -161,6 +161,10 @@ final class EngineState: ObservableObject {
     /// Keeps the completed-row highlight visible for a beat after a shortcut runs; cancelled
     /// on dismissal so it cannot outlive the panel.
     var completionTask: Task<Void, Never>?
+    /// The hand-off that replays a chord after a surface closed. An unstructured task does
+    /// not inherit anyone's cancellation, so without this handle there is no way to stop it
+    /// between its activation wait and the key it would post.
+    var injectionTask: Task<Void, Never>?
     var crossAppRefreshTask: Task<Void, Never>?
     var configScanTask: Task<Void, Never>?
     var configScanGeneration = 0

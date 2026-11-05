@@ -24,6 +24,10 @@ enum ShortcutInjector {
     /// When `target` is nil the chord is replayed into whatever is frontmost — the system
     /// hotkey path, where there is no owner to name. Otherwise the target is activated (if
     /// needed), waited for, and verified; nothing is posted unless the verdict is to send.
+    ///
+    /// Every suspension in here is a cancellation checkpoint. `Task.sleep` is the only one
+    /// that reports cancellation at all, and swallowing it (`try?`) is how a cancelled
+    /// replay used to walk on to the next line and post the chord anyway.
     @discardableResult
     @MainActor
     static func post(
@@ -31,6 +35,7 @@ enum ShortcutInjector {
         to target: InjectionTarget? = nil,
         delay: TimeInterval = 0.15
     ) async -> InjectionOutcome {
+        if Task.isCancelled { return .cancelled }
         let steps = chord.steps.filter { $0.key != nil }
         guard !steps.isEmpty else {
             // Nothing was posted, so nothing happened in the app — indistinguishable from a
@@ -51,8 +56,19 @@ enum ShortcutInjector {
         case .ready(let verdict):
             beforeDelay = verdict
         }
+        // Activation can take up to the timeout above, which is long enough for the engine
+        // to have cancelled this replay in the meantime.
+        if Task.isCancelled {
+            Diag.info(.inject, "replay cancelled after activation, nothing posted")
+            return .cancelled
+        }
         if delay > 0 {
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch {
+                Diag.info(.inject, "replay cancelled during the activation wait, nothing posted")
+                return .cancelled
+            }
         }
         // Re-verify after the wait. A different app coming forward during it means a key
         // posted now would land in that app; the chord is withheld instead.
@@ -85,7 +101,13 @@ enum ShortcutInjector {
             // `activate()`: the system decides whether the request is honoured. A refusal
             // shows up as "never became active" and is reported, never worked around.
             app.activate()
-            guard await waitUntilActive(app) else {
+            switch await waitUntilActive(app) {
+            case .active:
+                break
+            case .cancelled:
+                Diag.info(.inject, "replay cancelled while waiting for pid \(target.processID), nothing posted")
+                return .failed(.cancelled)
+            case .timedOut:
                 logMismatch(target, app: app, reason: "did not become frontmost")
                 return .failed(.targetNotFrontmost)
             }
@@ -129,14 +151,26 @@ enum ShortcutInjector {
         return app == nil ? .targetMissing : .targetNotFrontmost
     }
 
+    private enum ActivationWait {
+        case active
+        case timedOut
+        /// The task was cancelled: not the same as "the app refused to come forward", and
+        /// reporting it as a failure would blame the target for the engine's own decision.
+        case cancelled
+    }
+
     @MainActor
-    private static func waitUntilActive(_ app: NSRunningApplication) async -> Bool {
+    private static func waitUntilActive(_ app: NSRunningApplication) async -> ActivationWait {
         let deadline = Date().addingTimeInterval(activationTimeout)
         while Date() < deadline {
-            if app.isActive { return true }
-            try? await Task.sleep(nanoseconds: UInt64(activationPollInterval * 1_000_000_000))
+            if app.isActive { return .active }
+            do {
+                try await Task.sleep(nanoseconds: UInt64(activationPollInterval * 1_000_000_000))
+            } catch {
+                return .cancelled
+            }
         }
-        return app.isActive
+        return app.isActive ? .active : .timedOut
     }
 
     private static func logMismatch(_ target: InjectionTarget, app: NSRunningApplication, reason: String) {
@@ -151,6 +185,9 @@ enum ShortcutInjector {
     @MainActor
     private static func postSteps(_ steps: [KeyStep], target: InjectionTarget?) async -> InjectionOutcome {
         for (index, step) in steps.enumerated() {
+            // Checked before every stroke, not just once at the start: a multi-step chord
+            // cancelled half way must stop there instead of finishing the sequence.
+            if Task.isCancelled { return .cancelled }
             if let target, let refusal = stepRefusal(target, step: index) {
                 return refusal
             }
@@ -161,7 +198,16 @@ enum ShortcutInjector {
             guard postKey(keyCode: keyCode, flags: ModifierSet.cgEventFlags(for: step.modifiers)) else {
                 return .eventCreationFailed
             }
-            try? await Task.sleep(nanoseconds: UInt64(stepInterval * 1_000_000_000))
+            // No gap after the last stroke: nothing follows it, so the only thing a trailing
+            // sleep can do is turn a cancellation into a `.cancelled` verdict for a chord
+            // that was in fact posted in full.
+            if index < steps.count - 1 {
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(stepInterval * 1_000_000_000))
+                } catch {
+                    return .cancelled
+                }
+            }
         }
         return .sent
     }
