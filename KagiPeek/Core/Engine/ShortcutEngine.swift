@@ -1387,6 +1387,13 @@ final class ShortcutEngine: ObservableObject {
             // the app behind would also see it — in a browser that is "quick find", which
             // would then open on top of the palette that just opened.
             identifiers.insert(KeySwallowRules.identifier(keyCode: KeyCode.slash, modifiers: []))
+            // Tab is the same kind of key: `KeyEventRouter` answers a bare Tab with
+            // `.showSearch` too, and an uncaptured Tab reaches the app behind as well — a
+            // text field inserts a tab character and a form moves focus while the palette
+            // opens. Only the bare spelling is captured, because the router only claims the
+            // Tab whose `modifiers` are empty; going through `capture` would also swallow
+            // ⇧⇥ and the held-modifier spelling, which the panel does not answer.
+            identifiers.insert(KeySwallowRules.identifier(keyCode: KeyCode.tab, modifiers: []))
         }
         monitor.updateCapturedKeys(identifiers)
         monitor.updateCapturedKeyCodes(capturedKeyCodes)
