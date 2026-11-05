@@ -79,13 +79,9 @@ final class CatalogCoordinator {
         let generation = state.catalogGeneration
         Task { [weak self] in
             guard let self else { return }
-            let snapshot = await self.catalogLoader.load(
-                app: app,
-                language: self.state.settings.language,
-                includeBuiltIn: self.state.settings.includeBuiltInCatalog,
-                showAppleMenu: self.state.settings.showAppleMenu,
-                force: force
-            )
+            var query = CatalogQuery(settings: self.state.settings)
+            query.force = force
+            let snapshot = await self.catalogLoader.load(app: app, query: query)
             guard !self.isPreviewing() else { return }
             guard generation == self.state.catalogGeneration else {
                 Diag.debug(.scan, "dropping stale scan for \(snapshot.appIdentity)")
@@ -114,6 +110,11 @@ final class CatalogCoordinator {
             self.state.panel.isScanning = false
             self.state.searchCorpus = nil
             self.state.orderedHitsCache = nil
+            // The filter corpus is keyed, but its key only carries the system bindings'
+            // count: every path that rewrites catalog, system or config rows must drop it
+            // here, or the panel and the palette answer the same query differently.
+            self.state.panelFilterCorpus = nil
+            self.state.panelFilterCorpusKey = nil
             self.publishInputState()
             self.evaluateExclusion()
             if self.state.panel.isVisible {
@@ -138,13 +139,9 @@ final class CatalogCoordinator {
     /// list: a scope is about that app's own commands, and a cached answer is what makes
     /// switching scope feel like flipping a page.
     func loadScopedCatalog(for app: FrontmostApp) async -> CatalogSnapshot {
-        await catalogLoader.load(
-            app: app,
-            language: state.settings.language,
-            includeBuiltIn: false,
-            showAppleMenu: state.settings.showAppleMenu,
-            force: false
-        )
+        var query = CatalogQuery(settings: state.settings)
+        query.includeBuiltIn = false
+        return await catalogLoader.load(app: app, query: query)
     }
 
     /// Old rows belong to the old process. Keeping them behind a new app name made a
@@ -209,13 +206,9 @@ final class CatalogCoordinator {
         )
         Task { [weak self] in
             guard let self else { return }
-            let snapshot = await self.catalogLoader.load(
-                app: target,
-                language: self.state.settings.language,
-                includeBuiltIn: false,
-                showAppleMenu: self.state.settings.showAppleMenu,
-                force: false
-            )
+            var query = CatalogQuery(settings: self.state.settings)
+            query.includeBuiltIn = false
+            let snapshot = await self.catalogLoader.load(app: target, query: query)
             completion(snapshot.items.map(\.title))
         }
     }
@@ -231,6 +224,9 @@ final class CatalogCoordinator {
             Diag.info(.ui, "system hotkeys: \(state.systemBindings.count) read, \(named) named, first: \(state.systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
         }
         state.searchCorpus = nil
+        // Same reason as the reload path: this rewrite is invisible to the corpus key.
+        state.panelFilterCorpus = nil
+        state.panelFilterCorpusKey = nil
         recomputeConflicts(state.catalog.items)
         resetConflictOwnerFilter()
     }
@@ -265,6 +261,9 @@ final class CatalogCoordinator {
         state.configScan = result
         state.configBindings = result.items
         state.searchCorpus = nil
+        // Same reason as the reload path: this rewrite is invisible to the corpus key.
+        state.panelFilterCorpus = nil
+        state.panelFilterCorpusKey = nil
         recomputeConflicts(state.catalog.items)
         resetConflictOwnerFilter()
         Diag.info(.scan, "config scan: \(result.totalCount) shortcuts")
