@@ -59,7 +59,13 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 680, minHeight: 600)
+        // 720, not the 680 it was: the sidebar takes 188 of it, and the widest fixed row
+        // in the pages — the English permission row, "Input Monitoring" + "Not granted" +
+        // "Request" + "Open System Settings" — measures 429 pt. A 531 pt detail column
+        // leaves 102 pt for the grouped form's insets (about 20–25 a side) and a margin;
+        // at 680 the detail is 491 and that row clips as soon as the inset reaches 30 a
+        // side, which is where a system font with wider metrics puts it.
+        .frame(minWidth: 720, minHeight: 600)
         .background(Theme.surface)
         .environmentObject(localization)
         .onAppear {

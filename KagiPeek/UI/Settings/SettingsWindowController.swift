@@ -50,7 +50,9 @@ final class SettingsWindowController {
 
     private func makeWindow(initialTab: SettingsTab) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 600),
+            // Wide enough for the sidebar plus the widest settings row; the reason for
+            // 720 is worked out at the `.frame(minWidth:)` in `SettingsView`.
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 600),
             // No `.miniaturizable`: Settings is a single utility window, and a minimised
             // copy used to sit in the Dock while the menu item had to hunt for it. Close
             // and the existing menu restore path are the only ways out.
