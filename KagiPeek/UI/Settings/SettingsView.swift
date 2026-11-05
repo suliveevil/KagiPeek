@@ -4,12 +4,28 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var engine: ShortcutEngine
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var store: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var localization: Localization
 
     private var settings: AppSettingsSnapshot { store.settings }
+
+    /// The conflict filters are the only two pieces of engine state this window writes.
+    /// Observation has no projected value, so they get explicit bindings.
+    private var conflictCategorySelection: Binding<ConflictCategory?> {
+        Binding(
+            get: { state.conflictCategory },
+            set: { state.conflictCategory = $0 }
+        )
+    }
+
+    private var conflictOwnerSelection: Binding<ConflictOwnerFilter> {
+        Binding(
+            get: { state.conflictOwner },
+            set: { state.conflictOwner = $0 }
+        )
+    }
 
     @State private var tab: SettingsTab = .general
     /// Selected row in the excluded-apps list. Selection, not a text cursor: an app is
@@ -726,7 +742,7 @@ struct SettingsView: View {
 
             Section(localization.text(.conflictListTitle)) {
                 LabeledContent(localization.text(.conflictType)) {
-                    Picker("", selection: $state.conflictCategory) {
+                    Picker("", selection: conflictCategorySelection) {
                         Text(localization.format(.conflictTypeAllFormat, state.crossAppConflicts.count))
                             .tag(ConflictCategory?.none)
                         ForEach(state.conflictTypeOptions) { option in
@@ -738,7 +754,7 @@ struct SettingsView: View {
                 }
 
                 LabeledContent(localization.text(.conflictOwner)) {
-                    Picker("", selection: $state.conflictOwner) {
+                    Picker("", selection: conflictOwnerSelection) {
                         ForEach(engine.conflictOwnerOptions) { option in
                             Text(ownerFilterLabel(option)).tag(option)
                         }

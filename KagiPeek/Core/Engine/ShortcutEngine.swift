@@ -1078,7 +1078,7 @@ final class ShortcutEngine: ObservableObject {
         state.panel.latchedModifiers = []
         state.panel.latchedOrder = []
         state.panel.pageIndex = 0
-        state.panel.selectionIndex = -1
+        state.panelSelectionIndex = -1
         rebuildPanel()
         updateKeyCapture()
     }
@@ -1220,6 +1220,9 @@ final class ShortcutEngine: ObservableObject {
         state.panel.isVisible = true
         state.panel.isPinned = true
         state.panel.beginNewSession()
+        // The cursor belongs to the session too: a panel opened again must not start on the
+        // row where the previous one happened to leave it.
+        state.panelSelectionIndex = -1
         state.panel.triggerNarrowPending = waitingForTriggerRelease
         state.hyperEscape = HyperEscape()
         // A modifier held down to summon the panel is the trigger, not a tap: letting go of

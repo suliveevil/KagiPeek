@@ -15,8 +15,8 @@ nonisolated struct PanelRow: Identifiable {
     let isEnabled: Bool
     let hasConflict: Bool
     /// Position among the rows on the current page, used for keyboard selection. `-1` means
-    /// "not addressable", which is also `PanelState.selectionIndex == -1` ("nothing
-    /// selected") — the two are only compared for rows whose `index >= 0`.
+    /// "not addressable", which is also the panel cursor's sentinel (`-1`, nothing
+    /// selected) — the two are only compared for rows whose `index >= 0`.
     let index: Int
     /// Part of the shortcut currently being pressed.
     let isHighlighted: Bool
@@ -80,7 +80,6 @@ nonisolated struct PanelState {
     /// Page-ordered row ids, so ↑/↓ and the run key can address a row without flattening in
     /// the view.
     var flatRowIDs: [String] = []
-    var selectionIndex = -1
     /// The panel's ordered filter tokens: modifiers and letters in the order they were
     /// added. Empty means "the whole list"; non-empty replaces the old prefix narrowing.
     var filter = PanelFilter()
@@ -158,10 +157,10 @@ nonisolated struct PanelState {
     ///
     /// `shiftHintActive` matters here: the Shift hint layer belongs to the session that
     /// raised it, so a panel opened again must not start with 0–9 / a–z standing in for the
-    /// chords. The other fields are the selection and page position the rebuild replaces.
+    /// chords. The other fields are the page position and transient filter the rebuild
+    /// replaces; the keyboard cursor lives on `EngineState` and is reset with the session.
     mutating func beginNewSession() {
         pageIndex = 0
-        selectionIndex = -1
         completedRowID = nil
         prefixLabels = []
         filter.clear()

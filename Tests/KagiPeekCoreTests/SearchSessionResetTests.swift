@@ -31,14 +31,12 @@ final class SearchSessionResetTests: XCTestCase {
         var panel = PanelState()
         panel.shiftHintActive = true
         panel.prefixLabels = ["0", "1", "2"]
-        panel.selectionIndex = 4
         panel.pageIndex = 3
 
         panel.beginNewSession()
 
         XCTAssertFalse(panel.shiftHintActive, "the 0–9 / a–z hint layer belongs to its own session")
         XCTAssertTrue(panel.prefixLabels.isEmpty)
-        XCTAssertEqual(panel.selectionIndex, -1)
         XCTAssertEqual(panel.pageIndex, 0)
     }
 }

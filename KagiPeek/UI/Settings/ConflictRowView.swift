@@ -8,7 +8,7 @@ import SwiftUI
 /// and find out for real.
 struct ConflictRowView: View {
     @EnvironmentObject private var engine: ShortcutEngine
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var localization: Localization
 
     let conflict: BindingConflict

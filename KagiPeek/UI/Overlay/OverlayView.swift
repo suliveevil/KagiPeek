@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 /// selection move, a countdown tick, a search result change — invalidates only the
 /// views that read it, not the whole tree.
 struct OverlayView: View {
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var settingsStore: SettingsStore
     /// The window's effectiveAppearance, expressed for SwiftUI: `system` themes follow it.
     @Environment(\.colorScheme) private var systemColorScheme
@@ -84,7 +84,7 @@ struct OverlayView: View {
 /// `runningApps`), so a row-selection or results change elsewhere does not redraw it.
 private struct OverlayHeaderView: View {
     @EnvironmentObject private var engine: ShortcutEngine
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
     @Environment(\.colorScheme) private var systemColorScheme
@@ -95,6 +95,15 @@ private struct OverlayHeaderView: View {
         settings.panelTheme.palette(isDarkSystem: systemColorScheme == .dark)
     }
     private var isSearch: Bool { state.search.isVisible }
+
+    /// Observation has no projected value, so the text field gets an explicit binding to
+    /// the one field it writes.
+    private var searchQuery: Binding<String> {
+        Binding(
+            get: { state.search.query },
+            set: { state.search.query = $0 }
+        )
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -411,7 +420,7 @@ private struct OverlayHeaderView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(palette.secondaryText)
-            TextField(localization.text(.searchPlaceholder), text: $state.search.query)
+            TextField(localization.text(.searchPlaceholder), text: searchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
@@ -462,7 +471,7 @@ private struct OverlayHeaderView: View {
 /// not rebuild the rows.
 private struct OverlayPanelContentView: View {
     @EnvironmentObject private var engine: ShortcutEngine
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
     @EnvironmentObject private var usageStore: UsageStore
@@ -693,7 +702,7 @@ private struct OverlayPanelContentView: View {
     private func rowView(_ row: PanelRow, layout: RowLayout.Metrics) -> some View {
         // A dimmed row carries index -1, exactly like the "nothing selected" marker, so
         // comparing the two lit up every dimmed row. Only a real position can be selected.
-        let isSelected = row.index >= 0 && state.panel.selectionIndex == row.index
+        let isSelected = row.index >= 0 && state.panelSelectionIndex == row.index
         return rowColumns(row, layout: layout, isSelected: isSelected)
             .padding(.horizontal, Theme.rowHorizontalPadding)
             .frame(height: Theme.rowHeight)
@@ -849,7 +858,7 @@ private struct OverlayPanelContentView: View {
     /// and fire the shortcut into the front app. A child tap gesture is unambiguous — the
     /// innermost recogniser wins — and the hit area is bounded to the (always reserved) star.
     private func favoriteButton(_ row: PanelRow) -> some View {
-        let selected = row.index >= 0 && state.panel.selectionIndex == row.index
+        let selected = row.index >= 0 && state.panelSelectionIndex == row.index
         let visible = hoveredRowID == row.id || selected || row.isFavorite
         let lit = hoveredStarID == row.id
         return Image(systemName: row.isFavorite ? "star.fill" : "star")
@@ -1071,7 +1080,7 @@ private struct OverlayPanelContentView: View {
 /// panel rebuild or a scan-progress change does not re-render the results.
 private struct OverlaySearchContentView: View {
     @EnvironmentObject private var engine: ShortcutEngine
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
     @Environment(\.colorScheme) private var systemColorScheme
@@ -1186,7 +1195,7 @@ private struct OverlaySearchContentView: View {
 /// not redraw it.
 private struct OverlayFooterView: View {
     @EnvironmentObject private var engine: ShortcutEngine
-    @EnvironmentObject private var state: EngineState
+    @Environment(EngineState.self) private var state
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var localization: Localization
     @Environment(\.colorScheme) private var systemColorScheme

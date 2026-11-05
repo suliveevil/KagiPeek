@@ -282,7 +282,7 @@ final class SurfacePanelController: PanelPresenting {
         panel.contentView = NSHostingView(
             rootView: OverlayView()
                 .environmentObject(engine)
-                .environmentObject(engine.state)
+                .environment(engine.state)
                 .environmentObject(engine.settingsStore)
                 .environmentObject(engine.localization)
                 .environmentObject(engine.usageStore)

@@ -144,7 +144,7 @@ extension ShortcutEngine {
             let hosting = NSHostingView(
                 rootView: SettingsView(initialTab: Self.previewSettingsTab(for: mode))
                     .environmentObject(self)
-                    .environmentObject(state)
+                    .environment(state)
                     .environmentObject(settingsStore)
                     .environmentObject(usageStore)
                     .environmentObject(localization)

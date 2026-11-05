@@ -42,7 +42,7 @@ final class SettingsWindowController {
     private func makeRoot(initialTab: SettingsTab) -> some View {
         SettingsView(initialTab: initialTab)
             .environmentObject(engine)
-            .environmentObject(engine.state)
+            .environment(engine.state)
             .environmentObject(engine.settingsStore)
             .environmentObject(engine.usageStore)
             .environmentObject(engine.localization)

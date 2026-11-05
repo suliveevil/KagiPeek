@@ -397,8 +397,8 @@ final class PanelSession {
         state.panel.flatRowIDs = built.flatRowIDs
         state.panel.rowBudget = budget.rows
         state.panel.headingBudget = budget.headings
-        state.panel.selectionIndex = PanelSelection.resolved(
-            previous: state.panel.selectionIndex,
+        state.panelSelectionIndex = PanelSelection.resolved(
+            previous: state.panelSelectionIndex,
             rowCount: built.flatRowIDs.count
         )
         state.panel.prefixLabels = KeyFormatter.breadcrumb(for: state.prefix, style: state.settings.keyStyle)
@@ -802,7 +802,7 @@ final class PanelSession {
             return
         }
         state.panel.pageIndex = target
-        state.panel.selectionIndex = -1
+        state.panelSelectionIndex = -1
         rebuildPanel()
     }
 
@@ -812,7 +812,7 @@ final class PanelSession {
             return
         }
         state.panel.pageIndex = target
-        state.panel.selectionIndex = -1
+        state.panelSelectionIndex = -1
         rebuildPanel()
     }
 
@@ -821,21 +821,21 @@ final class PanelSession {
     func moveSelection(_ delta: Int) {
         guard state.panel.isVisible, !state.panel.flatRowIDs.isEmpty else { return }
         let last = state.panel.flatRowIDs.count - 1
-        state.panel.selectionIndex = min(max(-1, state.panel.selectionIndex + delta), last)
+        state.panelSelectionIndex = min(max(-1, state.panelSelectionIndex + delta), last)
     }
 
     /// The run key / copy key pressed on the selected panel row.
     func performSelectedPanelRow(action: RowAction) {
-        guard state.panel.selectionIndex >= 0, state.panel.flatRowIDs.indices.contains(state.panel.selectionIndex) else {
+        guard state.panelSelectionIndex >= 0, state.panel.flatRowIDs.indices.contains(state.panelSelectionIndex) else {
             // The run key on a panel with nothing selected used to be indistinguishable from
             // a broken key: no execution, no copy, no log. Say why.
-            let index = state.panel.selectionIndex
+            let index = state.panelSelectionIndex
             let rows = state.panel.flatRowIDs.count
             let name = action.rawValue
             Diag.info(.run, "\(name) key ignored: no row selected (index=\(index), rows=\(rows))")
             return
         }
-        performPanelRow(rowID: state.panel.flatRowIDs[state.panel.selectionIndex], action: action)
+        performPanelRow(rowID: state.panel.flatRowIDs[state.panelSelectionIndex], action: action)
     }
 
     /// A click and the run key share one contract, but they ask different questions:
@@ -900,8 +900,8 @@ final class PanelSession {
     /// Cursor moved over a row: make it the selected row so Return acts on it.
     func select(rowID: String) {
         guard state.panel.isVisible, let index = state.panel.flatRowIDs.firstIndex(of: rowID) else { return }
-        guard state.panel.selectionIndex != index else { return }
-        state.panel.selectionIndex = index
+        guard state.panelSelectionIndex != index else { return }
+        state.panelSelectionIndex = index
     }
 
     /// Runs the row the user picked, in whichever namespace owns it.
@@ -996,7 +996,7 @@ final class PanelSession {
         guard let key = step.key else { return }
         Diag.debug(.run, "descending one level depth=\(item.group.count) titleLen=\(item.title.count)")
         state.prefix = PrefixResolver.probe(after: state.prefix, modifiers: step.modifiers, key: key)
-        state.panel.selectionIndex = -1
+        state.panelSelectionIndex = -1
         state.panel.pageIndex = 0
         rebuildPanel()
         onCapturedKeysChanged()

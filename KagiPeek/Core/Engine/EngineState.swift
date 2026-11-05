@@ -1,6 +1,6 @@
 import AppKit
-import Combine
 import Foundation
+import Observation
 
 /// Everything the engine knows, in one place.
 ///
@@ -9,68 +9,76 @@ import Foundation
 /// session state, caches and gesture machines the coordination reads and writes. It is
 /// `@MainActor` because every mutation comes from the engine on the main thread, and it is
 /// observable so the SwiftUI surfaces can bind straight to it (`state.panel`,
-/// `$state.search.query`, …) instead of through the coordinator.
+/// `state.search.query`, …) instead of through the coordinator.
 ///
-/// `panel` remains a wholesale-replaced immutable snapshot (`PanelState`); nothing here is
-/// ever mutated in place across a rebuild.
+/// `panel` remains a wholesale-replaced immutable snapshot (`PanelState`); the keyboard
+/// cursor lives beside it (`panelSelectionIndex`) so an arrow key invalidates the rows that
+/// read it, not every view that reads any panel field.
 @MainActor
-final class EngineState: ObservableObject {
+@Observable
+final class EngineState {
     // MARK: - Published state (UI binds and reads these)
 
-    @Published var panel = PanelState.hidden
-    @Published var settings: AppSettingsSnapshot
-    @Published var appName = ""
-    @Published var appIcon: NSImage?
-    @Published var isListening = false
-    @Published var hasAccessibility = false
-    @Published var hasInputMonitoring = false
-    @Published var conflicts: [BindingConflict] = []
+    var panel = PanelState.hidden
+    /// The panel's keyboard cursor: an index into `panel.flatRowIDs`, or -1 for nothing.
+    ///
+    /// Deliberately outside `PanelState`: a selection move used to replace the whole panel
+    /// snapshot, so every view that read any panel field re-evaluated on each arrow key.
+    /// As its own observed property it only invalidates the rows that compare against it.
+    var panelSelectionIndex = -1
+    var settings: AppSettingsSnapshot
+    var appName = ""
+    var appIcon: NSImage?
+    var isListening = false
+    var hasAccessibility = false
+    var hasInputMonitoring = false
+    var conflicts: [BindingConflict] = []
     /// Conflicts across every running app, with ids scoped to their owner. Only the
     /// Conflicts page reads this; the panel keeps using `conflicts`.
-    @Published var crossAppConflicts: [BindingConflict] = []
+    var crossAppConflicts: [BindingConflict] = []
     /// When the list above was produced, or nil when it has never been scanned.
-    @Published var crossAppScannedAt: Date?
-    @Published var isScanningCrossApp = false
-    @Published var crossAppScanState: ConflictScanState = .idle
-    @Published var crossAppFailedAppCount = 0
+    var crossAppScannedAt: Date?
+    var isScanningCrossApp = false
+    var crossAppScanState: ConflictScanState = .idle
+    var crossAppFailedAppCount = 0
     /// Explicit catalog lifecycle: emptiness is a result, not a loading indicator.
-    @Published var isCatalogLoading = false
-    @Published var catalogSize = 0
-    @Published var scanDuration: TimeInterval = 0
+    var isCatalogLoading = false
+    var catalogSize = 0
+    var scanDuration: TimeInterval = 0
     /// Why the last catalog read produced what it did. An empty panel and a read that
     /// never happened look the same, so the surfaces can say which one it was.
-    @Published var scanState: ScanState = .ok
-    @Published var usedBuiltInCatalog = false
-    @Published var statusMessage: String?
-    @Published var isFrontAppExcluded = false
-    @Published var recordingTarget: HotkeyTarget?
+    var scanState: ScanState = .ok
+    var usedBuiltInCatalog = false
+    var statusMessage: String?
+    var isFrontAppExcluded = false
+    var recordingTarget: HotkeyTarget?
     /// Bumped on every search open/close so the palette's text field can re-request focus.
-    @Published var searchFocusToken = 0
-    @Published var systemBindings: [BindingItem] = []
-    @Published var configBindings: [BindingItem] = []
-    @Published var configScan = ConfigScanResult()
-    @Published var conflictCategory: ConflictCategory?
-    @Published var conflictOwner: ConflictOwnerFilter = .all
+    var searchFocusToken = 0
+    var systemBindings: [BindingItem] = []
+    var configBindings: [BindingItem] = []
+    var configScan = ConfigScanResult()
+    var conflictCategory: ConflictCategory?
+    var conflictOwner: ConflictOwnerFilter = .all
     /// Which app the search palette looks at, or nil for the frontmost one.
     ///
     /// Looking at another app is the palette's job now: it is where
     /// people actually type, so the scope lives here now.
     /// The scope's identity and items live in `search` (pure state); the icon is AppKit
     /// and has to stay engine-side.
-    @Published var searchScopeIcon: NSImage?
-    @Published var liveTestState: ShortcutTester.State = .idle
-    @Published var runningApps: [AppEntry] = []
+    var searchScopeIcon: NSImage?
+    var liveTestState: ShortcutTester.State = .idle
+    var runningApps: [AppEntry] = []
 
     /// The palette's whole state as one snapshot (see `SearchSnapshot`). Only the query
     /// drives a re-search; the engine writes results/selection/visibility itself, and a
     /// re-search from those writes would loop. The re-search side effect is the engine's
     /// (it owns the catalog), so it is injected through `searchChangeHandler`.
-    @Published var search = SearchSnapshot() {
+    var search = SearchSnapshot() {
         didSet {
             if oldValue.query != search.query { searchChangeHandler?(search) }
         }
     }
-    @Published var showsFavoritesOnly = false
+    var showsFavoritesOnly = false
 
     /// The favorite filters, derived once here so the panel and the palette cannot disagree.
     var favoritesPolicy: FavoritesPolicy {

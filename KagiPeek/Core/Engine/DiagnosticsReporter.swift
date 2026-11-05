@@ -44,7 +44,7 @@ final class DiagnosticsReporter {
                 frontmostName: state.appName,
                 frontmostBundleID: frontmostBundleID() ?? "",
                 usedBuiltInCatalog: state.usedBuiltInCatalog,
-                panelSelectionIndex: state.panel.selectionIndex,
+                panelSelectionIndex: state.panelSelectionIndex,
                 panelRowCount: state.panel.flatRowIDs.count,
                 prefixText: KeyFormatter.render(state.prefix, style: state.settings.keyStyle),
                 scanDuration: state.scanDuration,
