@@ -96,7 +96,6 @@ final class PanelSession {
         let key = RowBudgetKey(
             scannedAt: state.catalog.scannedAt,
             showsFavoritesOnly: state.favoritesPolicy.showsFavoritesOnly,
-            filter: state.panel.filter,
             includeDisabled: state.settings.showDisabledItems,
             ignoredSignature: ignoredSignature,
             systemCount: state.systemBindings.count,
@@ -379,7 +378,6 @@ final class PanelSession {
         let cacheKey = OrderedHitsKey(
             prefix: state.prefix,
             heldModifiers: state.panel.heldModifiers,
-            filter: state.panel.filter,
             latchedModifiers: state.panel.latchedModifiers,
             scannedAt: state.catalog.scannedAt,
             favorites: state.favoritesPolicy,
