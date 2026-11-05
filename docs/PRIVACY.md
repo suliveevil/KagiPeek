@@ -58,9 +58,10 @@ document once. There is no telemetry, no analytics, no account, no crash reporti
 
 ## What it injects
 
-One chord, when you ask for it. Pressing the run key, clicking a row, or pressing Return in the
-search palette closes the surface and posts **that row's key combination** to the front app
-(`CGEvent`, HID event tap), then stops. This exists so a menu command can be run without
+Pressing the run key, clicking a row, or pressing Return in the search palette closes the
+surface and triggers **that row's menu item** — by pressing it through Accessibility. The
+chord (`CGEvent`, HID event tap) is posted only when there is no menu item to press or the
+press is refused, and then only once. This exists so a menu command can be run without
 reaching for the menu.
 
 - Browsing the panel injects nothing.
@@ -86,8 +87,8 @@ The app writes to the unified log under the subsystem `com.voltline.kagipeek`, i
 categories: `scan`, `input`, `storage`, `ui`. Entries name the app being scanned, whether a
 chord was posted and to which bundle identifier, and whether a file write failed. They do not
 contain typed text or the contents of your documents, and they stay on your machine unless you
-choose to include them in a bug report — **Settings → About → Export diagnostics…** writes a
-JSON file for exactly that purpose, and you decide who receives it.
+choose to include them in a bug report — **Settings → Diagnostics → Export diagnostics
+archive…** writes a zip for exactly that purpose, and you decide who receives it.
 
 ## Permissions
 
@@ -101,6 +102,8 @@ other grants; KagiPeek never asks for Full Disk Access, Screen Recording, or Aut
 The source is GPL-2.0. The relevant files are small and easy to audit:
 
 - `KagiPeek/Core/Input/KeyboardMonitor.swift` — what is observed and what is swallowed;
-- `KagiPeek/Core/Input/ShortcutInjector.swift` — the only code that posts events;
-- `KagiPeek/Core/Storage/` — the only code that writes files;
+- `KagiPeek/Core/Input/ShortcutInjector.swift` (`postKey`) — the only code that posts events;
+- `KagiPeek/Core/Storage/`, `KagiPeek/Core/Services/` (`FileLogStore`, `ActionRecorder`,
+  `CrashReporter`, `ConflictCache`) and `KagiPeek/Core/AX/MenuScanCache.swift` — everything that
+  writes under Application Support;
 - `KagiPeek/Core/Services/UpdateChecker.swift` — the only network code.
