@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
+## Unreleased
+
+### Changed
+
+- **The run key is Space and the copy key is Return.** Running a row and copying its chord were ↩ and ⌘↩; they are now the two keys people already press on a selected item. A stored pair that still matches both old defaults is migrated on the next launch, and anything recorded by hand wins.
+- **The panel carries a third group of cards: the config-file shortcuts.** Karabiner, skhd, Keyboard Maestro, BetterTouchTool, Hammerspoon and Alfred each get one card, folded until its heading is clicked, with its row count on the heading. Those rows can be searched, copied and favourited, and they never run: clicking one copies its chord.
+- **Coming back to an app asks the disk cache first.** A cached menu scan is good for ten minutes, so re-opening the panel for an app — or relaunching KagiPeek — shows its menus without walking the menu bar again.
+- **Both diagnostics exports live on the Diagnostics tab.** *Export diagnostics archive…* writes the `.zip`, *Export diagnostics report…* writes the single JSON report that used to sit on the About tab. About keeps the version, the data folder and the update check.
+- **CI checks two toolchains.** Every push and pull request builds and tests on `macos-15` and `macos-26`, so a compiler-only regression shows up as one leg failing. Packaging is verified on `macos-15`.
+
+### Fixed
+
+- **A log line that says nothing is now impossible to write by accident.** Diagnostics go through one façade (`Diag`); the four `os.Logger` categories are its private mirror. Before, a second façade looked identical at the call site but never reached the file, which is how "the keyboard froze and the log says nothing" could be both true and useless.
+
 ## Panel placement against the front window (2026-11-04)
 
 - The hint panel keeps covering the window: widening it for a tall window recomputes the content height, but the larger of that and the cover height wins, so a short list can no longer shrink the panel below the window. It stays centred on the visible frame.
