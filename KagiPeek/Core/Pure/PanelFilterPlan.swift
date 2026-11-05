@@ -15,10 +15,13 @@ nonisolated enum PanelFilterPlan {
 
     /// - Returns: the ids the query matches, or nil when the filter is empty ("no filter").
     ///
-    /// A single-term filter — the common case while typing — takes the match-only path:
-    /// which rows survive is all the panel needs, and it orders them by its own sequence
-    /// afterwards, so scoring and sorting every hit is wasted work. Multi-term filters
-    /// still run the scoring search.
+    /// The panel only needs the surviving set: it orders those rows by its own sequence
+    /// afterwards, so scoring and sorting every hit would be wasted work.
+    /// `SearchCorpus.matchingItems` answers with a match-only predicate in corpus order,
+    /// for one term and for many alike. A panel filter is usually multi-term from the
+    /// first letter on — `PanelFilter.query` joins its queue with spaces, and a letter
+    /// only enters a non-empty queue, so the queue starts with a modifier token — which
+    /// is exactly why a single-term shortcut was not enough.
     static func matchingIDs(filter: PanelFilter, corpus: SearchCorpus) -> Set<String>? {
         guard !filter.isEmpty else { return nil }
         return Set(corpus.matchingItems(for: filter.query).map(\.id))
