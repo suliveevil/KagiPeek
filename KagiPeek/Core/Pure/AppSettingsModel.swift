@@ -395,4 +395,67 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         copy.ignoredCommands = IgnoredCommands.normalized(copy.ignoredCommands)
         return copy
     }
+
+    // MARK: - Change detection
+
+    /// Every stored property, by name — the registry `changedFieldNames(from:)` is expected to
+    /// cover.
+    ///
+    /// Written out by hand on purpose. The diff below is `Mirror`-driven and cannot miss a
+    /// field, but "a new setting exists" still deserves a decision: the `changed: …` line is
+    /// what a bug report quotes, and a field nobody can see changing there is a blind spot
+    /// discovered months later. `AppSettingsDeltaTests` asserts this set equals the stored
+    /// properties, so adding a field fails the build until it is added here (and to the test's
+    /// mutation table, which also proves the field is actually compared).
+    static let describedFields: Set<String> = [
+        // Trigger
+        "triggerMode", "modifierTriggerEnabled", "hotkeyTriggerEnabled",
+        "triggerGesture", "triggerKey", "holdDelay",
+        "panelHotkey", "searchHotkey", "switchHotkey",
+        // Panel geometry and contents
+        "panelPlacement", "fixedPanelWidth", "fixedPanelHeight", "showExecutedHUD",
+        "keyStyle", "columnCount", "maxItemsPerPage", "maxDescriptionLength",
+        "showDisabledItems", "includeBuiltInCatalog", "showAppleMenu",
+        // Ordering, filtering and language
+        "sortMode", "language", "excludedBundleIDs", "launchAtLogin", "ignoredCommands",
+        "panelTheme", "keyPosition", "panelOrder", "pinFavoritesToTop", "favoritesCanBeFiltered",
+        // Keys
+        "runRowKey", "copyRowKey", "pagingPairs",
+        // Diagnostics and app presence
+        "scanConfigFiles", "diagnosticsEnabled", "verboseDiagnostics", "showDockIcon",
+    ]
+
+    /// Which stored properties differ, by name, in declaration order.
+    ///
+    /// This used to be a hand-written list of comparisons in `ShortcutEngine`, and it had
+    /// fallen behind: 23 of the 37 fields were compared, so a user resizing the panel or
+    /// turning off the executed-command HUD produced an empty `changed:` line, and a "my
+    /// setting does nothing" report had no evidence either way. `Mirror` has no such gap —
+    /// every stored property is compared, including the ones added tomorrow.
+    nonisolated func changedFieldNames(from old: Self) -> [String] {
+        var previous: [String: Any] = [:]
+        for child in Mirror(reflecting: old).children {
+            if let label = child.label { previous[label] = child.value }
+        }
+        var changed: [String] = []
+        for child in Mirror(reflecting: self).children {
+            guard let label = child.label, let before = previous[label] else { continue }
+            if Self.fieldsDiffer(child.value, before) { changed.append(label) }
+        }
+        return changed
+    }
+
+    /// `Any` carries no `==`. Opening the `Equatable` existential lets the concrete type's own
+    /// `==` answer, which is the comparison the synthesized `Equatable` would have made. A
+    /// property whose type is not `Equatable` reports "changed" instead of silently passing:
+    /// `AppSettingsSnapshot` is `Equatable`, so the compiler already rejects that case.
+    private static func fieldsDiffer(_ lhs: Any, _ rhs: Any) -> Bool {
+        guard let lhs = lhs as? any Equatable else { return true }
+        return !isEqualTo(lhs, rhs)
+    }
+
+    private static func isEqualTo<T: Equatable>(_ lhs: T, _ rhs: Any) -> Bool {
+        guard let rhs = rhs as? T else { return false }
+        return lhs == rhs
+    }
 }

@@ -389,9 +389,13 @@ final class ShortcutEngine: ObservableObject {
         if previous.keyStyle != newValue.keyStyle {
             state.searchCorpus = nil
         }
-        if previous.pagingPairs != newValue.pagingPairs {
-            // The tap's swallow list is derived from the enabled pairs; without this the old
-            // pair would keep being eaten and the new one would reach the app behind the panel.
+        if previous.pagingPairs != newValue.pagingPairs
+            || previous.runRowKey != newValue.runRowKey
+            || previous.copyRowKey != newValue.copyRowKey {
+            // The tap's swallow list is derived from the enabled pairs and the two row keys;
+            // without this the old pair / row key would keep being eaten and the new one
+            // would reach the app behind the panel. Recording a row key refreshes the capture
+            // itself, but a reset, an import or a preview restore only arrives here.
             updateKeyCapture()
         }
 
@@ -433,37 +437,22 @@ final class ShortcutEngine: ObservableObject {
     /// Which settings changed, by name only. Values are deliberately left out: the exclusion
     /// list and the favourites describe how someone uses their Mac, and a diagnostic does not
     /// need to.
+    ///
+    /// The comparison itself lives on `AppSettingsSnapshot`, where a `Mirror` walk covers every
+    /// stored property and a test fails when one is added without being registered. This
+    /// method used to spell the list out by hand and had already fallen 14 fields behind.
     private func logSettingsDelta(from old: AppSettingsSnapshot, to new: AppSettingsSnapshot) {
-        var changed: [String] = []
-        if old.modifierTriggerEnabled != new.modifierTriggerEnabled { changed.append("modifierTriggerEnabled") }
-        if old.hotkeyTriggerEnabled != new.hotkeyTriggerEnabled { changed.append("hotkeyTriggerEnabled") }
-        if old.triggerGesture != new.triggerGesture { changed.append("triggerGesture") }
-        if old.triggerKey != new.triggerKey { changed.append("triggerKey") }
-        if old.holdDelay != new.holdDelay { changed.append("holdDelay") }
-        if old.panelHotkey != new.panelHotkey { changed.append("panelHotkey") }
-        if old.searchHotkey != new.searchHotkey { changed.append("searchHotkey") }
-        if old.switchHotkey != new.switchHotkey { changed.append("switchHotkey") }
-        if old.panelPlacement != new.panelPlacement { changed.append("panelPlacement") }
-        if old.columnCount != new.columnCount { changed.append("columnCount") }
-        if old.sortMode != new.sortMode { changed.append("sortMode") }
-        if old.panelOrder != new.panelOrder { changed.append("panelOrder") }
-        if old.showDisabledItems != new.showDisabledItems { changed.append("showDisabledItems") }
-        if old.keyStyle != new.keyStyle { changed.append("keyStyle") }
-        if old.language != new.language { changed.append("language") }
-        if old.showAppleMenu != new.showAppleMenu { changed.append("showAppleMenu") }
-        if old.includeBuiltInCatalog != new.includeBuiltInCatalog { changed.append("includeBuiltInCatalog") }
-        if old.scanConfigFiles != new.scanConfigFiles { changed.append("scanConfigFiles") }
-        if old.excludedBundleIDs != new.excludedBundleIDs { changed.append("excludedBundleIDs") }
-        if old.ignoredCommands != new.ignoredCommands { changed.append("ignoredCommands") }
-        if old.pagingPairs != new.pagingPairs {
+        var changed = new.changedFieldNames(from: old)
+        // The one exception to "names only": which paging pairs are on decides which
+        // punctuation the tap swallows, and `pagingPairs` alone cannot answer a report that
+        // says "the keys stopped paging" — the enabled set can.
+        if let index = changed.firstIndex(of: "pagingPairs") {
             let enabled = PagingPair.allCases
                 .filter(new.pagingPairs.contains)
                 .map(\.rawValue)
                 .joined(separator: ",")
-            changed.append("pagingPairs=[\(enabled)]")
+            changed[index] = "pagingPairs=[\(enabled)]"
         }
-        if old.diagnosticsEnabled != new.diagnosticsEnabled { changed.append("diagnosticsEnabled") }
-        if old.verboseDiagnostics != new.verboseDiagnostics { changed.append("verboseDiagnostics") }
         guard !changed.isEmpty else { return }
         Diag.info(.settings, "changed: \(changed.joined(separator: ", "))")
     }
