@@ -57,7 +57,7 @@ final class CatalogCoordinator {
     func reload(force: Bool, preserveOnEmpty: Bool = false) {
         guard !isPreviewing() else { return }
         guard let app = frontmost() else {
-            state.isCatalogLoading = false
+            clearLoadingState()
             return
         }
         // KagiPeek is an accessory app that activates itself for the search palette, the
@@ -82,9 +82,18 @@ final class CatalogCoordinator {
             var query = CatalogQuery(settings: self.state.settings)
             query.force = force
             let snapshot = await self.catalogLoader.load(app: app, query: query)
-            guard !self.isPreviewing() else { return }
+            // 这两条提前返回都不发布，但标志是上一次 `reload` 置起来的：不在这里复位，
+            // 设置页的加载指示和面板的「正在扫描」就永远转下去（HUD/面板没有别的地方
+            // 会替它们收尾）。用 `ifCurrent:` 而不是无条件复位，是因为更新的那次扫描
+            // （generation 更大）已经把标志重新置为 true，它自己会收尾；这里抢着清掉
+            // 只会让真正在跑的那次扫描看起来「已经扫完了」。
+            guard !self.isPreviewing() else {
+                self.clearLoadingState(ifCurrent: generation)
+                return
+            }
             guard generation == self.state.catalogGeneration else {
                 Diag.debug(.scan, "dropping stale scan for \(snapshot.appIdentity)")
+                self.clearLoadingState(ifCurrent: generation)
                 return
             }
             // 一次强制重扫可能撞上菜单栏还没挂回来：它给的是空列表，而用户上一次的列表
@@ -133,6 +142,19 @@ final class CatalogCoordinator {
                 Diag.warning(.scan, "no menu bar exposed and built-in catalog is off: the panel will be empty (bundle=\(snapshot.appIdentity))")
             }
         }
+    }
+
+    /// 清掉「正在扫描」的两个标志：设置页顶部那条加载指示读的是 `isCatalogLoading`，
+    /// 面板的空态读的是 `panel.isScanning`。
+    ///
+    /// 只有发布路径和几条提前返回需要收尾，但标志只有一处会被置为 true（`reload` 启动
+    /// 扫描时），所以每条提前返回都得自己复位——漏一条就是一个转不完的圈。
+    private func clearLoadingState(ifCurrent generation: Int? = nil) {
+        // `generation == nil` 表示调用方自己没启动扫描（或本次就是最新那次），可以复位；
+        // 给了 generation 时，只有它仍是最新的一次才复位，否则更新的扫描还在跑，标志属于它。
+        if let generation, generation != state.catalogGeneration { return }
+        state.isCatalogLoading = false
+        state.panel.isScanning = false
     }
 
     /// Loads one app's catalog for the palette's scope, without forcing or adding the built-in
@@ -205,7 +227,13 @@ final class CatalogCoordinator {
             icon: app.icon
         )
         Task { [weak self] in
-            guard let self else { return }
+            // 协调器没了不等于调用方的等待也结束了：忽略命令选择器的 sheet 用这个回调
+            // 收尾自己的 ProgressView，不回一个空列表就永远转圈。空列表是诚实的答案
+            // （读不到任何标题），而不是让 UI 停在「正在读」。
+            guard let self else {
+                completion([])
+                return
+            }
             var query = CatalogQuery(settings: self.state.settings)
             query.includeBuiltIn = false
             let snapshot = await self.catalogLoader.load(app: target, query: query)
