@@ -65,7 +65,7 @@ as of **2026-11-05**（Asia/Shanghai）。
   按「权限未就绪 > 扫描中 > 无匹配」定优先级，权限态带「打开权限向导」。`maxItemsPerPage`
   明确为上限，实际取 `min(设置值, 几何容量)`；设置文案改为「每个分组最多显示 N 个菜单项 /
   Max menu items per group」；组标题只在「按菜单栏分组」时绘制且单独计入高度。快捷键列改
-  等宽字体、固定列宽、默认右对齐，无快捷键留空；纯选中只写 `selectionIndex` 不重建面板，
+  等宽字体、固定列宽、默认右对齐，无快捷键留空；纯选中只写 `panelSelectionIndex` 不重建面板，
   选中态 0.1s 过渡，`MenuTrigger.press` 以 `@concurrent` 与 250ms 超时离开主线程。切换
   面板排序时只闪一行 HUD，不常驻标签。首次启动用一次 `KagiPeekTriggerTipShown`
   提示，触发页可重看。设置窗口 `styleMask` 去掉 `.miniaturizable`，权限向导在设置可见时以
