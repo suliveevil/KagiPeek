@@ -14,6 +14,10 @@ final class PanelSession {
     private let presenters: EnginePresenters
     private let rowRunner: RowRunner
     private let isPreviewing: () -> Bool
+    /// The visible frame of the screen the panel will land on. A closure rather than
+    /// `NSScreen.main`: the controller picks the screen by anchor window, then pointer, then
+    /// main screen, and counting rows against a different screen is how a page overflowed.
+    private let availableVisibleFrame: () -> CGRect?
     private let frontmostName: () -> String
     private let dismissPanel: () -> Void
     private let dismissEverything: () -> Void
@@ -29,6 +33,7 @@ final class PanelSession {
         presenters: EnginePresenters,
         rowRunner: RowRunner,
         isPreviewing: @escaping () -> Bool,
+        availableVisibleFrame: @escaping () -> CGRect?,
         frontmostName: @escaping () -> String,
         dismissPanel: @escaping () -> Void,
         dismissEverything: @escaping () -> Void,
@@ -41,6 +46,7 @@ final class PanelSession {
         self.presenters = presenters
         self.rowRunner = rowRunner
         self.isPreviewing = isPreviewing
+        self.availableVisibleFrame = availableVisibleFrame
         self.frontmostName = frontmostName
         self.dismissPanel = dismissPanel
         self.dismissEverything = dismissEverything
@@ -56,8 +62,13 @@ final class PanelSession {
     var panelPageSize: Int {
         let settings = state.settings
         let configured = max(1, settings.maxItemsPerPage)
-        guard let screen = NSScreen.main else { return configured }
-        let visible = screen.visibleFrame.size
+        // The screen the controller will place the panel on, not `NSScreen.main`. On a
+        // secondary display that is shorter or narrower, counting against the main screen
+        // produced a page that did not fit: the last rows went under the footer or past the
+        // edge, and `panelFrame` could only clamp the window, not the list inside it.
+        guard let visible = availableVisibleFrame()?.size ?? NSScreen.main?.visibleFrame.size else {
+            return configured
+        }
         let columns: Int
         let panelHeight: CGFloat
         switch settings.panelPlacement {
@@ -71,16 +82,40 @@ final class PanelSession {
             columns = max(1, settings.columnCount)
             panelHeight = min(OverlayMetrics.maxPanelHeight, visible.height)
         }
+        // One card per source, not three: the app's, the system hotkeys', and one per config
+        // tool that has rows (each tool is its own card, up to six). Reserving three cards
+        // undercounted the chrome by up to five cards' insets and gaps, so the page was
+        // taller than the window it was drawn in.
+        let ledger = PanelSections.cardAndHeadingBudget(
+            systemCount: state.systemBindings.count,
+            toolCounts: configToolRowCounts,
+            appHeading: settings.panelOrder == .byMenuGroup
+        )
         return OverlayMetrics.fittedPageSize(
             maxItemsPerPage: configured,
             columns: columns,
             panelHeight: panelHeight,
-            // Three cards at most: the app's section, the system hotkeys and the config-tool
-            // block. Reserved on every page so the page count cannot wobble when one of them
-            // is empty or folded.
-            cardCount: 3,
-            headingCount: 3
+            cardCount: ledger.cards,
+            headingCount: ledger.headings
         )
+    }
+
+    /// How many rows each config tool has, folded or not.
+    ///
+    /// A folded tool still draws its card, so it still costs its frame. Small next to the
+    /// catalog, and only read while a page is being rebuilt.
+    private var configToolRowCounts: [Int] {
+        toolRowCounts(in: state.configBindings)
+    }
+
+    private func toolRowCounts(in bindings: [BindingItem]) -> [Int] {
+        var counts: [ConfigTool: Int] = [:]
+        for binding in bindings {
+            if let tool = binding.configTool {
+                counts[tool, default: 0] += 1
+            }
+        }
+        return ConfigTool.allCases.map { counts[$0] ?? 0 }
     }
 
     /// How many rows and headings the panel window must be sized for: the widest list this
@@ -99,7 +134,9 @@ final class PanelSession {
             includeDisabled: state.settings.showDisabledItems,
             ignoredSignature: ignoredSignature,
             systemCount: state.systemBindings.count,
-            configCount: state.configBindings.count,
+            // The distribution, not just the total: a config rewrite that keeps the count
+            // but moves rows between tools changes the card count and the page capacity.
+            configCounts: configToolRowCounts,
             toolSectionExpanded: state.panel.toolSectionExpanded,
             pageSize: panelPageSize
         )
@@ -114,23 +151,22 @@ final class PanelSession {
         hits = state.favoritesPolicy.favoritesOnly(hits) { usageStore.isFavorite($0.item.usageKey) }
         // The tool rows are part of the widest list whenever the section is open; folded,
         // they cost their cards' headings only.
-        let toolRows: Int
-        if state.panel.toolSectionExpanded {
-            toolRows = state.favoritesPolicy
-                .favoritesOnly(state.configBindings, isFavorite: { usageStore.isFavorite($0.usageKey) })
-                .count
-        } else {
-            toolRows = 0
-        }
+        let toolBindings = state.favoritesPolicy.favoritesOnly(
+            state.configBindings,
+            isFavorite: { usageStore.isFavorite($0.usageKey) }
+        )
+        let toolCounts = toolRowCounts(in: toolBindings)
+        let toolRows = state.panel.toolSectionExpanded ? toolCounts.reduce(0, +) : 0
         let total = hits.count + toolRows
         let pageSize = key.pageSize
         // Every section flows through the same pages. A short list reserves only its own
-        // rows; the other sections' headings still get their strip.
-        let headings = PanelSections.nonEmptySectionCount(
-            appCount: hits.count,
+        // rows; the other sections' cards still get their frame and heading. One card per
+        // non-empty tool, not one card for the whole tool block.
+        let headings = PanelSections.cardAndHeadingBudget(
             systemCount: state.systemBindings.count,
-            toolCount: state.configBindings.count
-        )
+            toolCounts: toolCounts,
+            appHeading: state.settings.panelOrder == .byMenuGroup
+        ).headings
         let allocation = PanelBudget.budget(totalRows: total, pageSize: pageSize, headings: headings)
         state.rowBudgetCache = (key, allocation.rows, allocation.headings)
         return (allocation.rows, allocation.headings)

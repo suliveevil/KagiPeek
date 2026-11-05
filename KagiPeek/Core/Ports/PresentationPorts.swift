@@ -30,6 +30,12 @@ protocol PanelPresenting: AnyObject {
     var searchTargetApplication: NSRunningApplication? { get }
     /// What the palette's window is sending keys to — the `/` log line answers with it.
     var keyFocusDescription: String { get }
+    /// The visible frame of the screen the next panel will be placed on.
+    ///
+    /// The engine counts rows against this, not `NSScreen.main`: the controller picks the
+    /// screen by anchor window, then pointer, then main screen, and a page computed for a
+    /// different screen does not fit the one it lands on.
+    func targetVisibleFrame() -> CGRect?
 }
 
 /// What the toast is saying. Success earns the `✓`; a failure must not carry a success

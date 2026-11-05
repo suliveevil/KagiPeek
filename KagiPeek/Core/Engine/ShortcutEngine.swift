@@ -130,6 +130,7 @@ final class ShortcutEngine: ObservableObject {
         presenters: presenters,
         rowRunner: rowRunner,
         isPreviewing: { [weak self] in self?.isPreviewing ?? false },
+        availableVisibleFrame: { [weak self] in self?.presenters.panel.targetVisibleFrame() },
         frontmostName: { [weak self] in self?.appContext.frontmost?.name ?? "" },
         dismissPanel: { [weak self] in self?.dismissPanel() },
         dismissEverything: { [weak self] in self?.dismissEverything() },

@@ -249,9 +249,10 @@ struct RowBudgetKey: Equatable {
     var includeDisabled: Bool
     var ignoredSignature: String
     var systemCount: Int
-    /// The config-tool rows. Part of the key because a rescan that finds a different number
-    /// of tool shortcuts changes the widest list the window is sized for.
-    var configCount: Int
+    /// The config-tool rows, one count per tool. The distribution matters, not just the
+    /// total: each non-empty tool draws its own card, so a rewrite that keeps the row count
+    /// but moves rows between tools changes the page the window is sized for.
+    var configCounts: [Int]
     /// Whether the tool rows are part of the list at all: folded, they cost a heading but no
     /// rows, so the allocation changes without the counts changing.
     var toolSectionExpanded: Bool

@@ -104,13 +104,33 @@ nonisolated enum PanelSections {
         return counts
     }
 
-    /// How many cards the panel draws for these counts.
+    /// How many section blocks these counts make when all tools are treated as one.
     ///
-    /// The app's card is always drawn, even when the app has no rows — that is the card the
-    /// title bar's name belongs to. The system and tool sections only add one when they have
-    /// rows: a folded tool still renders a titled card, so a non-empty tool counts too.
+    /// Not the panel's card count: every tool draws its own card, which is what
+    /// `cardAndHeadingBudget` counts and what page capacity must reserve.
     static func nonEmptySectionCount(appCount: Int, systemCount: Int, toolCount: Int) -> Int {
         1 + (systemCount > 0 ? 1 : 0) + (toolCount > 0 ? 1 : 0)
+    }
+
+    /// How many cards and headings the panel reserves for these sources.
+    ///
+    /// The app's card is always drawn, even when the app has no rows — that is the card the
+    /// title bar's name belongs to. The system card and every tool card exist when they have
+    /// rows: a folded tool still renders a titled card, so a non-empty tool counts. Tools are
+    /// counted one by one — up to six — because each is its own card; treating them as one
+    /// block is what let a page reserve three cards while drawing eight.
+    ///
+    /// `appHeading` is false in chord order, where the app's card is headed by the title bar
+    /// instead of a heading row inside the list.
+    static func cardAndHeadingBudget(
+        systemCount: Int,
+        toolCounts: [Int],
+        appHeading: Bool
+    ) -> (cards: Int, headings: Int) {
+        let toolCards = toolCounts.filter { $0 > 0 }.count
+        let cards = 1 + (systemCount > 0 ? 1 : 0) + toolCards
+        let headings = (appHeading ? 1 : 0) + (systemCount > 0 ? 1 : 0) + toolCards
+        return (cards, headings)
     }
 
     /// The index of the first row that is not an App row, for tests and for a caller that

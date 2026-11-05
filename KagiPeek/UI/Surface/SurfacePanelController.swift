@@ -385,6 +385,11 @@ final class SurfacePanelController: PanelPresenting {
 
     // MARK: - Placement
 
+    /// The screen the panel will land on, resolved the same way `presentPanel` resolves it.
+    func targetVisibleFrame() -> CGRect? {
+        targetScreen()?.visibleFrame
+    }
+
     private func targetScreen() -> NSScreen? {
         if let anchorFrame = anchor.windowFrame,
            let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchorFrame) }) {

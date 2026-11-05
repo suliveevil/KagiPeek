@@ -141,6 +141,26 @@ final class PanelSectionsTests: XCTestCase {
         )
     }
 
+    /// 每个非空工具各占一张 card：3 个工具有行时是 app + system + 3，不是把工具当一个块。
+    func testCardBudgetCountsEachToolCard() {
+        let budget = PanelSections.cardAndHeadingBudget(
+            systemCount: 3,
+            toolCounts: [4, 0, 7],
+            appHeading: true
+        )
+        XCTAssertEqual(budget.cards, 4)
+        XCTAssertEqual(budget.headings, 4)
+        XCTAssertEqual(
+            PanelSections.cardAndHeadingBudget(systemCount: 0, toolCounts: [0, 0], appHeading: true).cards,
+            1
+        )
+        // 和弦顺序里 app 卡由标题栏命名，不占 heading。
+        XCTAssertEqual(
+            PanelSections.cardAndHeadingBudget(systemCount: 2, toolCounts: [5], appHeading: false).headings,
+            2
+        )
+    }
+
     /// 同一个和弦出现在两个来源：两行都保留，不合并。
     func testSameChordInTwoSourcesKeepsBothRows() {
         let chord = KeyChord.combo([.command], KeyToken("k"))
