@@ -131,7 +131,9 @@ extension ShortcutEngine {
         case "settings", "settings-trigger", "settings-ranking", "settings-statistics", "settings-conflicts", "settings-diagnostics", "settings-tall":
             // The ranking page is long; give the ranking variant room to show the conflicts block.
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 680, height: Self.previewSettingsIsTall(mode) ? 1500 : 600),
+                // Matches `SettingsView`'s minimum and the real window: the sidebar needs
+                // the 40 pt the old 680-wide screenshot area never had.
+                contentRect: NSRect(x: 0, y: 0, width: 720, height: Self.previewSettingsIsTall(mode) ? 1500 : 600),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false

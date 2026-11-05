@@ -187,6 +187,10 @@ private struct OverlayHeaderView: View {
                 .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
                 .help(localization.text(.panelFavoritesFilter))
                 .accessibilityLabel(localization.text(.panelFavoritesFilter))
+                // The filter's state is a filled, yellow star against an outline — colour
+                // and a glyph shape, neither of which is spoken. The chip row above uses
+                // the same trait for the same reason.
+                .accessibilityAddTraits(state.showsFavoritesOnly ? .isSelected : [])
             }
 
             Button(action: engine.showSettings) {
@@ -424,6 +428,9 @@ private struct OverlayHeaderView: View {
                         .foregroundStyle(palette.tertiaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.selection, size: 18, cornerRadius: 4))
+                // The clear control is one glyph and nothing else. `.help` is a mouse
+                // tooltip; VoiceOver would only say "xmark circle fill".
+                .accessibilityLabel(localization.text(.searchClearHint))
                 .help(localization.text(.searchClearHint))
             }
         }
@@ -1213,6 +1220,7 @@ private struct OverlayFooterView: View {
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
+                .accessibilityLabel(localization.text(.panelPreviousPage))
                 .help(localization.text(.panelPreviousPage))
 
                 Text(localization.format(.overlayPageFormat, state.panel.pageIndex + 1, state.panel.pageCount))
@@ -1225,6 +1233,7 @@ private struct OverlayFooterView: View {
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
+                .accessibilityLabel(localization.text(.panelNextPage))
                 .help(localization.text(.panelNextPage))
             }
 

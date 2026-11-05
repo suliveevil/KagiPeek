@@ -15,6 +15,9 @@ struct SettingsView: View {
     /// Selected row in the excluded-apps list. Selection, not a text cursor: an app is
     /// removed by pointing at it, the same way the Finder works.
     @State private var excludedSelection: String?
+    /// Whether that list owns the keyboard. Clicking a row moves focus here so Delete does
+    /// what the row already looks selected for.
+    @FocusState private var excludedListFocused: Bool
     @State private var showIgnoreSheet = false
     /// Which ignored-command groups are open. The global group starts open; app groups open
     /// when a rule is added to them.
@@ -32,29 +35,49 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $tab) {
+        // A sidebar, not an eight-segment picker: at 680 pt each segment had about 80 pt,
+        // which already crowded "Diagnostics" in English and would have broken at the
+        // first word longer than that. Eight pages cannot share one row; a list holds
+        // them, and it is the shape macOS 14 users expect from a settings window.
+        NavigationSplitView {
+            // `List` selection is optional by default; this window always shows one page, so
+            // clearing the selection is ignored instead of blanking the detail column.
+            List(selection: tabSelection) {
                 ForEach(SettingsTab.allCases, id: \.self) { item in
-                    Text(localization.text(item.titleKey)).tag(item)
+                    Label(localization.text(item.titleKey), systemImage: item.symbolName)
+                        .tag(item)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
-            Divider()
-
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 168, ideal: 188, max: 240)
+            // The list is the only navigation, so a collapsed sidebar would be an empty
+            // window with no way back. The window is resizable; that is enough control.
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            // The page content is unchanged: only the container around it moved.
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 680, minHeight: 600)
+        .navigationSplitViewStyle(.balanced)
+        // 720, not the 680 it was: the sidebar takes 188 of it, and the widest fixed row
+        // in the pages — the English permission row, "Input Monitoring" + "Not granted" +
+        // "Request" + "Open System Settings" — measures 429 pt. A 531 pt detail column
+        // leaves 102 pt for the grouped form's insets (about 20–25 a side) and a margin;
+        // at 680 the detail is 491 and that row clips as soon as the inset reaches 30 a
+        // side, which is where a system font with wider metrics puts it.
+        .frame(minWidth: 720, minHeight: 600)
         .background(Theme.surface)
         .environmentObject(localization)
         .onAppear {
             engine.closeSurfaces()
         }
+    }
+
+    private var tabSelection: Binding<SettingsTab?> {
+        Binding(
+            get: { tab },
+            set: { if let selected = $0 { tab = selected } }
+        )
     }
 
     @ViewBuilder
@@ -201,6 +224,13 @@ struct SettingsView: View {
                     }
                 }
                 .frame(height: 132)
+                // Delete needs a first responder. A `ScrollView` does not take focus on its
+                // own, so it is made focusable here and the rows hand it focus when they are
+                // clicked: pointing at an app is still the only way to select one, and the
+                // press is also the moment a keyboard shortcut becomes useful.
+                .focusable()
+                .focused($excludedListFocused)
+                .onDeleteCommand { removeSelectedExcludedApp() }
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color.secondary.opacity(0.25), lineWidth: 0.8)
@@ -230,7 +260,16 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(selected ? Color.accentColor.opacity(0.16) : Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { excludedSelection = bundleID }
+        .onTapGesture {
+            excludedSelection = bundleID
+            excludedListFocused = true
+        }
+        // A row is the thing that gets selected, so VoiceOver has to be able to make that
+        // selection too — otherwise Delete, and the "−" button beside it, can be reached
+        // from the keyboard but never armed.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { excludedSelection = bundleID }
     }
 
     private func addExcludedApps() {
@@ -646,11 +685,16 @@ struct SettingsView: View {
     /// shortcut is recovered from the usage key. Saying "not scanned" is more useful than
     /// hiding a command the user clearly pressed.
     private func usageRow(_ entry: UsageEntry) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(entry.chord.map { KeyFormatter.render($0, style: settings.keyStyle) } ?? "—")
+        let renderedChord = entry.chord.map { KeyFormatter.render($0, style: settings.keyStyle) }
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(renderedChord ?? "—")
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(entry.isShortcutless ? .secondary : .primary)
                 .frame(width: 76, alignment: .leading)
+                // The dash is the column's word for "this command has no shortcut";
+                // VoiceOver would read the glyph itself, so the label says the same thing
+                // in words. "Not set" is the app's existing word for an unassigned key.
+                .accessibilityLabel(renderedChord ?? localization.text(.triggerUnset))
             Text(entry.title ?? localization.text(.statsUnknownCommand))
                 .font(.caption)
                 .foregroundStyle(entry.title == nil ? .secondary : .primary)
@@ -977,10 +1021,10 @@ struct SettingsView: View {
 
             Section(localization.text(.aboutDiagnostics)) {
                 LabeledContent(localization.text(.permissionAccessibility)) {
-                    Text(state.hasAccessibility ? "✓" : "—")
+                    permissionMark(state.hasAccessibility)
                 }
                 LabeledContent(localization.text(.permissionInputMonitoring)) {
-                    Text(state.hasInputMonitoring ? "✓" : "—")
+                    permissionMark(state.hasInputMonitoring)
                 }
                 LabeledContent(localization.text(.statusLabel)) {
                     Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
@@ -1019,6 +1063,17 @@ struct SettingsView: View {
         DataDirectory.url(for: "logs")
     }
 
+    /// A permission state drawn as a bare glyph.
+    ///
+    /// "✓" and "—" are the element's entire content, so VoiceOver reads "check mark" or
+    /// "em dash" and never the state itself. The glyph stays — the column is meant to be
+    /// scanned down — and the label supplies the two words the Permissions page already
+    /// uses next to its coloured capsule.
+    private func permissionMark(_ granted: Bool) -> some View {
+        Text(granted ? "✓" : "—")
+            .accessibilityLabel(localization.text(granted ? .permissionGranted : .permissionMissing))
+    }
+
     /// Writes the archive the user picked a destination for.
     ///
     /// The copy and the `ditto` run happen on a background queue: the destination can be a
@@ -1055,10 +1110,15 @@ struct SettingsView: View {
     ///
     /// The log line is not redundant with the HUD: when this fails there is **no file**, so
     /// the log is the only durable trace. A HUD disappears and leaves nothing to attach.
+    ///
+    /// The save panel comes first. Building the report reads the scan state and the settings
+    /// snapshot, and doing that before the user has picked a destination meant a cancelled
+    /// save paid for work that was immediately thrown away — the archive export above has
+    /// always asked first.
     private func exportDiagnostics() {
+        guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
         do {
             let data = try engine.diagnosticsReport()
-            guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
             try data.write(to: url, options: [.atomic])
         } catch {
             Diag.error(.ui, "diagnostics export failed: \(error.localizedDescription)")
@@ -1191,6 +1251,22 @@ enum SettingsTab: String, CaseIterable {
         case .about: return .aboutTitle
         }
     }
+
+    /// The sidebar glyph. Symbol names, not text: they carry no wording and so need no
+    /// localization. Each one already means the same thing elsewhere in the app —
+    /// `gearshape` is Settings in the menu bar, `lock.shield` is the permission guide.
+    var symbolName: String {
+        switch self {
+        case .general: return "gearshape"
+        case .trigger: return "keyboard"
+        case .appearance: return "paintbrush"
+        case .statistics: return "chart.bar"
+        case .conflicts: return "exclamationmark.triangle"
+        case .permissions: return "lock.shield"
+        case .diagnostics: return "stethoscope"
+        case .about: return "info.circle"
+        }
+    }
 }
 
 /// The add sheet for an ignored command: choose the scope, then the command.
@@ -1242,7 +1318,11 @@ private struct IgnoreCommandSheet: View {
 
             if !scopeIsGlobal {
                 Picker(localization.text(.ignoredAppPicker), selection: $selectedAppID) {
-                    Text("—").tag(String?.none)
+                    // The empty choice is a dash: it means "nothing picked yet", and the
+                    // dash is read as "em dash" rather than as that meaning.
+                    Text("—")
+                        .tag(String?.none)
+                        .accessibilityLabel(localization.text(.triggerUnset))
                     ForEach(runningApps) { app in
                         Text(app.name).tag(Optional(app.id))
                     }
