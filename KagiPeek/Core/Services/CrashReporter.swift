@@ -43,24 +43,30 @@ nonisolated enum CrashReporter {
     /// Written once by the launch-time sweep and read later by the diagnostics report, which
     /// can be produced on a background queue. The lock is the honest spelling of that access:
     /// the value is small and read rarely, and a torn read would be a wrong report.
+    ///
+    /// The guarded blocks go through `withLock`, the same idiom as `KeyboardMonitor` and
+    /// `Diag.State`: the lock is never spelled at a call site, so there is no pair to leave
+    /// half-finished.
     private final class RecoveryState: @unchecked Sendable {
-        let lock = NSLock()
+        private let lock = NSLock()
         var status = CrashRecoveryStatus()
+
+        func withLock<T>(_ body: (RecoveryState) -> T) -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(self)
+        }
     }
     private static let recoveryState = RecoveryState()
 
     /// What the last launch-time fragment sweep could not complete. Empty when nothing was
     /// left behind, or when everything left behind became a report.
     static var recoveryStatus: CrashRecoveryStatus {
-        recoveryState.lock.lock()
-        defer { recoveryState.lock.unlock() }
-        return recoveryState.status
+        recoveryState.withLock { $0.status }
     }
 
     private static func publish(_ status: CrashRecoveryStatus) {
-        recoveryState.lock.lock()
-        recoveryState.status = status
-        recoveryState.lock.unlock()
+        recoveryState.withLock { $0.status = status }
     }
 
     /// "Was the app frontmost when it died" is a best-effort diagnostic, and AppKit's
@@ -378,7 +384,7 @@ nonisolated enum CrashReporter {
             Diag.debug(.crash, "could not list the crash folder for retention: \(error.localizedDescription)")
             return
         }
-        let candidates: [RetainedArtifact] = contents.compactMap { url in
+        let candidates: [RetentionCandidate] = contents.compactMap { url in
             let name = url.lastPathComponent
             let isPartial = name.hasSuffix(".partial")
             guard isPartial || name.hasSuffix(".json") else { return nil }
@@ -387,7 +393,7 @@ nonisolated enum CrashReporter {
             // cannot date.
             guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey])
                 .contentModificationDate else { return nil }
-            return RetainedArtifact(name: name, modifiedAt: modified, isPartial: isPartial)
+            return RetentionCandidate(name: name, modifiedAt: modified, isPartial: isPartial)
         }
         let doomed = ArtifactRetentionPolicy.crashReports.artifactsToDelete(entries: candidates)
         for artifact in doomed {

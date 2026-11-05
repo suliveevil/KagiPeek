@@ -1,7 +1,10 @@
 import Foundation
 
 /// One file a retention policy may consider, as the policy sees it.
-nonisolated struct RetainedArtifact: Equatable, Sendable {
+///
+/// A *candidate*, not a survivor: most of these come back from `artifactsToDelete`. The name
+/// says what the value is, not what becomes of it.
+nonisolated struct RetentionCandidate: Equatable, Sendable {
     /// File name including its extension.
     var name: String
     /// Last modification time, which is also the write time for both folders this serves.
@@ -61,7 +64,7 @@ nonisolated struct ArtifactRetentionPolicy: Equatable, Sendable {
 
     /// Names the caller should delete. Never includes a partial fragment or the newest
     /// non-partial entry.
-    func artifactsToDelete(entries: [RetainedArtifact], now: Date = Date()) -> [RetainedArtifact] {
+    func artifactsToDelete(entries: [RetentionCandidate], now: Date = Date()) -> [RetentionCandidate] {
         let keep = max(1, keepMostRecent)
         let deletable = entries.filter { !$0.isPartial }
         guard !deletable.isEmpty else { return [] }
@@ -73,7 +76,7 @@ nonisolated struct ArtifactRetentionPolicy: Equatable, Sendable {
             return lhs.name > rhs.name
         }
 
-        var doomed: [RetainedArtifact] = []
+        var doomed: [RetentionCandidate] = []
         for (index, entry) in newestFirst.enumerated() {
             // The newest entry is never deleted, even when it is older than `maximumAge`.
             if index == 0 { continue }

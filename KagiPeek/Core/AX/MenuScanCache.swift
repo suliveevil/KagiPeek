@@ -127,7 +127,7 @@ nonisolated struct MenuScanCache {
             Diag.debug(.settings, "could not list the menu cache for pruning: \(error.localizedDescription)")
             return
         }
-        let candidates: [RetainedArtifact] = contents.compactMap { url in
+        let candidates: [RetentionCandidate] = contents.compactMap { url in
             let name = url.lastPathComponent
             guard url.pathExtension == "json", name != controlURL.lastPathComponent, name != current else {
                 return nil
@@ -136,7 +136,7 @@ nonisolated struct MenuScanCache {
             // reason to delete what cannot be dated either; the next save will see it again.
             guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey])
                 .contentModificationDate else { return nil }
-            return RetainedArtifact(name: name, modifiedAt: modified)
+            return RetentionCandidate(name: name, modifiedAt: modified)
         }
         for artifact in ArtifactRetentionPolicy.menuCache.artifactsToDelete(entries: candidates, now: now) {
             do {

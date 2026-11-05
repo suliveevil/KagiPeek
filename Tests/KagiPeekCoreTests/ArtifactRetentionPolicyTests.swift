@@ -8,15 +8,15 @@ final class ArtifactRetentionPolicyTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
     private var day: TimeInterval { 24 * 60 * 60 }
 
-    private func entry(_ name: String, ageDays: Double, partial: Bool = false) -> RetainedArtifact {
-        RetainedArtifact(
+    private func entry(_ name: String, ageDays: Double, partial: Bool = false) -> RetentionCandidate {
+        RetentionCandidate(
             name: name,
             modifiedAt: now.addingTimeInterval(-ageDays * day),
             isPartial: partial
         )
     }
 
-    private func names(_ entries: [RetainedArtifact]) -> [String] {
+    private func names(_ entries: [RetentionCandidate]) -> [String] {
         entries.map(\.name).sorted()
     }
 
