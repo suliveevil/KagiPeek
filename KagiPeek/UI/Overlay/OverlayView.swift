@@ -1213,7 +1213,6 @@ private struct OverlayFooterView: View {
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
-                .disabled(state.panel.pageIndex == 0)
                 .help(localization.text(.panelPreviousPage))
 
                 Text(localization.format(.overlayPageFormat, state.panel.pageIndex + 1, state.panel.pageCount))
@@ -1226,7 +1225,6 @@ private struct OverlayFooterView: View {
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
-                .disabled(state.panel.pageIndex >= state.panel.pageCount - 1)
                 .help(localization.text(.panelNextPage))
             }
 

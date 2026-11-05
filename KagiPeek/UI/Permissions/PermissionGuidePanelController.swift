@@ -572,6 +572,7 @@ private struct PermissionGuideView: View {
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(IconButtonStyle(hoverFill: .white.opacity(0.14), size: 22, cornerRadius: 6))
+        .accessibilityLabel(localization.text(.permissionGuideClose))
         .help(localization.text(.permissionGuideClose))
     }
 }

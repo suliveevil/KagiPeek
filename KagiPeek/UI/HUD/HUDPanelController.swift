@@ -58,13 +58,34 @@ final class HUDPanelController: NoticePresenting {
         let body = chord.isEmpty ? title : "\(chord)   \(title)"
         // Only a success gets the marker. A failure that ended with "✓" contradicted its
         // own message; the "!" prefix the callers pass is enough.
-        present(kind == .success ? "\(body) ✓" : body, after: duration(for: kind))
+        let visual = kind == .success ? "\(body) ✓" : body
+        present(visual, announcement: announcement(for: kind, body: body), after: duration(for: kind))
     }
 
     /// Same toast, without the chord/marker framing: standalone explanations such as why
     /// the panel just vanished under secure input.
     func showNotice(text: String, kind: NoticeKind) {
-        present(text, after: duration(for: kind))
+        present(text, announcement: announcement(for: kind, body: text), after: duration(for: kind))
+    }
+
+    /// The toast is invisible to VoiceOver, and a bare "✓" reads as "check mark" (or is
+    /// skipped) rather than as an outcome. Announce the same message in words: state the
+    /// result up front and leave the glyph out. The body is already localized; the prefix
+    /// reuses the app's own language resolution so the two stay in one language. No new
+    /// L10n keys are needed for a one-word outcome marker.
+    private func announcement(for kind: NoticeKind, body: String) -> String {
+        let chinese: Bool
+        switch L10n.resolvedLanguage(.system) {
+        case .chinese: chinese = true
+        case .english, .system: chinese = false
+        }
+        let outcome: String
+        switch kind {
+        case .success: outcome = chinese ? "成功：" : "Success: "
+        case .failure: outcome = chinese ? "失败：" : "Failed: "
+        case .info: return body
+        }
+        return outcome + body
     }
 
     /// Failures need reading time: 5 s against 0.75 s for a success and 2.5 s for an
@@ -77,9 +98,10 @@ final class HUDPanelController: NoticePresenting {
         }
     }
 
-    private func present(_ text: String, after delay: TimeInterval) {
+    private func present(_ text: String, announcement: String, after delay: TimeInterval) {
         hideWorkItem?.cancel()
         label.stringValue = text
+        announce(announcement)
         // An uncapped toast grew to the width of the longest command title and hung across
         // the screen, so the width stays capped. The cap is 520 pt and the label wraps at
         // it; the height grows to fit up to three lines.
@@ -114,6 +136,20 @@ final class HUDPanelController: NoticePresenting {
         }
         hideWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Posts the toast to VoiceOver on the same path that draws it, without touching the
+    /// panel's show/hide timing. The app element is stable across toasts and the low
+    /// priority keeps an in-progress reading from being interrupted.
+    private func announce(_ text: String) {
+        NSAccessibility.post(
+            element: NSApplication.shared,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: text,
+                .priority: NSAccessibilityPriorityLevel.low.rawValue
+            ]
+        )
     }
 
     private func position() {
