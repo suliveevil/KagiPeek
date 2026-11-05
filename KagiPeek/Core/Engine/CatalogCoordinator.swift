@@ -110,6 +110,9 @@ final class CatalogCoordinator {
             self.state.panel.isScanning = false
             self.state.searchCorpus = nil
             self.state.orderedHitsCache = nil
+            // The filter corpus is keyed, but its key only carries the system bindings'
+            // count: every path that rewrites catalog, system or config rows must drop it
+            // here, or the panel and the palette answer the same query differently.
             self.state.panelFilterCorpus = nil
             self.state.panelFilterCorpusKey = nil
             self.publishInputState()
@@ -221,6 +224,7 @@ final class CatalogCoordinator {
             Diag.info(.ui, "system hotkeys: \(state.systemBindings.count) read, \(named) named, first: \(state.systemBindings.prefix(6).map { "\(KeyFormatter.render($0.chord, style: .symbols))=\($0.title)" }.joined(separator: " | "))")
         }
         state.searchCorpus = nil
+        // Same reason as the reload path: this rewrite is invisible to the corpus key.
         state.panelFilterCorpus = nil
         state.panelFilterCorpusKey = nil
         recomputeConflicts(state.catalog.items)
@@ -257,6 +261,7 @@ final class CatalogCoordinator {
         state.configScan = result
         state.configBindings = result.items
         state.searchCorpus = nil
+        // Same reason as the reload path: this rewrite is invisible to the corpus key.
         state.panelFilterCorpus = nil
         state.panelFilterCorpusKey = nil
         recomputeConflicts(state.catalog.items)
