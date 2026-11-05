@@ -86,7 +86,12 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
 
 1. **Decide the version.** `MARKETING_VERSION` in `KagiPeek.xcodeproj/project.pbxproj` (both
    the Debug and Release configurations) and make sure `CHANGELOG.md` has the entries under
-   `[Unreleased]`.
+   `[Unreleased]`. That file is the single source for both build paths: the Xcode build reads
+   it directly, and the fallback build (`scripts/build_swiftc.sh`) overwrites
+   `CFBundleShortVersionString` / `CFBundleVersion` in the plist it was handed with
+   `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`, printing the template's value when the two
+   disagreed. A bump that only touched the plist used to produce a fallback build that named
+   itself the previous release.
 2. **Test.**
 
    ```sh
@@ -97,12 +102,19 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
 
    ```sh
    ./scripts/build_release.sh
-   # build/KagiPeek-<version>.dmg, .sha256, and the signed .app
+   # build/KagiPeek-<version>.dmg, build/KagiPeek-<version>.dmg.sha256, and the signed .app
    ```
 
    The script reads the version from the built bundle and refuses to continue if it does not
    match the project file. It signs the `.app` **and** the `.dmg`, notarizes and staples both
    when a notary profile is configured, and writes `build/KagiPeek-<version>.dmg.sha256`.
+
+   It also stamps the build: `build/.release-stamp` holds one line, `<version> <HEAD>`, with
+   `-dirty` appended when the tree had uncommitted changes. `scripts/publish_release.sh`
+   compares that stamp with the current `HEAD` and rebuilds when it does not match, because an
+   unchanged version number would otherwise re-publish whatever the previous checkout left in
+   `build/` — the tag and the code inside the DMG could disagree with nothing in the output
+   saying so. A `-dirty` stamp publishes with a warning: that DMG contains code no commit has.
 
 4. **Verify before publishing.**
 
