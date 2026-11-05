@@ -144,6 +144,7 @@ nonisolated enum CrashReporter {
         reportPreviousSessionIfNeeded()
         writeSentinel()
         prepareSignalFragment()
+        pruneCrashReports()
         // Says out loud whether the next crash will leave anything behind — the one piece of
         // diagnostics state that is otherwise invisible.
         Diag.info(.crash, """
@@ -348,6 +349,59 @@ nonisolated enum CrashReporter {
                 .crash,
                 "could not write the crash report to \(url.lastPathComponent) (\(error.localizedDescription))"
             )
+        }
+    }
+
+    // MARK: - Retention
+
+    /// Deletes the crash reports `ArtifactRetentionPolicy.crashReports` names.
+    ///
+    /// Runs once per launch, at the end of `beginSession` — after the fragment sweep, so a
+    /// launch that recovers twenty fragments does not leave the folder at twenty-one, and
+    /// before anything reads the folder again. The only file that must never be touched is
+    /// this session's own evidence: none exists yet (a clean session writes no `.partial`),
+    /// and the policy would not name a `.partial` even if one did.
+    ///
+    /// A failed delete is housekeeping, not a launch failure: the file simply survives until
+    /// the next launch can try again. It still gets a line, because "the folder did not
+    /// shrink" is otherwise indistinguishable from "retention is not running".
+    private static func pruneCrashReports() {
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(
+                at: crashDirectory,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            )
+        } catch {
+            // `completePartialReports` already warned that the folder cannot be listed; a
+            // second warning would repeat it. Debug keeps the two failures distinguishable.
+            Diag.debug(.crash, "could not list the crash folder for retention: \(error.localizedDescription)")
+            return
+        }
+        let candidates: [RetainedArtifact] = contents.compactMap { url in
+            let name = url.lastPathComponent
+            let isPartial = name.hasSuffix(".partial")
+            guard isPartial || name.hasSuffix(".json") else { return nil }
+            // An unreadable date means "we do not know how old this is", which is not the same
+            // as "it is ancient". Leaving it out keeps the policy from deleting evidence it
+            // cannot date.
+            guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate else { return nil }
+            return RetainedArtifact(name: name, modifiedAt: modified, isPartial: isPartial)
+        }
+        let doomed = ArtifactRetentionPolicy.crashReports.artifactsToDelete(entries: candidates)
+        for artifact in doomed {
+            do {
+                try FileManager.default.removeItem(at: crashDirectory.appendingPathComponent(artifact.name))
+            } catch {
+                Diag.warning(.crash, """
+                    could not delete the old crash report \(artifact.name) \
+                    (\(error.localizedDescription)); it stays until retention can remove it
+                    """)
+            }
+        }
+        if !doomed.isEmpty {
+            Diag.debug(.crash, "retention removed \(doomed.count) of \(candidates.count) crash reports")
         }
     }
 
