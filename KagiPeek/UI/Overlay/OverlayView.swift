@@ -1373,7 +1373,7 @@ private struct SearchResultList: View {
                     .onHover { inside in
                         if inside { onHover(index) }
                     }
-                    .onTapGesture { onTap(index) }
+                    .onTapGesture { if item.isEnabled { onTap(index) } }
                 }
             }
             .padding(.vertical, 4)
@@ -1513,36 +1513,66 @@ private struct SearchResultRow: View {
         }
     }
 
+    /// The row title with the query's characters emphasised.
+    ///
+    /// Built from runs, not from one `AttributedString` per character: the old version made a
+    /// few thousand allocations for a full page of results and rebuilt them on every arrow
+    /// key. Contiguous matched and unmatched characters share one run, so the same styling is
+    /// produced with a handful of pieces.
     private var highlightedTitle: Text {
         let text = title
-        var matched = Set<Int>()
         let tokens = query
             .split(whereSeparator: { $0 == " " || $0 == "+" || $0 == "," })
             .map(String.init)
             .filter { !$0.isEmpty }
+        let matched = matchedCharacterOffsets(in: text, tokens: tokens)
+
+        var attributed = AttributedString()
+        var run = ""
+        var runIsMatched = false
+        var offset = 0
+
+        func flushRun() {
+            guard !run.isEmpty else { return }
+            var piece = AttributedString(run)
+            piece.font = .system(size: 13.5, weight: runIsMatched ? .semibold : .regular)
+            if runIsMatched { piece.foregroundColor = .accentColor }
+            attributed.append(piece)
+            run = ""
+        }
+
+        for character in text {
+            let isMatched = matched.contains(offset)
+            if isMatched != runIsMatched {
+                flushRun()
+                runIsMatched = isMatched
+            }
+            run.append(character)
+            offset += 1
+        }
+        flushRun()
+        return Text(attributed)
+    }
+
+    /// Every character offset the query covers. One pass per token over a one-line title, so
+    /// this stays cheap even though it runs for every visible row.
+    private func matchedCharacterOffsets(in text: String, tokens: [String]) -> Set<Int> {
+        var matched = Set<Int>()
         for token in tokens {
             var start = text.startIndex
             while start < text.endIndex,
-                  let range = text.range(of: token, options: [.caseInsensitive, .diacriticInsensitive], range: start..<text.endIndex) {
+                  let range = text.range(
+                      of: token,
+                      options: [.caseInsensitive, .diacriticInsensitive],
+                      range: start..<text.endIndex
+                  ) {
                 let offset = text.distance(from: text.startIndex, to: range.lowerBound)
                 let length = text.distance(from: range.lowerBound, to: range.upperBound)
-                for position in offset..<(offset + length) {
-                    matched.insert(position)
-                }
+                matched.formUnion(offset..<(offset + length))
                 start = range.upperBound
             }
         }
-        var attributed = AttributedString()
-        for (position, character) in text.enumerated() {
-            var piece = AttributedString(String(character))
-            piece.font = .system(size: 13.5)
-            if matched.contains(position) {
-                piece.font = .system(size: 13.5, weight: .semibold)
-                piece.foregroundColor = .accentColor
-            }
-            attributed.append(piece)
-        }
-        return Text(attributed)
+        return matched
     }
 }
 

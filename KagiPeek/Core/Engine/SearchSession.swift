@@ -260,6 +260,10 @@ final class SearchSession {
     /// Internal for `PreviewScenarios`, which drives the palette without a text field.
     func refreshSearch() {
         guard isStarted() else { return }
+        // `searchItems` concatenates up to two sources. Reading it once per refresh means the
+        // corpus key, the corpus and the combo answer all describe the same list, and a
+        // keystroke no longer rebuilds that list four times.
+        let items = searchItems
         // The corpus is built from the *scoped* items, not from the frontmost catalog: the
         // palette existed to search one app, and a corpus built from somebody else's menus
         // answers every keystroke with the wrong app's list. The key makes the scope part of
@@ -269,7 +273,7 @@ final class SearchSession {
             state.search.scopeAppID ?? "-",
             String(state.catalog.scannedAt.timeIntervalSince1970),
             String(state.searchScopeCatalog.scannedAt.timeIntervalSince1970),
-            String(searchItems.count),
+            String(items.count),
             // Counts alone miss a rescan that rewrites the same number of rows. The scan
             // timestamp changes with every config read, so a same-count edit cannot be
             // answered from the previous corpus.
@@ -279,13 +283,17 @@ final class SearchSession {
             localization.language.rawValue
         ].joined(separator: "|")
         if state.searchCorpus == nil || state.searchCorpusKey != corpusKey {
-            state.searchCorpus = SearchCorpus(items: searchItems, style: state.settings.keyStyle)
+            state.searchCorpus = SearchCorpus(items: items, style: state.settings.keyStyle)
             state.searchCorpusKey = corpusKey
         }
         // A query that spells out a combo gets a direct answer about who owns it, even when
         // the answer is "one thing, so no conflict" — which is exactly the case the conflict
         // list stays silent about.
-        state.search.comboAnswer = ComboLookup.answer(forQuery: state.search.query, in: searchItems + externalBindings())
+        // The unscoped list already contains the system and tool rows; appending the
+        // external sources again would name one owner twice. A scoped list is that app's
+        // menus only, so there the external sources are still what completes the answer.
+        let comboItems = state.search.scopeAppID == nil ? items : items + externalBindings()
+        state.search.comboAnswer = ComboLookup.answer(forQuery: state.search.query, in: comboItems)
         // An empty field means "show this app's list", not "show the first 60 of it".
         let isEmptyQuery = state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let includeDisabled = state.settings.showDisabledItems
@@ -296,7 +304,7 @@ final class SearchSession {
             }
         if !state.favoritesPolicy.canBeFiltered, !isEmptyQuery {
             let existing = Set(results.map(\.id))
-            let favorites = searchItems.filter {
+            let favorites = items.filter {
                 usageStore.isFavorite($0.usageKey)
                     && !state.isIgnored($0)
                     && (includeDisabled || RowEligibility.canActivate(isEnabled: $0.isEnabled))
@@ -324,7 +332,7 @@ final class SearchSession {
         if isPreviewing() {
             // A screenshot cannot show which app's list it is showing; this line can.
             Diag.info(.ui, """
-                search: scope=\(state.search.scopeAppID ?? "frontmost") items=\(searchItems.count) \
+                search: scope=\(state.search.scopeAppID ?? "frontmost") items=\(items.count) \
                 results=\(results.count) first=\(Sanitizer.clamp(results.first?.title ?? "-"))
                 """)
         }

@@ -689,10 +689,7 @@ final class PanelSession {
     }
 
     func toggleFavorite(rowID: String) {
-        let item = state.catalog.items.first(where: { $0.id == rowID })
-            ?? state.systemBindings.first(where: { $0.id == rowID })
-            ?? state.configBindings.first(where: { $0.id == rowID })
-        guard let item else { return }
+        guard let item = item(forRowID: rowID) else { return }
         usageStore.toggleFavorite(item.usageKey)
         // A pin changes the order but not the press counter, so the cache has to be dropped.
         state.orderedHitsCache = nil
