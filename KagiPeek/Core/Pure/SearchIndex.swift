@@ -53,10 +53,10 @@ nonisolated struct SearchCorpus {
     /// Which rows a query matches, in corpus (original sequence) order.
     ///
     /// The panel filter asks only "does this row survive"; its rows are then ordered by the
-    /// panel sequence, so ranking every hit is pure waste. A single term takes the
-    /// match-only predicate — no scores, no comparisons, no sort. More than one term falls
-    /// back to `search`: multi-token ranking must keep working for the palette and for any
-    /// future full-text path, and it is not the panel's per-key case.
+    /// panel sequence, so ranking every hit is pure waste. Both single- and multi-term
+    /// queries use match-only predicates and keep corpus order: one term is a single
+    /// `matches` test, several terms AND those tests together. Neither path computes a
+    /// score, compares titles, or sorts — `search` stays the ranked path for the palette.
     ///
     /// The match set is identical to the scoring path's, term for term; the tests pin that
     /// equivalence rather than trusting the two implementations to stay in step.
@@ -64,7 +64,9 @@ nonisolated struct SearchCorpus {
         let tokens = Self.tokens(in: query)
         guard !tokens.isEmpty else { return documents.map(\.item) }
         guard tokens.count == 1, let token = tokens.first else {
-            return search(query, limit: documents.count)
+            return documents
+                .filter { doc in tokens.allSatisfy { Self.matches(token: $0, document: doc) } }
+                .map(\.item)
         }
         return documents
             .filter { Self.matches(token: token, document: $0) }

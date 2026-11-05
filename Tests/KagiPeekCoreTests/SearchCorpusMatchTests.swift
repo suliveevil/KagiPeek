@@ -52,11 +52,12 @@ final class SearchCorpusMatchTests: XCTestCase {
         ]
     }
 
-    /// The match-only predicate must select exactly the rows the scoring search selects.
-    /// One term takes the new path; the expected set comes from `search` with no limit.
+    /// The match-only predicate must select exactly the rows the scoring search selects,
+    /// for single- and multi-term queries alike; the expected set comes from `search` with
+    /// no limit. Multi-term forms mirror the panel filter's modifier + letter token queue.
     func testMatchOnlySetEqualsScoringSet() {
         let corpus = SearchCorpus(items: mixedItems, style: .symbols)
-        for query in ["s", "save", "pi", "scsh", "⌘", "cmd", "文件", "wen", "ni", "zzz", "st"] {
+        for query in ["s", "save", "pi", "scsh", "⌘", "cmd", "文件", "wen", "ni", "zzz", "st", "⌘ s", "⌃ f", "⌥ t", "⌘ ⌥ s", "⌃ ⌥"] {
             let expected = Set(corpus.search(query, limit: corpus.documents.count).map(\.id))
             let actual = Set(corpus.matchingItems(for: query).map(\.id))
             XCTAssertEqual(actual, expected, "query: \(query)")
@@ -88,6 +89,29 @@ final class SearchCorpusMatchTests: XCTestCase {
         XCTAssertEqual(corpus.matchingItems(for: "a").map(\.title), ["Banana", "Apple"])
     }
 
+    /// More than one term must keep corpus order too, not the scoring path's rank order.
+    /// Both rows match "⌘ a", but Apple outranks Banana (exact key token / prefix), so a
+    /// ranked result would be the reverse of the corpus sequence.
+    func testMultiTermPreservesCorpusOrder() {
+        let corpus = SearchCorpus(
+            items: [
+                BindingItem(chord: .combo([.command], KeyToken("b")), title: "Banana", group: [], source: .menu),
+                BindingItem(chord: .combo([.command], KeyToken("a")), title: "Apple", group: [], source: .menu)
+            ],
+            style: .symbols
+        )
+        XCTAssertEqual(
+            corpus.search("⌘ a", limit: corpus.documents.count).map(\.title),
+            ["Apple", "Banana"]
+        )
+        let matched = corpus.matchingItems(for: "⌘ a")
+        let expected = corpus.documents.map(\.item).filter { item in
+            matched.contains { $0.id == item.id }
+        }
+        XCTAssertEqual(matched.map(\.id), expected.map(\.id))
+        XCTAssertEqual(matched.map(\.title), ["Banana", "Apple"])
+    }
+
     /// An empty query means "no filter", which is every row, still in corpus order.
     func testEmptyQueryReturnsEveryRowInOrder() {
         let corpus = SearchCorpus(items: mixedItems, style: .symbols)
@@ -96,11 +120,17 @@ final class SearchCorpusMatchTests: XCTestCase {
         XCTAssertEqual(corpus.matchingItems(for: "   ").map(\.id), all)
     }
 
-    /// More than one term falls back to the scoring search and still matches its set.
-    func testMultiTermFallsBackToScoring() {
+    /// More than one term matches the scoring path's set, keeps corpus order, and never
+    /// ranks: the panel only needs the surviving rows, in its own sequence.
+    func testMultiTermMatchesScoringSetAndKeepsCorpusOrder() {
         let corpus = SearchCorpus(items: mixedItems, style: .symbols)
-        let expected = Set(corpus.search("⌘ s", limit: corpus.documents.count).map(\.id))
-        let actual = Set(corpus.matchingItems(for: "⌘ s").map(\.id))
-        XCTAssertEqual(actual, expected)
+        let query = "⌘ s"
+        let expected = Set(corpus.search(query, limit: corpus.documents.count).map(\.id))
+        let actual = corpus.matchingItems(for: query)
+        XCTAssertEqual(Set(actual.map(\.id)), expected)
+        let ordered = corpus.documents.map(\.item).filter { item in
+            actual.contains { $0.id == item.id }
+        }
+        XCTAssertEqual(actual.map(\.id), ordered.map(\.id))
     }
 }
