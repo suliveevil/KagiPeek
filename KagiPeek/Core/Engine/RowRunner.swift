@@ -142,6 +142,49 @@ final class RowRunner {
         return false
     }
 
+    /// A restricted row, refused on every surface the same way.
+    ///
+    /// Clicking it used to copy silently while Return said why, and the palette said why
+    /// without copying. Now all three copy what the row has and say both things in one
+    /// notice, and none of them closes the surface: nothing ran, so there is nothing to
+    /// dismiss. A row with no chord falls back to its menu path, and the notice says which
+    /// of the two was copied instead of claiming a shortcut that does not exist.
+    func refuseRestricted(_ item: BindingItem) {
+        let chord = KeyFormatter.render(item.chord, style: state.settings.keyStyle)
+        if !chord.isEmpty, copyToPasteboard(chord) {
+            presenters.notices.show(
+                chord: chord,
+                title: localization.text(.panelRestrictedCopiedShortcut),
+                kind: .info
+            )
+            return
+        }
+        let path = item.group.joined(separator: " › ")
+        if chord.isEmpty, !path.isEmpty, copyToPasteboard(path) {
+            presenters.notices.show(
+                chord: path,
+                title: localization.text(.panelRestrictedCopiedPath),
+                kind: .info
+            )
+            return
+        }
+        // Nothing to copy, or the pasteboard refused: still say why, never stay silent.
+        presenters.notices.showNotice(
+            text: localization.text(.panelRestrictedNotice),
+            kind: .info
+        )
+    }
+
+    private func copyToPasteboard(_ text: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        guard pasteboard.setString(text, forType: .string) else {
+            Diag.error(.run, "pasteboard refused \(text.count) characters")
+            return false
+        }
+        return true
+    }
+
     /// Triggering the command is the point, so the menu item itself is pressed first: it
     /// works for commands that have no shortcut at all, and for the ones that do it is
     /// exactly what clicking the menu would do. Replaying the chord is the fallback — for a
@@ -163,13 +206,13 @@ final class RowRunner {
             switch origin {
             case .panel:
                 Diag.action("panel.run", target: item.appBundleID ?? frontmostBundleID())
-                Diag.debug(.run, "pressed menu item \(Sanitizer.clamp(item.title))")
+                Diag.debug(.run, "pressed menu item row=\(rowID) titleLen=\(item.title.count)")
                 showExecutedNotice(
                     chord: item.chord.isEmpty ? KeyFormatter.noShortcutPlaceholder : rendered,
                     title: item.title
                 )
             case .search:
-                Diag.info(.run, "pressed menu item \(item.title) from search")
+                Diag.info(.run, "pressed menu item from search row=\(rowID) titleLen=\(item.title.count)")
                 Diag.action("search.run", target: item.appBundleID ?? frontmostBundleID())
                 DispatchQueue.main.async { searchTarget?.activate() }
                 usageStore.record(usageKey: item.usageKey)
@@ -180,19 +223,19 @@ final class RowRunner {
             // No shortcut to replay either: the row is unreachable until the next scan.
             // Say so instead of closing the surface on a click that did nothing.
             Diag.error(.run, """
-                menu press failed and \(Sanitizer.clamp(item.title)) has no shortcut \
-                to replay
+                menu press failed and row=\(rowID) (titleLen=\(item.title.count)) has no \
+                shortcut to replay
                 """)
             switch origin {
             case .panel:
                 Diag.error(.inject, """
                     ax-press failed and no chord to replay row=\(rowID) \
-                    title=\(Sanitizer.clamp(item.title)) target=\(item.appBundleID ?? "?")
+                    titleLen=\(item.title.count) target=\(item.appBundleID ?? "?")
                     """)
             case .search:
                 Diag.error(.inject, """
                     ax-press failed and no chord to replay (from search) \
-                    title=\(Sanitizer.clamp(item.title)) target=\(item.appBundleID ?? "?")
+                    titleLen=\(item.title.count) target=\(item.appBundleID ?? "?")
                     """)
             }
             presenters.notices.showNotice(
@@ -205,7 +248,7 @@ final class RowRunner {
         case .panel:
             Diag.debug(.run, """
                 ax-press refused, replaying \(KeyFormatter.render(item.chord, style: .symbols)) \
-                row=\(rowID) title=\(Sanitizer.clamp(item.title))
+                row=\(rowID) titleLen=\(item.title.count)
                 """)
             Diag.action("panel.run.replay", target: item.appBundleID ?? frontmostBundleID())
             // The toast is the confirmation of a run, so it waits for the replay to actually
@@ -218,7 +261,7 @@ final class RowRunner {
                 reportInjectionFailure(outcome)
             }
         case .search:
-            Diag.debug(.run, "search replay \(KeyFormatter.render(item.chord, style: .symbols)) title=\(Sanitizer.clamp(item.title))")
+            Diag.debug(.run, "search replay \(KeyFormatter.render(item.chord, style: .symbols)) row=\(rowID) titleLen=\(item.title.count)")
             Diag.action("search.run.replay", target: item.appBundleID ?? frontmostBundleID())
             // The injector brings the previous app back and verifies it, instead of typing
             // into whatever holds the keyboard once the palette closes.

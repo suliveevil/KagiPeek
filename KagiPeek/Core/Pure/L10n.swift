@@ -30,6 +30,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case permissionWizard, permissionGrant, permissionGrantedDone, permissionContinue, permissionQuit
     case panelFavoritesFilter, panelPin, panelUnpin, panelCopyShortcut, panelPassThrough, panelSettings
     case panelRestrictedReason, panelRestrictedNotice, panelUnsupportedSource, panelCopyMenuItem
+    case panelRestrictedCopiedShortcut, panelRestrictedCopiedPath
     case panelNoFavorites
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
@@ -267,6 +268,16 @@ nonisolated enum L10n {
         .panelRestrictedNotice: (
             "This action is not available to run",
             "该动作不提供执行"
+        ),
+        // The refusal and the consolation in one line: a click, the run key and the
+        // palette's Return all say the same thing, including what was copied instead.
+        .panelRestrictedCopiedShortcut: (
+            "This action is not available to run; shortcut copied",
+            "该动作不提供执行，已复制快捷键"
+        ),
+        .panelRestrictedCopiedPath: (
+            "This action is not available to run; menu path copied",
+            "该动作不提供执行，已复制菜单路径"
         ),
         .panelUnsupportedSource: (
             "This source is shown only, not executed",

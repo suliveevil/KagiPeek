@@ -171,10 +171,9 @@ final class SearchSession {
         case .run:
             return true
         case .noticeRestricted:
-            presenters.notices.showNotice(
-                text: localization.text(.panelRestrictedNotice),
-                kind: .info
-            )
+            // Same notice and same copy as the panel's click and run key; the palette stays
+            // open because closing it would look like the shortcut ran.
+            rowRunner.refuseRestricted(item)
             return false
         case .noticeUnsupportedSource:
             presenters.notices.showNotice(

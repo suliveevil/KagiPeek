@@ -141,13 +141,13 @@ nonisolated enum PanelRowActionPlan {
                 return .copyMenuItem
             }
         }
-        // A restricted action never runs. A click falls back to copying (shortcut first,
-        // menu item when there is no chord), while an explicit run says why it is refused.
+        // A restricted action never runs, and every way of asking says the same thing: the
+        // click used to copy silently while the run key explained, so the same row read as
+        // "nothing happened" on one surface and "not available" on another. The copy itself
+        // happens in `RowRunner.refuseRestricted`, which picks the chord or the menu path.
         if restriction.isRestricted {
             switch request {
-            case .click:
-                return hasChord ? .copyShortcut : .copyMenuItem
-            case .execute:
+            case .click, .execute:
                 return .noticeRestricted
             case .copyShortcut:
                 return hasChord ? .copyShortcut : .noticeNothingToCopy

@@ -137,7 +137,8 @@ final class RestrictedActionPolicyTests: XCTestCase {
 
     // MARK: - Row action plan
 
-    func testRestrictedClickCopiesShortcutWhenThereIsOne() {
+    // 点击与执行走同一条拒绝路径：复制由 RowRunner 统一做，提示也统一。
+    func testRestrictedClickIsRefusedNotCopiedSilently() {
         XCTAssertEqual(
             PanelRowActionPlan.outcome(
                 request: .click,
@@ -145,17 +146,36 @@ final class RestrictedActionPolicyTests: XCTestCase {
                 source: .menu,
                 hasChord: true
             ),
-            .copyShortcut
+            .noticeRestricted
         )
-    }
-
-    func testRestrictedClickFallsBackToMenuItemWithoutChord() {
         XCTAssertEqual(
             PanelRowActionPlan.outcome(
                 request: .click,
                 restriction: .restricted(.sleep),
                 source: .menu,
                 hasChord: false
+            ),
+            .noticeRestricted
+        )
+    }
+
+    /// 但显式复制动作不受影响：Cmd+C 与右键「复制快捷键」仍然只是复制。
+    func testExplicitCopyOfRestrictedRowStaysACopy() {
+        XCTAssertEqual(
+            PanelRowActionPlan.outcome(
+                request: .copyShortcut,
+                restriction: .restricted(.sleep),
+                source: .menu,
+                hasChord: true
+            ),
+            .copyShortcut
+        )
+        XCTAssertEqual(
+            PanelRowActionPlan.outcome(
+                request: .copyMenuItem,
+                restriction: .restricted(.sleep),
+                source: .menu,
+                hasChord: true
             ),
             .copyMenuItem
         )

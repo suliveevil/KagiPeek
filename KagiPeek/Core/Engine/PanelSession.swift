@@ -884,7 +884,9 @@ final class PanelSession {
         case .noticeUnsupportedSource:
             showNotice(.panelUnsupportedSource)
         case .noticeRestricted:
-            showNotice(.panelRestrictedNotice)
+            // The click, the run key and the palette's Return are one path now: copy what
+            // the row has and say why it did not run. Nothing closes, because nothing ran.
+            rowRunner.refuseRestricted(item)
         case .noticeNothingToCopy:
             showNotice(.panelNothingToCopy)
         }
@@ -942,7 +944,7 @@ final class PanelSession {
             return
         }
         guard item.isEnabled else {
-            Diag.info(.run, "ignoring disabled row \(item.title)")
+            Diag.info(.run, "ignoring disabled row=\(rowID) titleLen=\(item.title.count)")
             // A row that does nothing when clicked reads as a broken panel. The reason is
             // spoken once per row per three seconds, not on every click.
             if disabledNoticeGate.shouldShow(rowID: rowID, at: Date()) {
@@ -995,7 +997,7 @@ final class PanelSession {
     /// preserved here rather than "fixed" — changing it is a behaviour change, not a refactor.
     private func enterNextLevel(of item: BindingItem, step: KeyStep) {
         guard let key = step.key else { return }
-        Diag.debug(.run, "descending one level for \(item.title)")
+        Diag.debug(.run, "descending one level depth=\(item.group.count) titleLen=\(item.title.count)")
         state.prefix = PrefixResolver.probe(after: state.prefix, modifiers: step.modifiers, key: key)
         state.panel.selectionIndex = -1
         state.panel.pageIndex = 0
