@@ -279,8 +279,10 @@ struct RowBudgetKey: Equatable {
     /// total: each non-empty tool draws its own card, so a rewrite that keeps the row count
     /// but moves rows between tools changes the page the window is sized for.
     var configCounts: [Int]
-    /// Whether the tool rows are part of the list at all: folded, they cost a heading but no
-    /// rows, so the allocation changes without the counts changing.
-    var toolSectionExpanded: Bool
+    /// Which tool cards are open, and whether a filter is narrowing. Folded, a card costs a
+    /// heading but no rows; narrowing opens every card, so the allocation changes without
+    /// the counts changing.
+    var expandedTools: Set<ConfigTool>
+    var narrowing: Bool
     var pageSize: Int
 }

@@ -1321,7 +1321,7 @@ final class ShortcutEngine: ObservableObject {
     func rebuildPanel() { panel.rebuildPanel() }
     func panelSequence() -> [PanelEntry] { panel.panelSequence() }
     func toggleFavoritesFilter() { panel.toggleFavoritesFilter() }
-    func toggleToolSection() { panel.toggleToolSection() }
+    func toggleToolSection(_ tool: ConfigTool) { panel.toggleToolSection(tool) }
     func toggleModifier(_ modifier: ModifierSet) { panel.toggleModifier(modifier) }
     func toggleFavorite(rowID: String) { panel.toggleFavorite(rowID: rowID) }
     func copyShortcut(rowID: String) { panel.copyShortcut(rowID: rowID) }

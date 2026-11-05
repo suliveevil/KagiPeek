@@ -212,7 +212,7 @@ final class PanelSectionsTests: XCTestCase {
         let entries = PanelSections.combine(app: app, system: system, tool: [(.alfred, alfred)])
         XCTAssertEqual(entries.count, 7)
 
-        let folded = PanelSections.visible(entries, includeToolSection: false)
+        let folded = PanelSections.visible(entries, expandedTools: [], narrowing: false)
         XCTAssertEqual(folded.count, 3)
         XCTAssertFalse(folded.contains { entry in
             if case .tool = entry.section { return true }
@@ -222,8 +222,12 @@ final class PanelSectionsTests: XCTestCase {
         XCTAssertEqual(PanelSections.counts(in: entries)[.tool(.alfred)], 4)
         XCTAssertEqual(folded.count + (PanelSections.counts(in: entries)[.tool(.alfred)] ?? 0), entries.count)
 
-        let expanded = PanelSections.visible(entries, includeToolSection: true)
+        let expanded = PanelSections.visible(entries, expandedTools: [.alfred], narrowing: false)
         XCTAssertEqual(expanded.count, 7)
         XCTAssertEqual(expanded.map(\.section).last, PanelSectionID.tool(.alfred))
+
+        // 有过滤条件时，折叠卡也让位于序列：匹配行不能被折叠挡住。
+        let narrowed = PanelSections.visible(entries, expandedTools: [], narrowing: true)
+        XCTAssertEqual(narrowed.count, entries.count)
     }
 }

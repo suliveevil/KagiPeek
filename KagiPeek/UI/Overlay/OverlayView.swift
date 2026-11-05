@@ -634,8 +634,8 @@ private struct OverlayPanelContentView: View {
                 // source stay visible so the user can see what there is to open.
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    if group.isCollapsible {
-                        engine.toggleToolSection()
+                    if let tool = group.tool {
+                        engine.toggleToolSection(tool)
                     }
                 }
                 Rectangle()

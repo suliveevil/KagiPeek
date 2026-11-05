@@ -105,17 +105,18 @@ final class PanelSession {
     /// A folded tool still draws its card, so it still costs its frame. Small next to the
     /// catalog, and only read while a page is being rebuilt.
     private var configToolRowCounts: [Int] {
-        toolRowCounts(in: state.configBindings)
+        let counts = toolRowCounts(in: state.configBindings)
+        return ConfigTool.allCases.map { counts[$0] ?? 0 }
     }
 
-    private func toolRowCounts(in bindings: [BindingItem]) -> [Int] {
+    private func toolRowCounts(in bindings: [BindingItem]) -> [ConfigTool: Int] {
         var counts: [ConfigTool: Int] = [:]
         for binding in bindings {
             if let tool = binding.configTool {
                 counts[tool, default: 0] += 1
             }
         }
-        return ConfigTool.allCases.map { counts[$0] ?? 0 }
+        return counts
     }
 
     /// How many rows and headings the panel window must be sized for: the widest list this
@@ -137,7 +138,8 @@ final class PanelSession {
             // The distribution, not just the total: a config rewrite that keeps the count
             // but moves rows between tools changes the card count and the page capacity.
             configCounts: configToolRowCounts,
-            toolSectionExpanded: state.panel.toolSectionExpanded,
+            expandedTools: state.panel.expandedTools,
+            narrowing: state.panel.isNarrowing,
             pageSize: panelPageSize
         )
         if let cached = state.rowBudgetCache, cached.key == key {
@@ -156,7 +158,13 @@ final class PanelSession {
             isFavorite: { usageStore.isFavorite($0.usageKey) }
         )
         let toolCounts = toolRowCounts(in: toolBindings)
-        let toolRows = state.panel.toolSectionExpanded ? toolCounts.reduce(0, +) : 0
+        // The widest list this state can draw: while a filter stands, every tool card is open,
+        // so the rows behind all of them have to fit inside the frame.
+        let toolRows = ToolSectionFold.visibleRowCount(
+            toolCounts: toolCounts,
+            expanded: state.panel.expandedTools,
+            narrowing: state.panel.isNarrowing
+        )
         let total = hits.count + toolRows
         let pageSize = key.pageSize
         // Every section flows through the same pages. A short list reserves only its own
@@ -164,7 +172,7 @@ final class PanelSession {
         // non-empty tool, not one card for the whole tool block.
         let headings = PanelSections.cardAndHeadingBudget(
             systemCount: state.systemBindings.count,
-            toolCounts: toolCounts,
+            toolCounts: Array(toolCounts.values),
             appHeading: state.settings.panelOrder == .byMenuGroup
         ).headings
         let allocation = PanelBudget.budget(totalRows: total, pageSize: pageSize, headings: headings)
@@ -198,8 +206,9 @@ final class PanelSession {
     func rebuildPanel() {
         guard state.panel.isVisible else { return }
         // `allEntries` is the filtered list of all three sources; `sequence` is what the
-        // panel walks, with the tool block folded away unless the user opened it. Counts
-        // come from the former, so a folded card still says how many rows it holds.
+        // panel walks, with each folded tool card's rows removed (a filter in force opens
+        // every card, for the duration only). Counts come from the former, so a folded card
+        // still says how many rows it holds.
         let allEntries = filteredEntries(allPanelEntries())
         let sequence = visibleEntries(allEntries)
         let page = panelPage(of: sequence, pageSize: panelPageSize)
@@ -372,26 +381,38 @@ final class PanelSession {
                 // (by-menu order), and those print the app's total, as they always have.
                 totalCount: totals[group.title] ?? appTotal,
                 isCollapsible: tool != nil,
-                isExpanded: tool == nil ? true : state.panel.toolSectionExpanded
+                isExpanded: tool.map {
+                    ToolSectionFold.isExpanded(
+                        tool: $0,
+                        expanded: state.panel.expandedTools,
+                        narrowing: state.panel.isNarrowing
+                    )
+                } ?? true,
+                tool: tool
             )
         }
         // A folded tool still draws its card: a title, its count, and no rows. The builder
         // only makes groups out of rows, so the empty ones are added here, after the sequence,
-        // in the same fixed order the rows would have had (App → system → each tool).
-        if !state.panel.toolSectionExpanded {
-            let presentTitles = Set(groups.map(\.title))
-            for pair in toolTotals where pair.count > 0 && !presentTitles.contains(pair.tool.displayName) {
-                groups.append(
-                    PanelGroup(
-                        id: pair.tool.displayName,
-                        title: pair.tool.displayName,
-                        rows: [],
-                        totalCount: pair.count,
-                        isCollapsible: true,
-                        isExpanded: false
-                    )
+        // in the same fixed order the rows would have had (App → system → each tool). An open
+        // tool adds nothing: its card is made by its rows, on whichever page they sit.
+        let presentTitles = Set(groups.map(\.title))
+        for pair in toolTotals where pair.count > 0 && !presentTitles.contains(pair.tool.displayName) {
+            guard !ToolSectionFold.isExpanded(
+                tool: pair.tool,
+                expanded: state.panel.expandedTools,
+                narrowing: state.panel.isNarrowing
+            ) else { continue }
+            groups.append(
+                PanelGroup(
+                    id: pair.tool.displayName,
+                    title: pair.tool.displayName,
+                    rows: [],
+                    totalCount: pair.count,
+                    isCollapsible: true,
+                    isExpanded: false,
+                    tool: pair.tool
                 )
-            }
+            )
         }
         state.panel.groups = groups
         state.panel.flatRowIDs = built.flatRowIDs
@@ -507,12 +528,20 @@ final class PanelSession {
         return PanelSections.hits(for: sorted)
     }
 
-    /// The rows the panel walks: everything except the tool block while that section is folded.
+    /// The rows the panel walks: every source, with a folded tool card's rows left out.
     ///
     /// Folded, the tools still draw a card (title and count, no rows), so they stay in the
-    /// counts but not in the pages.
+    /// counts but not in the pages. A filter in force opens every card for as long as it
+    /// stands — a match behind a closed card would be listed in its count and unreachable —
+    /// and the user's own fold choices are left untouched underneath.
     private func visibleEntries(_ entries: [PanelEntry]) -> [PanelEntry] {
-        PanelSections.visible(entries, includeToolSection: state.panel.toolSectionExpanded)
+        let narrowing = !state.panel.filter.isEmpty
+        state.panel.isNarrowing = narrowing
+        return PanelSections.visible(
+            entries,
+            expandedTools: state.panel.expandedTools,
+            narrowing: narrowing
+        )
     }
 
     /// The filter is a query over the combined sequence, after the source split and after
@@ -617,13 +646,18 @@ final class PanelSession {
         rebuildPanel()
     }
 
-    /// Opens or folds the config-tool section.
+    /// Opens or folds one tool's card.
     ///
-    /// The tool rows leave the sequence and come back, so both caches are dropped: the
-    /// budget was sized for the previous fold, and the order cache must not outlive the
+    /// Per tool, not per section: each card is its own choice, and the state stores the set
+    /// of open tools. The rows leave the sequence and come back, so both caches are dropped:
+    /// the budget was sized for the previous fold, and the order cache must not outlive the
     /// session's rule change. The page is clamped by the next rebuild.
-    func toggleToolSection() {
-        state.panel.toolSectionExpanded.toggle()
+    func toggleToolSection(_ tool: ConfigTool) {
+        if state.panel.expandedTools.contains(tool) {
+            state.panel.expandedTools.remove(tool)
+        } else {
+            state.panel.expandedTools.insert(tool)
+        }
         state.orderedHitsCache = nil
         state.rowBudgetCache = nil
         rebuildPanel()

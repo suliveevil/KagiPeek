@@ -58,6 +58,9 @@ nonisolated struct PanelGroup: Identifiable {
     var isCollapsible = false
     /// Whether a collapsible card currently shows its rows. Fixed for every other card.
     var isExpanded = true
+    /// The config tool this card belongs to, when it is one. The identity travels with the
+    /// card so a click toggles the tool the user pointed at, not a shared section flag.
+    var tool: ConfigTool? = nil
 }
 
 /// Immutable snapshot the overlay renders. SwiftUI observes the engine, so every field here
@@ -100,10 +103,14 @@ nonisolated struct PanelState {
     /// Shift + glyph press runs the matching row. Kept in the snapshot because the tap's
     /// swallow decision reads it, and because the rows have to be rebuilt when it flips.
     var shiftHintActive = false
-    /// The config-tool section is open. Starts folded on every panel session: the tool
+    /// The config-tool cards the user opened. Empty on every new panel session: the tool
     /// shortcuts are the third source and should not push the app's own list off the first
     /// page before the user asks for them.
-    var toolSectionExpanded = false
+    var expandedTools: Set<ConfigTool> = []
+    /// The panel is narrowing (a filter token stands). Tool cards are opened by the filter
+    /// while it stands, without touching `expandedTools`, so closing the filter brings the
+    /// user's own fold choices back unchanged.
+    var isNarrowing = false
     /// The panel was opened by the modifier gesture and the trigger key is still down.
     /// Until that key is released, a `flagsChanged` must not narrow the list: the press
     /// that summoned the panel is a trigger, not a filter. Cleared by the release edge.
@@ -121,6 +128,11 @@ nonisolated struct PanelState {
     /// then put them back. On screen that read as the panel jumping. The frame is now set
     /// from this budget once and holds while the list moves inside it. `0` means "not
     /// computed yet" and falls back to the rows on screen.
+    ///
+    /// A fold is structural, not a list moving, so it does resize: opening a tool card adds
+    /// its rows to the budget. A filter that opens every card for its duration is sized for
+    /// the same reason — the frame is allocated once for the widest list that filter can
+    /// draw, and holds while its tokens change.
     var rowBudget = 0
     /// Titled group headings the window reserves for, for the same reason: a heading that
     /// disappears while narrowing must not shrink the frame either.
@@ -166,7 +178,8 @@ nonisolated struct PanelState {
         filter.clear()
         heldModifiers = []
         shiftHintActive = false
-        toolSectionExpanded = false
+        expandedTools = []
+        isNarrowing = false
         triggerNarrowPending = false
     }
 

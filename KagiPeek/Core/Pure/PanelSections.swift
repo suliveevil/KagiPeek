@@ -84,13 +84,18 @@ nonisolated enum PanelSections {
 
     /// The rows the panel actually walks.
     ///
-    /// Folded, the tool blocks leave the sequence — they still draw a titled card, but no
-    /// rows — so their counts have to be taken from the unfiltered list (see `counts(in:)`).
-    static func visible(_ entries: [PanelEntry], includeToolSection: Bool) -> [PanelEntry] {
-        guard !includeToolSection else { return entries }
-        return entries.filter { entry in
-            if case .tool = entry.section { return false }
-            return true
+    /// A folded tool's rows leave the sequence — the card keeps its title and count — so the
+    /// counts have to be taken from the unfiltered list (see `counts(in:)`). While the panel
+    /// is narrowing every tool card is open: a matched row behind a folded card would be a
+    /// result the user cannot reach.
+    static func visible(
+        _ entries: [PanelEntry],
+        expandedTools: Set<ConfigTool>,
+        narrowing: Bool
+    ) -> [PanelEntry] {
+        entries.filter { entry in
+            guard case .tool(let tool) = entry.section else { return true }
+            return ToolSectionFold.isExpanded(tool: tool, expanded: expandedTools, narrowing: narrowing)
         }
     }
 
