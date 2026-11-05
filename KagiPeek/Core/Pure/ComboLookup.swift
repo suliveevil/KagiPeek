@@ -104,9 +104,18 @@ nonisolated enum ComboLookup {
 
     /// Matched on the chord's cache key, the same way `ConflictDetector` groups bindings,
     /// so a lookup and the conflict list can never disagree about who owns a combo.
+    ///
+    /// Deduplicated by binding id, in input order. A caller can hand the same row in twice —
+    /// the palette asks with its own list plus the external sources, and the unscoped list
+    /// already contains the system and tool rows. "Who owns this chord" is a list of
+    /// bindings, not a count of how many arrays happened to name one.
     static func owners(of chord: KeyChord, in items: [BindingItem]) -> [BindingItem] {
         let target = chord.cacheKey
-        return items.filter { $0.chord.cacheKey == target }
+        var seen: Set<String> = []
+        return items.filter { item in
+            guard item.chord.cacheKey == target else { return false }
+            return seen.insert(item.id).inserted
+        }
     }
 
     static func answer(for chord: KeyChord, in items: [BindingItem]) -> Answer {

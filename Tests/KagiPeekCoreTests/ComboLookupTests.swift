@@ -84,6 +84,17 @@ final class ComboLookupTests: XCTestCase {
         XCTAssertTrue(ConflictDetector.conflicts(in: items).contains { $0.chordKey == chord.cacheKey } == false)
     }
 
+    func testOverlappingSourcesDoNotNameOneOwnerTwice() {
+        // The palette asks with its own list plus the external sources, and the unscoped list
+        // already contains those rows. The same binding therefore arrives twice; it is still
+        // one owner, not a conflict the banner has to filter out.
+        let chord = KeyChord.combo([.option, .command], KeyToken("t"))
+        let owners = ComboLookup.owners(of: chord, in: items + items)
+        XCTAssertEqual(owners.count, 1)
+        XCTAssertEqual(owners.first?.id, items[2].id)
+        XCTAssertEqual(ComboLookup.answer(for: chord, in: items + items).items.count, 1)
+    }
+
     // MARK: - Live test verdicts
 
     private func observation(
