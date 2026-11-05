@@ -50,6 +50,63 @@ nonisolated struct SearchCorpus {
         return top.map(\.item)
     }
 
+    /// Which rows a query matches, in corpus (original sequence) order.
+    ///
+    /// The panel filter asks only "does this row survive"; its rows are then ordered by the
+    /// panel sequence, so ranking every hit is pure waste. A single term takes the
+    /// match-only predicate — no scores, no comparisons, no sort. More than one term falls
+    /// back to `search`: multi-token ranking must keep working for the palette and for any
+    /// future full-text path, and it is not the panel's per-key case.
+    ///
+    /// The match set is identical to the scoring path's, term for term; the tests pin that
+    /// equivalence rather than trusting the two implementations to stay in step.
+    func matchingItems(for query: String) -> [BindingItem] {
+        let tokens = Self.tokens(in: query)
+        guard !tokens.isEmpty else { return documents.map(\.item) }
+        guard tokens.count == 1, let token = tokens.first else {
+            return search(query, limit: documents.count)
+        }
+        return documents
+            .filter { Self.matches(token: token, document: $0) }
+            .map(\.item)
+    }
+
+    /// The hit test behind `score(token:document:)`, without the arithmetic.
+    ///
+    /// `score` returns nil exactly when every haystack here misses, so this is the same
+    /// predicate with the weights, the `pow` and the `distance` calls removed.
+    static func matches(token: String, document: Document) -> Bool {
+        if let modifier = modifierAlias(token), document.modifiers.contains(modifier) {
+            return true
+        }
+        if document.keyTokens.contains(token) {
+            return true
+        }
+        for haystack in document.titleHaystacks where contains(token: token, in: haystack) {
+            return true
+        }
+        for haystack in document.groupLevels where contains(token: token, in: haystack) {
+            return true
+        }
+        for haystack in document.haystacks where contains(token: token, in: haystack) {
+            return true
+        }
+        return false
+    }
+
+    /// The boolean half of `fuzzy(token:in:)`: exact, prefix, substring, or subsequence.
+    static func contains(token: String, in haystack: String) -> Bool {
+        guard !haystack.isEmpty, !token.isEmpty else { return false }
+        if haystack.hasPrefix(token) { return true }
+        if haystack.range(of: token) != nil { return true }
+        var cursor = haystack.startIndex
+        for character in token {
+            guard let found = haystack[cursor...].firstIndex(of: character) else { return false }
+            cursor = haystack.index(after: found)
+        }
+        return true
+    }
+
     /// The result list's total order: score, then title, then id.
     ///
     /// The id is the last word so two rows that tie on score and title cannot swap places

@@ -4,8 +4,8 @@ import Foundation
 /// does to the token queue.
 ///
 /// Both are pure so the engine only executes them. The row side deliberately goes through
-/// `SearchCorpus.search` rather than a second string matcher: the palette and the panel
-/// must answer the same query the same way.
+/// `SearchCorpus` rather than a second string matcher: the palette and the panel must
+/// answer the same query the same way.
 nonisolated enum PanelFilterPlan {
     enum Decision: Equatable, Sendable {
         case append(Character)
@@ -14,10 +14,14 @@ nonisolated enum PanelFilterPlan {
     }
 
     /// - Returns: the ids the query matches, or nil when the filter is empty ("no filter").
+    ///
+    /// A single-term filter — the common case while typing — takes the match-only path:
+    /// which rows survive is all the panel needs, and it orders them by its own sequence
+    /// afterwards, so scoring and sorting every hit is wasted work. Multi-term filters
+    /// still run the scoring search.
     static func matchingIDs(filter: PanelFilter, corpus: SearchCorpus) -> Set<String>? {
         guard !filter.isEmpty else { return nil }
-        let limit = corpus.documents.count
-        return Set(corpus.search(filter.query, limit: limit).map(\.id))
+        return Set(corpus.matchingItems(for: filter.query).map(\.id))
     }
 
     static func decision(
