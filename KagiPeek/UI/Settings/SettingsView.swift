@@ -15,6 +15,9 @@ struct SettingsView: View {
     /// Selected row in the excluded-apps list. Selection, not a text cursor: an app is
     /// removed by pointing at it, the same way the Finder works.
     @State private var excludedSelection: String?
+    /// Whether that list owns the keyboard. Clicking a row moves focus here so Delete does
+    /// what the row already looks selected for.
+    @FocusState private var excludedListFocused: Bool
     @State private var showIgnoreSheet = false
     /// Which ignored-command groups are open. The global group starts open; app groups open
     /// when a rule is added to them.
@@ -215,6 +218,13 @@ struct SettingsView: View {
                     }
                 }
                 .frame(height: 132)
+                // Delete needs a first responder. A `ScrollView` does not take focus on its
+                // own, so it is made focusable here and the rows hand it focus when they are
+                // clicked: pointing at an app is still the only way to select one, and the
+                // press is also the moment a keyboard shortcut becomes useful.
+                .focusable()
+                .focused($excludedListFocused)
+                .onDeleteCommand { removeSelectedExcludedApp() }
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color.secondary.opacity(0.25), lineWidth: 0.8)
@@ -244,7 +254,16 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(selected ? Color.accentColor.opacity(0.16) : Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { excludedSelection = bundleID }
+        .onTapGesture {
+            excludedSelection = bundleID
+            excludedListFocused = true
+        }
+        // A row is the thing that gets selected, so VoiceOver has to be able to make that
+        // selection too — otherwise Delete, and the "−" button beside it, can be reached
+        // from the keyboard but never armed.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { excludedSelection = bundleID }
     }
 
     private func addExcludedApps() {
