@@ -99,6 +99,15 @@ nonisolated enum PanelSections {
         }
     }
 
+    /// The config-tool rows a surface may show.
+    ///
+    /// Display only. The scan, the conflict list and the combo answer keep reading
+    /// `configBindings` whichever way the switch is set — hiding a card must not make a
+    /// conflicting tool disappear from a "who owns this chord" answer.
+    static func configToolRows(_ rows: [BindingItem], showing: Bool) -> [BindingItem] {
+        showing ? rows : []
+    }
+
     /// How many rows each section contributes. Tools are counted one by one, never merged
     /// into the app's total.
     static func counts(in entries: [PanelEntry]) -> [PanelSectionID: Int] {

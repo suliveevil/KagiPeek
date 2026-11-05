@@ -103,8 +103,10 @@ final class PanelSession {
     /// How many rows each config tool has, folded or not.
     ///
     /// A folded tool still draws its card, so it still costs its frame. Small next to the
-    /// catalog, and only read while a page is being rebuilt.
+    /// catalog, and only read while a page is being rebuilt. Empty when the panel-level
+    /// switch hides the tool section: no card, no heading, no page budget.
     private var configToolRowCounts: [Int] {
+        guard state.settings.showConfigToolsInPanel else { return [] }
         let counts = toolRowCounts(in: state.configBindings)
         return ConfigTool.allCases.map { counts[$0] ?? 0 }
     }
@@ -154,7 +156,10 @@ final class PanelSession {
         // The tool rows are part of the widest list whenever the section is open; folded,
         // they cost their cards' headings only.
         let toolBindings = state.favoritesPolicy.favoritesOnly(
-            state.configBindings,
+            PanelSections.configToolRows(
+                state.configBindings,
+                showing: state.settings.showConfigToolsInPanel
+            ),
             isFavorite: { usageStore.isFavorite($0.usageKey) }
         )
         let toolCounts = toolRowCounts(in: toolBindings)
@@ -505,7 +510,9 @@ final class PanelSession {
         // Tool rows are single chords like the system's, so they follow the same rule: they
         // appear only on an empty prefix, ranked the same way, one block per tool.
         var toolBlocks: [(ConfigTool, [PrefixHit])] = []
-        if state.prefix == .empty, !state.configBindings.isEmpty {
+        if state.prefix == .empty,
+           state.settings.showConfigToolsInPanel,
+           !state.configBindings.isEmpty {
             for tool in ConfigTool.allCases {
                 let items = state.configBindings.filter { $0.configTool == tool }
                 if !items.isEmpty {
@@ -556,7 +563,8 @@ final class PanelSession {
         return entries.filter { ids.contains($0.id) }
     }
 
-    /// The corpus the filter query runs against: all three of the panel's sources.
+    /// The corpus the filter query runs against: all of the panel's sources, with the tool
+    /// rows only when the panel-level switch shows them.
     ///
     /// The palette's cached corpus is deliberately not reused: it is built from the palette's
     /// scope (one app, plus the system hotkeys) and never contains tool rows, so filtering
@@ -564,14 +572,17 @@ final class PanelSession {
     ///
     /// Built once per catalog, not once per keystroke. The key covers every input the corpus
     /// is made of: a scan (the menu trees), a config read (the tool rows), the system rows,
-    /// the key style that renders the chords, and the language the titles are in. `configScan`
-    /// is in the key because a rewrite that keeps the row count still changes the documents.
+    /// the key style that renders the chords, the language the titles are in, and whether the
+    /// tool rows are shown at all. `configScan` is in the key because a rewrite that keeps
+    /// the row count still changes the documents.
     private func filterCorpus() -> SearchCorpus {
+        let showingTools = state.settings.showConfigToolsInPanel
         let key = [
             String(state.catalog.scannedAt.timeIntervalSince1970),
             String(state.configScanGeneration),
             String(state.configScan.scannedAt.timeIntervalSince1970),
             String(state.systemBindings.count),
+            String(showingTools),
             state.settings.keyStyle.rawValue,
             localization.language.rawValue
         ].joined(separator: "|")
@@ -579,7 +590,8 @@ final class PanelSession {
             return cached
         }
         let corpus = SearchCorpus(
-            items: state.catalog.items + state.systemBindings + state.configBindings,
+            items: state.catalog.items + state.systemBindings
+                + PanelSections.configToolRows(state.configBindings, showing: showingTools),
             style: state.settings.keyStyle
         )
         state.panelFilterCorpus = corpus

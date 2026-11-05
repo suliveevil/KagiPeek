@@ -194,6 +194,13 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// Whether the third-party config scanners run. Off means no file outside KagiPeek's
     /// own data folder is ever opened.
     var scanConfigFiles: Bool = true
+    /// Whether the panel's third source — the config-tool cards — is drawn at all.
+    ///
+    /// Off by default: a cheat sheet of menu shortcuts should open on the app's own commands,
+    /// not behind six tool cards. Display only — the scan, the conflict list and the combo
+    /// answer keep reading `configBindings` either way. Also governs the search palette's
+    /// unscoped list, which is the same third source.
+    var showConfigToolsInPanel: Bool = false
     /// Whether diagnostics are written to `Application Support/KagiPeek/logs`. On by default:
     /// a bug report without logs is a guess, and the data never leaves the machine.
     var diagnosticsEnabled: Bool = true
@@ -218,8 +225,11 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// ignored and disappears on the next save. Version 8 adds `pagingPairs`; a v7 file has
     /// no key, so the default (`semicolonQuote`, the pair the app used to hard-code) applies
     /// without a rewrite, and unknown
-    /// members of the set are dropped rather than resetting the whole file.
-    static let currentSchemaVersion = 8
+    /// members of the set are dropped rather than resetting the whole file. Version 9 adds
+    /// `showConfigToolsInPanel`; earlier builds drew the tool cards unconditionally, but that
+    /// was never a choice the user made, so the migration pins an old file to the new default
+    /// (`false`) instead of leaving the cards on.
+    static let currentSchemaVersion = 9
 
     init() {}
 
@@ -233,7 +243,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         case excludedBundleIDs, launchAtLogin
         case ignoredCommands
         case panelTheme, keyPosition, panelOrder, pinFavoritesToTop, favoritesCanBeFiltered
-        case runRowKey, copyRowKey, pagingPairs, scanConfigFiles
+        case runRowKey, copyRowKey, pagingPairs, scanConfigFiles, showConfigToolsInPanel
         case diagnosticsEnabled, verboseDiagnostics, showDockIcon
     }
 
@@ -311,6 +321,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
             pagingPairs = fallback.pagingPairs
         }
         scanConfigFiles = try decode(.scanConfigFiles, fallback.scanConfigFiles)
+        showConfigToolsInPanel = try decode(.showConfigToolsInPanel, fallback.showConfigToolsInPanel)
         diagnosticsEnabled = try decode(.diagnosticsEnabled, fallback.diagnosticsEnabled)
         verboseDiagnostics = try decode(.verboseDiagnostics, fallback.verboseDiagnostics)
         showDockIcon = try decode(.showDockIcon, fallback.showDockIcon)
@@ -358,6 +369,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
             forKey: .pagingPairs
         )
         try container.encode(scanConfigFiles, forKey: .scanConfigFiles)
+        try container.encode(showConfigToolsInPanel, forKey: .showConfigToolsInPanel)
         try container.encode(diagnosticsEnabled, forKey: .diagnosticsEnabled)
         try container.encode(verboseDiagnostics, forKey: .verboseDiagnostics)
         try container.encode(showDockIcon, forKey: .showDockIcon)
@@ -422,7 +434,8 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         // Keys
         "runRowKey", "copyRowKey", "pagingPairs",
         // Diagnostics and app presence
-        "scanConfigFiles", "diagnosticsEnabled", "verboseDiagnostics", "showDockIcon",
+        "scanConfigFiles", "showConfigToolsInPanel",
+        "diagnosticsEnabled", "verboseDiagnostics", "showDockIcon",
     ]
 
     /// Which stored properties differ, by name, in declaration order.

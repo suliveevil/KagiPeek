@@ -198,10 +198,16 @@ final class SearchSession {
     /// system's own hotkeys and the config-tool rows.
     ///
     /// Config rows have no bundle id, so they belong to the unscoped ("all") view only; the
-    /// app-scoped corpus stays that app's menus.
+    /// app-scoped corpus stays that app's menus. They follow the panel-level display switch:
+    /// with the tool section hidden, the palette must not answer with rows the panel refuses
+    /// to draw.
     private var searchItems: [BindingItem] {
         state.search.scopeAppID == nil
-            ? state.catalog.items + state.systemBindings + state.configBindings
+            ? state.catalog.items + state.systemBindings
+                + PanelSections.configToolRows(
+                    state.configBindings,
+                    showing: state.settings.showConfigToolsInPanel
+                )
             : state.search.scopeItems
     }
 
@@ -279,6 +285,7 @@ final class SearchSession {
             // answered from the previous corpus.
             String(state.configBindings.count),
             String(state.configScan.scannedAt.timeIntervalSince1970),
+            String(state.settings.showConfigToolsInPanel),
             state.settings.keyStyle.rawValue,
             localization.language.rawValue
         ].joined(separator: "|")
@@ -289,10 +296,19 @@ final class SearchSession {
         // A query that spells out a combo gets a direct answer about who owns it, even when
         // the answer is "one thing, so no conflict" — which is exactly the case the conflict
         // list stays silent about.
-        // The unscoped list already contains the system and tool rows; appending the
-        // external sources again would name one owner twice. A scoped list is that app's
-        // menus only, so there the external sources are still what completes the answer.
-        let comboItems = state.search.scopeAppID == nil ? items : items + externalBindings()
+        // The unscoped list already contains the system rows and — when the display switch
+        // shows them — the tool rows; appending the external sources again would name one
+        // owner twice. A scoped list is that app's menus only, so there the external sources
+        // are still what completes the answer. When the switch hides the tool rows, they are
+        // put back here on purpose: the answer is "who else owns this chord", and hiding a
+        // card does not make a conflicting tool stop owning it.
+        let hiddenToolRows = state.search.scopeAppID == nil
+            ? PanelSections.configToolRows(
+                state.configBindings,
+                showing: !state.settings.showConfigToolsInPanel
+            )
+            : externalBindings()
+        let comboItems = items + hiddenToolRows
         state.search.comboAnswer = ComboLookup.answer(forQuery: state.search.query, in: comboItems)
         // An empty field means "show this app's list", not "show the first 60 of it".
         let isEmptyQuery = state.search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

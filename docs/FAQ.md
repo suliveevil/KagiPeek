@@ -114,7 +114,11 @@ macOS does not publish the name of its own hotkeys; the description field is alw
 
 ## Why can't I run a shortcut that came from Karabiner, skhd or another config tool?
 
-Those tools implement shortcuts in their own keyboard layer, below the menu bar. KagiPeek reads their config files to warn about collisions, and those rows do appear in the panel and in search, but they are **shown only, never executed**: clicking copies the shortcut, and the context menu says so. Replaying a key would not reach the tool's layer anyway, and guessing at it could fire the wrong action. Bind those shortcuts in the tool itself.
+Those tools implement shortcuts in their own keyboard layer, below the menu bar. KagiPeek reads their config files to warn about collisions, and those rows can appear in the panel and in search — see the next question — but they are **shown only, never executed**: clicking copies the shortcut, and the context menu says so. Replaying a key would not reach the tool's layer anyway, and guessing at it could fire the wrong action. Bind those shortcuts in the tool itself.
+
+## Why don't I see the Karabiner, skhd or Alfred rows in the panel?
+
+Showing them is a separate switch, **off by default**, at **Settings → Conflicts → Config files → Show config tools in the panel and search**. A menu-shortcut cheat sheet should open on the app's own commands, not behind six tool cards. Turning it off does not stop the scan and does not empty the conflict list: the two switches are independent, and the conflict page keeps working either way. When shown, each tool is its own card and each card remembers its own fold; a filter in force opens every card, so a matching row is never hidden behind a folded one.
 
 ## Why won't KagiPeek run sleep, restart, shut down, lock, log out or force quit?
 

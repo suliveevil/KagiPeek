@@ -4,7 +4,7 @@ import XCTest
 final class PagingSettingsTests: XCTestCase {
     func testDefaultAndSchemaVersion() {
         XCTAssertEqual(AppSettingsSnapshot().pagingPairs, [.semicolonQuote])
-        XCTAssertEqual(AppSettingsSnapshot.currentSchemaVersion, 8)
+        XCTAssertEqual(AppSettingsSnapshot.currentSchemaVersion, 9)
     }
 
     /// A v7 file has no `pagingPairs`; decoding applies the default without a migration step.

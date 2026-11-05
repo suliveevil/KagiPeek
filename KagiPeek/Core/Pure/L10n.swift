@@ -147,6 +147,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Third-party config tools
     case configToolsTitle, configToolsSubtitle, configToolsToggle, configToolsRescan
+    case configToolsShowInPanel, configToolsShowInPanelNote
     case configToolsNoneFound, configToolCountFormat, configToolUnreadable
     case configToolsPrivacyNote
 
@@ -731,6 +732,14 @@ nonisolated enum L10n {
             "写进配置文件的快捷键位于键盘事件栈中比 macOS 更低的位置，因此能在 App 看到按键之前就把它吞掉。"
         ),
         .configToolsToggle: ("Scan config files", "扫描配置文件"),
+        .configToolsShowInPanel: (
+            "Show config tools in the panel and search",
+            "在提示面板与搜索面板显示配置工具"
+        ),
+        .configToolsShowInPanelNote: (
+            "Display only. These files are still scanned and conflicts are still detected.",
+            "只影响显示：这些配置文件照旧扫描，冲突检测照常工作。"
+        ),
         .configToolsRescan: ("Scan now", "立即扫描"),
         .configToolsNoneFound: (
             "No supported config files found. Karabiner, skhd, Keyboard Maestro, BetterTouchTool, Hammerspoon and Alfred are recognised.",

@@ -108,7 +108,7 @@ final class PanelSortOrderTests: XCTestCase {
         let data = try JSONEncoder().encode(payload)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(object["schemaVersion"] as? Int, 8)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 9)
         let storedSettings = try XCTUnwrap(object["settings"] as? [String: Any])
         XCTAssertEqual(storedSettings["panelOrder"] as? String, "byMenuGroup")
     }

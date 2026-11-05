@@ -422,6 +422,18 @@ final class ShortcutEngine: ObservableObject {
         if previous.scanConfigFiles != newValue.scanConfigFiles {
             scanConfigFiles()
         }
+        // The display switch for the tool section changes two corpora — the panel's filter
+        // index and the palette's unscoped list — and the panel's page budget. A palette that
+        // is already up has to answer from the new list; the panel rebuild below picks up the
+        // rest.
+        if previous.showConfigToolsInPanel != newValue.showConfigToolsInPanel {
+            state.searchCorpus = nil
+            state.searchCorpusKey = nil
+            state.panelFilterCorpus = nil
+            state.panelFilterCorpusKey = nil
+            state.rowBudgetCache = nil
+            if state.search.isVisible { refreshSearch() }
+        }
         // The panel carries no permanent mode label, so the change is announced once. Only
         // while the panel is up: editing the setting in the settings window would otherwise
         // flash a HUD behind it.

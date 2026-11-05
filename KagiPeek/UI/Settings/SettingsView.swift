@@ -883,6 +883,14 @@ struct SettingsView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
+            Toggle(
+                localization.text(.configToolsShowInPanel),
+                isOn: $store.settings.showConfigToolsInPanel
+            )
+            Text(localization.text(.configToolsShowInPanelNote))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
             if !settings.scanConfigFiles {
                 Text(localization.text(.configToolsPrivacyNote))
                     .font(.caption2)

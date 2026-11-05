@@ -230,4 +230,42 @@ final class PanelSectionsTests: XCTestCase {
         let narrowed = PanelSections.visible(entries, expandedTools: [], narrowing: true)
         XCTAssertEqual(narrowed.count, entries.count)
     }
+
+    /// 面板级显示开关关掉时，工具行整批不进面板：既没有卡，也不占行预算。
+    func testHiddenConfigToolsContributeNoRowsOrCards() {
+        let toolRows = [
+            item(
+                "Alfred Search",
+                chord: .combo([.command], KeyToken("space")),
+                source: .configFile,
+                bundle: nil,
+                tool: .alfred
+            ),
+            item(
+                "Karabiner Hyper",
+                chord: .combo([.command], KeyToken("k")),
+                source: .configFile,
+                bundle: nil,
+                tool: .karabiner
+            )
+        ]
+        XCTAssertEqual(PanelSections.configToolRows(toolRows, showing: true), toolRows)
+        XCTAssertTrue(PanelSections.configToolRows(toolRows, showing: false).isEmpty)
+
+        // 工具行数为空时，预算只剩 App 卡与系统卡；这张断言钉住「关掉不等于留空卡」。
+        let shown = PanelSections.cardAndHeadingBudget(
+            systemCount: 3,
+            toolCounts: [1, 1],
+            appHeading: true
+        )
+        XCTAssertEqual(shown.cards, 4)
+        XCTAssertEqual(shown.headings, 4)
+        let hidden = PanelSections.cardAndHeadingBudget(
+            systemCount: 3,
+            toolCounts: [],
+            appHeading: true
+        )
+        XCTAssertEqual(hidden.cards, 2)
+        XCTAssertEqual(hidden.headings, 2)
+    }
 }

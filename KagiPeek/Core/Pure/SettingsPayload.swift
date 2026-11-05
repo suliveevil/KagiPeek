@@ -39,6 +39,8 @@ nonisolated enum SettingsMigrator {
     /// v8 added `pagingPairs`. There is no step because the field decodes tolerantly: a v7
     /// file has no key, so the default (`[.semicolonQuote]`) applies without a rewrite, and a
     /// set containing an unknown member keeps the known members instead of failing the file.
+    /// v9 adds `showConfigToolsInPanel`: that one does have a step, because "absent" would
+    /// decode to `false` anyway but the decision belongs on the record (see below).
     static func migrate(_ payload: SettingsPayload) -> AppSettingsSnapshot {
         var settings = payload.settings
         // v3 stored the old default pair (↩ runs, ⌘↩ copies). Only that exact pair moves:
@@ -77,6 +79,13 @@ nonisolated enum SettingsMigrator {
         // an old value is ignored and dropped on the next save. Every step is listed here so
         // the next reader sees where the boundary sits.
         // The legacy key is never written back: `nil` encodes as absent.
+        // v9 added `showConfigToolsInPanel`, default off. Earlier builds drew the tool cards
+        // unconditionally, but that was never a choice the user made, so an old file adopts
+        // the new default instead of inheriting "always on". `scanConfigFiles` is left exactly
+        // as the file has it: the two switches are independent.
+        if payload.schemaVersion < 9 {
+            settings.showConfigToolsInPanel = false
+        }
         settings.triggerMode = nil
         return settings.normalized()
     }

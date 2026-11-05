@@ -173,4 +173,45 @@ final class SettingsDefaultsTests: XCTestCase {
         XCTAssertTrue(json.contains("hotkeyTriggerEnabled"))
         XCTAssertTrue(json.contains("triggerKey"))
     }
+
+    // MARK: - v9 config-tool display switch
+
+    func testConfigToolsAreHiddenByDefaultAndScanningStaysOn() {
+        let settings = AppSettingsSnapshot()
+        XCTAssertTrue(settings.scanConfigFiles)
+        XCTAssertFalse(settings.showConfigToolsInPanel)
+    }
+
+    /// The tool cards were drawn unconditionally before v9. That was never a choice the
+    /// user made, so an old file adopts the new default instead of keeping them on — and
+    /// the scan switch is left exactly as the file had it.
+    func testLegacyPayloadMigratesToHiddenConfigTools() throws {
+        let json = #"{"scanConfigFiles":true,"showConfigToolsInPanel":true}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
+        let migrated = SettingsMigrator.migrate(
+            SettingsPayload(schemaVersion: 8, settings: decoded)
+        )
+        XCTAssertTrue(migrated.scanConfigFiles)
+        XCTAssertFalse(migrated.showConfigToolsInPanel)
+    }
+
+    /// A v9 file states the switch itself; the migration must not second-guess it.
+    func testCurrentPayloadKeepsShownConfigTools() {
+        var settings = AppSettingsSnapshot()
+        settings.showConfigToolsInPanel = true
+        let migrated = SettingsMigrator.migrate(
+            SettingsPayload(schemaVersion: 9, settings: settings)
+        )
+        XCTAssertTrue(migrated.showConfigToolsInPanel)
+    }
+
+    func testConfigToolSwitchRoundTrips() throws {
+        var settings = AppSettingsSnapshot()
+        settings.showConfigToolsInPanel = true
+        let decoded = try JSONDecoder().decode(
+            AppSettingsSnapshot.self,
+            from: try JSONEncoder().encode(settings)
+        )
+        XCTAssertTrue(decoded.showConfigToolsInPanel)
+    }
 }

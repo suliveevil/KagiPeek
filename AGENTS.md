@@ -9,6 +9,8 @@ KagiPeek 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）�
   报 `@State` 宏的 "malformed response" 假错，沙箱外前台可 `BUILD SUCCEEDED`。
 - 测试：`swift test --disable-sandbox`（沙箱内 `swift test` 的 manifest 构建会失败）。
 - 改编译参数要同步三条构建路径：Xcode target、`build_swiftc.sh`、`Package.swift`。
+- 代码变动要紧跟着更新对应的代码内注释和项目内文档（README / `docs/` / 草稿），
+  不留到「以后补」：行为、默认值、设置项位置变了，注释和文档在同一次提交里变。
 
 ## git（多 agent 协作）
 
