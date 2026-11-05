@@ -14,28 +14,10 @@
     {
       "layers": [
         {
-          "name": "Command key",
-          "glass": false,
-          "fill": "none",
-          "image-name": "command-key.png"
-        }
-      ],
-      "shadow": {
-        "kind": "neutral",
-        "opacity": 0.35
-      },
-      "translucency": {
-        "enabled": true,
-        "value": 0.12
-      }
-    },
-    {
-      "layers": [
-        {
           "name": "Reuleaux rotor",
           "glass": true,
           "fill": "none",
-          "image-name": "keys.png"
+          "image-name": "rotor.png"
         }
       ],
       "shadow": {
