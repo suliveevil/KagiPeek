@@ -90,6 +90,7 @@ nonisolated struct MenuScanCache {
             ),
             at: controlURL
         )
+        prune(keeping: entryURL(identity: identity).lastPathComponent, now: now)
     }
 
     /// Drops every entry. Used when the whole cache must go — a reset to defaults writes
@@ -101,6 +102,51 @@ nonisolated struct MenuScanCache {
         ) else { return }
         for file in contents where file.pathExtension == "json" {
             try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    // MARK: - Registry
+
+    /// Drops the entries `ArtifactRetentionPolicy.menuCache` names.
+    ///
+    /// Runs after a save, so the entry just written is already in the folder when the count is
+    /// taken: the ceiling is never exceeded by one, and the newest entry is the one the policy
+    /// protects anyway. Two names are excluded regardless of what the policy says — the entry
+    /// this call just produced (it may share a timestamp with a neighbour, and losing it would
+    /// undo the save) and `control.json`, which is the index that makes every other entry
+    /// readable. The whole folder is derived data, so a failed delete costs a stale file for
+    /// one more scan; a debug line says so and the next save tries again.
+    private static func prune(keeping current: String, now: Date) {
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(
+                at: folderURL,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            )
+        } catch {
+            Diag.debug(.settings, "could not list the menu cache for pruning: \(error.localizedDescription)")
+            return
+        }
+        let candidates: [RetentionCandidate] = contents.compactMap { url in
+            let name = url.lastPathComponent
+            guard url.pathExtension == "json", name != controlURL.lastPathComponent, name != current else {
+                return nil
+            }
+            // An entry whose date cannot be read is not evidence of anything, but there is no
+            // reason to delete what cannot be dated either; the next save will see it again.
+            guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate else { return nil }
+            return RetentionCandidate(name: name, modifiedAt: modified)
+        }
+        for artifact in ArtifactRetentionPolicy.menuCache.artifactsToDelete(entries: candidates, now: now) {
+            do {
+                try FileManager.default.removeItem(at: folderURL.appendingPathComponent(artifact.name))
+            } catch {
+                Diag.debug(.settings, """
+                    could not delete the menu cache entry \(artifact.name): \
+                    \(error.localizedDescription)
+                    """)
+            }
         }
     }
 

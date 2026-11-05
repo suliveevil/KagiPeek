@@ -25,10 +25,22 @@ nonisolated final class ActionRecorder: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.voltline.kagipeek.diag.actions", qos: .utility)
     private var pendingMirror: DispatchWorkItem?
     private let mirrorURL: URL
+    /// The last write failure, owned by `queue`. Carried into diagnostics reports so a crash
+    /// report with no recent actions can say whether the session was quiet or the mirror was
+    /// broken.
+    private var lastMirrorError: String?
+    /// Suppresses the same warning once per distinct failure: the mirror retries on every
+    /// recorded action, and a read-only folder would otherwise fill the log it cannot write.
+    private var reportedMirrorError: String?
 
     init(mirrorURL: URL = ActionRecorder.defaultMirrorURL) {
         self.mirrorURL = mirrorURL
         self.buffer = RingBuffer<ActionRecord>(capacity: capacity)
+    }
+
+    /// Why the last mirror write failed, if it did. `nil` means the mirror is current.
+    var mirrorError: String? {
+        queue.sync { lastMirrorError }
     }
 
     static var defaultMirrorURL: URL {
@@ -48,7 +60,18 @@ nonisolated final class ActionRecorder: @unchecked Sendable {
     func clear() {
         buffer.removeAll()
         queue.async { [mirrorURL] in
-            try? FileManager.default.removeItem(at: mirrorURL)
+            do {
+                try FileManager.default.removeItem(at: mirrorURL)
+            } catch CocoaError.fileNoSuchFile {
+                // The normal case: no action was recorded, so no mirror was written.
+            } catch {
+                // A stale mirror would be attached to the next crash as if it belonged to
+                // that session. Nothing can fix it here, but the failure must not be silent.
+                Diag.warning(.crash, """
+                    could not remove the action mirror \(mirrorURL.lastPathComponent): \
+                    \(error.localizedDescription)
+                    """)
+            }
         }
     }
 
@@ -68,18 +91,41 @@ nonisolated final class ActionRecorder: @unchecked Sendable {
 
     private func writeMirror() {
         let records = buffer.snapshot()
-        let encoder = JSONEncoder()
-        guard let data = try? encoder.encode(records) else { return }
-        try? FileManager.default.createDirectory(
-            at: mirrorURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try? data.write(to: mirrorURL, options: [.atomic])
+        do {
+            let data = try JSONEncoder().encode(records)
+            try FileManager.default.createDirectory(
+                at: mirrorURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: mirrorURL, options: [.atomic])
+            lastMirrorError = nil
+            reportedMirrorError = nil
+        } catch {
+            let detail = "the recent-action mirror could not be written: \(error.localizedDescription)"
+            lastMirrorError = detail
+            if reportedMirrorError != detail {
+                reportedMirrorError = detail
+                Diag.warning(.crash, detail)
+            }
+        }
     }
 
     /// Reads what a previous (crashed) session left behind.
-    static func loadMirror(at url: URL = ActionRecorder.defaultMirrorURL) -> [ActionRecord] {
-        guard let data = try? Data(contentsOf: url) else { return [] }
-        return (try? JSONDecoder().decode([ActionRecord].self, from: data)) ?? []
+    ///
+    /// The error is separate from the records because the caller writes a crash report:
+    /// "the user did nothing before the crash" and "the mirror could not be read" produce the
+    /// same empty array but are very different answers for whoever reads the report.
+    static func loadMirror(at url: URL = ActionRecorder.defaultMirrorURL) -> (records: [ActionRecord], error: String?) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], nil) }
+        do {
+            let data = try Data(contentsOf: url)
+            do {
+                return (try JSONDecoder().decode([ActionRecord].self, from: data), nil)
+            } catch {
+                return ([], "the action mirror could not be decoded: \(error.localizedDescription)")
+            }
+        } catch {
+            return ([], "the action mirror could not be read: \(error.localizedDescription)")
+        }
     }
 }

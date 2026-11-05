@@ -40,6 +40,35 @@ nonisolated enum CrashReporter {
     private static let logs = FileLogStore.shared
     private static let actions = ActionRecorder.shared
 
+    /// Written once by the launch-time sweep and read later by the diagnostics report, which
+    /// can be produced on a background queue. The lock is the honest spelling of that access:
+    /// the value is small and read rarely, and a torn read would be a wrong report.
+    ///
+    /// The guarded blocks go through `withLock`, the same idiom as `KeyboardMonitor` and
+    /// `Diag.State`: the lock is never spelled at a call site, so there is no pair to leave
+    /// half-finished.
+    private final class RecoveryState: @unchecked Sendable {
+        private let lock = NSLock()
+        var status = CrashRecoveryStatus()
+
+        func withLock<T>(_ body: (RecoveryState) -> T) -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(self)
+        }
+    }
+    private static let recoveryState = RecoveryState()
+
+    /// What the last launch-time fragment sweep could not complete. Empty when nothing was
+    /// left behind, or when everything left behind became a report.
+    static var recoveryStatus: CrashRecoveryStatus {
+        recoveryState.withLock { $0.status }
+    }
+
+    private static func publish(_ status: CrashRecoveryStatus) {
+        recoveryState.withLock { $0.status = status }
+    }
+
     /// "Was the app frontmost when it died" is a best-effort diagnostic, and AppKit's
     /// `isActive` is main-actor-isolated — a crash handler cannot read it. Rather than
     /// asserting main-actor isolation from a thread that may not be main, the reader is
@@ -121,6 +150,7 @@ nonisolated enum CrashReporter {
         reportPreviousSessionIfNeeded()
         writeSentinel()
         prepareSignalFragment()
+        pruneCrashReports()
         // Says out loud whether the next crash will leave anything behind — the one piece of
         // diagnostics state that is otherwise invisible.
         Diag.info(.crash, """
@@ -328,20 +358,112 @@ nonisolated enum CrashReporter {
         }
     }
 
+    // MARK: - Retention
+
+    /// Deletes the crash reports `ArtifactRetentionPolicy.crashReports` names.
+    ///
+    /// Runs once per launch, at the end of `beginSession` — after the fragment sweep, so a
+    /// launch that recovers twenty fragments does not leave the folder at twenty-one, and
+    /// before anything reads the folder again. The only file that must never be touched is
+    /// this session's own evidence: none exists yet (a clean session writes no `.partial`),
+    /// and the policy would not name a `.partial` even if one did.
+    ///
+    /// A failed delete is housekeeping, not a launch failure: the file simply survives until
+    /// the next launch can try again. It still gets a line, because "the folder did not
+    /// shrink" is otherwise indistinguishable from "retention is not running".
+    private static func pruneCrashReports() {
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(
+                at: crashDirectory,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            )
+        } catch {
+            // `completePartialReports` already warned that the folder cannot be listed; a
+            // second warning would repeat it. Debug keeps the two failures distinguishable.
+            Diag.debug(.crash, "could not list the crash folder for retention: \(error.localizedDescription)")
+            return
+        }
+        let candidates: [RetentionCandidate] = contents.compactMap { url in
+            let name = url.lastPathComponent
+            let isPartial = name.hasSuffix(".partial")
+            guard isPartial || name.hasSuffix(".json") else { return nil }
+            // An unreadable date means "we do not know how old this is", which is not the same
+            // as "it is ancient". Leaving it out keeps the policy from deleting evidence it
+            // cannot date.
+            guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate else { return nil }
+            return RetentionCandidate(name: name, modifiedAt: modified, isPartial: isPartial)
+        }
+        let doomed = ArtifactRetentionPolicy.crashReports.artifactsToDelete(entries: candidates)
+        for artifact in doomed {
+            do {
+                try FileManager.default.removeItem(at: crashDirectory.appendingPathComponent(artifact.name))
+            } catch {
+                Diag.warning(.crash, """
+                    could not delete the old crash report \(artifact.name) \
+                    (\(error.localizedDescription)); it stays until retention can remove it
+                    """)
+            }
+        }
+        if !doomed.isEmpty {
+            Diag.debug(.crash, "retention removed \(doomed.count) of \(candidates.count) crash reports")
+        }
+    }
+
     /// Called at launch: turns every signal fragment left by a dead session into a full
     /// report, using the action mirror and the day's log tail.
+    ///
+    /// Three outcomes are deliberately different, because they call for different actions:
+    /// * an unreadable fragment is **kept** — permissions or an I/O error can be temporary,
+    ///   and the fragment is the only record of that crash;
+    /// * a fragment that parses but cannot become a report is **kept** and retried next
+    ///   launch, for the same reason;
+    /// * a fragment that does not contain the fields the formatter needs is unparseable by
+    ///   construction and is deleted, but with a debug line rather than as a side effect.
     private static func completePartialReports() {
-        let contents = (try? FileManager.default.contentsOfDirectory(
-            at: crashDirectory,
-            includingPropertiesForKeys: nil
-        )) ?? []
+        var status = CrashRecoveryStatus()
+        defer { publish(status) }
+
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(
+                at: crashDirectory,
+                includingPropertiesForKeys: nil
+            )
+        } catch {
+            status.folderError = error.localizedDescription
+            Diag.warning(.crash, """
+                could not list the crash folder, so any fragment in it stays unprocessed: \
+                \(error.localizedDescription)
+                """)
+            return
+        }
+
         for url in contents where url.lastPathComponent.hasSuffix(".partial") {
-            guard let raw = try? String(contentsOf: url, encoding: .utf8),
-                  let info = CrashLogFormatter.parsePartial(raw) else {
+            let name = url.lastPathComponent
+            let raw: String
+            do {
+                raw = try String(contentsOf: url, encoding: .utf8)
+            } catch {
+                status.unreadable.append(.init(name: name, detail: error.localizedDescription))
+                Diag.warning(.crash, """
+                    could not read crash fragment \(name), keeping it for the next launch: \
+                    \(error.localizedDescription)
+                    """)
+                continue
+            }
+            guard let info = CrashLogFormatter.parsePartial(raw) else {
+                // Unlike a read failure, this file cannot become a report no matter how many
+                // times it is retried. Deleting it is the right call; doing so without a trace
+                // was not.
+                status.discarded.append(.init(name: name, detail: "the fragment did not contain the expected fields"))
+                Diag.debug(.crash, "discarding unparseable crash fragment \(name)")
                 try? FileManager.default.removeItem(at: url)
                 continue
             }
             let occurredAt = Date(timeIntervalSince1970: info.timestamp)
+            let mirror = ActionRecorder.loadMirror()
             let context = CrashContext(
                 kind: "signal",
                 exceptionName: nil,
@@ -353,12 +475,14 @@ nonisolated enum CrashReporter {
                 macOSVersion: info.macOSVersion,
                 modelIdentifier: info.modelIdentifier,
                 isAppActive: false,
-                recentActions: ActionRecorder.loadMirror(),
-                callStack: nil
+                recentActions: mirror.records,
+                recentActionsError: mirror.error
             )
+            let tail = logs.tail(of: occurredAt, lines: 200)
             let report = CrashLogFormatter.makeReport(
                 context: context,
-                logTail: logs.tail(of: occurredAt, lines: 200)
+                logTail: tail.lines,
+                logTailError: tail.error
             )
             let target = crashDirectory.appendingPathComponent(
                 "kagipeek-crash-\(timestampString(occurredAt))-\(CrashLogFormatter.signalName(info.signalNumber)).json"
@@ -367,14 +491,34 @@ nonisolated enum CrashReporter {
                 try CrashLogFormatter.render(report).write(to: target, atomically: true, encoding: .utf8)
             } catch {
                 // The report was assembled and then thrown away: the one failure this feature
-                // exists to avoid. Say so, because the alternative is a user reporting a crash
-                // to a log that insists nothing happened.
-                Diag.warning(
-                    .crash,
-                    "could not write the crash report to \(target.lastPathComponent) (\(error.localizedDescription))"
-                )
+                // exists to avoid. Keep the fragment so the next launch can try again, and say
+                // so, because the alternative is a user reporting a crash to a log that insists
+                // nothing happened.
+                status.failedToComplete.append(.init(
+                    name: name,
+                    detail: "the completed report could not be written: \(error.localizedDescription)"
+                ))
+                Diag.warning(.crash, """
+                    could not write the crash report to \(target.lastPathComponent) \
+                    (\(error.localizedDescription)); keeping \(name) for the next launch
+                    """)
+                continue
             }
-            try? FileManager.default.removeItem(at: url)
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                // The report exists now, but the fragment does too: the next launch would
+                // produce a duplicate. Record it rather than leaving the folder to grow one
+                // copy per launch.
+                status.failedToComplete.append(.init(
+                    name: name,
+                    detail: "the completed report was written but the fragment could not be removed: \(error.localizedDescription)"
+                ))
+                Diag.warning(.crash, """
+                    wrote \(target.lastPathComponent) but could not remove \(name): \
+                    \(error.localizedDescription)
+                    """)
+            }
         }
     }
 

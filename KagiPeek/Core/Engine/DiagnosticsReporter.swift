@@ -55,7 +55,13 @@ final class DiagnosticsReporter {
                 usageTotalPresses: usageStore.totalPresses,
                 favoriteCount: usageStore.favorites.count,
                 dataFolderPath: usageStore.dataFolderURL.path,
-                windowTitles: NSApp.windows.filter(\.isVisible).map(\.title)
+                windowTitles: NSApp.windows.filter(\.isVisible).map(\.title),
+                crashRecoveryErrors: CrashReporter.recoveryStatus.messages,
+                actionMirrorError: ActionRecorder.shared.mirrorError,
+                logLinesDropped: FileLogStore.shared.droppedLineCount,
+                // The same prefix the file log uses, so a path reads `~/Library/...` in the
+                // report exactly as it does in the log it sits next to.
+                homePrefix: NSHomeDirectory()
             )
         )
     }

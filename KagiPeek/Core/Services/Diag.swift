@@ -29,26 +29,23 @@ nonisolated enum Diag {
     /// `nonisolated`: the event-tap thread logs from its callback, and a main-actor hop
     /// there is precisely what the dedicated tap thread was created to avoid.
     private final class State: @unchecked Sendable {
-        let lock = NSLock()
+        private let lock = NSLock()
         var enabled = true
         var verbose = false
         var store: FileLogStore?
+
+        /// The one idiom for shared state in this program, the same shape as
+        /// `KeyboardMonitor.withLock` and `CrashReporter.RecoveryState.withLock`: no caller
+        /// spells `lock()`/`unlock()`, so no caller can miss one. Three spellings of the same
+        /// invariant is how the next person concludes all three are fine.
+        func withLock<T>(_ body: (State) -> T) -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(self)
+        }
     }
 
     private static let state = State()
-    private static var lock: NSLock { state.lock }
-    private static var enabled: Bool {
-        get { state.enabled }
-        set { state.enabled = newValue }
-    }
-    private static var verbose: Bool {
-        get { state.verbose }
-        set { state.verbose = newValue }
-    }
-    private static var store: FileLogStore? {
-        get { state.store }
-        set { state.store = newValue }
-    }
     private static let subsystem = Bundle.main.bundleIdentifier ?? "com.voltline.kagipeek"
     /// Menu scanning: which app, how many items, why a catalog was empty or dropped.
     private static let scanLogger = Logger(subsystem: subsystem, category: "scan")
@@ -61,14 +58,11 @@ nonisolated enum Diag {
 
     /// Wires the switches and the sink. Called at launch and whenever settings change.
     static func configure(enabled: Bool, verbose: Bool, store: FileLogStore = .shared) {
-        lock.lock()
-        // `defer`, like every other guarded block in this file: the three assignments are
-        // straight-line today, but the first `return` someone adds between them would leave
-        // the logger locked — and a locked logger is silent, so nothing would say why.
-        defer { lock.unlock() }
-        self.enabled = enabled
-        self.verbose = verbose
-        self.store = store
+        state.withLock { state in
+            state.enabled = enabled
+            state.verbose = verbose
+            state.store = store
+        }
     }
 
     static func applySettings(_ settings: AppSettingsSnapshot) {
@@ -76,15 +70,11 @@ nonisolated enum Diag {
     }
 
     static var isEnabled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return enabled
+        state.withLock { $0.enabled }
     }
 
     static var isVerbose: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return verbose
+        state.withLock { $0.verbose }
     }
 
     // MARK: - Levels
@@ -127,11 +117,9 @@ nonisolated enum Diag {
         _ tag: DiagTag,
         _ message: () -> String
     ) {
-        lock.lock()
-        let enabled = self.enabled
-        let verbose = self.verbose
-        let store = self.store
-        lock.unlock()
+        // Copied out in one guarded read: the message is built after the lock is released, so
+        // a slow caller cannot hold the logger against every other thread.
+        let (enabled, verbose, store) = state.withLock { ($0.enabled, $0.verbose, $0.store) }
 
         guard enabled else { return }
         guard LogLevelFilter.shouldLog(level: level, verboseEnabled: verbose) else { return }
