@@ -127,7 +127,15 @@ final class SurfacePanelController: PanelPresenting {
         let screen = targetScreen()
         let size = panelSize(for: state, settings: settings, screen: screen)
         panel.setContentSize(size)
-        panel.setFrame(panelFrame(size: size, settings: settings, screen: screen), display: true)
+        let frame = panelFrame(size: size, settings: settings, screen: screen)
+        // Every keystroke rebuilds the page, but the frame usually does not move. Skipping
+        // an identical `setFrame` avoids a whole-window redraw per key. The comparison is
+        // the full rect on purpose: with `besideWindow` the size stays the same while the
+        // origin follows the anchor window, and a size-only check would leave the panel
+        // behind the app it was meant to sit next to.
+        if panel.frame != frame {
+            panel.setFrame(frame, display: true)
+        }
         panel.orderFrontRegardless()
         installOutsideClickMonitor()
         // Armed every time the panel is drawn, because its frame moves with the list: the
