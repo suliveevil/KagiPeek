@@ -184,12 +184,11 @@ final class ConflictCenter {
 
     /// Catalog of one running app, cache first (`force: false`).
     private func catalogItems(for app: AppEntry) async -> (items: [BindingItem], state: ScanState) {
+        var query = CatalogQuery(settings: state.settings)
+        query.includeBuiltIn = false
         let snapshot = await catalogLoader.load(
             app: FrontmostApp(pid: app.pid, bundleID: app.bundleID, name: app.name, icon: app.icon),
-            language: state.settings.language,
-            includeBuiltIn: false,
-            showAppleMenu: state.settings.showAppleMenu,
-            force: false
+            query: query
         )
         return (snapshot.items, snapshot.state)
     }

@@ -232,6 +232,20 @@ nonisolated final class CatalogLoader: @unchecked Sendable {
         }
     }
 
+    /// Convenience for callers that already hold a `CatalogQuery`: expand it into the
+    /// original argument list. The scan itself — the two queues, the slot semaphore, the
+    /// request gate and the cache — is deliberately left untouched.
+    @concurrent
+    func load(app: FrontmostApp, query: CatalogQuery) async -> CatalogSnapshot {
+        await load(
+            app: app,
+            language: query.language,
+            includeBuiltIn: query.includeBuiltIn,
+            showAppleMenu: query.showAppleMenu,
+            force: query.force
+        )
+    }
+
     /// Re-walks a restored row's menu path and verifies its title on the element queue.
     ///
     /// The caller resumes on the main actor only to press; resolution itself never touches
