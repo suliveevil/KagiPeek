@@ -32,29 +32,43 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("", selection: $tab) {
+        // A sidebar, not an eight-segment picker: at 680 pt each segment had about 80 pt,
+        // which already crowded "Diagnostics" in English and would have broken at the
+        // first word longer than that. Nine pages did not fit one row; a list does, and it
+        // is the shape macOS 14 users expect from a settings window.
+        NavigationSplitView {
+            // `List` selection is optional by default; this window always shows one page, so
+            // clearing the selection is ignored instead of blanking the detail column.
+            List(selection: tabSelection) {
                 ForEach(SettingsTab.allCases, id: \.self) { item in
-                    Text(localization.text(item.titleKey)).tag(item)
+                    Label(localization.text(item.titleKey), systemImage: item.symbolName)
+                        .tag(item)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
-            Divider()
-
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 168, ideal: 188, max: 240)
+            // The list is the only navigation, so a collapsed sidebar would be an empty
+            // window with no way back. The window is resizable; that is enough control.
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            // The page content is unchanged: only the container around it moved.
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 680, minHeight: 600)
         .background(Theme.surface)
         .environmentObject(localization)
         .onAppear {
             engine.closeSurfaces()
         }
+    }
+
+    private var tabSelection: Binding<SettingsTab?> {
+        Binding(
+            get: { tab },
+            set: { if let selected = $0 { tab = selected } }
+        )
     }
 
     @ViewBuilder
@@ -1194,6 +1208,22 @@ enum SettingsTab: String, CaseIterable {
         case .permissions: return .permissionTitle
         case .diagnostics: return .diagnosticsTitle
         case .about: return .aboutTitle
+        }
+    }
+
+    /// The sidebar glyph. Symbol names, not text: they carry no wording and so need no
+    /// localization. Each one already means the same thing elsewhere in the app —
+    /// `gearshape` is Settings in the menu bar, `lock.shield` is the permission guide.
+    var symbolName: String {
+        switch self {
+        case .general: return "gearshape"
+        case .trigger: return "keyboard"
+        case .appearance: return "paintbrush"
+        case .statistics: return "chart.bar"
+        case .conflicts: return "exclamationmark.triangle"
+        case .permissions: return "lock.shield"
+        case .diagnostics: return "stethoscope"
+        case .about: return "info.circle"
         }
     }
 }
