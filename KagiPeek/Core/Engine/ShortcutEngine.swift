@@ -1068,11 +1068,7 @@ final class ShortcutEngine: ObservableObject {
         }
         // Same rule as `RowRunner.runSystemHotkey`: one pending replay, and a handle the
         // shutdown path can cancel before it posts.
-        let chord = probe
-        state.injectionTask?.cancel()
-        state.injectionTask = Task { @MainActor in
-            await ShortcutInjector.post(chord, delay: 0.12)
-        }
+        state.enqueueInjection(probe)
     }
 
     private func descend(_ probe: KeyChord) {

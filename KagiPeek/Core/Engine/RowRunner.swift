@@ -286,11 +286,7 @@ final class RowRunner {
         )
         // One pending replay at a time: a second hotkey pressed before the first one has
         // posted would otherwise leave two chords racing into the same app.
-        let chord = system.chord
-        state.injectionTask?.cancel()
-        state.injectionTask = Task { @MainActor in
-            await ShortcutInjector.post(chord, delay: 0.12)
-        }
+        state.enqueueInjection(system.chord)
     }
 
     /// The panel has to show the toast too: the setting promises a confirmation and a run

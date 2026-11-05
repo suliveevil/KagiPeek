@@ -165,6 +165,20 @@ final class EngineState: ObservableObject {
     /// not inherit anyone's cancellation, so without this handle there is no way to stop it
     /// between its activation wait and the key it would post.
     var injectionTask: Task<Void, Never>?
+
+    /// Queues a replay, replacing whatever was queued before.
+    ///
+    /// Two call sites reach this: a system-hotkey row and a composed chord from the panel.
+    /// They used to spell the whole hand-off out twice — cancel, start, post — and the delay
+    /// and the cancellation rule would have had to be kept in step by hand. One of them
+    /// silently not matching is exactly the kind of difference nobody notices until a chord
+    /// lands in the wrong app.
+    func enqueueInjection(_ chord: KeyChord, delay: TimeInterval = 0.12) {
+        injectionTask?.cancel()
+        injectionTask = Task { @MainActor in
+            await ShortcutInjector.post(chord, delay: delay)
+        }
+    }
     var crossAppRefreshTask: Task<Void, Never>?
     var configScanTask: Task<Void, Never>?
     var configScanGeneration = 0
