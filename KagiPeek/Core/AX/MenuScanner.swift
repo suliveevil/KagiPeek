@@ -262,7 +262,9 @@ nonisolated enum MenuScanner {
         let childDecision = submenuDecision(for: submenu)
         if childDecision.looksLikeContent {
             let label = Sanitizer.clamp(title.isEmpty ? (path.last ?? "?") : title)
-            Diag.info(.scan, """
+            // Same rule as the top-level line above: a submenu title is another application's
+            // content — a bookmark folder, a history group — so it is a verbose-only detail.
+            Diag.debug(.scan, """
                 submenu ·\(label) looks like data (\(submenu.count) children),                 reading \(childDecision.childrenToVisit) of them
                 """)
         }
