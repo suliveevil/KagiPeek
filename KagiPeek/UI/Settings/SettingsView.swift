@@ -679,11 +679,16 @@ struct SettingsView: View {
     /// shortcut is recovered from the usage key. Saying "not scanned" is more useful than
     /// hiding a command the user clearly pressed.
     private func usageRow(_ entry: UsageEntry) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(entry.chord.map { KeyFormatter.render($0, style: settings.keyStyle) } ?? "—")
+        let renderedChord = entry.chord.map { KeyFormatter.render($0, style: settings.keyStyle) }
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(renderedChord ?? "—")
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(entry.isShortcutless ? .secondary : .primary)
                 .frame(width: 76, alignment: .leading)
+                // The dash is the column's word for "this command has no shortcut";
+                // VoiceOver would read the glyph itself, so the label says the same thing
+                // in words. "Not set" is the app's existing word for an unassigned key.
+                .accessibilityLabel(renderedChord ?? localization.text(.triggerUnset))
             Text(entry.title ?? localization.text(.statsUnknownCommand))
                 .font(.caption)
                 .foregroundStyle(entry.title == nil ? .secondary : .primary)
@@ -1010,10 +1015,10 @@ struct SettingsView: View {
 
             Section(localization.text(.aboutDiagnostics)) {
                 LabeledContent(localization.text(.permissionAccessibility)) {
-                    Text(state.hasAccessibility ? "✓" : "—")
+                    permissionMark(state.hasAccessibility)
                 }
                 LabeledContent(localization.text(.permissionInputMonitoring)) {
-                    Text(state.hasInputMonitoring ? "✓" : "—")
+                    permissionMark(state.hasInputMonitoring)
                 }
                 LabeledContent(localization.text(.statusLabel)) {
                     Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
@@ -1050,6 +1055,17 @@ struct SettingsView: View {
 
     private var logFolderURL: URL {
         DataDirectory.url(for: "logs")
+    }
+
+    /// A permission state drawn as a bare glyph.
+    ///
+    /// "✓" and "—" are the element's entire content, so VoiceOver reads "check mark" or
+    /// "em dash" and never the state itself. The glyph stays — the column is meant to be
+    /// scanned down — and the label supplies the two words the Permissions page already
+    /// uses next to its coloured capsule.
+    private func permissionMark(_ granted: Bool) -> some View {
+        Text(granted ? "✓" : "—")
+            .accessibilityLabel(localization.text(granted ? .permissionGranted : .permissionMissing))
     }
 
     /// Writes the archive the user picked a destination for.
@@ -1296,7 +1312,11 @@ private struct IgnoreCommandSheet: View {
 
             if !scopeIsGlobal {
                 Picker(localization.text(.ignoredAppPicker), selection: $selectedAppID) {
-                    Text("—").tag(String?.none)
+                    // The empty choice is a dash: it means "nothing picked yet", and the
+                    // dash is read as "em dash" rather than as that meaning.
+                    Text("—")
+                        .tag(String?.none)
+                        .accessibilityLabel(localization.text(.triggerUnset))
                     ForEach(runningApps) { app in
                         Text(app.name).tag(Optional(app.id))
                     }

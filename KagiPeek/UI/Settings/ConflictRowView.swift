@@ -85,6 +85,13 @@ struct ConflictRowView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        // An unnamed system hotkey carries the placeholder dash as its
+                        // title, so this line renders "macOS — —" and VoiceOver reads two
+                        // em dashes. The label names the command the way the panel does:
+                        // by its chord. The line itself is unchanged.
+                        .accessibilityLabel(
+                            "\(engine.displayOwner(of: item)), \(engine.displayName(of: item))"
+                        )
                     Spacer(minLength: 0)
                 }
             }
