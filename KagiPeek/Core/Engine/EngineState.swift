@@ -127,6 +127,12 @@ final class EngineState: ObservableObject {
     var orderedHitsCache: (key: OrderedHitsKey, hits: [PrefixHit])?
     /// The budget the panel window is sized for, cached on its own key.
     var rowBudgetCache: (key: RowBudgetKey, rows: Int, headings: Int)?
+    /// The corpus the panel's inline filter runs against: all three sources, built once per
+    /// catalog instead of once per keystroke. Nil until the first narrowed keystroke, and
+    /// again while the panel is hidden — the haystacks are the biggest thing this session
+    /// holds. The key names what it was built from, so a rescan cannot be answered from it.
+    var panelFilterCorpus: SearchCorpus?
+    var panelFilterCorpusKey: String?
     /// Per-app usage breakdowns, invalidated by a usage-signature change.
     var usageBreakdownCache: [String: (signature: String, entries: [UsageEntry])] = [:]
     /// Which scanned items are ignored right now (deduplicated by id), so both the panel

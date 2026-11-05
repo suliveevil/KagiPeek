@@ -484,11 +484,30 @@ final class PanelSession {
     /// The palette's cached corpus is deliberately not reused: it is built from the palette's
     /// scope (one app, plus the system hotkeys) and never contains tool rows, so filtering
     /// through it would silently hide the whole config-tool section.
+    ///
+    /// Built once per catalog, not once per keystroke. The key covers every input the corpus
+    /// is made of: a scan (the menu trees), a config read (the tool rows), the system rows,
+    /// the key style that renders the chords, and the language the titles are in. `configScan`
+    /// is in the key because a rewrite that keeps the row count still changes the documents.
     private func filterCorpus() -> SearchCorpus {
-        SearchCorpus(
+        let key = [
+            String(state.catalog.scannedAt.timeIntervalSince1970),
+            String(state.configScanGeneration),
+            String(state.configScan.scannedAt.timeIntervalSince1970),
+            String(state.systemBindings.count),
+            state.settings.keyStyle.rawValue,
+            localization.language.rawValue
+        ].joined(separator: "|")
+        if let cached = state.panelFilterCorpus, state.panelFilterCorpusKey == key {
+            return cached
+        }
+        let corpus = SearchCorpus(
             items: state.catalog.items + state.systemBindings + state.configBindings,
             style: state.settings.keyStyle
         )
+        state.panelFilterCorpus = corpus
+        state.panelFilterCorpusKey = key
+        return corpus
     }
 
     /// Rows that are part of the shortcut currently being pressed.

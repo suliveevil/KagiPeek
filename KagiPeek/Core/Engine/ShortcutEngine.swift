@@ -1247,6 +1247,10 @@ final class ShortcutEngine: ObservableObject {
         state.hyperEscape = HyperEscape()
         state.modifierTap.reset()
         state.panel = .hidden
+        // The filter corpus is the biggest cache this session holds, and only a visible panel
+        // can ask for it. The next open rebuilds it from whatever catalog is current.
+        state.panelFilterCorpus = nil
+        state.panelFilterCorpusKey = nil
         updateKeyCapture()
         publishInputState()
         presenters.panel.presentPanel(state: state.panel, settings: state.settings)
