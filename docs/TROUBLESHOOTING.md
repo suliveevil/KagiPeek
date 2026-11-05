@@ -2,7 +2,7 @@
 
 Start here when something does not work. Every section names the log category to look at;
 `log show --last 10m --predicate 'subsystem == "com.voltline.kagipeek"'` prints all of them,
-and **Settings → Diagnostics → Export diagnostics…** writes a zip you can attach to a bug
+and **Settings → Diagnostics → Export diagnostics archive…** writes a zip you can attach to a bug
 report.
 
 ## Where the diagnostics live
@@ -64,9 +64,10 @@ without asking the user to reproduce it.
 4. **Is the front app excluded?** **Settings → General → Excluded apps** lists bundle
    identifiers whose panel is suppressed. `UsageStore`/`ShortcutEngine` log nothing here by
    design; check the list.
-5. **Is the key tap running?** The About tab's *Diagnostics* row says whether the listener is
-   active. If it is not, quit and relaunch; if it stays off with Accessibility granted, grant
-   Input Monitoring as well — some systems gate key delivery behind it.
+5. **Is the key tap running?** **Settings → Diagnostics** has a *Diagnostics* section whose
+   **Status** row says whether the listener is active. If it is not, quit and relaunch; if it
+   stays off with Accessibility granted, grant Input Monitoring as well — some systems gate key
+   delivery behind it.
 
 Log category: `input` (event tap installed / failed), `ui` (permission state).
 
@@ -88,20 +89,12 @@ Log category: `input` (event tap installed / failed), `ui` (permission state).
    Accessibility; the chord is only replayed when that press fails, so a shortcut handled in a
    custom view (with no menu item behind it) cannot be run this way. From the palette, the
    scoped app is activated first and the menu item is triggered after it comes forward, so an app that is
-   slow to activate may miss it. Log category `input` records
-   `replaying … into <bundle id>` when a chord is posted and `no target app …; not injecting`
-   when there was nobody to send it to.
+   slow to activate may miss it. `[run]` logs `ax-press refused, replaying …` when the press
+   failed and the chord is posted instead; `[inject]` logs `target not frontmost (…)`,
+   `target pid … is gone, nothing posted`, or `target changed during the wait: …` when there is
+   nobody left to send it to.
 3. **The chord is incomplete.** A menu item that still has further steps descends a level instead of
    running; the breadcrumb tells you where you are.
-
-## Space runs, Return copies — is that right?
-
-Yes. They are two recorded bindings: the run key (Space by default) replays the menu item's shortcut into the
-front app, the copy key (Return by default) only writes it to the clipboard. Change either one
-under **Settings → General → Menu item actions**; the footer shows what the two keys currently do.
-
-The search palette is different on purpose: Return always runs there and there is no copy
-action.
 
 ## Chinese input does not work in the search field
 
