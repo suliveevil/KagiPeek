@@ -31,7 +31,7 @@ The built-in catalog (about 100 system, text-editing, Finder, and screenshot sho
 
 An empty panel always says which of four states it is in, in this priority:
 
-1. **Accessibility is missing** — this state wins over everything else, because no scan can finish without it. The panel shows **Open the permission guide**, which is the way out.
+1. **Accessibility is missing** — this state wins over everything else, because no scan can finish without it. The panel shows a **Permission guide** button, which is the way out.
 2. **Still scanning** — a spinner, not a verdict. Wait for the scan to finish (large menus can take a moment).
 3. **Favourites-only with nothing pinned** — turn the filter off, or pin something with the star.
 4. **No match** — the current prefix, search terms, or filters exclude every menu item.
@@ -57,7 +57,7 @@ In the search palette, press the export button and choose a location. KagiPeek w
 
 You do not need both to get started. Grant Accessibility first, try holding ⌘, and add Input Monitoring only if the panel does not appear. See [PERMISSIONS.md](PERMISSIONS.md) for the full walkthrough.
 
-**Request Access** in **Settings → Permissions** does two things at once: it shows the system authorization prompt and opens the matching System Settings pane (Accessibility or Input Monitoring), so you do not have to find it yourself.
+**Request** in **Settings → Permissions** opens the matching System Settings pane (Accessibility or Input Monitoring), so you do not have to find it yourself. Only Input Monitoring also raises the system authorization prompt: for Accessibility a prompt would pre-register the app without enabling it, so the entry is added by dragging the KagiPeek icon into the list.
 
 ## How do I add KagiPeek to the permission list by dragging it?
 
@@ -70,7 +70,6 @@ No. There is no keystroke log and no text capture. Shortcut processing is local;
 - The global key tap is used to compute modifier/key state and to detect the recorded hotkeys. Events pass through to the front app untouched, except KagiPeek's own panel, search, and switch hotkeys and the panel's navigation keys, which are consumed; a shortcut that completes a menu item is **not** consumed. No event is logged, replayed, or written to disk.
 - Usage statistics store a **count and a last-used timestamp per `bundleID|chord`**, not a stream of key presses. They live in `usage.json` in Application Support, are grouped by app in Settings, and can be reset.
 - Menu scans are cached in memory per app for 20 seconds. Switching apps forces a rescan, app launch/quit clears the cache, and changing the language or catalog setting refreshes it. They are not uploaded or archived.
-- The only files KagiPeek writes are `settings.json` and `usage.json` in `~/Library/Application Support/KagiPeek/`; see *Where are settings and statistics stored?* above.
 - Search queries are not recorded.
 - **The update check is the only network request.** It runs only when you press **Check for updates**, fetches the public GitHub release document, and sends nothing about you, your apps, or your shortcuts.
 - When macOS reports secure input (password fields, login windows), the panel hides.
@@ -93,13 +92,13 @@ Press **⌃⌥⌘F** (default) to open the search palette, or press `/` while th
 - **English titles match word initials:** `fs` finds Find Similar.
 - Better matches rank first; the ranking is not affected by the order you type the terms in.
 - **↑/↓** moves the selection.
-- **Return runs the selected shortcut.** The palette closes, the app you were in comes back, and that one chord is replayed into it. It is not a copy: the palette has no copy action at all.
+- **Return runs the selected menu item.** The palette closes, the app you scoped the search to is activated, and the menu item is triggered there: it is pressed in the menu when the scan kept one, and only a menu item with no pressable element has its chord replayed. It is not a copy: the palette has no copy action at all.
 - To copy a chord without running it, use the copy key in the panel — Return by default, a recorded binding.
 - Menu items can be destructive (Delete, Empty Trash, Quit), which is why nothing runs until you press Return; the first match is merely selected.
 
 ## What does the ⚠︎ next to a shortcut mean?
 
-Another binding claims the same key combination. KagiPeek lists every conflict in **Settings → Conflicts**, with a type (menu order, blocked by macOS, blocked by a tool, two tools, one tool against itself) and a likely winner. Clashes with enabled macOS system shortcuts are included and marked as the system layer.
+Another binding claims the same key combination. KagiPeek lists every conflict in **Settings → Conflicts**, with a type — menu-order overlap, a system shortcut shadowing a menu item, a tool shadowing a menu item, a tool overlapping itself, system-vs-system, system-vs-tool, tool-vs-tool — and a likely winner. Clashes with enabled macOS system shortcuts are included and marked as the system layer.
 
 The warning is informational. macOS decides which menu item actually receives the key equivalent; KagiPeek cannot change that. A conflict often means an app exposes the same shortcut twice in different menus, or that a global shortcut collides with an app menu shortcut. If the app's own behavior surprises you, the conflict list is the place to look.
 
@@ -111,7 +110,7 @@ That list is read-only. KagiPeek never binds, changes, or disables a system shor
 
 ## Why are some system shortcuts shown as a key combination instead of a name?
 
-macOS does not publish the name of its own hotkeys; the description field is always empty. KagiPeek keeps a table of the assignments a stock Mac ships with, so common ones read as **Spotlight**, **Screenshot**, **Mission Control**. A chord outside that table — one you reassigned, or one of the enabled slots that has no function behind it — keeps the chord itself as the title and is labelled as a system hotkey. It is not a placeholder and not a missing shortcut, and the panel no longer shows an em dash for it.
+macOS does not publish the name of its own hotkeys; the description field is always empty. KagiPeek keeps a table of the assignments a stock Mac ships with, so common ones read as **Spotlight**, **Screenshot**, **Mission Control**. A chord outside that table — one you reassigned, or one of the enabled slots that has no function behind it — keeps the chord itself as the row's title, with the shortcut column left empty.
 
 ## Why can't I run a shortcut that came from Karabiner, skhd or another config tool?
 
@@ -119,7 +118,7 @@ Those tools implement shortcuts in their own keyboard layer, below the menu bar.
 
 ## Why won't KagiPeek run sleep, restart, shut down, lock, log out or force quit?
 
-Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by KagiPeek: a click copies the shortcut, Space explains why, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.
+Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by KagiPeek: a click says why, the copy key copies the shortcut, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.
 
 ## Why does the panel stay open after ⌘K?
 
@@ -145,7 +144,7 @@ Releasing the modifiers you were holding does not close it either, and it does n
 
 ## Why does Esc close the panel, and why can't I just click away?
 
-Esc is the panel's explicit "dismiss" gesture. It is handled while no other modifier is held, so ⌥⌘Esc and similar combinations stay ordinary shortcuts, and the panel lifts as soon as you want it gone. Clicking outside the panel is not a dismissal because the panel is non-activating: clicks elsewhere go to the front app as usual, so an outside click cannot be relied on to close it. Esc plus the panel/switch hotkey give you a predictable way out.
+Esc is the panel's explicit "dismiss" gesture. It is matched on the key code before anything else, so it works with or without other modifiers: ⌥⌘Esc closes the panel as well, and that press never reaches the front app. Clicking outside the panel is not a dismissal because the panel is non-activating: clicks elsewhere go to the front app as usual, so an outside click cannot be relied on to close it. Esc plus the panel/switch hotkey give you a predictable way out.
 
 ## Why does the shortcut I press still reach the app?
 
@@ -165,7 +164,7 @@ The panel is persistent, so keyboard operation is always available:
 | --- | --- |
 | ↑ / ↓ | Move the selection |
 | ← / → | Previous / next page, always available and not configurable |
-| Run key (Space by default) | Close the panel and replay the selected menu item's shortcut into the front app |
+| Run key (Space by default) | Close the panel and run the selected menu item — pressed in the menu, with the chord replayed only when that is not possible |
 | Copy key (Return by default) | Copy the selected menu item's shortcut; the panel stays open |
 | ⌫ | Take back the last filter token — the letter if it came last, otherwise that modifier; once the filter is empty, go back one chord stroke |
 | Esc | Close the panel (with or without modifiers) |
@@ -181,7 +180,7 @@ Pressing the run key on a menu item that still has further steps opens the next 
 
 ## How do I clear a modifier filter?
 
-The panel keeps an ordered queue of what you added, and **⌫** takes back one token at a time: a letter if the letter came last, otherwise that modifier. Pressing the **same modifier again** removes it from wherever it sits in the queue, so `⌃ ⌥ f` minus ⌃ is `⌥ f`; a third press adds it back at the end. Releasing the keys never clears anything, and **Esc** closes the panel without clearing the filter — the next panel session starts empty. To get the whole list back, press ⌫ until the queue is empty (or reopen the panel).
+The panel keeps an ordered queue of what you added, and **⌫** takes back one token at a time: a letter if the letter came last, otherwise that modifier. Pressing the **same modifier again** removes it from wherever it sits in the queue, so `⌃ ⌥ f` minus ⌃ is `⌥ f`; a third press adds it back at the end. Releasing the keys never clears anything, and **Esc** closes the panel; the next panel session starts empty, because closing the panel drops its filter. To get the whole list back without closing, press ⌫ until the queue is empty.
 
 ## Why doesn't ⌘F filter the panel?
 
@@ -193,7 +192,7 @@ It should not: the run key runs the menu item. If a menu item copies, you either
 
 ## Why did nothing happen when I pressed the run key?
 
-Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, KagiPeek presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → About → Export diagnostics…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
+Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, KagiPeek presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
 
 ## Why does the panel disappear in some apps or fields?
 
@@ -251,7 +250,7 @@ KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock ic
 
 ## Why can't I minimise the Settings window?
 
-Because Settings uses `[.titled, .closable, .resizable]` only. A minimised copy used to sit in the Dock while the menu-bar app had no way to bring it back except the icon's **Settings…** item, which reopened a second window. Close and reopen it from the menu bar instead; the same window comes forward. When Settings is visible, **Open the permission guide** attaches to it as a sheet rather than opening a separate window that could end up behind it or in another Space.
+Because Settings uses `[.titled, .closable, .resizable]` only. A minimised copy used to sit in the Dock while the menu-bar app had no way to bring it back except the icon's **Settings…** item, which reopened a second window. Close and reopen it from the menu bar instead; the same window comes forward. When Settings is visible, **Permission guide** attaches to it as a sheet rather than opening a separate window that could end up behind it or in another Space.
 
 ## Can I change the triggers or the hotkeys?
 
@@ -300,7 +299,7 @@ Changing **Panel order** between **By modifier** and **By menu group** while the
 
 ## Why is the shortcut column blank on some rows?
 
-A menu item with no key equivalent has no shortcut, so the column stays empty rather than drawing an em dash. The dash is reserved for a different fact: a **system hotkey** whose name macOS does not expose. The column is a fixed-width slot in a monospaced face, right-aligned when the shortcut sits on the right, so the keys line up and the titles do not shift as the list changes.
+A menu item with no key equivalent has no shortcut, so the column stays empty rather than drawing an em dash — in the panel. The palette and the Markdown export do draw a dash there, because a blank cell reads as a rendering bug. A system hotkey whose name macOS does not expose is the other way round: the chord itself becomes the row's title and the shortcut column is left empty. The column is a fixed-width slot in a monospaced face, right-aligned when the shortcut sits on the right, so the keys line up and the titles do not shift as the list changes.
 
 ## Why does the panel sometimes appear in an odd place?
 
