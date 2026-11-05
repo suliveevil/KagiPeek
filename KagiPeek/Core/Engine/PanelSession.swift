@@ -210,7 +210,7 @@ final class PanelSession {
             highlighted: highlightedIDs(for: page.entries.map(\.hit)),
             systemTitle: systemTitle,
             appTitle: sectionTitle,
-            hintLabels: hintLabels(for: sequence)
+            hintLabels: hintLabels(for: page.entries)
         )
         if isPreviewing() {
             let counts = PanelSections.counts(in: allEntries)
@@ -235,14 +235,26 @@ final class PanelSession {
         return PanelPage(index: pageIndex, count: pageCount, entries: entries)
     }
 
-    /// Row id → Shift-hint glyph for the first 36 entries of the sequence.
+    /// Row id → Shift-hint glyph for the rows on the current page.
     ///
-    /// The table is anchored to the whole sequence, not the page, so pressing Shift on page 2
-    /// addresses the same rows as on page 1 — the hint answers "which row", not "which
-    /// visible row". Rows that are not on this page simply do not render their label.
-    private func hintLabels(for sequence: [PanelEntry]) -> [String: String] {
+    /// Numbering is per page, not over the whole sequence: page 2 restarts at `0`, and the
+    /// key handler refuses a glyph whose number has no row on this page. A table anchored to
+    /// the whole sequence would draw one glyph per visible row while letting a glyph from
+    /// another page run a row that was not even on screen.
+    private func hintLabels(for page: [PanelEntry]) -> [String: String] {
         guard state.panel.shiftHintActive, state.prefix.isEmpty else { return [:] }
-        return ShiftHintLayer.labels(for: sequence.map(\.hit.id))
+        return ShiftHintLayer.labels(for: page.map(\.hit.id))
+    }
+
+    /// The item drawn at this position on the current page, or nil past its last row.
+    ///
+    /// The hint layer addresses the page (`flatRowIDs` is what was built for it), so the key
+    /// handler must resolve through the same list. Walking the whole sequence instead would
+    /// make Shift on page 2 run page 1's row.
+    func item(atVisibleRowIndex index: Int) -> BindingItem? {
+        guard state.panel.flatRowIDs.indices.contains(index) else { return nil }
+        let id = state.panel.flatRowIDs[index]
+        return panelSequence().first { $0.hit.id == id }?.hit.item
     }
 
     /// One row per entry, described for the builder.

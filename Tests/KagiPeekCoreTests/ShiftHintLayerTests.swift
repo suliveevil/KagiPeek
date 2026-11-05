@@ -32,4 +32,20 @@ final class ShiftHintLayerTests: XCTestCase {
         XCTAssertNil(ShiftHintLayer.index(forCharacter: "Return"))
         XCTAssertNil(ShiftHintLayer.index(forCharacter: ""))
     }
+
+    /// 提示层每页重新编号：超出本页行数的字号什么都不指向。
+    /// 页 1 有 10 行时 Shift+A..Z（10…35）全部无效，不能执行下一页的行。
+    func testPageScopedAddressingStopsAtTheLastVisibleRow() {
+        XCTAssertEqual(ShiftHintLayer.index(forCharacter: "9", pageRowCount: 10), 9)
+        XCTAssertNil(ShiftHintLayer.index(forCharacter: "a", pageRowCount: 10))
+        XCTAssertNil(ShiftHintLayer.index(forCharacter: "o", pageRowCount: 10))
+        XCTAssertNil(ShiftHintLayer.index(forCharacter: "z", pageRowCount: 10))
+    }
+
+    /// 页 2 的编号从 0 开始，Shift+A 指向本页第 11 行，而不是页 1 的任何行。
+    func testPageTwoNumberingRestartsWithItsOwnFirstRow() {
+        XCTAssertEqual(ShiftHintLayer.index(forCharacter: "0", pageRowCount: 26), 0)
+        XCTAssertEqual(ShiftHintLayer.index(forCharacter: "a", pageRowCount: 26), 10)
+        XCTAssertNil(ShiftHintLayer.index(forCharacter: "z", pageRowCount: 26))
+    }
 }

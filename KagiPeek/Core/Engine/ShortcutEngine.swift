@@ -959,16 +959,20 @@ final class ShortcutEngine: ObservableObject {
     /// continuations of a chord, and numbering them would answer a question the user did not
     /// ask. The search palette never reaches here — while it is visible the text field owns
     /// Shift, which is why the panel and the palette are separate surfaces.
+    ///
+    /// The glyph addresses the current page's visible rows only: the numbers restart with
+    /// every page, so a glyph that belongs to another page must not run it.
     private func shiftHintItem(for event: KeyEvent) -> BindingItem? {
         guard state.phase == .active,
               state.panel.shiftHintActive,
               state.prefix.isEmpty,
               event.modifiers == [.shift],
               let raw = event.key?.raw,
-              let index = ShiftHintLayer.index(forCharacter: raw) else { return nil }
-        let sequence = panelSequence()
-        guard index < sequence.count else { return nil }
-        return sequence[index].hit.item
+              let index = ShiftHintLayer.index(
+                  forCharacter: raw,
+                  pageRowCount: state.panel.flatRowIDs.count
+              ) else { return nil }
+        return panel.item(atVisibleRowIndex: index)
     }
 
     /// Two gestures watch the keys that pass through here.

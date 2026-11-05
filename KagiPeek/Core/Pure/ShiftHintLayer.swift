@@ -46,4 +46,14 @@ nonisolated enum ShiftHintLayer {
         guard character.count == 1 else { return nil }
         return labels.firstIndex(of: character.lowercased())
     }
+
+    /// The position a typed character addresses on a page with `pageRowCount` visible rows.
+    ///
+    /// Hints are numbered per page, so a glyph whose number falls past this page's last row
+    /// addresses nothing: Shift+O on a ten-row page must not run the row it would label on a
+    /// later page.
+    static func index(forCharacter character: String, pageRowCount: Int) -> Int? {
+        guard let index = index(forCharacter: character), index < pageRowCount else { return nil }
+        return index
+    }
 }
