@@ -21,9 +21,20 @@ if ! gh auth status >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ ! -f "$DMG" ]; then
-    echo "==> $DMG missing, building it"
+# A DMG that merely exists is not a DMG for *this* commit: the version number is what names
+# the file, so an unchanged version after a fix would publish the previous build under the
+# new tag. `build_release.sh` stamps its output with the version and the commit it was built
+# from; anything else — no stamp, an older commit, a dirty tree — rebuilds first.
+STAMP="$ROOT/build/.release-stamp"
+EXPECTED="$(printf '%s %s' "$VERSION" "$(git rev-parse HEAD)")"
+STAMPED="$(cat "$STAMP" 2>/dev/null || true)"
+if [ ! -f "$DMG" ] || [ "$STAMPED" != "$EXPECTED" ]; then
+    echo "==> $DMG is missing or stale (stamp: ${STAMPED:-none}, expected: $EXPECTED); rebuilding"
     ./scripts/build_release.sh
+    STAMPED="$(cat "$STAMP" 2>/dev/null || true)"
+    if [ "$STAMPED" != "$EXPECTED" ]; then
+        echo "warning: the fresh DMG is stamped '$STAMPED' rather than '$EXPECTED' (uncommitted changes?); publishing it as $TAG" >&2
+    fi
 fi
 
 # The notes are a per-release file when one exists (a hand-written body), and otherwise the

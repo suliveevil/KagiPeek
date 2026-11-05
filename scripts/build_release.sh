@@ -144,6 +144,17 @@ fi
 
 shasum -a 256 "$DMG" | tee "$DMG.sha256"
 
+# `publish_release.sh` skips the build when the DMG already exists, so "already exists" has to
+# mean "built from this commit". Without a stamp, a second run under the same version number
+# published whatever the previous checkout happened to leave in build/ — the tag and the code
+# inside the DMG could disagree, and nothing in the output said so. A dirty tree is recorded
+# as such: the DMG then contains code no commit has, which the publisher warns about.
+TREE_STATE="$(git rev-parse HEAD)"
+if [ -n "$(git status --porcelain)" ]; then
+    TREE_STATE="$TREE_STATE-dirty"
+fi
+printf '%s %s\n' "$VERSION" "$TREE_STATE" > "$BUILD_DIR/.release-stamp"
+
 echo
 echo "App: $APP"
 echo "DMG: $DMG"

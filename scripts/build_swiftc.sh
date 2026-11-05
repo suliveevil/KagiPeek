@@ -79,6 +79,29 @@ else
     echo "error: no Info.plist template; pass KAGIPEEK_PLIST_SOURCE" >&2
     exit 1
 fi
+
+# The Xcode path takes the version from `MARKETING_VERSION`; this path took it from whichever
+# Info.plist template it found. A version bump that only touched the project file therefore
+# produced a fallback build that named itself the previous release — the DMG said 2.2.0 and
+# the About page said 2.1.0. The template still supplies everything else, but the two keys
+# that name the build are read from the project file whenever it carries them.
+PLIST="$APP/Contents/Info.plist"
+PBXPROJ="$ROOT/KagiPeek.xcodeproj/project.pbxproj"
+PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" 2>/dev/null || true)"
+PROJECT_VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' "$PBXPROJ" 2>/dev/null | head -1)"
+PROJECT_BUILD="$(sed -n 's/.*CURRENT_PROJECT_VERSION = \(.*\);/\1/p' "$PBXPROJ" 2>/dev/null | head -1)"
+if [ -n "$PROJECT_VERSION" ]; then
+    if [ -n "$PLIST_VERSION" ] && [ "$PLIST_VERSION" != "$PROJECT_VERSION" ]; then
+        # Said out loud rather than silently corrected: the template and the project file
+        # disagreeing is what makes a fallback build differ from the one users get.
+        echo "==> version $PLIST_VERSION (template) overridden by MARKETING_VERSION $PROJECT_VERSION"
+    fi
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $PROJECT_VERSION" "$PLIST"
+fi
+if [ -n "$PROJECT_BUILD" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $PROJECT_BUILD" "$PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $PROJECT_BUILD" "$PLIST"
+fi
 # Icons are compiled from the catalog in the repository rather than copied from next to the
 # plist template: the template may now live in scripts/, and inheriting whichever icons the
 # last installed copy happened to carry is how a stale icon survives a redesign. actool ships
