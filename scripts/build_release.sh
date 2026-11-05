@@ -56,6 +56,24 @@ if [ -n "$VERSION" ] && [ "$VERSION" != "$BUILT_VERSION" ]; then
 fi
 VERSION="$BUILT_VERSION"
 
+# xcodebuild is incremental: replacing the app icon does not remove the old
+# .icns from a previously built bundle, so a stale AppIcon.icns can be copied
+# into /Applications and signed alongside the new Kaname.icns. Keep only the
+# icon file named by the built plist. This has to happen before stamp_commit.sh
+# and codesign, otherwise the signature covers a resource we meant to drop.
+ICON_FILE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP/Contents/Info.plist" 2>/dev/null || true)"
+if [ -z "$ICON_FILE" ]; then
+    ICON_FILE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$APP/Contents/Info.plist" 2>/dev/null || true)"
+fi
+if [ -n "$ICON_FILE" ]; then
+    case "$ICON_FILE" in
+        *.icns) ;;
+        *) ICON_FILE="$ICON_FILE.icns" ;;
+    esac
+    find "$APP/Contents/Resources" -maxdepth 1 -type f -name '*.icns' \
+        ! -name "$ICON_FILE" -print -delete
+fi
+
 # The About page shows this commit; it has to be in the plist before signing.
 "$ROOT/scripts/stamp_commit.sh" "$APP"
 
