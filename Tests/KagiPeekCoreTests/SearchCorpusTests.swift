@@ -36,4 +36,27 @@ final class SearchCorpusTests: XCTestCase {
         let items = [item([.command, .shift], "3", "Screenshot", group: ["System"])]
         XCTAssertEqual(SearchCorpus(items: items, style: .symbols).search("cmd+shift+3").first?.title, "Screenshot")
     }
+
+    /// The bounded top-K must be the same list a full sort would have produced, not merely
+    /// the same set: the first page is what the palette draws.
+    func testLimitReturnsTheUnboundedOrderPrefix() {
+        let items = (0..<12).map { item([.command], "s", "Save \($0)") }
+        let corpus = SearchCorpus(items: items, style: .symbols)
+        let all = corpus.search("save", limit: 100).map(\.id)
+        XCTAssertEqual(corpus.search("save", limit: 4).map(\.id), Array(all.prefix(4)))
+    }
+
+    /// Rows that tie on score and title are ordered by id, so the list cannot shuffle
+    /// between keystrokes even though it is no longer a full `sort`.
+    func testTiesAreDeterministic() {
+        let items = [
+            item([.command], "z", "Same"),
+            item([.command], "a", "Same"),
+            item([.command], "m", "Same")
+        ]
+        let corpus = SearchCorpus(items: items, style: .symbols)
+        let first = corpus.search("same", limit: 3).map(\.id)
+        XCTAssertEqual(first, corpus.search("same", limit: 3).map(\.id))
+        XCTAssertEqual(first, first.sorted())
+    }
 }

@@ -27,17 +27,42 @@ nonisolated struct SearchCorpus {
     func search(_ query: String, limit: Int = 60) -> [BindingItem] {
         let tokens = Self.tokens(in: query)
         guard !tokens.isEmpty else { return documents.prefix(limit).map(\.item) }
-
-        var scored: [(item: BindingItem, score: Int)] = []
+        guard limit > 0 else { return [] }
+        // A bounded insertion, not a full sort: the palette shows 60 rows of a few thousand,
+        // and ordering every hit to keep the first page made each keystroke O(n log n) in the
+        // comparison that is itself expensive (`localizedCaseInsensitiveCompare`). Most hits
+        // stop at the length check below without a search.
+        var top: [(item: BindingItem, score: Int)] = []
+        top.reserveCapacity(min(limit, documents.count))
         for document in documents {
             guard let score = Self.score(tokens: tokens, document: document) else { continue }
-            scored.append((document.item, score))
+            let candidate = (item: document.item, score: score)
+            if top.count == limit, !Self.ranksBefore(candidate, top[top.count - 1]) { continue }
+            var low = 0
+            var high = top.count
+            while low < high {
+                let mid = (low + high) / 2
+                if Self.ranksBefore(candidate, top[mid]) { high = mid } else { low = mid + 1 }
+            }
+            top.insert(candidate, at: low)
+            if top.count > limit { top.removeLast() }
         }
-        scored.sort { lhs, rhs in
-            if lhs.score != rhs.score { return lhs.score > rhs.score }
-            return lhs.item.title.localizedCaseInsensitiveCompare(rhs.item.title) == .orderedAscending
-        }
-        return scored.prefix(limit).map(\.item)
+        return top.map(\.item)
+    }
+
+    /// The result list's total order: score, then title, then id.
+    ///
+    /// The id is the last word so two rows that tie on score and title cannot swap places
+    /// between keystrokes. `sort` gave no such guarantee — it is not stable — and the
+    /// bounded insertion above needs a total order to be deterministic.
+    private static func ranksBefore(
+        _ lhs: (item: BindingItem, score: Int),
+        _ rhs: (item: BindingItem, score: Int)
+    ) -> Bool {
+        if lhs.score != rhs.score { return lhs.score > rhs.score }
+        let byTitle = lhs.item.title.localizedCaseInsensitiveCompare(rhs.item.title)
+        if byTitle != .orderedSame { return byTitle == .orderedAscending }
+        return lhs.item.id < rhs.item.id
     }
 
     // MARK: - Tokens
