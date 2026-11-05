@@ -8,14 +8,18 @@ import XCTest
 final class DiagnosticsReportBuilderTests: XCTestCase {
     private func input(
         generatedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        settings: AppSettingsSnapshot = AppSettingsSnapshot(),
+        dataFolderPath: String = "/tmp/kagipeek",
+        windowTitles: [String] = ["KagiPeek", "KagiPeek Settings"],
         scanState: ScanState = .ok,
         crashRecoveryErrors: [String] = [],
         actionMirrorError: String? = nil,
-        logLinesDropped: Int = 0
+        logLinesDropped: Int = 0,
+        homePrefix: String? = nil
     ) -> DiagnosticsReportBuilder.Input {
         DiagnosticsReportBuilder.Input(
             generatedAt: generatedAt,
-            settings: AppSettingsSnapshot(),
+            settings: settings,
             hasAccessibility: true,
             hasInputMonitoring: false,
             isListening: true,
@@ -33,11 +37,12 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
             usageTracked: 41,
             usageTotalPresses: 512,
             favoriteCount: 6,
-            dataFolderPath: "/tmp/kagipeek",
-            windowTitles: ["KagiPeek", "KagiPeek Settings"],
+            dataFolderPath: dataFolderPath,
+            windowTitles: windowTitles,
             crashRecoveryErrors: crashRecoveryErrors,
             actionMirrorError: actionMirrorError,
-            logLinesDropped: logLinesDropped
+            logLinesDropped: logLinesDropped,
+            homePrefix: homePrefix
         )
     }
 
@@ -122,5 +127,53 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
         XCTAssertNil(payload["crashRecoveryErrors"])
         XCTAssertNil(payload["actionMirrorError"])
         XCTAssertNil(payload["logLinesDropped"])
+    }
+
+    // MARK: - 脱敏
+
+    /// 窗口标题是别的 App 的内容：它可以是一份文档名、一个账号、一个文件夹。
+    /// 报告是要给人的，所以它必须在写文件之前过一遍规则，而不是「反正只有标题」。
+    func testWindowTitlesAreRedactedBeforeTheyReachTheFile() throws {
+        let payload = try object(from: input(
+            windowTitles: ["KagiPeek", "Invoice for alice@example.com"]
+        ))
+        XCTAssertEqual(
+            payload["windowTitles"] as? [String],
+            ["KagiPeek", "Invoice for <email>"]
+        )
+        XCTAssertEqual(payload["redactedFields"] as? [String], ["windowTitles"])
+    }
+
+    /// 整份 `settings` 里唯一由用户手输的就是 `ignoredCommands`，它过去原样进报告。
+    func testTheSettingsBlobIsRedactedIncludingIgnoredCommands() throws {
+        var settings = AppSettingsSnapshot()
+        settings.ignoredCommands = [
+            IgnoredCommand(title: "Share with alice@example.com", appBundleID: nil)
+        ]
+        let payload = try object(from: input(settings: settings))
+        let settingsObject = try XCTUnwrap(payload["settings"] as? [String: Any])
+        let commands = try XCTUnwrap(settingsObject["ignoredCommands"] as? [[String: Any]])
+        XCTAssertEqual(commands.first?["title"] as? String, "Share with <email>")
+        XCTAssertEqual(
+            payload["redactedFields"] as? [String],
+            ["settings.ignoredCommands.title"],
+            "路径要指到具体字段，否则读报告的人不知道哪一段被剪过"
+        )
+    }
+
+    /// 主目录换成 `~` 是每一份报告都会发生的事，所以它不算「剪裁」；
+    /// 否则 `redactedFields` 永远非空，真正被剪的字段就淹没在里面。
+    func testTheHomeDirectoryBecomesATildeWithoutBeingAnnouncedAsARedaction() throws {
+        let payload = try object(from: input(
+            dataFolderPath: "/Users/alice/Library/Application Support/KagiPeek",
+            homePrefix: "/Users/alice"
+        ))
+        XCTAssertEqual(payload["dataFolder"] as? String, "~/Library/Application Support/KagiPeek")
+        XCTAssertNil(payload["redactedFields"])
+    }
+
+    func testRedactionIsAnnouncedOnlyWhenItHappened() throws {
+        let payload = try object(from: input())
+        XCTAssertNil(payload["redactedFields"], "没剪过就不该出现这个字段")
     }
 }

@@ -143,7 +143,13 @@ nonisolated enum MenuScanner {
             : MenuContentPolicy.decideOpenMenu(childCount: menuChildren.count)
         if decision.looksLikeContent {
             let menuTitle = Sanitizer.clamp(topLevelTitle.isEmpty ? "?" : topLevelTitle)
-            Diag.info(.scan, """
+            // `debug`, not `info`: the title belongs to another application — it can name a
+            // document, an account or a folder — so it must not reach the file log by default.
+            // It stays in the message instead of being replaced by the child count because the
+            // decision being explained is name-driven (`MenuContentPolicy.isDataMenu(title:)`):
+            // without the name a reader cannot tell a correct decision from a wrong one. Verbose
+            // diagnostics is the opt-in that turns this line on.
+            Diag.debug(.scan, """
                 menu ·\(menuTitle) is a list of data (\(menuChildren.count) children), \
                 reading \(decision.childrenToVisit), keeping shortcuts only
                 """)

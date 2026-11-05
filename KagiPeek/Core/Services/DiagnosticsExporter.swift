@@ -5,8 +5,10 @@ import Foundation
 ///
 /// Nothing is uploaded, ever: this type has no networking, and the only thing it does with the
 /// collected files is copy them into a zip the user chooses to share or not. Redaction already
-/// happened at the write boundary (`FileLogStore`), so what is copied here is what a log line
-/// already contains.
+/// happened at the write boundary (`FileLogStore`), so the copied files are what a log line
+/// already contains; the manifest this type writes itself goes through `DiagnosticsRedactor`
+/// before it reaches the archive, because file names and error notes quote the folder they
+/// came from.
 ///
 /// Explicitly `nonisolated`: `export` runs on a background queue on purpose (a slow network
 /// destination must not freeze the settings window), and every dependency here —
@@ -105,7 +107,15 @@ nonisolated enum DiagnosticsExporter {
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(info).write(
+        // The manifest is part of the archive, so it gets the same boundary as the report:
+        // file names and error notes can carry a path or a token from someone's folder.
+        let encoded = try encoder.encode(info)
+        guard let fields = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
+            // `SessionInfo` is a struct of strings and numbers, so this cannot fire. Failing
+            // loudly beats writing a manifest that skipped the redaction pass.
+            throw ExportError.manifestFailed
+        }
+        try DiagnosticsRedactor.jsonData(fields, homePrefix: NSHomeDirectory()).write(
             to: bundle.appendingPathComponent("session-info.json"),
             options: [.atomic]
         )
@@ -235,6 +245,7 @@ nonisolated enum DiagnosticsExporter {
     enum ExportError: LocalizedError {
         case archiveFailed
         case archiveTimedOut
+        case manifestFailed
 
         var errorDescription: String? {
             switch self {
@@ -242,6 +253,8 @@ nonisolated enum DiagnosticsExporter {
                 return "The diagnostics archive could not be created."
             case .archiveTimedOut:
                 return "The diagnostics archive took too long to create."
+            case .manifestFailed:
+                return "The diagnostics summary could not be prepared."
             }
         }
     }

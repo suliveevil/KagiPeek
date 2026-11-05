@@ -10,6 +10,11 @@ import Foundation
 /// supplies every value, so this file stays free of AppKit and of the shared mutable state it
 /// has no business writing. `sanitizerFailedPatterns` is read from `Sanitizer` because that is
 /// a fact about the build, not about a session.
+///
+/// Everything that leaves here goes through `DiagnosticsRedactor` first: the report contains
+/// other applications' window titles and the raw settings blob, and it is handed to a stranger.
+/// The pass happens once, on the assembled payload, rather than at each field — the same
+/// boundary discipline as the file log.
 nonisolated enum DiagnosticsReportBuilder {
     /// Every fact the report is assembled from, travelling as one value.
     ///
@@ -54,6 +59,10 @@ nonisolated enum DiagnosticsReportBuilder {
         /// Log lines the file sink could not write (or had to drop at the daily cap). Zero is
         /// the normal value; a non-zero one means the attached log has holes.
         var logLinesDropped: Int = 0
+        /// The user's home directory, replaced with `~` in every path in the report. Supplied by
+        /// the caller because the pure target must not ask for it, and because a test needs to
+        /// pin it.
+        var homePrefix: String? = nil
     }
 
     static func report(_ input: Input) throws -> Data {
@@ -117,6 +126,9 @@ nonisolated enum DiagnosticsReportBuilder {
             // so the reason goes inside the file the user attaches rather than nowhere.
             payload["settingsError"] = String(describing: error)
         }
-        return try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        // One redaction pass at the boundary, after every section is in place: window titles,
+        // the settings blob and the data-folder path all leave this function through the same
+        // door the log lines use. The pass names the fields it changed in `redactedFields`.
+        return try DiagnosticsRedactor.jsonData(payload, homePrefix: input.homePrefix)
     }
 }
