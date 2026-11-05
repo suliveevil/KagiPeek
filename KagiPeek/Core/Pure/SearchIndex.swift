@@ -25,9 +25,12 @@ nonisolated struct SearchCorpus {
     }
 
     func search(_ query: String, limit: Int = 60) -> [BindingItem] {
+        // Checked before the first use of `limit`, not after the empty-query branch:
+        // `prefix(_:)` traps on a negative length, so an illegal argument would kill the
+        // process instead of returning no rows.
+        guard limit > 0 else { return [] }
         let tokens = Self.tokens(in: query)
         guard !tokens.isEmpty else { return documents.prefix(limit).map(\.item) }
-        guard limit > 0 else { return [] }
         // A bounded insertion, not a full sort: the palette shows 60 rows of a few thousand,
         // and ordering every hit to keep the first page made each keystroke O(n log n) in the
         // comparison that is itself expensive (`localizedCaseInsensitiveCompare`). Most hits

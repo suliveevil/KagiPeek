@@ -46,6 +46,42 @@ final class SearchCorpusTests: XCTestCase {
         XCTAssertEqual(corpus.search("save", limit: 4).map(\.id), Array(all.prefix(4)))
     }
 
+    // MARK: - Limit bounds
+
+    /// The empty-query branch used to run before `limit` was checked, so `prefix(-1)`
+    /// trapped and killed the process. The assertion that matters is that this test
+    /// reaches the line after the call: an illegal argument must yield no rows, not a
+    /// `Fatal error: Can't take a prefix of negative length from a collection`.
+    func testEmptyQueryWithNegativeLimitReturnsEmptyWithoutTrapping() {
+        let corpus = SearchCorpus(items: [item([.command], "x", "Cut")], style: .symbols)
+        XCTAssertEqual(corpus.search("", limit: -1), [])
+        XCTAssertTrue(corpus.search("", limit: -1).isEmpty)
+    }
+
+    /// `limit == 0` asks for no rows, empty query or not.
+    func testZeroLimitReturnsEmpty() {
+        let corpus = SearchCorpus(items: [item([.command], "x", "Cut")], style: .symbols)
+        XCTAssertEqual(corpus.search("", limit: 0), [])
+        XCTAssertEqual(corpus.search("cut", limit: 0), [])
+    }
+
+    /// The ranked path has its own use of `limit`; a negative value must not reach it either.
+    func testNonEmptyQueryWithNegativeLimitReturnsEmptyWithoutTrapping() {
+        let corpus = SearchCorpus(items: [item([.command], "x", "Cut")], style: .symbols)
+        XCTAssertEqual(corpus.search("cut", limit: -1), [])
+        XCTAssertEqual(corpus.search("cmd x", limit: -5), [])
+    }
+
+    /// An empty query means "no filter": the first `limit` rows, in corpus order.
+    func testEmptyQueryReturnsTheCorpusPrefix() {
+        let items = (0..<6).map { item([.command], "s", "Save \($0)") }
+        let corpus = SearchCorpus(items: items, style: .symbols)
+        let all = corpus.documents.map(\.item)
+        XCTAssertEqual(corpus.search(""), all)
+        XCTAssertEqual(corpus.search("   "), all)
+        XCTAssertEqual(corpus.search("", limit: 3).map(\.id), all.prefix(3).map(\.id))
+    }
+
     /// Rows that tie on score and title are ordered by id, so the list cannot shuffle
     /// between keystrokes even though it is no longer a full `sort`.
     func testTiesAreDeterministic() {
