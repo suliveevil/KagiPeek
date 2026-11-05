@@ -8,17 +8,18 @@ as of **2026-11-06**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`321cf2a`（`fix/tool-section-folding`，随后 ff 合入 `main`），配置工具区默认隐藏
-  与显示开关；其下 `c696f0c`（逐工具折叠 + 过滤全开），分支起点 `31fe550`（此前 main 上的
-  菜单弹窗修复）。再往前 `8dc9304` 是把 `feature/panel-sections` 合进 main 的合并提交。
+- 代码 HEAD：`bf8260a`（`docs(status)`，在 `321cf2a` 之上），配置工具区默认隐藏与显示开关；
+  其下 `c696f0c`（逐工具折叠 + 过滤全开），分支起点 `31fe550`（此前 main 上的菜单弹窗修复）。
+  再往前 `8dc9304` 是把 `feature/panel-sections` 合进 main 的合并提交。已按 `bf8260a`
+  构建并安装。
 - 分支：`main` 已包含本轮全部改动，`fix/tool-section-folding` 合并后删除。本地还剩开发分支
   `feature/panel-sections`、旧历史备份 `backup/pre-squash-20261104-192838`（branch 与 tag
   同指向 `de32cb6`）。16 个 pre-squash 时期的迭代分支已逐个核对并删除（见上一版记录），
   提交历史仍保留在备份 ref 上。`upstream` 指向 Voltline/KagiPeek，`origin` 指向
   suliveevil/KagiPeek。
 - `swift test` 844 → 849，0 failures（新增 `showConfigToolsInPanel` 的迁移/编码 4 项与
-  工具行门控 1 项）。本轮**未构建、未安装**：签名钥匙串那边就绪后单独执行
-  `scripts/install.sh`；`/Applications/KagiPeek.app` 仍是上一批安装的版本。
+  工具行门控 1 项）。2026-11-06 01:24 在 `bf8260a` 上复跑仍 849/0；01:26 执行
+  `scripts/install.sh` 构建并安装，`/Applications/KagiPeek.app` 现在是 `bf8260a`。
 - 设置 schema：8 → 9。`showConfigToolsInPanel` 默认 `false`；schema ≤ 8 的文件迁移时显式补
   `false`，`scanConfigFiles` 保持文件里的原值。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
@@ -183,14 +184,15 @@ as of **2026-11-06**（Asia/Shanghai）。
 | `codesign -d -r-`（安装包 vs 上一份备份） | 两行都是 `certificate root = H"6c0ac5…a929"`，TCC designated requirement 未变 |
 | `codesign -dvvv /Applications/KagiPeek.app` | `Authority=KagiPeek Local`；`flags=0x10000(runtime)` |
 | `codesign --verify --deep --strict /Applications/KagiPeek.app` | `valid on disk` / `satisfies its Designated Requirement` |
-| `KagiPeekCommit` / 版本串 | `31fe550` / `2.2.0` |
-| `pgrep -x KagiPeek` | `90007`（单实例） |
-| `scripts/install.sh`（2026-11-06 00:25） | 成功；已装包替换前备份 `KagiPeek-2026-11-06-002520-5738504-local.app`，按命名保留最近 5 份 |
 | 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
+| `swift test`（`bf8260a`，2026-11-06 01:24） | `Executed 849 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `scripts/install.sh`（2026-11-06 01:26） | `** BUILD SUCCEEDED **`；`KagiPeek Local` 签名；替换前备份 `KagiPeek-2026-11-06-012654-31fe550-local.app` |
+| `KagiPeekCommit` / 版本串 | `bf8260a` / `2.2.0 (220)` |
+| `pgrep -lf KagiPeek.app/Contents/MacOS` | `12006 /Applications/KagiPeek.app/Contents/MacOS/KagiPeek`（单实例） |
+| `settings.json`（启动后） | `schemaVersion=9`；`showConfigToolsInPanel=false`、`scanConfigFiles=true`；`maxItemsPerPage=60`、`columnCount=3`、`panelPlacement=coverWindow` 保留 |
 
-本次安装的 Info.plist 提交戳为 `31fe550`（菜单弹窗修复那一轮的 main HEAD）。逐工具折叠
-（`c696f0c`）与显示开关（`321cf2a`）**尚未进这份安装**：这两轮按要求只合代码，不构建不安装，
-等签名钥匙串那边就绪后再单独跑 `scripts/install.sh`。
+当前安装的 Info.plist 提交戳为 `bf8260a`，包含逐工具折叠（`c696f0c`）与显示开关（`321cf2a`）。
+`scripts/install.sh` 先跑 xcodebuild，一次 `BUILD SUCCEEDED`，没有回退到 `build_swiftc.sh`；
 签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
 
 签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
@@ -207,25 +209,26 @@ app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Appli
 ## 已安装构建
 
 - 路径：`/Applications/KagiPeek.app`
-- 版本串原文：`v2.2.0 (31fe550)`
+- 版本串原文：`v2.2.0 (bf8260a)`
 - `CFBundleShortVersionString`：`2.2.0`
 - `CFBundleVersion`：`220`
-- `KagiPeekCommit`（Info.plist）：`31fe550`（安装时的 main HEAD）
+- `KagiPeekCommit`（Info.plist）：`bf8260a`（安装时的 main HEAD）
 - 签名：`Authority=KagiPeek Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
   designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
   辅助功能授权保持；私钥只在独立钥匙串中
-- 运行中 PID：`90007`（`pgrep -x KagiPeek`，单实例）
+- 运行中 PID：`12006`（`pgrep -lf KagiPeek.app/Contents/MacOS`，单实例）
 - 升级前备份：`~/Library/Application Support/KagiPeek/backups/` 下按命名
   `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  最新一份为 `KagiPeek-2026-11-06-002520-5738504-local.app`。
+  最新一份为 `KagiPeek-2026-11-06-012654-31fe550-local.app`。
   - `/Applications` 下只有 `KagiPeek.app` 一份，历史 ad-hoc 副本已在废纸篓。
 - 用户设置未被覆盖：`~/Library/Application Support/KagiPeek/settings.json` 仍在，
   非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
   `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
   `launchAtLogin=true`、`keyStyle=symbols`、`panelOrder=byModifier`）；
-  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。该文件当前仍是 8；
-  本轮代码已写 9，运行新构建后才会迁移：`pagingPairs` 落盘为 `["semicolonQuote"]`，
-  `showConfigToolsInPanel` 补 `false`（工具区重新默认隐藏），`scanConfigFiles` 保持原值。
+  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。
+  启动新构建后该文件已迁移到 `schemaVersion=9`：`pagingPairs` 落盘为
+  `["semicolonQuote"]`，`showConfigToolsInPanel` 补 `false`（工具区默认隐藏），
+  `scanConfigFiles` 保持原值 `true`。
 
 ## 已知环境坑
 
