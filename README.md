@@ -335,7 +335,9 @@ Release:
 ./scripts/build_release.sh   # build/KagiPeek-<version>.dmg
 ```
 
-Contributor setup, layering rules, the "a setting change touches five places" checklist, and the test policy are in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); the release steps are in [docs/RELEASING.md](docs/RELEASING.md). What shipped, and what to check when upgrading, is in [docs/RELEASES.md](docs/RELEASES.md). When something does not work, start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+Contributor setup, layering rules, the "a setting change touches six places" checklist, and the test policy are in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); the release steps are in [docs/RELEASING.md](docs/RELEASING.md). What shipped, and what to check when upgrading, is in [docs/RELEASES.md](docs/RELEASES.md). When something does not work, start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+For the git workflow with parallel agents — one worktree and one branch per agent, a single integrator on `main` — [AGENTS.md](AGENTS.md) is the rule; [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) explains the reasoning.
 
 The Homebrew cask template is [`Distribution/kagipeek.rb`](Distribution/kagipeek.rb). It must be copied into a tap before `brew install --cask kagipeek` works.
 

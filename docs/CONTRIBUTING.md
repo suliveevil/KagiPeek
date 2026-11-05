@@ -86,10 +86,68 @@ them onto the prefix — and the documentation had been written from the comment
 - British spelling in prose ("behaviour", "favourite") — the code and identifiers are English,
   and this is only about consistency in the docs.
 
+## Parallel agents and worktrees
+
+Several people and several coding agents (WorkBuddy, Claude Code, Codex, …) work on this
+repository at the same time. **The authoritative rule is
+[AGENTS.md](../AGENTS.md) → git（多 agent 协作）**; this section explains the reasoning and the
+cases where the rule is not worth its cost.
+
+What actually collides is not "the same file" but the single `HEAD`, single index and single
+uncommitted-changes area of a shared working tree. A linked worktree shares refs, the object
+database, remote-tracking refs and `refs/stash`, but keeps its own `HEAD`, index and files. That
+gives two consequences worth remembering:
+
+- Git refuses to check out the same branch in two worktrees. Treat that as a guard, not an
+  obstacle — `--force` would put two agents back onto one shared `HEAD`.
+- `stash` is **shared**. One agent's `stash` can be popped by another. Move work between lines
+  only by committing and letting the integrator merge; never by leaving uncommitted files around.
+
+The main working tree stays on `main` and does integration, review and release only. Pair the
+two concepts — `branch` gives history a fork, `worktree` gives the fork its own desk:
+
+```sh
+# Integrator, in the main working tree
+git worktree add -b agent/pure-search ../kp-pure-search main
+git worktree lock ../kp-pure-search --reason "agent A session"
+git worktree list
+
+# After tests pass: merge (step 2), then clean up immediately (step 3).
+# Step 4 — ./scripts/install.sh — comes *after* cleanup, and only for code changes.
+git merge --ff-only agent/pure-search       # --no-ff if main has moved on
+git worktree unlock ../kp-pure-search
+git worktree remove ../kp-pure-search       # refuses if uncommitted files remain
+git branch -d agent/pure-search             # -d, never -D
+git worktree prune
+```
+
+Write each agent's absolute worktree path into that agent's own configuration or prompt. Their
+sessions, task lists and context are not shared, and each may run git commands itself, so a
+verbal "please stay in your directory" is not a boundary. The same applies to global side
+effects: `scripts/install.sh` writes `/Applications`, rotates backups under
+`~/Library/Application Support/KagiPeek/backups/` and reads the signing keychain. Three agents
+installing at once overwrite the same app on the same machine — worktrees cannot isolate that.
+**One integrator, one install, run outside the sandbox.** Keep `build/` and `DerivedData/` per
+worktree too: an incremental build once carried a stale `AppIcon.icns` into `/Applications`.
+
+Treat `AGENTS.md`, `scripts/`, icon assets and CI as shared contracts: edit them in the main
+working tree, then have other worktrees `rebase main`. Split work by layer
+(`Core/Pure`, `Core/AX`, `Core/Engine`), keep branches short-lived, merge often.
+
+This is not worth it for a single agent, a serial one-line change, or read-only research —
+branch switching is enough there, though a detached read-only worktree is still a clean way to
+inspect logs without touching the shared tree. Every worktree rebuilds its caches (this project
+has thousands of `.pcm` files under `build/`), so **3–5 parallel worktrees** is the practical
+ceiling; beyond that the merge cost outweighs the parallelism.
+
 ## Commits and releasing
 
-Branch first: every change starts on a new branch off `main` and is merged back when done —
-nothing is committed to `main` directly.
+Work is branched and merged as described above and in
+[AGENTS.md](../AGENTS.md): a fresh worktree + branch off `main` for every change, merged back by
+the integrator once `swift test --disable-sandbox` is green, with the worktree removed
+afterwards. Nothing is committed to `main` directly in the main working tree. Reinstall via
+`./scripts/install.sh` only when the merge contains **code** changes — documentation-only merges
+do not make the installed binary older.
 
 Commit messages: a `type:` prefix (`feat:`, `fix:`, `docs:`, `test:`, `chore:`) and a body that
 says what changed and why. Update `CHANGELOG.md` under `[Unreleased]` in the same commit as the
