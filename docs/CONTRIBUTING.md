@@ -78,11 +78,23 @@ them onto the prefix — and the documentation had been written from the comment
 
 ## Style
 
-- Swift 5 language mode, macOS 14 deployment target, no dependencies.
+- Swift 6 language mode, macOS 14 deployment target, no dependencies. The app target sets
+  `SWIFT_VERSION = 6.0`, `SWIFT_STRICT_CONCURRENCY = complete` and
+  `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; `Package.swift` compiles `KagiPeekCore` in
+  Swift 6 mode with `StrictConcurrency`. So a new type is main-actor-isolated unless it says
+  `nonisolated` — that keyword is a contract, not decoration: it is how `Diag`,
+  `CrashReporter`, `KeyboardMonitor` and the `Core/Pure` types are allowed to be called from
+  the event-tap thread or a crash handler.
 - Comments explain **why**. A comment that restates the code is noise; a comment that says
   "this looks wrong but is deliberate because X" is the valuable kind.
-- Log through `AppLog` (`scan` / `input` / `storage` / `ui`), never `print`. A failure that says
-  nothing is the bug report you cannot answer.
+- Log through `Diag`, never `print`. One call writes both sinks:
+  `Diag.info(.tap, "event tap installed")`, `Diag.error(.inject, "…")`, `Diag.debug(.scan, "…")`.
+  The tag is a `DiagTag`: `start`, `perm`, `tap`, `scan`, `inject`, `net`, `run`, `settings`,
+  `ui`, `crash`, `exit`, `export`. Methods are `verbose` / `debug` / `info` / `warning` /
+  `error`, plus `Diag.action(_:target:)` for the crash report's action ring. Note that
+  `Diag` is the *only* façade — a second one (`AppLog`) existed once and produced lines that
+  never reached the file; do not reintroduce one. A failure that says nothing is the bug
+  report you cannot answer.
 - British spelling in prose ("behaviour", "favourite") — the code and identifiers are English,
   and this is only about consistency in the docs.
 
@@ -155,7 +167,10 @@ change — see [RELEASING.md](RELEASING.md) for the release steps.
 
 ## Reporting bugs
 
-Include the version (**Settings → About**), macOS version, and the diagnostics export
-(**Settings → About → Export diagnostics…**). It contains permissions, the listener state, the
-last scan result, your settings, and the command that prints the matching log lines — no
-documents, no typed text, and nothing is uploaded.
+Include the version (**Settings → About**), macOS version, and a diagnostics export from
+**Settings → Diagnostics** — *Export diagnostics archive…* writes a `.zip` of the log and crash
+folders, *Export diagnostics report…* writes a single `.json` snapshot. Both live on the
+Diagnostics tab; the About tab has no export button. The archive contains permissions, the
+listener state, the last scan result, your settings, and the command that prints the matching
+log lines — no documents, no typed text, and nothing is uploaded. `KAGIPEEK_EXPORT_DIAGNOSTICS=<path>`
+does the same from a terminal when the window is the broken part.
