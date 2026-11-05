@@ -1210,6 +1210,9 @@ final class ShortcutEngine: ObservableObject {
     /// not removed from it.
     func activatePanel(waitingForTriggerRelease: Bool = false) {
         guard !state.isFrontAppExcluded else { return }
+        // A popup owns the interaction: opening the panel would both cover it and take
+        // focus away from what the user is in the middle of choosing.
+        guard !PopupGate.present(pid: frontmostProcessIdentifier) else { return }
         state.search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
         state.phase = .active

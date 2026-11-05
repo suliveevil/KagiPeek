@@ -63,7 +63,12 @@ nonisolated enum AXValueReader {
     /// Heterogeneous arrays are normal — a menu holds separators next to items — so
     /// non-elements are skipped rather than failing the whole read.
     static func children(of element: AXUIElement) -> [AXUIElement] {
-        guard let value = value(kAXChildrenAttribute, of: element), CFGetTypeID(value) == CFArrayGetTypeID() else {
+        elements(kAXChildrenAttribute, of: element)
+    }
+
+    /// The AX elements in an attribute array, e.g. an application's windows.
+    static func elements(_ name: String, of element: AXUIElement) -> [AXUIElement] {
+        guard let value = value(name, of: element), CFGetTypeID(value) == CFArrayGetTypeID() else {
             return []
         }
         let array = unsafeDowncast(value, to: CFArray.self)

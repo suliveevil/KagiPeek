@@ -556,7 +556,11 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
                 isRepeat: false,
                 happenedAt: Date()
             ))
-            let consume = withLock { modifierSwallowKeyCodes.contains(keyCode) }
+            // Never eat a modifier while a popup menu is up: Dock's "Force Quit" only
+            // shows up while Option is held over the item, so swallowing it would break
+            // the menu instead of merely suppressing KagiPeek.
+            let armed = withLock { modifierSwallowKeyCodes.contains(keyCode) }
+            let consume = armed && !PopupGate.menuPresent()
             return consume ? nil : Unmanaged.passUnretained(event)
 
         case .keyDown:
