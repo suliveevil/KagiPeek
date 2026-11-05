@@ -139,7 +139,17 @@ nonisolated enum Sanitizer {
 
     /// Clamps a string to `limit` characters, appending an ellipsis when it was cut.
     /// Menu item titles ride along in log messages and can be arbitrarily long.
+    ///
+    /// A budget of zero or less returns an empty string instead of the whole title. The
+    /// contract is "at most `limit` characters", and handing back `text` would break the one
+    /// thing this function promises. It also used to trap: `text.count > limit` is true for
+    /// every negative budget, so the cut below asked for `prefix(limit - 1)` with a negative
+    /// count, which kills the process rather than clamping.
+    ///
+    /// A budget of exactly one leaves room for the ellipsis and nothing else. That is the
+    /// honest answer for a one-character slot, not a truncation failure.
     static func clamp(_ text: String, limit: Int = 80) -> String {
+        guard limit > 0 else { return "" }
         guard text.count > limit else { return text }
         return String(text.prefix(limit - 1)) + "…"
     }

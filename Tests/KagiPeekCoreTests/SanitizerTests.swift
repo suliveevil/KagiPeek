@@ -93,6 +93,18 @@ final class SanitizerTests: XCTestCase {
         XCTAssertTrue(clamped.hasSuffix("…"))
         XCTAssertEqual(Sanitizer.clamp("short"), "short")
     }
+
+    /// Every caller passes the default budget today, which is exactly why the edges were
+    /// never exercised: a zero or negative budget used to reach `prefix(limit - 1)` and take
+    /// the process down instead of returning a shorter string.
+    func testClampSurvivesBudgetsThatLeaveNoRoomForContent() {
+        XCTAssertEqual(Sanitizer.clamp("abcdef", limit: 0), "", "zero budget is empty, not the full title")
+        XCTAssertEqual(Sanitizer.clamp("abcdef", limit: -1), "", "a negative budget must not trap")
+        XCTAssertEqual(Sanitizer.clamp("abcdef", limit: 1), "…", "one character only fits the ellipsis")
+        XCTAssertEqual(Sanitizer.clamp("abcdef", limit: 2).count, 2)
+        XCTAssertTrue(Sanitizer.clamp("abcdef", limit: 2).hasSuffix("…"))
+        XCTAssertEqual(Sanitizer.clamp("ab", limit: 3), "ab", "a budget larger than the text changes nothing")
+    }
 }
 
 /// The redaction table is a security control, and every rule in it is a hand-written regular
