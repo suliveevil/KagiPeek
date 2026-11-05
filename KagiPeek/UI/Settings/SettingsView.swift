@@ -37,8 +37,8 @@ struct SettingsView: View {
     var body: some View {
         // A sidebar, not an eight-segment picker: at 680 pt each segment had about 80 pt,
         // which already crowded "Diagnostics" in English and would have broken at the
-        // first word longer than that. Nine pages did not fit one row; a list does, and it
-        // is the shape macOS 14 users expect from a settings window.
+        // first word longer than that. Eight pages cannot share one row; a list holds
+        // them, and it is the shape macOS 14 users expect from a settings window.
         NavigationSplitView {
             // `List` selection is optional by default; this window always shows one page, so
             // clearing the selection is ignored instead of blanking the detail column.
