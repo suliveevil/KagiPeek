@@ -434,6 +434,7 @@ struct SettingsView: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
+                .accessibilityLabel(localization.text(.triggerClear))
                 .help(localization.text(.triggerClear))
                 .disabled(spec == nil || state.recordingTarget == target)
             }
