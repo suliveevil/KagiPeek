@@ -1055,10 +1055,15 @@ struct SettingsView: View {
     ///
     /// The log line is not redundant with the HUD: when this fails there is **no file**, so
     /// the log is the only durable trace. A HUD disappears and leaves nothing to attach.
+    ///
+    /// The save panel comes first. Building the report reads the scan state and the settings
+    /// snapshot, and doing that before the user has picked a destination meant a cancelled
+    /// save paid for work that was immediately thrown away — the archive export above has
+    /// always asked first.
     private func exportDiagnostics() {
+        guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
         do {
             let data = try engine.diagnosticsReport()
-            guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
             try data.write(to: url, options: [.atomic])
         } catch {
             Diag.error(.ui, "diagnostics export failed: \(error.localizedDescription)")
