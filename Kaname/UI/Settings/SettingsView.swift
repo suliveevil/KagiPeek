@@ -42,6 +42,9 @@ struct SettingsView: View {
     @State private var findingPageSize = SettingsView.findingPageStep
     @State private var confirmResetUsage = false
     @State private var confirmRestoreDefaults = false
+    /// Layout controls most users touch once, if at all. The two that change everyday
+    /// appearance — theme and column count — stay outside the disclosure.
+    @State private var showLayoutDetails = false
     private static let findingPageStep = 40
     private let onTabChange: ((SettingsTab) -> Void)?
     /// Lets the preview harness open a specific tab (e.g. `KANAME_PREVIEW=settings-ranking`).
@@ -601,67 +604,77 @@ struct SettingsView: View {
 
     private var appearanceTab: some View {
         Form {
-            Picker(localization.text(.appearanceKeyStyle), selection: $store.settings.keyStyle) {
-                ForEach(KeyFormatter.Style.allCases, id: \.self) { style in
-                    Text(localization.text(style.l10nKey)).tag(style)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Picker(localization.text(.appearanceTheme), selection: $store.settings.panelTheme) {
-                ForEach(PanelTheme.allCases, id: \.self) { theme in
-                    Text(localization.text(theme.titleKey)).tag(theme)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Picker(localization.text(.appearanceKeyPosition), selection: $store.settings.keyPosition) {
-                ForEach(KeyPosition.allCases, id: \.self) { position in
-                    Text(localization.text(position.titleKey)).tag(position)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Picker(localization.text(.appearancePanelOrder), selection: $store.settings.panelOrder) {
-                ForEach(PanelSortOrder.allCases, id: \.self) { order in
-                    Text(localization.text(order.titleKey)).tag(order)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Picker(localization.text(.appearanceColumns), selection: $store.settings.columnCount) {
-                Text("1").tag(1)
-                Text("2").tag(2)
-                Text("3").tag(3)
-            }
-            .pickerStyle(.segmented)
-
-            NumericSettingRow(title: .appearanceMaxItems,
-                              value: $store.settings.maxItemsPerPage,
-                              range: AppSettingsSnapshot.maxItemsPerPageRange)
-
-            NumericSettingRow(title: .appearanceMaxDescription,
-                              value: $store.settings.maxDescriptionLength,
-                              range: AppSettingsSnapshot.maxDescriptionLengthRange)
-
-            Toggle(localization.text(.appearanceShowDisabled), isOn: $store.settings.showDisabledItems)
-
-            Picker(localization.text(.appearancePlacement), selection: $store.settings.panelPlacement) {
-                ForEach(PanelPlacement.allCases, id: \.self) { placement in
-                    Text(localization.text(placement.titleKey)).tag(placement)
-                }
-            }
-
-            if settings.panelPlacement == .fixedSize {
-                LabeledContent(localization.text(.appearanceFixedWidth)) {
-                    Stepper(value: $store.settings.fixedPanelWidth, in: 320...4000, step: 20) {
-                        Text("\(Int(settings.fixedPanelWidth))").monospacedDigit()
+            Section(localization.text(.appearanceLayoutSection)) {
+                Picker(localization.text(.appearanceTheme), selection: $store.settings.panelTheme) {
+                    ForEach(PanelTheme.allCases, id: \.self) { theme in
+                        Text(localization.text(theme.titleKey)).tag(theme)
                     }
                 }
-                LabeledContent(localization.text(.appearanceFixedHeight)) {
-                    Stepper(value: $store.settings.fixedPanelHeight, in: 240...3000, step: 20) {
-                        Text("\(Int(settings.fixedPanelHeight))").monospacedDigit()
+                .pickerStyle(.segmented)
+
+                Picker(localization.text(.appearanceColumns), selection: $store.settings.columnCount) {
+                    Text("1").tag(1)
+                    Text("2").tag(2)
+                    Text("3").tag(3)
+                }
+                .pickerStyle(.segmented)
+
+                // Five segmented rows in a column is the bulk of this page, and only the
+                // theme and the column count are changed with any regularity. The rest keep
+                // their labels and controls; the disclosure just stops them from competing
+                // with the two that matter.
+                DisclosureGroup(isExpanded: $showLayoutDetails) {
+                    Picker(localization.text(.appearanceKeyStyle), selection: $store.settings.keyStyle) {
+                        ForEach(KeyFormatter.Style.allCases, id: \.self) { style in
+                            Text(localization.text(style.l10nKey)).tag(style)
+                        }
                     }
+                    .pickerStyle(.segmented)
+
+                    Picker(localization.text(.appearanceKeyPosition), selection: $store.settings.keyPosition) {
+                        ForEach(KeyPosition.allCases, id: \.self) { position in
+                            Text(localization.text(position.titleKey)).tag(position)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker(localization.text(.appearancePanelOrder), selection: $store.settings.panelOrder) {
+                        ForEach(PanelSortOrder.allCases, id: \.self) { order in
+                            Text(localization.text(order.titleKey)).tag(order)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    NumericSettingRow(title: .appearanceMaxItems,
+                                      value: $store.settings.maxItemsPerPage,
+                                      range: AppSettingsSnapshot.maxItemsPerPageRange)
+
+                    NumericSettingRow(title: .appearanceMaxDescription,
+                                      value: $store.settings.maxDescriptionLength,
+                                      range: AppSettingsSnapshot.maxDescriptionLengthRange)
+
+                    Toggle(localization.text(.appearanceShowDisabled), isOn: $store.settings.showDisabledItems)
+
+                    Picker(localization.text(.appearancePlacement), selection: $store.settings.panelPlacement) {
+                        ForEach(PanelPlacement.allCases, id: \.self) { placement in
+                            Text(localization.text(placement.titleKey)).tag(placement)
+                        }
+                    }
+
+                    if settings.panelPlacement == .fixedSize {
+                        LabeledContent(localization.text(.appearanceFixedWidth)) {
+                            Stepper(value: $store.settings.fixedPanelWidth, in: 320...4000, step: 20) {
+                                Text("\(Int(settings.fixedPanelWidth))").monospacedDigit()
+                            }
+                        }
+                        LabeledContent(localization.text(.appearanceFixedHeight)) {
+                            Stepper(value: $store.settings.fixedPanelHeight, in: 240...3000, step: 20) {
+                                Text("\(Int(settings.fixedPanelHeight))").monospacedDigit()
+                            }
+                        }
+                    }
+                } label: {
+                    Text(localization.text(.appearanceLayoutAdvanced))
                 }
             }
 

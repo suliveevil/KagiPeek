@@ -67,7 +67,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case triggerEnableAccessibility, triggerUnset, triggerClear
 
     // Appearance
-    case appearanceTitle, appearanceKeyStyle, appearanceStyleSymbols, appearanceStyleWords
+    case appearanceTitle, appearanceLayoutSection, appearanceLayoutAdvanced, appearanceKeyStyle, appearanceStyleSymbols, appearanceStyleWords
     case appearanceColumns, appearanceMaxItems, appearanceMaxDescription, appearanceShowDisabled
     case appearanceLanguage, appearancePlacement, appearanceFixedWidth, appearanceFixedHeight
     case appearanceNumberInvalidFormat
@@ -456,6 +456,8 @@ nonisolated enum L10n {
         .triggerClear: ("Delete", "删除"),
 
         .appearanceTitle: ("Appearance", "外观"),
+        .appearanceLayoutSection: ("Panel layout", "面板布局"),
+        .appearanceLayoutAdvanced: ("Layout details", "布局细节"),
         .appearanceKeyStyle: ("Key style", "按键显示"),
         .appearanceStyleSymbols: ("Symbols (⌘)", "符号（⌘）"),
         .appearanceStyleWords: ("Words (command)", "文字（command）"),
