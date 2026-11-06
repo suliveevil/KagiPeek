@@ -1,10 +1,10 @@
 # Homebrew cask template for Kaname.
 #
-# This file is a TEMPLATE, not an installable cask: __VERSION__ and __SHA256__ are
-# placeholders on purpose, and a cask with them still in place must never be pushed
-# to a tap. `scripts/publish_release.sh` renders them from the DMG it just uploaded
-# and writes the result to build/kaname.rb; only that rendered file goes into
-# Casks/kaname.rb of the tap repository.
+# This file is a TEMPLATE, not an installable cask. The `version` and `sha256`
+# declarations are filled in by `scripts/publish_release.sh` from the DMG it just
+# uploaded; the template itself must never be pushed to a tap. The rendered result
+# is written to build/kaname.rb, and only that file goes into Casks/kaname.rb of the
+# tap repository.
 #
 # The tap repository is suliveevil/homebrew-tap (public), so users install with:
 #   brew tap suliveevil/tap
@@ -30,10 +30,11 @@ cask "kaname" do
   # 14.0, matching LSMinimumSystemVersion in scripts/Info.plist.
   depends_on macos: ">= :sonoma"
 
-  # The current release artifact is arm64-only (scripts/build_swiftc.sh builds a thin
-  # arm64 binary), so Intel Macs must be rejected at install time instead of failing
-  # with "bad CPU type" after a successful install. Remove this line once
-  # scripts/build_release.sh publishes a universal DMG.
+  # Apple Silicon is the only supported configuration. The DMG built by
+  # scripts/build_release.sh is universal (x86_64 + arm64), but Intel is untested, so
+  # the cask rejects Intel Macs at install time by choice rather than shipping an
+  # unsupported configuration. This is a deliberate support decision, not a statement
+  # about the binary's architectures.
   depends_on arch: :arm64
 
   app "Kaname"

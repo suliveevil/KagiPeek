@@ -286,12 +286,12 @@ Kaname-diagnostics/
 
 | 关键字 | 节点 | 级别 | 示例行 |
 |---|---|---|---|
-| `[start]` | 进程启动（版本/系统/型号）、单实例守卫触发、engine.start 完成（含耗时）、selftest 进入/写出 | I | `I [start] launch version=2.2.0 build=1234 macOS=14.5 model=Mac14,2` |
+| `[start]` | 进程启动（版本/系统/型号）、单实例守卫触发、engine.start 完成（含耗时）、selftest 进入/写出 | I | `I [start] launch version=2.3.0 build=1234 macOS=14.5 model=Mac14,2` |
 | `[perm]` | AX/Input Monitoring 状态翻转（旧→新）、Secure Input 进入/退出、权限请求发起、被拒后的轮询恢复 | I / W | `I [perm] accessibility revoked` |
 | `[tap]` | tap 安装成功、安装失败（含错误域）、系统禁用后重启用、stop | I / E | `E [tap] run-loop source creation failed: the tap will never deliver events` |
 | `[scan]` | 扫描开始（bundle id、cache hit/miss）、结果（条数、耗时）、空目录原因（权限/无菜单/被排除）、ScanState 变化 | I（结果 D） | `I [scan] menu ·History is a list of data (2500 children), reading 40, keeping shortcuts only` |
 | `[inject]` | 注入失败（AX 错误码 + 目标 + 菜单项标题）、注入成功 | E（成功 D） | `E [inject] target pid 12345 is gone, nothing posted` |
-| `[net]` | 请求摘要（仅 host+path）、响应状态+耗时、失败原因（超时/解码失败/HTTP 非200） | I / W | `I [net] update-check status=200 ms=412 latest=v2.2.0` |
+| `[net]` | 请求摘要（仅 host+path）、响应状态+耗时、失败原因（超时/解码失败/HTTP 非200） | I / W | `I [net] update-check status=200 ms=412 latest=v2.3.0` |
 | `[run]` | 行执行（动作 + 目标 bundle id；verbose 才记菜单项标题） | I / E | `I [run] Return key ignored: no row selected (index=-1, rows=0)` |
 | `[settings]` | 设置变更：**只记键名** | I | `I [settings] changed: showAppleMenu, panelOrder` |
 | `[ui]` | 菜单栏项被顶掉 / 重建、激活策略切换、登录项注册失败、selftest 写出 | I / W / E | `W [ui] menu bar item lost (…); rebuilding it` |

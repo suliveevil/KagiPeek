@@ -698,7 +698,7 @@ no file I/O, which is why it is unit tested without AppKit.
 | Statistics | **Sort by** (shortcut, app, or command), one flat list of shortcuts with the owning app and the command as a note (*Show data folder*, *Reset statistics*), *Restore defaults* |
 | Conflicts | Config file sources (what was read, counts, rescan), type filter, related-app filter, scan timestamp, manual rescan, paged findings with **Test this combo** |
 | Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt + opening the matching System Settings pane), and a draggable Kaname icon |
-| About | Icon, version with commit (`v2.2.0 (836e3c3)`), system version, manual update check, data folder (open button), repository and license |
+| About | Icon, version with commit (`v2.3.0 (836e3c3)`), system version, manual update check, data folder (open button), repository and license |
 
 The statistics tab is fed by `ShortcutEngine.usageEntries()`: every `usageKey` joined with the catalog entry it names (unmerged across owners), cached in `EngineState.usageBreakdownAllCache` against a signature of press count, scan time, language, and the two binding counts. The view then orders that list with `UsageSorting` — the engine has no AppKit dependency and does not need the app display names — and draws one row per shortcut: the chord leads, the app icon and name plus the command follow as a 12 pt note. **Show data folder** opens `~/Library/Application Support/Kaname` in Finder.
 

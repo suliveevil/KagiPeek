@@ -81,7 +81,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 ### Requirements
 
 - macOS 14.0 Sonoma or later.
-- Apple Silicon (arm64) for the current release. The DMG contains a thin arm64 binary; the cask rejects Intel Macs instead of letting them install and then fail at launch. Rosetta translates x86_64 to arm64, never the reverse.
+- Apple Silicon (arm64). The release DMG is a universal binary (x86_64 + arm64), but Intel is not a supported or tested configuration: the cask deliberately rejects Intel Macs at install time rather than letting an untested app install and fail later.
 - Accessibility permission (required). Input Monitoring is an optional fallback if key events are not delivered on your system. Both are explained on first launch.
 - The app is a menu bar agent: no Dock icon, and no window when it launches — the menu bar icon is the way in (Settings → General → **Show a Dock icon as well** adds one back).
 
@@ -444,7 +444,7 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 #### 系统要求
 
 - macOS 14.0 Sonoma 或更高版本。
-- 当前发布包只支持 Apple Silicon（arm64）。DMG 里是 arm64 thin 二进制，cask 会在安装阶段直接拒绝 Intel Mac，而不是装完再启动失败；Rosetta 只做 x86_64 → arm64，不能反向运行。
+- 仅支持 Apple Silicon（arm64）。发布 DMG 实际是 universal 二进制（x86_64 + arm64），但 Intel 不在支持或测试范围内；cask 主动在安装阶段拒绝 Intel Mac，而不是让未经验证的包装完再出问题。
 - 辅助功能权限（必需）。输入监控是可选的兜底项，仅在系统收不到按键事件时才需要。两项都会在首次启动时说明。
 - 这是菜单栏 App，没有 Dock 图标，启动时不打开任何窗口——入口就是菜单栏图标（**设置 → 通用 → 同时在 Dock 显示图标** 可以把图标加回来）。
 

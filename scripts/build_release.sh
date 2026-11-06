@@ -77,12 +77,31 @@ fi
 # The About page shows this commit; it has to be in the plist before signing.
 "$ROOT/scripts/stamp_commit.sh" "$APP"
 
+# An interrupted `codesign` leaves a `.cstemp` file inside the bundle; the next
+# `codesign --verify` then fails with "invalid or unsupported format for signature".
+find "$APP" -name '*.cstemp' -print -delete
+
+# The self-signed `Kaname Local` key lives in its own keychain. Unlocking it with the
+# passphrase file keeps `codesign` non-interactive; a locked keychain makes it wait for
+# authorization. The passphrase is read, never printed, never stored in the repository.
+SIGN_KEYCHAIN_FILE="${KANAME_SIGNING_KEYCHAIN:-$HOME/Library/Keychains/kaname-signing.keychain-db}"
+SIGN_PASS_FILE="${KANAME_SIGNING_PASS_FILE:-$HOME/Library/Application Support/Kaname/signing/keychain-pass}"
+SIGN_KEYCHAIN=""
+if [ -f "$SIGN_KEYCHAIN_FILE" ] && [ -r "$SIGN_PASS_FILE" ]; then
+    security unlock-keychain -p "$(<"$SIGN_PASS_FILE")" "$SIGN_KEYCHAIN_FILE" >/dev/null 2>&1 || true
+fi
+
 IDENTITY="${KANAME_SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
     IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)"
 fi
+if [ -z "$IDENTITY" ] && [ -f "$SIGN_KEYCHAIN_FILE" ]; then
+    # Stable self-signed identity created by scripts/setup_signing.sh. Looking it up
+    # in its own keychain also proves that keychain is the one to pass to codesign.
+    IDENTITY="$(security find-identity -v -p codesigning "$SIGN_KEYCHAIN_FILE" 2>/dev/null | sed -n 's/.*"\(Kaname Local\)"/\1/p' | head -1)"
+    [ -n "$IDENTITY" ] && SIGN_KEYCHAIN="$SIGN_KEYCHAIN_FILE"
+fi
 if [ -z "$IDENTITY" ]; then
-    # Stable self-signed identity created by scripts/setup_signing.sh.
     IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Kaname Local\)"/\1/p' | head -1)"
 fi
 
@@ -92,7 +111,11 @@ if [ -n "$IDENTITY" ]; then
         echo "    (stable local identity: Accessibility grants survive rebuilds)"
         # A local self-signed build must not depend on Apple's timestamp service: offline
         # builds would otherwise fail at the last step.
-        codesign --force --options runtime --sign "$IDENTITY" "$APP"
+        if [ -n "$SIGN_KEYCHAIN" ]; then
+            codesign --force --options runtime --sign "$IDENTITY" --keychain "$SIGN_KEYCHAIN" "$APP"
+        else
+            codesign --force --options runtime --sign "$IDENTITY" "$APP"
+        fi
     else
         codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
     fi
@@ -133,7 +156,11 @@ hdiutil create -volname "Kaname" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/d
 # The DMG is what users download, so it carries its own signature and notarization: a
 # notarized app inside an unsigned disk image is still stopped by Gatekeeper.
 if [ -n "$IDENTITY" ]; then
-    codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+    if [ -n "$SIGN_KEYCHAIN" ]; then
+        codesign --force --timestamp --sign "$IDENTITY" --keychain "$SIGN_KEYCHAIN" "$DMG"
+    else
+        codesign --force --timestamp --sign "$IDENTITY" "$DMG"
+    fi
     codesign --verify --strict "$DMG"
     if [ -n "${KANAME_NOTARY_PROFILE:-}" ]; then
         xcrun notarytool submit "$DMG" --keychain-profile "$KANAME_NOTARY_PROFILE" --wait

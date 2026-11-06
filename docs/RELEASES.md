@@ -90,9 +90,10 @@ along the way, and what to do about it when upgrading.
 
 ## Install
 
-Requirements: macOS 14.0 Sonoma or later. The bundle identifier is `com.suliveevil.kaname`. The
-published DMG is a thin **arm64** binary; Intel Macs are rejected by the cask instead of installing
-and then failing at launch.
+Requirements: macOS 14.0 Sonoma or later on Apple Silicon (arm64). The bundle identifier is
+`com.suliveevil.kaname`. The published DMG is a universal binary (x86_64 + arm64), but Intel is not
+a supported or tested configuration: the cask deliberately rejects Intel Macs at install time
+instead of shipping an untested app.
 
 Install from the tap:
 

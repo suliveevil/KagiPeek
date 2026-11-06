@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Writes the short git commit into the bundle's Info.plist as `KanameCommit`, so the
-# About page can read "v2.2.0 (dbafe89)" instead of the build number.
+# About page can read "v2.3.0 (dbafe89)" instead of the build number.
 #
 # Must run *before* `codesign`: editing Info.plist after signing invalidates the signature
 # and the app will fail to launch on the next strict verification.

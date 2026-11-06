@@ -13,7 +13,7 @@ nonisolated enum AppVersion {
     /// The short form git itself prints: seven characters.
     static let shortCommitLength = 7
 
-    /// `v<marketing version> (<short commit>)`, e.g. `v2.2.0 (66e5582)`.
+    /// `v<marketing version> (<short commit>)`, e.g. `v2.3.0 (66e5582)`.
     static func display(shortVersion: String?, commit: String?) -> String {
         let version = trimmed(shortVersion) ?? "?"
         let hash = shortCommit(commit) ?? "unknown"

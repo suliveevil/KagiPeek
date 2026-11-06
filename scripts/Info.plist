@@ -6,8 +6,8 @@
     It lives in the repository because the fallback build used to read the template from
     /Applications/Kaname.app — a previously *installed* copy. That made the build depend on
     its own output: delete the app and nothing can be built, which is exactly what happened on
-    2026-11-02. The values mirror the project settings (MARKETING_VERSION 2.2.0,
-    CURRENT_PROJECT_VERSION 220, LSUIElement, minimum macOS 14.0); keep them in step when the
+    2026-11-02. The values mirror the project settings (MARKETING_VERSION 2.3.0,
+    CURRENT_PROJECT_VERSION 230, LSUIElement, minimum macOS 14.0); keep them in step when the
     version changes. The xcodebuild path does not read this file — it generates the plist from
     those same settings — so there is one source of truth per path and both are stated here.
 -->
@@ -32,9 +32,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.2.0</string>
+	<string>2.3.0</string>
 	<key>CFBundleVersion</key>
-	<string>220</string>
+	<string>230</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>

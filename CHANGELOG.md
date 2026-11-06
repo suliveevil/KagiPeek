@@ -2,10 +2,14 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
-## Unreleased
+## Kaname 2.3.0 (2026-11-06)
 
 ### Changed
 
+- **KagiPeek is now Kaname, end to end.** The project container, source tree, SwiftPM module, bundle identifier (`com.suliveevil.kaname`), signing identity, data folder and scripts all use the new name. To macOS an old KagiPeek install is a different app: Accessibility, Input Monitoring and the login item have to be granted or cleared again for Kaname.
+- **Settings was rebuilt across General, Trigger, Appearance and Statistics.** Trigger switches moved beside their section headings, the general toggles folded into the ignored-menu-items card, layout numbers became typed inputs, and statistics flattened to one row per usage key with a sort field (settings schema 9 → 10). Diagnostics later folded into General, leaving seven tabs.
+- **A design-review pass tightened the UI.** Type sizes collapsed to five system-scale tokens, corner radii to four tokens on an 8 pt grid, disabled rows gained a dedicated colour plus a non-colour marker, empty panel states gained icons and next-step hints, bare symbols and colour-only states got spoken labels, and the settings window follows the panel's title with zoom disabled.
+- **Release builds are non-interactive again.** `build_release.sh` unlocks `kaname-signing.keychain-db` like the swiftc path does and removes `*.cstemp` left behind by an interrupted `codesign`.
 - **The run key is Space and the copy key is Return.** Running a row and copying its chord were ↩ and ⌘↩; they are now the two keys people already press on a selected item. A stored pair that still matches both old defaults is migrated on the next launch, and anything recorded by hand wins.
 - **The panel carries a third group of cards: the config-file shortcuts.** Karabiner, skhd, Keyboard Maestro, BetterTouchTool, Hammerspoon and Alfred each get one card, folded until its heading is clicked, with its row count on the heading. Those rows can be searched, copied and favourited, and they never run: clicking one copies its chord.
 - **Coming back to an app asks the disk cache first.** A cached menu scan is good for ten minutes, so re-opening the panel for an app — or relaunching Kaname — shows its menus without walking the menu bar again.
