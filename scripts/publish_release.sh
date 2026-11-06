@@ -13,7 +13,7 @@ cd "$ROOT"
 
 VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' KagiPeek.xcodeproj/project.pbxproj | head -1)"
 TAG="v${VERSION}"
-DMG="build/KagiPeek-${VERSION}.dmg"
+DMG="build/Kaname-${VERSION}.dmg"
 NOTES="docs/releases/${TAG}.md"
 
 if ! gh auth status >/dev/null 2>&1; then
@@ -42,10 +42,10 @@ fi
 # rather than a file per version, so the generated body is the normal case, not a failure.
 if [ ! -f "$NOTES" ]; then
     PREVIOUS="$(git describe --tags --abbrev=0 2>/dev/null || true)"
-    NOTES="$(mktemp -t kagipeek-release-notes)"
+    NOTES="$(mktemp -t kaname-release-notes)"
     trap 'rm -f "$NOTES"' EXIT
     {
-        echo "KagiPeek ${VERSION}"
+        echo "Kaname "
         echo
         if [ -n "$PREVIOUS" ]; then
             echo "## Changes since ${PREVIOUS}"
@@ -65,13 +65,13 @@ fi
 if git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "==> Tag $TAG already exists locally"
 else
-    git tag -a "$TAG" -m "KagiPeek $VERSION"
+    git tag -a "$TAG" -m "Kaname $VERSION"
 fi
 
 # Repositories cloned over HTTPS need a credential helper; fall back to SSH.
 git push origin "$TAG" 2>/dev/null || git push git@github.com:suliveevil/KagiPeek.git "$TAG"
 
-ARGS=(release create "$TAG" "$DMG" --repo suliveevil/KagiPeek --title "KagiPeek $VERSION" --notes-file "$NOTES")
+ARGS=(release create "$TAG" "$DMG" --repo suliveevil/KagiPeek --title "Kaname $VERSION" --notes-file "$NOTES")
 if [ "${1:-}" = "--prerelease" ]; then
     ARGS+=(--prerelease)
 fi

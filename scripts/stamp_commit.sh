@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Writes the short git commit into the bundle's Info.plist as `KagiPeekCommit`, so the
+# Writes the short git commit into the bundle's Info.plist as `KanameCommit`, so the
 # About page can read "v2.2.0 (dbafe89)" instead of the build number.
 #
 # Must run *before* `codesign`: editing Info.plist after signing invalidates the signature
 # and the app will fail to launch on the next strict verification.
 #
-# Usage: scripts/stamp_commit.sh /path/to/KagiPeek.app
+# Usage: scripts/stamp_commit.sh /path/to/Kaname.app
 set -euo pipefail
 
 APP="${1:?usage: stamp_commit.sh <app bundle>}"
@@ -25,6 +25,6 @@ if ! git -C "$ROOT" diff --quiet 2>/dev/null || ! git -C "$ROOT" diff --cached -
     COMMIT="${COMMIT}-dirty"
 fi
 
-/usr/libexec/PlistBuddy -c "Delete :KagiPeekCommit" "$PLIST" >/dev/null 2>&1 || true
-/usr/libexec/PlistBuddy -c "Add :KagiPeekCommit string $COMMIT" "$PLIST"
+/usr/libexec/PlistBuddy -c "Delete :KanameCommit" "$PLIST" >/dev/null 2>&1 || true
+/usr/libexec/PlistBuddy -c "Add :KanameCommit string $COMMIT" "$PLIST"
 echo "==> Commit: $COMMIT"

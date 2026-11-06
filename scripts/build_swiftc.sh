@@ -14,8 +14,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 CONFIG="${1:-Release}"
-X="${KAGIPEEK_XCODE:-/Applications/Xcode-beta.app/Contents/Developer}"
-[ -d "$X" ] || X="${KAGIPEEK_XCODE:-/Applications/Xcode.app/Contents/Developer}"
+X="${KANAME_XCODE:-/Applications/Xcode-beta.app/Contents/Developer}"
+[ -d "$X" ] || X="${KANAME_XCODE:-/Applications/Xcode.app/Contents/Developer}"
 SDK="$X/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 TC="$X/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 PLUG="$X/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins"
@@ -26,18 +26,18 @@ PLUG="$X/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins"
 # libSwiftUIMacros, so every `@State` in the UI fails to expand).
 if [ ! -x "$TC/swiftc" ]; then
     echo "error: no Xcode developer directory at $X" >&2
-    echo "       install Xcode, or point KAGIPEEK_XCODE at one" >&2
+    echo "       install Xcode, or point KANAME_XCODE at one" >&2
     exit 1
 fi
 
-OUT="${KAGIPEEK_OUT:-$ROOT/build/manual}"
+OUT="${KANAME_OUT:-$ROOT/build/manual}"
 APP="$OUT/Kaname.app"
 
 # The template comes from the repository first. It used to come only from
-# /Applications/KagiPeek.app — a previously installed copy — which made the build depend on its
+# /Applications/Kaname.app — a previously installed copy — which made the build depend on its
 # own output: with the app deleted, nothing could be built at all (2026-11-02). The installed
 # copy stays as a last resort for anyone who has one and no checkout-level template.
-TEMPLATE="${KAGIPEEK_PLIST_SOURCE:-}"
+TEMPLATE="${KANAME_PLIST_SOURCE:-}"
 if [ -z "$TEMPLATE" ]; then
     for candidate in "$ROOT/scripts/Info.plist" "/Applications/Kaname.app/Contents/Info.plist"; do
         if [ -f "$candidate" ]; then
@@ -76,7 +76,7 @@ if [ -f "$TEMPLATE" ]; then
     echo "==> Info.plist from $TEMPLATE"
     cp "$TEMPLATE" "$APP/Contents/Info.plist"
 else
-    echo "error: no Info.plist template; pass KAGIPEEK_PLIST_SOURCE" >&2
+    echo "error: no Info.plist template; pass KANAME_PLIST_SOURCE" >&2
     exit 1
 fi
 
@@ -134,8 +134,14 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # passphrase file keeps `codesign` non-interactive: the login keychain's key ACL and
 # partition list are managed by macOS, so signing from there asks for authorization over
 # and over. The passphrase is read, never printed, and never stored in the repository.
-SIGN_KEYCHAIN_FILE="${KAGIPEEK_SIGNING_KEYCHAIN:-$HOME/Library/Keychains/kagipeek-signing.keychain-db}"
-SIGN_PASS_FILE="${KAGIPEEK_SIGNING_PASS_FILE:-$HOME/Library/Application Support/KagiPeek/signing/keychain-pass}"
+SIGN_KEYCHAIN_FILE="${KANAME_SIGNING_KEYCHAIN:-$HOME/Library/Keychains/kaname-signing.keychain-db}"
+SIGN_PASS_FILE="${KANAME_SIGNING_PASS_FILE:-$HOME/Library/Application Support/Kaname/signing/keychain-pass}"
+# During the rename the old folder still holds the passphrase until the first launch
+# migrates it (or setup_signing.sh writes the new one); read the old copy as a fallback.
+if [ ! -r "$SIGN_PASS_FILE" ]; then
+    LEGACY_SIGN_PASS="$HOME/Library/Application Support/KagiPeek/signing/keychain-pass"
+    [ -r "$LEGACY_SIGN_PASS" ] && SIGN_PASS_FILE="$LEGACY_SIGN_PASS"
+fi
 
 IDENTITY=""
 SIGN_KEYCHAIN=""

@@ -84,7 +84,7 @@ jobs:
         if: matrix.os == 'macos-15'
         run: |
           ./scripts/build_release.sh
-          shasum -a 256 -c build/KagiPeek-*.dmg.sha256
+          shasum -a 256 -c build/Kaname-*.dmg.sha256
 
       - name: Coverage (pure logic)
         run: |

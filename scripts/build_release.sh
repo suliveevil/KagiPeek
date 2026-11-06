@@ -5,9 +5,9 @@
 #
 # Usage:
 #   ./scripts/build_release.sh
-#   KAGIPEEK_SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" ./scripts/build_release.sh
-#   KAGIPEEK_NOTARY_PROFILE="kagipeek-notary" ./scripts/build_release.sh   # requires notarytool credentials
-#   KAGIPEEK_SKIP_DMG=1 ./scripts/build_release.sh                        # app only
+#   KANAME_SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" ./scripts/build_release.sh
+#   KANAME_NOTARY_PROFILE="kaname-notary" ./scripts/build_release.sh   # requires notarytool credentials
+#   KANAME_SKIP_DMG=1 ./scripts/build_release.sh                        # app only
 
 set -euo pipefail
 
@@ -37,14 +37,14 @@ fi
 VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' KagiPeek.xcodeproj/project.pbxproj | head -1)"
 BUILD_DIR="$ROOT/build"
 DERIVED="$BUILD_DIR/DerivedData"
-APP="$DERIVED/Build/Products/Release/KagiPeek.app"
+APP="$DERIVED/Build/Products/Release/Kaname.app"
 
-echo "==> Building KagiPeek ${VERSION} (Release)"
+echo "==> Building Kaname ${VERSION} (Release)"
 xcodebuild     -project KagiPeek.xcodeproj     -scheme KagiPeek     -configuration Release     -derivedDataPath "$DERIVED"     CODE_SIGNING_ALLOWED=NO     build
 
 # The bundle is the only single source of truth for the version: the project file carries
 # MARKETING_VERSION twice (Debug and Release) and a `sed` that matches the wrong one, or
-# nothing at all, would silently produce "KagiPeek-.dmg" and a "v" release tag.
+# nothing at all, would silently produce "Kaname-.dmg" and a "v" release tag.
 BUILT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || true)"
 if [ -z "$BUILT_VERSION" ]; then
     echo "error: could not read CFBundleShortVersionString from $APP" >&2
@@ -77,7 +77,7 @@ fi
 # The About page shows this commit; it has to be in the plist before signing.
 "$ROOT/scripts/stamp_commit.sh" "$APP"
 
-IDENTITY="${KAGIPEEK_SIGN_IDENTITY:-}"
+IDENTITY="${KANAME_SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
     IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)"
 fi
@@ -106,20 +106,20 @@ fi
 # `--deep` is deprecated by Apple: verify the app and every nested item explicitly instead.
 codesign --verify --strict --verbose=2 "$APP"
 
-if [ -n "$IDENTITY" ] && [ -n "${KAGIPEEK_NOTARY_PROFILE:-}" ]; then
+if [ -n "$IDENTITY" ] && [ -n "${KANAME_NOTARY_PROFILE:-}" ]; then
     echo "==> Submitting for notarization"
-    ditto -c -k --keepParent "$APP" "$BUILD_DIR/KagiPeek.zip"
-    xcrun notarytool submit "$BUILD_DIR/KagiPeek.zip" --keychain-profile "$KAGIPEEK_NOTARY_PROFILE" --wait
+    ditto -c -k --keepParent "$APP" "$BUILD_DIR/Kaname.zip"
+    xcrun notarytool submit "$BUILD_DIR/Kaname.zip" --keychain-profile "$KANAME_NOTARY_PROFILE" --wait
     xcrun stapler staple "$APP"
     codesign --verify --deep --strict "$APP"
 fi
 
-if [ "${KAGIPEEK_SKIP_DMG:-0}" = "1" ]; then
+if [ "${KANAME_SKIP_DMG:-0}" = "1" ]; then
     echo "==> App: $APP"
     exit 0
 fi
 
-DMG="$BUILD_DIR/KagiPeek-${VERSION}.dmg"
+DMG="$BUILD_DIR/Kaname-${VERSION}.dmg"
 STAGE="$BUILD_DIR/dmg"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
@@ -128,15 +128,15 @@ ln -s /Applications "$STAGE/Applications"
 
 echo "==> Packaging $DMG"
 rm -f "$DMG"
-hdiutil create -volname "KagiPeek" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+hdiutil create -volname "Kaname" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 
 # The DMG is what users download, so it carries its own signature and notarization: a
 # notarized app inside an unsigned disk image is still stopped by Gatekeeper.
 if [ -n "$IDENTITY" ]; then
     codesign --force --timestamp --sign "$IDENTITY" "$DMG"
     codesign --verify --strict "$DMG"
-    if [ -n "${KAGIPEEK_NOTARY_PROFILE:-}" ]; then
-        xcrun notarytool submit "$DMG" --keychain-profile "$KAGIPEEK_NOTARY_PROFILE" --wait
+    if [ -n "${KANAME_NOTARY_PROFILE:-}" ]; then
+        xcrun notarytool submit "$DMG" --keychain-profile "$KANAME_NOTARY_PROFILE" --wait
         xcrun stapler staple "$DMG"
         xcrun stapler validate "$DMG"
     fi

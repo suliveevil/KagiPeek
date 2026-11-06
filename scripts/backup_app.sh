@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 #
-# Copies an installed KagiPeek.app into the shared backup folder before it is replaced.
+# Copies an installed Kaname.app into the shared backup folder before it is replaced.
 #
 # One backup per install, named for when it was taken and what it was:
 #
-#   KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app
+#   Kaname-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app
 #
-# Backups live under `~/Library/Application Support/KagiPeek/backups/`, never next to
-# `/Applications/KagiPeek.app`: a second `.app` in /Applications is picked up by
+# Backups live under `~/Library/Application Support/Kaname/backups/`, never next to
+# `/Applications/Kaname.app`: a second `.app` in /Applications is picked up by
 # LaunchServices as another copy of the same bundle id, and an ad-hoc copy gets its own
-# TCC identity (the stale "KagiPeek-2026-11-04-…-adhoc.app" row in System Settings).
+# TCC identity (the stale "Kaname-2026-11-04-…-adhoc.app" row in System Settings).
 #
 # The oldest backups are pruned so the folder cannot grow without bound.
 #
-# Usage: scripts/backup_app.sh /Applications/KagiPeek.app
-#        KAGIPEEK_DRY_RUN=1 scripts/backup_app.sh /Applications/KagiPeek.app
+# Usage: scripts/backup_app.sh /Applications/Kaname.app
+#        KANAME_DRY_RUN=1 scripts/backup_app.sh /Applications/Kaname.app
 #
 # stdout: the path of the backup (one line, safe to capture).
 # stderr: progress and the prune plan.
@@ -31,26 +31,27 @@ if [ ! -d "$APP" ]; then
     exit 2
 fi
 
-BACKUP_ROOT="${KAGIPEEK_BACKUP_DIR:-$HOME/Library/Application Support/KagiPeek/backups}"
-KEEP="${KAGIPEEK_BACKUP_KEEP:-5}"
-DRY_RUN="${KAGIPEEK_DRY_RUN:-0}"
+BACKUP_ROOT="${KANAME_BACKUP_DIR:-$HOME/Library/Application Support/Kaname/backups}"
+KEEP="${KANAME_BACKUP_KEEP:-5}"
+DRY_RUN="${KANAME_DRY_RUN:-0}"
 
 case "$KEEP" in
-    ''|*[!0-9]*) echo "error: KAGIPEEK_BACKUP_KEEP must be a number (got '$KEEP')" >&2; exit 2 ;;
+    ''|*[!0-9]*) echo "error: KANAME_BACKUP_KEEP must be a number (got '$KEEP')" >&2; exit 2 ;;
 esac
 if [ "$KEEP" -lt 1 ]; then
-    echo "error: KAGIPEEK_BACKUP_KEEP must be at least 1 (got '$KEEP')" >&2
+    echo "error: KANAME_BACKUP_KEEP must be at least 1 (got '$KEEP')" >&2
     exit 2
 fi
 
 # The signing identity decides TCC behaviour, so it belongs in the name. Record a kind,
-# not the certificate itself: "KagiPeek Local" would put a space in the file name.
+# not the certificate itself: "Kaname Local" would put a space in the file name.
 identity_kind() {
     local details
     # `-dvvv` is required: plain `-dv` omits the Authority lines entirely.
     details="$(codesign -dvvv "$1" 2>&1 || true)"
     case "$details" in
         *"Authority=Developer ID Application"*) echo "devid" ;;
+        *"Authority=Kaname Local"*)             echo "local" ;;
         *"Authority=KagiPeek Local"*)           echo "local" ;;
         *)                                      echo "adhoc" ;;
     esac
@@ -58,7 +59,7 @@ identity_kind() {
 
 commit_of() {
     local commit
-    commit="$(/usr/libexec/PlistBuddy -c "Print :KagiPeekCommit" "$1/Contents/Info.plist" 2>/dev/null || true)"
+    commit="$(/usr/libexec/PlistBuddy -c "Print :KanameCommit" "$1/Contents/Info.plist" 2>/dev/null || true)"
     commit="${commit//[[:space:]]/}"
     printf '%s' "${commit:-unknown}"
 }
@@ -66,18 +67,18 @@ commit_of() {
 STAMP="$(date +%Y-%m-%d-%H%M%S)"
 COMMIT="$(commit_of "$APP")"
 IDENTITY="$(identity_kind "$APP")"
-DEST="$BACKUP_ROOT/KagiPeek-$STAMP-$COMMIT-$IDENTITY.app"
+DEST="$BACKUP_ROOT/Kaname-$STAMP-$COMMIT-$IDENTITY.app"
 
 # One install per second is the normal case; keep a same-second retry distinct rather
 # than overwrite the backup that is about to be needed.
 if [ -e "$DEST" ] && [ "$DRY_RUN" != "1" ]; then
-    DEST="$BACKUP_ROOT/KagiPeek-$STAMP-$COMMIT-$IDENTITY-2.app"
+    DEST="$BACKUP_ROOT/Kaname-$STAMP-$COMMIT-$IDENTITY-2.app"
 fi
 
 # Oldest first: the timestamp prefix sorts chronologically as plain text.
 backups() {
     local entry
-    for entry in "$BACKUP_ROOT"/KagiPeek-*.app; do
+    for entry in "$BACKUP_ROOT"/Kaname-*.app; do
         [ -d "$entry" ] || continue
         printf '%s\n' "$entry"
     done | sort

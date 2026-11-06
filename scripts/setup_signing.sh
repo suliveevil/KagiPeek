@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IDENTITY="${KAGIPEEK_SIGNING_NAME:-KagiPeek Local}"
-SIGN_DIR="$HOME/Library/Application Support/KagiPeek/signing"
-KEYCHAIN="$HOME/Library/Keychains/kagipeek-signing.keychain-db"
+IDENTITY="${KANAME_SIGNING_NAME:-KagiPeek Local}"
+SIGN_DIR="$HOME/Library/Application Support/Kaname/signing"
+KEYCHAIN="$HOME/Library/Keychains/kaname-signing.keychain-db"
 PASS_FILE="$SIGN_DIR/keychain-pass"
 
 if security find-identity -v -p codesigning "$KEYCHAIN" 2>/dev/null | grep -F -- "$IDENTITY" >/dev/null; then
@@ -42,7 +42,7 @@ security set-keychain-settings -t 43200 "$KEYCHAIN"
 security unlock-keychain -p "$PASS" "$KEYCHAIN"
 
 echo "==> Creating self-signed code-signing identity: $IDENTITY"
-openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes -keyout "$WORK/key.pem" -out "$WORK/cert.pem" -subj "/CN=$IDENTITY/O=KagiPeek" -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature" -addext "extendedKeyUsage=critical,codeSigning" >/dev/null 2>&1
+openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes -keyout "$WORK/key.pem" -out "$WORK/cert.pem" -subj "/CN=$IDENTITY/O=Kaname" -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature" -addext "extendedKeyUsage=critical,codeSigning" >/dev/null 2>&1
 
 security import "$WORK/cert.pem" -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A >/dev/null
 security import "$WORK/key.pem"  -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A >/dev/null

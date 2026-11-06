@@ -2,7 +2,7 @@
 #
 # Regression guard for the background statistics write.
 #
-# UsageStore writes usage.json from the utility queue `com.voltline.kagipeek.usage-write`.
+# UsageStore writes usage.json from the utility queue `com.suliveevil.kaname.usage-write`.
 # Under the app target's default MainActor isolation, an unannotated JsonFileStore, and a
 # DispatchWorkItem formed in a MainActor context, are main-actor isolated; running them on the
 # background queue failed Swift's runtime executor check and trapped (EXC_BREAKPOINT).
@@ -17,8 +17,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-X="${KAGIPEEK_XCODE:-/Applications/Xcode.app/Contents/Developer}"
-if [ ! -d "$X" ]; then X="${KAGIPEEK_XCODE:-/Applications/Xcode-beta.app/Contents/Developer}"; fi
+X="${KANAME_XCODE:-/Applications/Xcode.app/Contents/Developer}"
+if [ ! -d "$X" ]; then X="${KANAME_XCODE:-/Applications/Xcode-beta.app/Contents/Developer}"; fi
 TC="$X/Toolchains/XcodeDefault.xctoolchain/usr/bin"
 SDK="$X/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 if [ ! -x "$TC/swiftc" ]; then
@@ -60,7 +60,7 @@ let store = JsonFileStore(fileName: "isolation-test.json", directory: targetDir)
 let payload = SamplePayload(name: "usage", value: 42, tags: ["a", "b"])
 
 let semaphore = DispatchSemaphore(value: 0)
-let writeQueue = DispatchQueue(label: "com.voltline.kagipeek.usage-write", qos: .utility)
+let writeQueue = DispatchQueue(label: "com.suliveevil.kaname.usage-write", qos: .utility)
 // Form the work item in a nonisolated context, mirroring UsageStore.makeWriteItem, so the GCD
 // block is not MainActor-isolated from the surrounding main-actor entry point.
 let item = makeWorkItem(store: store, payload: payload) { semaphore.signal() }
