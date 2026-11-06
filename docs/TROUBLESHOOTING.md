@@ -2,7 +2,7 @@
 
 Start here when something does not work. Every section names the log category to look at;
 `log show --last 10m --predicate 'subsystem == "com.suliveevil.kaname"'` prints all of them,
-and **Settings → Diagnostics → Export diagnostics archive…** writes a zip you can attach to a bug
+and **Settings → General → Diagnostics → Export diagnostics archive…** writes a zip you can attach to a bug
 report.
 
 ## Where the diagnostics live
@@ -16,7 +16,7 @@ Everything Kaname records stays on this Mac. Nothing is uploaded.
 | Last 30 user actions (for crash context) | `~/Library/Application Support/Kaname/logs/last-actions.json` |
 | Session sentinel (crash vs. clean exit) | `~/Library/Application Support/Kaname/logs/session.active` |
 
-Open the folder from **Settings → Diagnostics → Open log folder**, or run
+Open the folder from **Settings → General → Diagnostics → Open log folder**, or run
 
 ```sh
 open "$HOME/Library/Application Support/Kaname/logs"
@@ -31,7 +31,7 @@ KANAME_EXPORT_DIAGNOSTICS=/tmp/kaname.zip /Applications/Kaname.app/Contents/MacO
 
 A line looks like `2026-10-23 17:24:11.070 I [tap] event tap installed (accessibility granted)`:
 timestamp, level (`V`/`D`/`I`/`W`/`E`), and the tag you grep for. Debug and verbose lines are
-omitted unless **Settings → Diagnostics → Include verbose detail** is on; failures (`I`/`W`/`E`)
+omitted unless **Settings → General → Diagnostics → Include verbose detail** is on; failures (`I`/`W`/`E`)
 are always written.
 
 ## Which keyword answers which question
@@ -64,8 +64,8 @@ without asking the user to reproduce it.
 4. **Is the front app excluded?** **Settings → General → Excluded apps** lists bundle
    identifiers whose panel is suppressed. `UsageStore`/`ShortcutEngine` log nothing here by
    design; check the list.
-5. **Is the key tap running?** **Settings → Diagnostics** has a *Diagnostics* section whose
-   **Status** row says whether the listener is active. If it is not, quit and relaunch; if it
+5. **Is the key tap running?** **Settings → General → Diagnostics** has a **Status** row that
+   says whether the listener is active. If it is not, quit and relaunch; if it
    stays off with Accessibility granted, grant Input Monitoring as well — some systems gate key
    delivery behind it.
 

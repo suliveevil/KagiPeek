@@ -196,7 +196,7 @@ It should not: the run key runs the menu item. If a menu item copies, you either
 
 ## Why did nothing happen when I pressed the run key?
 
-Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, Kaname presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.suliveevil.kaname"'` shows whether the chord was posted and to which bundle identifier.
+Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, Kaname presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → General → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.suliveevil.kaname"'` shows whether the chord was posted and to which bundle identifier.
 
 ## Why does the panel disappear in some apps or fields?
 

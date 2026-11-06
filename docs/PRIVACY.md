@@ -46,7 +46,7 @@ Everything else that is written is derived or diagnostic rather than personal da
   unlike settings and statistics it can be reproduced by scanning again.
 - `logs/` and `crash/` — the daily diagnostic log, the last 30 action *names* (never menu text,
   typed characters or queries), and one JSON file per crash. They exist to explain a bug, logging
-  can be switched off under **Settings → Diagnostics**, and deleting the folder costs a rescan and
+  can be switched off under **Settings → General → Diagnostics**, and deleting the folder costs a rescan and
   a history, nothing else.
 
 None of these ever leaves the machine.
@@ -87,7 +87,7 @@ The app writes to the unified log under the subsystem `com.suliveevil.kaname`, i
 categories: `scan`, `input`, `storage`, `ui`. Entries name the app being scanned, whether a
 chord was posted and to which bundle identifier, and whether a file write failed. They do not
 contain typed text or the contents of your documents, and they stay on your machine unless you
-choose to include them in a bug report — **Settings → Diagnostics → Export diagnostics
+choose to include them in a bug report — **Settings → General → Diagnostics → Export diagnostics
 archive…** writes a zip for exactly that purpose, and you decide who receives it.
 
 ## Permissions

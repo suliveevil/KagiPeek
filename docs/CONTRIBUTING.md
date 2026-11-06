@@ -168,9 +168,9 @@ change — see [RELEASING.md](RELEASING.md) for the release steps.
 ## Reporting bugs
 
 Include the version (**Settings → About**), macOS version, and a diagnostics export from
-**Settings → Diagnostics** — *Export diagnostics archive…* writes a `.zip` of the log and crash
-folders, *Export diagnostics report…* writes a single `.json` snapshot. Both live on the
-Diagnostics tab; the About tab has no export button. The archive contains permissions, the
+**Settings → General → Diagnostics** — *Export diagnostics archive…* writes a `.zip` of the log and crash
+folders, *Export diagnostics report…* writes a single `.json` snapshot. Both live in the folded
+Diagnostics group at the end of General; the About tab has no export button. The archive contains permissions, the
 listener state, the last scan result, your settings, and the command that prints the matching
 log lines — no documents, no typed text, and nothing is uploaded. `KANAME_EXPORT_DIAGNOSTICS=<path>`
 does the same from a terminal when the window is the broken part.

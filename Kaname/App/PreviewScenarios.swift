@@ -50,15 +50,21 @@ extension ShortcutEngine {
         case "settings-ranking", "settings-statistics": return .statistics
         case "settings-trigger": return .trigger
         case "settings-conflicts": return .conflicts
-        case "settings-diagnostics": return .diagnostics
         default: return .general
         }
     }
 
+    /// Diagnostics live folded into General, so the mode that used to open a Diagnostics tab
+    /// has to ask for the group open instead.
+    private static func previewSettingsExpandsDiagnostics(_ mode: String) -> Bool {
+        mode == "settings-diagnostics"
+    }
+
     /// Some panes (statistics, conflicts, and General once its lists are populated) are taller
-    /// than the default preview window, and a screenshot only sees what is laid out.
+    /// than the default preview window, and a screenshot only sees what is laid out. The
+    /// diagnostics mode belongs here too: its folded group is long once it is open.
     private static func previewSettingsIsTall(_ mode: String) -> Bool {
-        ["settings-ranking", "settings-statistics", "settings-conflicts", "settings-tall"].contains(mode)
+        ["settings-ranking", "settings-statistics", "settings-conflicts", "settings-diagnostics", "settings-tall"].contains(mode)
     }
 
     /// Screenshot runs must not depend on the machine's own settings or language. The
@@ -142,7 +148,10 @@ extension ShortcutEngine {
             // A hosting view with sizingOptions resizes the window to its fitting size
             // (600), overriding the contentRect; keep the requested size.
             let hosting = NSHostingView(
-                rootView: SettingsView(initialTab: Self.previewSettingsTab(for: mode))
+                rootView: SettingsView(
+                    initialTab: Self.previewSettingsTab(for: mode),
+                    expandDiagnostics: Self.previewSettingsExpandsDiagnostics(mode)
+                )
                     .environmentObject(self)
                     .environment(state)
                     .environmentObject(settingsStore)

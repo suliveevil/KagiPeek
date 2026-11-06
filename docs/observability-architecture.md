@@ -235,7 +235,7 @@ raise(sig);
 
 ## 六、导出设计
 
-**位置**：`SettingsView` 自己的 **Diagnostics** 页（`diagnosticsTab`），不并进 About。页面上有：
+**位置**：`SettingsView` **通用页**末尾一个默认收起的 **Diagnostics** 分组（`diagnosticsContent`），不并进 About，也不单占侧边栏。分组里有：
 
 1. Toggle：**诊断采集**（`diagnosticsEnabled`，默认开）——关闭后 `Diag` 在入口直接返回，两个 sink 都不再收新行；已写下的日志文件保留供导出。
 2. Toggle：**详细日志**（`verboseDiagnostics`，默认关）——开启后 `D` / `V` 级不再被门槛丢弃，两个 sink 都收。

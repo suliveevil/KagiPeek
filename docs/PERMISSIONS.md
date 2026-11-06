@@ -75,7 +75,7 @@ codesign -dv --verbose=4 /Applications/Kaname.app && ls "$HOME/Library/Applicati
 
 - `Authority=Kaname Local`、`flags=0x10000(runtime)`、`TeamIdentifier=not set` 是本轮安装
   的预期值；若变成 `Signature=adhoc`，说明用了兜底签名，TCC 授权可能已失效。
-- 日志在 `~/Library/Application Support/Kaname/logs/kaname-YYYY-MM-DD.log`；在设置 → 诊断
+- 日志在 `~/Library/Application Support/Kaname/logs/kaname-YYYY-MM-DD.log`；在设置 → 通用 → 诊断
   里打开「将诊断写入本地」后，辅助功能/tap 的判定会写进 `input` 与 `ui` 分类。
 - 辅助功能是否通过的权威来源是 App 自己在 **设置 → 权限** 里显示的状态，以及系统设置 →
   隐私与安全性 → 辅助功能里的开关；不要只看 `AXIsProcessTrusted()` 的一次性返回值（它有缓存）。

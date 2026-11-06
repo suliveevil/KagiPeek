@@ -45,21 +45,31 @@ struct SettingsView: View {
     /// Layout controls most users touch once, if at all. The two that change everyday
     /// appearance — theme and column count — stay outside the disclosure.
     @State private var showLayoutDetails = false
+    /// Diagnostics are a one-time or bug-report-only group: they sit at the end of General,
+    /// folded away, instead of claiming a sidebar row of their own.
+    @State private var showDiagnostics = false
     private static let findingPageStep = 40
     private let onTabChange: ((SettingsTab) -> Void)?
     /// Lets the preview harness open a specific tab (e.g. `KANAME_PREVIEW=settings-ranking`).
     /// `onTabChange` is how the hosting window keeps its title on the visible pane without
     /// lifting the whole selection state out of the view.
-    init(initialTab: SettingsTab = .general, onTabChange: ((SettingsTab) -> Void)? = nil) {
+    /// `expandDiagnostics` lets `KANAME_PREVIEW=settings-diagnostics` capture the folded
+    /// group open, since the mode no longer maps to a tab of its own.
+    init(
+        initialTab: SettingsTab = .general,
+        onTabChange: ((SettingsTab) -> Void)? = nil,
+        expandDiagnostics: Bool = false
+    ) {
         _tab = State(initialValue: initialTab)
+        _showDiagnostics = State(initialValue: expandDiagnostics)
         self.onTabChange = onTabChange
     }
 
     var body: some View {
-        // A sidebar, not an eight-segment picker: at 680 pt each segment had about 80 pt,
-        // which already crowded "Diagnostics" in English and would have broken at the
-        // first word longer than that. Eight pages cannot share one row; a list holds
-        // them, and it is the shape macOS 14 users expect from a settings window.
+        // A sidebar, not a segmented picker: at 680 pt each segment had about 80 pt,
+        // which already crowded the longest label and would have broken at the first
+        // word longer than it. Seven pages cannot share one row; a list holds them, and
+        // it is the shape macOS 14 users expect from a settings window.
         NavigationSplitView {
             // `List` selection is optional by default; this window always shows one page, so
             // clearing the selection is ignored instead of blanking the detail column.
@@ -110,7 +120,6 @@ struct SettingsView: View {
         case .statistics: statisticsTab
         case .conflicts: conflictsTab
         case .permissions: permissionsTab
-        case .diagnostics: diagnosticsTab
         case .about: aboutTab
         }
     }
@@ -209,6 +218,14 @@ struct SettingsView: View {
                 Text(localization.text(.generalShowAppleMenuHint))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                DisclosureGroup(isExpanded: $showDiagnostics) {
+                    diagnosticsContent
+                } label: {
+                    Label(localization.text(.diagnosticsTitle), systemImage: "stethoscope")
+                }
             }
         }
         .formStyle(.grouped)
@@ -1095,75 +1112,81 @@ struct SettingsView: View {
     /// The user-facing half of the observability work: the switches that decide what is
     /// recorded, the folder it lands in, and one button that turns the result into something
     /// attachable to a bug report.
-    private var diagnosticsTab: some View {
-        Form {
-            Section {
-                Toggle(localization.text(.diagnosticsEnable), isOn: $store.settings.diagnosticsEnabled)
-                Text(localization.text(.diagnosticsEnableHint))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+    ///
+    /// It is one folded group at the end of General rather than a page of its own: every
+    /// control here is a one-time choice or something only a bug report needs, and a sidebar
+    /// row made diagnostics look as everyday as theme and hotkeys.
+    @ViewBuilder
+    private var diagnosticsContent: some View {
+        Toggle(localization.text(.diagnosticsEnable), isOn: $store.settings.diagnosticsEnabled)
+        Text(localization.text(.diagnosticsEnableHint))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
 
-                Toggle(localization.text(.diagnosticsVerbose), isOn: $store.settings.verboseDiagnostics)
-                    .disabled(!settings.diagnosticsEnabled)
-                Text(localization.text(.diagnosticsVerboseHint))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
+        Toggle(localization.text(.diagnosticsVerbose), isOn: $store.settings.verboseDiagnostics)
+            .disabled(!settings.diagnosticsEnabled)
+        Text(localization.text(.diagnosticsVerboseHint))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
 
-            Section(localization.text(.diagnosticsPath)) {
-                Text(logFolderURL.path)
-                    .font(.caption)
-                    .textSelection(.enabled)
-                    .foregroundStyle(.secondary)
-                HStack {
-                    Button(localization.text(.diagnosticsOpenFolder)) {
-                        NSWorkspace.shared.open(logFolderURL)
-                    }
-                    Button(localization.text(.diagnosticsExport)) {
-                        exportLogArchive()
-                    }
-                    .disabled(!settings.diagnosticsEnabled)
-                }
-            }
+        Divider()
 
-            Section(localization.text(.aboutDiagnostics)) {
-                LabeledContent(localization.text(.permissionAccessibility)) {
-                    permissionMark(state.hasAccessibility)
-                }
-                LabeledContent(localization.text(.permissionInputMonitoring)) {
-                    permissionMark(state.hasInputMonitoring)
-                }
-                LabeledContent(localization.text(.statusLabel)) {
-                    Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
-                }
-                LabeledContent(localization.text(.aboutMenuItems)) {
-                    Text("\(state.catalogSize)").monospacedDigit()
-                }
-                LabeledContent(localization.text(.diagnosticsDoubleTapWindow)) {
-                    Text(String(
-                        format: "%.2fs",
-                        DoubleTapTiming.window(systemDoubleClickInterval: NSEvent.doubleClickInterval)
-                    ))
-                    .monospacedDigit()
-                }
-                Text(localization.text(.diagnosticsDoubleTapWindowHint))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Button(localization.text(.aboutExportDiagnostics)) {
-                    exportDiagnostics()
-                }
-                Text(localization.text(.aboutDiagnosticsHint))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+        // The three former sections stay distinguishable after the flattening: a heading row
+        // each, separated by a rule, the same shape the General page already uses.
+        Text(localization.text(.diagnosticsPath))
+            .font(.headline)
+        Text(logFolderURL.path)
+            .font(.caption)
+            .textSelection(.enabled)
+            .foregroundStyle(.secondary)
+        HStack {
+            Button(localization.text(.diagnosticsOpenFolder)) {
+                NSWorkspace.shared.open(logFolderURL)
             }
-
-            Section {
-                Text(localization.text(.diagnosticsPrivacyNote))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Button(localization.text(.diagnosticsExport)) {
+                exportLogArchive()
             }
+            .disabled(!settings.diagnosticsEnabled)
         }
-        .formStyle(.grouped)
+
+        Divider()
+
+        Text(localization.text(.aboutDiagnostics))
+            .font(.headline)
+        LabeledContent(localization.text(.permissionAccessibility)) {
+            permissionMark(state.hasAccessibility)
+        }
+        LabeledContent(localization.text(.permissionInputMonitoring)) {
+            permissionMark(state.hasInputMonitoring)
+        }
+        LabeledContent(localization.text(.statusLabel)) {
+            Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
+        }
+        LabeledContent(localization.text(.aboutMenuItems)) {
+            Text("\(state.catalogSize)").monospacedDigit()
+        }
+        LabeledContent(localization.text(.diagnosticsDoubleTapWindow)) {
+            Text(String(
+                format: "%.2fs",
+                DoubleTapTiming.window(systemDoubleClickInterval: NSEvent.doubleClickInterval)
+            ))
+            .monospacedDigit()
+        }
+        Text(localization.text(.diagnosticsDoubleTapWindowHint))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        Button(localization.text(.aboutExportDiagnostics)) {
+            exportDiagnostics()
+        }
+        Text(localization.text(.aboutDiagnosticsHint))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+        Divider()
+
+        Text(localization.text(.diagnosticsPrivacyNote))
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 
     private var logFolderURL: URL {
@@ -1344,7 +1367,7 @@ private struct UpdateCheckRow: View {
 }
 
 enum SettingsTab: String, CaseIterable {
-    case general, trigger, appearance, statistics, conflicts, permissions, diagnostics, about
+    case general, trigger, appearance, statistics, conflicts, permissions, about
 
     var titleKey: L10nKey {
         switch self {
@@ -1354,7 +1377,6 @@ enum SettingsTab: String, CaseIterable {
         case .statistics: return .statisticsTitle
         case .conflicts: return .conflictTitle
         case .permissions: return .permissionTitle
-        case .diagnostics: return .diagnosticsTitle
         case .about: return .aboutTitle
         }
     }
@@ -1370,7 +1392,6 @@ enum SettingsTab: String, CaseIterable {
         case .statistics: return "chart.bar"
         case .conflicts: return "exclamationmark.triangle"
         case .permissions: return "lock.shield"
-        case .diagnostics: return "stethoscope"
         case .about: return "info.circle"
         }
     }
