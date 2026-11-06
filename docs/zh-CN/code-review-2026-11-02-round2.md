@@ -1,7 +1,10 @@
 # Kaname 代码复审报告（第二轮）
 
+[English](../en/code-review-2026-11-02-round2.md) · [中文](code-review-2026-11-02-round2.md)
+
+
 复审日期：2026-11-02　基线：`83a1b03`　规模：`Kaname/` 129 文件 / 21,431 行 + `Tests/` 43 文件 / 6,028 行
-对照：2026-11-02 第一轮（`docs/code-review-2026-11-02.md`，基线 `bd8b926`，126 文件 / 20,542 行）
+对照：2026-11-02 第一轮（`docs/zh-CN/code-review-2026-11-02.md`，基线 `bd8b926`，126 文件 / 20,542 行）
 
 参考原则同第一轮：《重构》第 2 版（R2）、《Clean Code》、《Clean Architecture》（依赖规则）、
 《The Pragmatic Programmer》、《Migrating to Swift 6》、Apple《macOS 人机界面指南》。
@@ -438,7 +441,7 @@ N4 让 `diagnosticsReport()` 抛错、两个调用方都改为可见失败 —�
 
 **仍未解决的大项**：P1-5 引擎 God class（2,530 行 / 19 段）。它比上面任何一条都重，
 但也最不适合连续小批做——需要一次专门的切分设计，建议单独开一轮。
-→ **那份设计已写，见 `docs/engine-split-design.md`；诊断已修正、切片 1 已完成，见第 6 节。**
+→ **那份设计已写，见 `docs/zh-CN/engine-split-design.md`；诊断已修正、切片 1 已完成，见第 6 节。**
 
 ---
 
@@ -605,7 +608,7 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
 ### P1-5 重新定级：症状属实，处方不成立
 
 复审写的是「引擎 God class（2,530 行 / 19 段），需要一次专门的切分设计」。
-那份设计已写在 **`docs/engine-split-design.md`**，结论是：
+那份设计已写在 **`docs/zh-CN/engine-split-design.md`**，结论是：
 
 | | 复审写的 | 测出来的（`2800947`） |
 |---|---|---|
@@ -630,8 +633,3 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
   所以它在原位置永远拿不到单元测试，无论它本身多纯。这条边界是本轮才发现的，见设计文档第 7 节。
 - **未做**：其余 18 段的顺序与判据在设计文档第 5 节；前置条件是先收窄共享核心（`prefix` /
   `phase` / `pending`），否则搬那四段只会得到四个互相引用的新文件。
-
-**"清单是待查项、不是结论"这条规则在本轮又救了三次**：`Sanitizer` 那处 `try?` 看起来和 N4 同类，
-读了才发现它有 `failedPatterns` 和测试兜底（真正的缺陷是没人接线，不是吞错误）；
-`CrashLogFormatter` 那处注释自称死路径，读了才发现 NaN 能触发；`CrashReporter:317` 的沉默
-看起来合理（异常处理器里），读了才发现下一行就有 `flushNow`。

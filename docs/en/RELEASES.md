@@ -1,5 +1,8 @@
 # Release notes
 
+[English](RELEASES.md) · [中文](../zh-CN/RELEASES.md)
+
+
 Kaname reads the frontmost app's menu bar through Accessibility and shows its shortcuts in a
 floating panel, which can also run them. These notes record what the app does, what changed
 along the way, and what to do about it when upgrading.
@@ -8,11 +11,12 @@ along the way, and what to do about it when upgrading.
 
 - **Live menu scanning** — any app with a standard menu bar works, including menu grouping, key
   equivalents and enabled state. A ~100 entry built-in catalog is used as a fallback.
-- **Which-key narrowing** — long-pressing ⌃/⌥/⌘ seeds the prefix with those modifiers, so holding
-  ⌘ shows the ⌘ set with next-key rows (C, ⇧S, …). The hotkey (⌃⌥⌘K) and double-tap ⌘ summon it
-  with an empty prefix, where every row is a complete combination. Modifier changes while the
-  panel is open narrow or widen it live, and releasing everything widens it back — the panel
-  stays open either way. Holding ⇧ alone does not narrow, so the list is never empty.
+- **Which-key narrowing** — a modifier pressed while the panel is open joins the filter, so holding
+  ⌘ shows the ⌘ set with next-key rows (C, ⇧S, …). The summoning press is a trigger and not a
+  filter token: the hotkey (⌃⌥⌘K) and the double tap open on the whole list, where every row is a
+  complete combination. Modifier changes while the panel is open narrow or widen it live, and
+  releasing everything widens it back — the panel stays open either way. Holding ⇧ alone does not
+  narrow, so the list is never empty.
 - **Chords** — multi-stroke shortcuts such as ⌘K ⌘C descend one level at a time. ⌫ goes back,
   Esc closes, a breadcrumb shows where you are.
 - **The panel waits for you** — the trigger keys are not a prefix: the panel stays until you
@@ -22,9 +26,9 @@ along the way, and what to do about it when upgrading.
   greyed-out unavailable items.
 - **An actionable panel** — ↑/↓ selects, ←/→ pages, the run key runs, Esc closes. Those keys are
   consumed by the panel while it is open; clicking a row works too, and a row that still has
-  further steps opens the next level. Both row keys are recorded bindings: the run key (↩) closes
-  the panel and runs that row's command, the copy key (⌘↩) only writes the chord to the clipboard.
-  The footer hint renders the keys you actually chose.
+  further steps opens the next level. Both row keys are recorded bindings: the run key (Space) closes
+  the panel and runs that row's menu item, the copy key (Return) only writes the chord to the
+  clipboard. The footer hint renders the keys you actually chose.
 - **Progressive highlighting** — holding ⌘ lights up every row that starts with ⌘; adding ⇧
   narrows the glow; completing a shortcut highlights its description for a moment before the
   panel closes. Row selection (↑↓) is a separate visual state.
@@ -47,22 +51,23 @@ along the way, and what to do about it when upgrading.
   shortcuts. System shortcuts are read-only: nothing is bound, changed, or remapped.
 - **A title bar that fits** — three densities measured from the panel width, so the settings and
   close buttons stay reachable in a one-column panel instead of being pushed outside it.
-- **Ordering** — the statistics page orders by Smart order (decayed usage frequency), most used
-  first, key order, or alphabetical.
+- **Ordering** — the statistics page is one flat list with the shortcut first, and **Sort by**
+  offers **Shortcut** (the default, in the panel's keyboard order), **App**, or **Command**.
 - **Per-app statistics, durable storage** — settings and usage live in
   `~/Library/Application Support/Kaname/` as atomic JSON files, with corrupt files preserved
-  for inspection. Statistics are grouped by app, and reinstalling the app no longer risks the
-  data.
+  for inspection. Statistics are one row per usage key with a sort field, and reinstalling the
+  app no longer risks the data.
 - **Permission help** — a dedicated window with one card per permission: what it is for,
   Required/Optional, a live status, and a Grant button that fires the system prompt **and** opens
   the exact System Settings pane. A poll flips the card to a green "Permission granted" and brings
   the window forward; the Kaname icon can also be dragged straight into the Accessibility list.
 - **A dedicated About tab** — version, build, system, update check, data folder, repository,
-  licence, and live diagnostics (permissions, listener, menu item count).
-- **Diagnostics you can attach to a bug report** — **Settings → Diagnostics → Export diagnostics…**
-  writes one JSON report: permissions, listener state, the scan result, your settings, and the
-  command that prints the matching log lines. The same report is written by `KANAME_SELFTEST=1`,
-  which works while the app is already running.
+  and licence.
+- **Diagnostics you can attach to a bug report** — **Settings → General → Diagnostics** holds both
+  exports. **Export diagnostics report…** writes one JSON report: permissions, listener state, the
+  scan result, your settings, and the command that prints the matching log lines. **Export
+  diagnostics archive…** zips the logs. The same report is written by `KANAME_SELFTEST=1`, which
+  works while the app is already running.
 - **One panel at a time** — opening search closes the panel and vice versa; a global hotkey
   (⌃⌥⌘S by default) swaps between them.
 - **Manual update check** — the About tab can ask the GitHub releases API for the latest version.
@@ -80,11 +85,10 @@ along the way, and what to do about it when upgrading.
 - **Kaname no longer mistakes itself for the frontmost app.** Opening the search palette or
   Settings activated the app, and the catalog was then rescanned from its own menu bar — the panel
   fell back to the built-in catalog and the palette renamed itself "Kaname".
-- Nothing is injected while you browse; running a row injects that one chord and finishes.
-- The two "Execute menu commands" switches are gone. Neither had controlled anything since rows
-  started replaying their chord, and one of them told users Return copies while it ran.
-- The row keys are recorded bindings, so a habit of pressing Return expecting a copy needs
-  ⌘Return — or record whichever pair you prefer.
+- Nothing is injected while you browse; running a row presses the menu item itself and replays
+  that one chord only when the press is not available.
+- The row keys are recorded bindings — Space runs, Return copies — so whichever pair you record
+  by hand wins over both defaults.
 - Dead settings are dropped rather than carried: an existing settings file still decodes, and the
   keys disappear on the next save.
 
@@ -139,9 +143,8 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
   `tccutil reset Accessibility com.suliveevil.kaname`, and remove a leftover login item in
   System Settings → General → Login Items.
 - **Settings and statistics move to Application Support.** The first launch reads the JSON files if
-  present, otherwise migrates the previous UserDefaults payloads, including the older
-  `com.suliveevil.kaname` domain; nothing needs to be re-entered. The old defaults are left in
-  place and can be deleted with `defaults delete com.suliveevil.kaname` and
+  present, otherwise migrates the previous UserDefaults payloads, so nothing has to be re-entered.
+  The old defaults are left in place and can be deleted with
   `defaults delete com.suliveevil.kaname`.
 - **The default placement is "cover the front window".** Switch back to "beside the window" in
   Settings → Appearance if you prefer the old layout.

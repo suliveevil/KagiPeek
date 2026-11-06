@@ -1,5 +1,8 @@
 # Privacy
 
+[English](PRIVACY.md) · [中文](../zh-CN/PRIVACY.md)
+
+
 Kaname reads other apps' menu bars and watches the keyboard, so it is fair to ask exactly
 what it does with either. This page is the complete list.
 

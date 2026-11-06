@@ -1,6 +1,9 @@
 # FAQ
 
-Answers to questions that come up after the first launch. For installation and permissions, see the [README](../README.md) and [PERMISSIONS.md](PERMISSIONS.md). For internals, see [ARCHITECTURE.md](ARCHITECTURE.md).
+[English](FAQ.md) · [中文](../zh-CN/FAQ.md)
+
+
+Answers to questions that come up after the first launch. For installation and permissions, see the [README](../../README.md) and [PERMISSIONS.md](PERMISSIONS.md). For internals, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Nothing happens when I hold a modifier
 
@@ -74,7 +77,7 @@ No. There is no keystroke log and no text capture. Shortcut processing is local;
 - **The update check is the only network request.** It runs only when you press **Check for updates**, fetches the public GitHub release document, and sends nothing about you, your apps, or your shortcuts.
 - When macOS reports secure input (password fields, login windows), the panel hides.
 
-Kaname has no accounts, telemetry, or crash-reporting endpoint. See the privacy sections in the [README](../README.md#privacy).
+Kaname has no accounts, telemetry, or crash-reporting endpoint. See the privacy sections in the [README](../../README.md#privacy).
 
 ## Why isn't Kaname on the Mac App Store?
 

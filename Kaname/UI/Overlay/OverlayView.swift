@@ -80,8 +80,9 @@ struct OverlayView: View {
 /// modifier chips and favorites toggle (when the panel is up), the scan/conflict
 /// indicators and the count, plus the close button. Reads only the header's slice of
 /// state (`search.*`, `appName`/`appIcon`, `panel.isScanning`/`hasConflicts`/
-/// `latchedModifiers`/`heldModifiers`/`appName`/`prefixLabels`, `showsFavoritesOnly`,
-/// `runningApps`), so a row-selection or results change elsewhere does not redraw it.
+/// `appName`/`prefixLabels`, `pending.effective` and `panel.latchedModifiers` for the
+/// chips, `showsFavoritesOnly`, `runningApps`), so a row-selection or results change
+/// elsewhere does not redraw it.
 private struct OverlayHeaderView: View {
     @EnvironmentObject private var engine: ShortcutEngine
     @Environment(EngineState.self) private var state
@@ -261,6 +262,8 @@ private struct OverlayHeaderView: View {
     /// Holding a modifier still narrows too (which-key style), but a held key returns to the
     /// full list the moment it is released. A tick does not: it survives, it is visible, and
     /// a tick plus a key composes a stroke. Several ticks mean "carries all of these".
+    /// Either way the chip lights up while that modifier is narrowing the list, in step with
+    /// the same glyph inside every row's chord.
     private var modifierChips: some View {
         HStack(spacing: 1) {
             ForEach(ModifierSet.canonicalOrder, id: \.rawValue) { modifier in
@@ -271,20 +274,23 @@ private struct OverlayHeaderView: View {
     }
 
     private func modifierChip(_ modifier: ModifierSet) -> some View {
-        // Ticking a chip narrows the list *and* composes a stroke (⌥ ticked + C pressed =
-        // ⌥⌘C): the two readings share one state, which is why a tick reads as "ticked".
+        // The title bar lights up the same modifiers the rows do, from the same place:
+        // `pending.effective` is what narrows the list, whether it got there by a held key
+        // or by a clicked tick. Reading held/latched separately here used to leave a held
+        // filter with lit glyphs in the rows but a merely "less grey" chip up top.
+        // `ticked` still adds the outline that says this one is sticky, not just down.
+        let active = state.pending.effective.contains(modifier)
         let ticked = state.panel.latchedModifiers.contains(modifier)
-        let held = state.panel.heldModifiers.contains(modifier)
         return Button {
             engine.toggleModifier(modifier)
         } label: {
             Text(KeyFormatter.symbol(for: modifier))
-                .font(.system(size: TypeScale.caption, weight: ticked ? .bold : .medium, design: .rounded))
-                .foregroundStyle(chipColor(ticked: ticked, held: held))
+                .font(.system(size: TypeScale.caption, weight: active ? .bold : .medium, design: .rounded))
+                .foregroundStyle(active ? palette.keyHighlight : palette.secondaryText)
                 .frame(width: 20, height: 20)
                 .background(
                     RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous)
-                        .fill(ticked ? Color.accentColor.opacity(palette.isLight ? Theme.tickedChipFillLight : Theme.tickedChipFillDark) : .clear)
+                        .fill(chipFill(ticked: ticked, active: active))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous)
@@ -295,15 +301,20 @@ private struct OverlayHeaderView: View {
         }
         .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 20, cornerRadius: Theme.radiusTag))
         .accessibilityLabel(KeyFormatter.word(for: modifier))
+        // "Selected" means the sticky tick, not a key that happens to be down: VoiceOver
+        // would otherwise announce a transient hold as a checked option.
         .accessibilityAddTraits(ticked ? [.isSelected] : [])
     }
 
-    /// Ticked beats held: a chip that filters says so, a chip whose key happens to be down
-    /// only hints at what the next key press would do.
-    private func chipColor(ticked: Bool, held: Bool) -> Color {
-        if ticked { return Color.accentColor }
-        if held { return palette.text }
-        return palette.secondaryText
+    /// An active chip uses the row's highlight colour; a tick keeps its stronger fill and
+    /// outline so "sticky" still reads differently from "down right now". Both are lit.
+    private func chipFill(ticked: Bool, active: Bool) -> Color {
+        guard active else { return .clear }
+        return Color.accentColor.opacity(
+            ticked
+                ? (palette.isLight ? Theme.tickedChipFillLight : Theme.tickedChipFillDark)
+                : (palette.isLight ? Theme.hintBadgeFillLight : Theme.hintBadgeFillDark)
+        )
     }
 
     /// The app identity used to be a button that closed the surface, which made a mis-click
@@ -1059,13 +1070,14 @@ private struct OverlayPanelContentView: View {
         .frame(width: width, alignment: alignment)
     }
 
-    /// Modifiers whose glyph is lit: the ones physically down and the ones ticked in the
-    /// title bar. Both mean "this shortcut is about ⌘"; one is transient, one is deliberate.
+    /// Modifiers whose glyph is lit: exactly the set the panel is narrowed by, from both
+    /// sources (physically down and ticked in the title bar). The header's chips read the
+    /// same `pending.effective`, so a lit row and a lit chip cannot drift apart.
     ///
-    /// A ticked modifier lights up because the row it affects is about that modifier, whether
-    /// the tick was meant as "narrow to these" or as the first half of a stroke.
+    /// A lone held ⇧ is the hint layer, not a filter, so `effective` drops it; a ⇧ clicked
+    /// in the title bar is explicit and stays.
     private var emphasizedModifiers: ModifierSet {
-        state.panel.heldModifiers.union(state.panel.latchedModifiers)
+        state.pending.effective
     }
 
     private func isLabel(_ segment: KeyFormatter.Segment) -> Bool {

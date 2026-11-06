@@ -83,7 +83,7 @@ git worktree prune
 worktree 隔离不了这一层。`push` 也由集成者单独决定，不由 agent 执行。
 
 > 理由与例外（单 agent、串行小改、3–5 个 worktree 的收益上限）见
-> [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) 的「Parallel agents and worktrees」。
+> [docs/zh-CN/CONTRIBUTING.md](docs/zh-CN/CONTRIBUTING.md) 的「Parallel agents and worktrees」。
 
 ## 安装、备份与签名
 
@@ -99,14 +99,14 @@ worktree 隔离不了这一层。`push` 也由集成者单独决定，不由 age
 - 签名密钥**不在登录钥匙串**：`~/Library/Keychains/kaname-signing.keychain-db`，口令在
   `~/Library/Application Support/Kaname/signing/keychain-pass`（600，绝不入库）。
   `scripts/build_swiftc.sh` 自动解锁并显式指定该钥匙串；迁移与换机器步骤见
-  [docs/RELEASING.md](docs/RELEASING.md) 的「Signing keychain」。
-- 回滚命令见 [docs/RELEASING.md](docs/RELEASING.md) 的「Backups and rollback」。
+  [docs/zh-CN/RELEASING.md](docs/zh-CN/RELEASING.md) 的「Signing keychain」。
+- 回滚命令见 [docs/zh-CN/RELEASING.md](docs/zh-CN/RELEASING.md) 的「Backups and rollback」。
 
 ## 文档索引
 
-- [docs/STATUS.md](docs/STATUS.md) — 当前代码/安装/验证状态快照（**带保鲜期，过期即失效**）
-- [docs/PERMISSIONS.md](docs/PERMISSIONS.md) — macOS 权限、TCC 与签名事实
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 模块边界与数据流
-- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — 开发与提交流程
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — 常见故障
-- [docs/RELEASING.md](docs/RELEASING.md) — 发布与签名
+- [docs/zh-CN/STATUS.md](docs/zh-CN/STATUS.md) — 当前代码/安装/验证状态快照（**带保鲜期，过期即失效**）
+- [docs/zh-CN/PERMISSIONS.md](docs/zh-CN/PERMISSIONS.md) — macOS 权限、TCC 与签名事实
+- [docs/zh-CN/ARCHITECTURE.md](docs/zh-CN/ARCHITECTURE.md) — 模块边界与数据流
+- [docs/zh-CN/CONTRIBUTING.md](docs/zh-CN/CONTRIBUTING.md) — 开发与提交流程
+- [docs/zh-CN/TROUBLESHOOTING.md](docs/zh-CN/TROUBLESHOOTING.md) — 常见故障
+- [docs/zh-CN/RELEASING.md](docs/zh-CN/RELEASING.md) — 发布与签名

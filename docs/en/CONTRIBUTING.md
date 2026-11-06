@@ -1,5 +1,8 @@
 # Contributing
 
+[English](CONTRIBUTING.md) · [中文](../zh-CN/CONTRIBUTING.md)
+
+
 ## Build environment
 
 - macOS 14 or later, full **Xcode** (Command Line Tools alone cannot expand the SwiftUI
@@ -53,7 +56,10 @@ tests drifted:
    and a `decodeIfPresent` line in `init(from:)`.
 2. `UI/Settings/SettingsView.swift` — the control, on the tab it belongs to.
 3. `Core/Pure/L10n.swift` — the label in **both** languages.
-4. `README.md` — the configuration table (and the feature table if it is user-visible).
+4. `README.md` and `README.zh-CN.md` — the configuration table in both languages (and the
+   feature table if it is user-visible). The same page under `docs/en/` and `docs/zh-CN/`
+   (for example `docs/en/FAQ.md` and `docs/zh-CN/FAQ.md`). Every pair is kept in step by hand:
+   a fix lands in both halves of the pair in the same commit.
 5. `Tests/KanameCoreTests` — a default-value assertion, and a decode test if the change can
    affect an existing `settings.json`.
 6. `CHANGELOG.md` — one line under `## [Unreleased]`, in the user's terms, not the type's.
@@ -102,7 +108,7 @@ them onto the prefix — and the documentation had been written from the comment
 
 Several people and several coding agents (WorkBuddy, Claude Code, Codex, …) work on this
 repository at the same time. **The authoritative rule is
-[AGENTS.md](../AGENTS.md) → git（多 agent 协作）**; this section explains the reasoning and the
+[AGENTS.md](../../AGENTS.md) → git（多 agent 协作）**; this section explains the reasoning and the
 cases where the rule is not worth its cost.
 
 What actually collides is not "the same file" but the single `HEAD`, single index and single
@@ -155,7 +161,7 @@ ceiling; beyond that the merge cost outweighs the parallelism.
 ## Commits and releasing
 
 Work is branched and merged as described above and in
-[AGENTS.md](../AGENTS.md): a fresh worktree + branch off `main` for every change, merged back by
+[AGENTS.md](../../AGENTS.md): a fresh worktree + branch off `main` for every change, merged back by
 the integrator once `swift test --disable-sandbox` is green, with the worktree removed
 afterwards. Nothing is committed to `main` directly in the main working tree. Reinstall via
 `./scripts/install.sh` only when the merge contains **code** changes — documentation-only merges

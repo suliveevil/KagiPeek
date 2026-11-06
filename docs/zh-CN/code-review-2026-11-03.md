@@ -1,10 +1,13 @@
 # Kaname 代码审查报告（第四轮）
 
+[English](../en/code-review-2026-11-03.md) · [中文](code-review-2026-11-03.md)
+
+
 - 审查日期：2026-11-03
 - 仓库：`/Users/suliveevil/Documents/GitHub/Kaname`
 - 工作树起点：clean（HEAD `3b140a1`）
 - 参考资料：《macOS Apprentice》第三版、Apple Human Interface Guidelines（macOS）、《Clean Code》、《Clean Architecture》、《The Pragmatic Programmer》、《Migrating to Swift 6》
-- 前置文档：`docs/code-review-2026-11-02.md`、`docs/code-review-2026-11-02-round2.md`、`docs/engine-split-design.md`、`docs/ARCHITECTURE.md`
+- 前置文档：`docs/zh-CN/code-review-2026-11-02.md`、`docs/zh-CN/code-review-2026-11-02-round2.md`、`docs/zh-CN/engine-split-design.md`、`docs/zh-CN/ARCHITECTURE.md`
 
 ---
 

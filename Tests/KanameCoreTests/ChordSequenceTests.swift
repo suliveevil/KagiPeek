@@ -56,6 +56,40 @@ final class PendingModifiersTests: XCTestCase {
         XCTAssertEqual(PendingModifiers(), PendingModifiers())
         XCTAssertNotEqual(PendingModifiers(held: .command), PendingModifiers(latched: .command))
     }
+
+    /// The title-bar chips and the modifier glyphs inside each row both read `effective`.
+    /// Holding a key reaches it through the filter's token queue, so that path has to land
+    /// in the same set as a clicked tick — otherwise the rows light up while the chip stays
+    /// dim (the regression this pins).
+    func testHeldFilterTokenLightsTheSameSetAsATick() {
+        var filter = PanelFilter()
+        filter.toggleModifier(.command)
+        var held = PendingModifiers()
+        held.held = filter.modifiers
+        var ticked = PendingModifiers()
+        ticked.latched = .command
+        XCTAssertEqual(held.effective, ticked.effective)
+        XCTAssertTrue(held.effective.contains(.command))
+    }
+
+    func testPoppingAFilterTokenUnlightsTheModifier() {
+        var filter = PanelFilter()
+        filter.toggleModifier(.command)
+        filter.toggleModifier(.option)
+        var pending = PendingModifiers()
+        pending.held = filter.modifiers
+        XCTAssertEqual(pending.effective, [.option, .command])
+        filter.popLastToken()
+        pending.held = filter.modifiers
+        XCTAssertEqual(pending.effective, .command)
+    }
+
+    /// A held ⇧ alongside a real modifier is a filter again, not the hint layer.
+    func testShiftHeldWithAnotherModifierStillLightsBoth() {
+        var pending = PendingModifiers()
+        pending.held = [.command, .shift]
+        XCTAssertEqual(pending.effective, [.command, .shift])
+    }
 }
 
 /// Assembling a stroke from a tick plus a key press.

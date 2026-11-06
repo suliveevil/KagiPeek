@@ -14,7 +14,7 @@ cd "$ROOT"
 VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' Kaname.xcodeproj/project.pbxproj | head -1)"
 TAG="v${VERSION}"
 DMG="build/Kaname-${VERSION}.dmg"
-NOTES="docs/releases/${TAG}.md"
+NOTES="docs/en/releases/${TAG}.md"
 
 if ! gh auth status >/dev/null 2>&1; then
     echo "error: GitHub CLI is not authenticated. Run: gh auth login" >&2

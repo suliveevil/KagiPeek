@@ -1,5 +1,8 @@
 # Kaname 可观测性架构设计
 
+[English](../en/observability-architecture.md) · [中文](observability-architecture.md)
+
+
 版本: v1.0 · 作者: Archi (System Architect) · 状态: Implemented（部分历史段落已标注）
 
 > 本文前半是设计论证，后半是落地后的形状。标着「历史记录」的段落保留的是**当初**的取舍，

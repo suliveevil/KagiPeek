@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
+## Kaname 2.3.2 (2026-11-07)
+
+### Added
+
+- **The documentation is bilingual, page for page.** `docs/` split into `docs/en/` and `docs/zh-CN/`, each holding the same 16 file names: the 15 pages that were there — 8 English, 7 already Chinese — plus the release notes, which moved to `docs/en/releases/` and `docs/zh-CN/releases/`. Every page opens with a language switch line, and the half that did not exist was written, about 4,200 lines in both directions. Relative links were recomputed for the extra directory depth; `README.md`, `README.zh-CN.md`, `AGENTS.md`, this file, the reports' "prior documents" lists and `publish_release.sh` follow the new paths. The old `docs/*.md` paths are gone with no redirect, so external links to them break.
+- Parity is measured per page, not eyeballed: heading count, table-row count, code-fence count and link count match between the two halves on all 16 pages.
+
+### Fixed
+
+- **The modifier chips in the title bar light up while a held key is narrowing the list.** The chips read `heldModifiers` and `latchedModifiers` separately while the glyphs inside each row's chord read `pending.effective`, so a held filter lit the rows but left the chip merely "less grey". Both now read `pending.effective`; a tick keeps its stronger fill and outline, so "sticky" still reads differently from "down right now", and `.isSelected` stays on the tick alone so VoiceOver does not announce a transient hold as a checked option. Three tests in `PendingModifiersTests` pin the filter-token path, the popped token and the held ⇧ case.
+
+### Changed
+
+- A sepia prose pass ran over the new half. It found no banned vocabulary or formula phrasing in either language and changed two things: the English ARCHITECTURE page lost most of its "which is why" and "there is no ..." sentence templates, and the round-2 review report lost a closing recap paragraph whose three facts live in its N12/N13 sections.
+
 ## Kaname 2.3.1 (2026-11-06)
 
 ### Added
@@ -189,7 +204,7 @@ All notable changes to this project are documented here, in the order the work h
 
 ## Upgrade notes
 
-- **Accessibility must be granted once.** If the bundle identifier or the code signature changed — a local or ad-hoc rebuild, or an install over a release signed by another identity — macOS sees a new app: open **System Settings → Privacy & Security → Accessibility**, remove the stale Kaname entry if present, and enable the new app. Grant Input Monitoring too only if the panel does not appear after that. See [docs/PERMISSIONS.md](docs/PERMISSIONS.md).
+- **Accessibility must be granted once.** If the bundle identifier or the code signature changed — a local or ad-hoc rebuild, or an install over a release signed by another identity — macOS sees a new app: open **System Settings → Privacy & Security → Accessibility**, remove the stale Kaname entry if present, and enable the new app. Grant Input Monitoring too only if the panel does not appear after that. See [docs/en/PERMISSIONS.md](docs/en/PERMISSIONS.md).
 - **macOS 14.0 is required.** The app does not run on macOS 13 or earlier.
 - **The panel does not close by itself.** If you expected it to disappear after a few seconds, press Esc (or complete a shortcut). There is no auto-hide setting to configure.
 - **The trigger is not a prefix in the hotkey and double-⌘ paths.** The panel lists the app's full shortcut set and highlights the rows that start with the modifiers you hold; summoning by a long modifier press seeds that set as a prefix instead. To run a row with the keyboard, use ↑/↓ and Return, or type the complete shortcut.

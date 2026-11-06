@@ -1,5 +1,8 @@
 # ShortcutEngine 切分设计
 
+[English](../en/engine-split-design.md) · [中文](engine-split-design.md)
+
+
 第二轮复审把 P1-5 记为「引擎 God class（2,530 行 / 19 段），比任何一条都重，需要一次专门的
 切分设计，建议单独开一轮」。这一份就是那次设计。
 

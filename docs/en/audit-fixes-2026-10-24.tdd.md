@@ -1,5 +1,8 @@
 # Audit fixes — TDD evidence (2026-10-24)
 
+[English](audit-fixes-2026-10-24.tdd.md) · [中文](../zh-CN/audit-fixes-2026-10-24.tdd.md)
+
+
 ## Source
 
 User journeys were derived from the reviewed audit findings in this session. Only findings

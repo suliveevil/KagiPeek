@@ -1,5 +1,8 @@
 # Troubleshooting
 
+[English](TROUBLESHOOTING.md) · [中文](../zh-CN/TROUBLESHOOTING.md)
+
+
 Start here when something does not work. Every section names the log category to look at;
 `log show --last 10m --predicate 'subsystem == "com.suliveevil.kaname"'` prints all of them,
 and **Settings → General → Diagnostics → Export diagnostics archive…** writes a zip you can attach to a bug

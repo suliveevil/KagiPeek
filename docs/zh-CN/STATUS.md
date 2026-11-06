@@ -1,5 +1,8 @@
 # STATUS
 
+[English](../en/STATUS.md) · [中文](STATUS.md)
+
+
 as of **2026-11-06**（Asia/Shanghai）。
 
 **过期即失效：这份文件只记录写下这一刻的事实。** 接手前先 `git log -1`、跑一次
