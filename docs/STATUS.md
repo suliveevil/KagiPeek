@@ -178,57 +178,47 @@ as of **2026-11-06**（Asia/Shanghai）。
 | `swift test`（合并翻页键 `feature/paging-key-pair` 后） | `Executed 789 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（逐工具折叠 `c696f0c`） | `Executed 844 tests, with 0 failures (0 unexpected)`；退出码 0 |
 | `swift test`（显示开关 `321cf2a`，2026-11-06） | `Executed 849 tests, with 0 failures (0 unexpected)`；退出码 0 |
-| `scripts/build_swiftc.sh Release`（迁移后） | `==> Signing with Kaname Local`；无钥匙串弹窗；`codesign --verify` 通过 |
-| 临时文件试签 `codesign --sign ... --keychain <KC>` | 无弹窗、无 `errSecInternalComponent`；`Authority=Kaname Local` |
-| `security find-identity -v -p codesigning` | 仅 `6C0AC543654BC3CBA8EDB95F8F16E1647905A929 "Kaname Local"` |
-| `codesign -d -r-`（安装包 vs 上一份备份） | 两行都是 `certificate root = H"6c0ac5…a929"`，TCC designated requirement 未变 |
-| `codesign -dvvv /Applications/Kaname.app` | `Authority=Kaname Local`；`flags=0x10000(runtime)` |
-| `codesign --verify --deep --strict /Applications/Kaname.app` | `valid on disk` / `satisfies its Designated Requirement` |
-| 辅助功能未被重问的证据 | 近 15 分钟 `tccd` 无 `voltline` 记录；`certificate root = H"6c0ac5…a929"` 与旧包一致 |
-| `swift test`（`bf8260a`，2026-11-06 01:24） | `Executed 849 tests, with 0 failures (0 unexpected)`；退出码 0 |
-| `scripts/install.sh`（2026-11-06 01:26） | `** BUILD SUCCEEDED **`；`Kaname Local` 签名；替换前备份 `KagiPeek-2026-11-06-012654-31fe550-local.app` |
-| `KanameCommit` / 版本串 | `bf8260a` / `2.2.0 (220)` |
-| `pgrep -lf Kaname.app/Contents/MacOS` | `12006 /Applications/Kaname.app/Contents/MacOS/Kaname`（单实例） |
-| `settings.json`（启动后） | `schemaVersion=9`；`showConfigToolsInPanel=false`、`scanConfigFiles=true`；`maxItemsPerPage=60`、`columnCount=3`、`panelPlacement=coverWindow` 保留 |
+| `swift test`（改名 B5–B7 后，2026-11-06） | `Executed 855 tests, with 0 failures (0 unexpected)`；退出码 0 |
+| `scripts/build_swiftc.sh Release`（2026-11-06 09:28） | `==> Signing with Kaname Local`；`codesign --verify --strict` 通过 |
+| `security find-identity ... kaname-signing.keychain-db` | 仅 `E40CFAA44DE724347FA66BB0BF84E2D58953C17E "Kaname Local"` |
+| `codesign -d -r- /Applications/Kaname.app` | `identifier "com.suliveevil.kaname" and certificate root = H"e40cfaa4…c17e"` |
+| `codesign -dvvv /Applications/Kaname.app` | `Authority=Kaname Local`；`Identifier=com.suliveevil.kaname`；`flags=0x10000(runtime)` |
+| `scripts/install.sh`（`KANAME_SKIP_BUILD=1`，2026-11-06 09:29） | `Kaname Local` 签名；旧 `KagiPeek.app` 备份到新目录后移除 |
+| `KanameCommit` / 版本串 | `00cc7bf` / `2.2.0 (220)` |
+| `pgrep -lf Kaname.app/Contents/MacOS` | `74955 /Applications/Kaname.app/Contents/MacOS/Kaname`（单实例） |
+| 迁移标记 | `.migrated-from-kagi-peek` = `{"backupsComplete":true,"criticalComplete":true}` |
 
-当前安装的 Info.plist 提交戳为 `bf8260a`，包含逐工具折叠（`c696f0c`）与显示开关（`321cf2a`）。
-`scripts/install.sh` 先跑 xcodebuild，一次 `BUILD SUCCEEDED`，没有回退到 `build_swiftc.sh`；
-签名走独立钥匙串，构建与安装过程没有出现钥匙串授权弹窗。
+当前安装的 Info.plist 提交戳为 `00cc7bf`，包含结构性改名（xcodeproj / 源码目录 / `KanameCore`）、
+内部队列标签与文档批次。构建走 `scripts/build_swiftc.sh`，未使用 xcodebuild；签名用新钥匙串
+`kaname-signing.keychain-db`，首次创建身份时出现过一次钥匙串授权弹窗，之后 `codesign` 不再弹窗。
 
-签名说明：密钥已从登录钥匙串迁到独立钥匙串。`Always Allow` 在 CLI 签名里不持久，所以之前
-的授权框会反复出现；新钥匙串用 `-A` 导入并设置 partition list，`codesign` 不再弹窗。证书
-与 designated requirement 未变，覆盖安装不会让辅助功能重新授权（DR 根哈希对比见上表）。
+签名说明：改名同时换了 bundle id 与证书，designated requirement 已变为
+`identifier "com.suliveevil.kaname" and certificate root = H"e40cfaa4…c17e"`。因此这次覆盖安装
+**必须重新授权辅助功能**；旧证书 `KagiPeek Local` 与旧钥匙串保留，作为回滚。
 
 **ad-hoc 只作验证**：`scripts/build_swiftc.sh` 在没有稳定身份时会 ad-hoc 签名，这种包只能
-在临时目录做 `codesign --verify --deep --strict`；`scripts/install.sh` 现在会直接拒绝安装
-ad-hoc 包。理由：ad-hoc 没有稳定代码身份，每次构建 cdhash 都变，TCC 会把每次构建当成新
-app，导致权限反复授权、系统设置里堆僵尸条目。装进 `/Applications/Kaname.app` 的包必须是
-`Kaname Local`（或将来的 Developer ID）。详见 `docs/ARCHITECTURE.md` 与
-`docs/RELEASING.md`。
+在临时目录做 `codesign --verify --deep --strict`；`scripts/install.sh` 会直接拒绝安装 ad-hoc
+包。装进 `/Applications/Kaname.app` 的包必须是 `Kaname Local`（或将来的 Developer ID）。
 
 ## 已安装构建
 
-- 路径：`/Applications/Kaname.app`
-- 版本串原文：`v2.2.0 (bf8260a)`
-- `CFBundleShortVersionString`：`2.2.0`
-- `CFBundleVersion`：`220`
-- `KanameCommit`（Info.plist）：`bf8260a`（安装时的 main HEAD）
-- 签名：`Authority=Kaname Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`。
-  designated requirement 锚定在该证书（`certificate root = H"6c0ac5…a929"`），重新构建后
-  辅助功能授权保持；私钥只在独立钥匙串中
-- 运行中 PID：`12006`（`pgrep -lf Kaname.app/Contents/MacOS`，单实例）
-- 升级前备份：`~/Library/Application Support/Kaname/backups/` 下按命名
-  `Kaname-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` 保留最近 5 份；
-  最新一份为 `KagiPeek-2026-11-06-012654-31fe550-local.app`。
-  - `/Applications` 下只有 `Kaname.app` 一份，历史 ad-hoc 副本已在废纸篓。
-- 用户设置未被覆盖：`~/Library/Application Support/Kaname/settings.json` 仍在，
-  非默认值保留（`maxItemsPerPage=60`、`showDisabledItems=true`、`holdDelay=0.5`、
-  `maxDescriptionLength=80`、`columnCount=3`、`panelPlacement=coverWindow`、
-  `launchAtLogin=true`、`keyStyle=symbols`、`panelOrder=byModifier`）；
-  `runRowKey`/`copyRowKey` 保持用户当前选择，删除后落盘为 `null`。
-  启动新构建后该文件已迁移到 `schemaVersion=9`：`pagingPairs` 落盘为
-  `["semicolonQuote"]`，`showConfigToolsInPanel` 补 `false`（工具区默认隐藏），
-  `scanConfigFiles` 保持原值 `true`。
+- 路径：`/Applications/Kaname.app`（`/Applications` 下已无 `KagiPeek.app`）
+- 版本串原文：`v2.2.0 (00cc7bf)`
+- `CFBundleIdentifier`：`com.suliveevil.kaname`
+- `CFBundleName` / `CFBundleExecutable`：`Kaname` / `Kaname`
+- `CFBundleShortVersionString` / `CFBundleVersion`：`2.2.0` / `220`
+- `KanameCommit`（Info.plist）：`00cc7bf`
+- 签名：`Authority=Kaname Local`；`flags=0x10000(runtime)`；`TeamIdentifier=not set`；
+  designated requirement 根哈希 `e40cfaa4…c17e`，私钥只在 `kaname-signing.keychain-db`
+- 运行中 PID：`74955`（`pgrep -lf Kaname.app/Contents/MacOS`，单实例）
+- 旧包备份：`~/Library/Application Support/Kaname/backups/Kaname-2026-11-06-092955-unknown-local.app`
+  （提交戳未知，因为旧包的键名是 `KagiPeekCommit`）
+- 数据目录：`~/Library/Application Support/Kaname/` 181 MB；旧目录
+  `~/Library/Application Support/KagiPeek/` 167 MB，保持原样未删
+- 迁移结果：`settings.json`、`usage.json`、`conflicts-cache.json`、`menu-cache/`、`logs/`、
+  `crash/`、`signing/` 已复制；日志文件名由 `kaname-*.log` 取代；
+  `backups/` 178 MB，异步复制完成并写入标记
+- 旧日志、旧崩溃报告与旧备份文件名保留在原目录，未做删除
 
 ## 已知环境坑
 
