@@ -14,7 +14,7 @@ import os
 /// tail never does, some other app's tap ate it in between. That is a fact rather than an
 /// inference, and it is the one thing config files can never tell us.
 ///
-/// Both taps are listen-only. KagiPeek must never be able to change or swallow a key while
+/// Both taps are listen-only. Kaname must never be able to change or swallow a key while
 /// it is supposed to be watching one, and a passive tap also cannot break the shortcut it
 /// is measuring.
 ///
@@ -39,7 +39,7 @@ final class ShortcutTester {
     /// shows up under the one now selected.
     var testedChord: KeyChord? { machine.testedChord }
 
-    /// The app to hand focus back to while the test runs. KagiPeek being frontmost would
+    /// The app to hand focus back to while the test runs. Kaname being frontmost would
     /// poison the result: menu shortcuts fire for whoever is in front, and that must not
     /// be us.
     private let appToRestore: () -> NSRunningApplication?

@@ -3,7 +3,7 @@ import Foundation
 /// The modifiers that belong to the stroke the user is composing, from two sources.
 ///
 /// Emacs reaches `C-x C-s` by holding Control and typing `x s`; which-key reaches it by
-/// pressing `C-x` and *then* `C-s`. KagiPeek now answers both, which means a stroke can be
+/// pressing `C-x` and *then* `C-s`. Kaname now answers both, which means a stroke can be
 /// assembled from two places at once:
 ///
 /// - **held** — physically down right now, transient, updated by every `flagsChanged`. This

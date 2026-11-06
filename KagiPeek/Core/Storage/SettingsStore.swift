@@ -4,7 +4,7 @@ import Foundation
 import ServiceManagement
 import os
 
-/// Persists settings in `Application Support/KagiPeek/settings.json` and migrates both the
+/// Persists settings in `Application Support/Kaname/settings.json` and migrates both the
 /// 1.x preference keys and the 2.0 JSON blob out of UserDefaults on first launch.
 ///
 /// This store is the **single writer** of that file. Edits are coalesced with a short

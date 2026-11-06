@@ -73,10 +73,10 @@ final class SanitizerTests: XCTestCase {
 
     func testHomeDirectoryBecomesTilde() {
         let prepared = Sanitizer.prepare(
-            "/Users/someone/Library/Application Support/KagiPeek/logs",
+            "/Users/someone/Library/Application Support/Kaname/logs",
             homePrefix: "/Users/someone"
         )
-        XCTAssertEqual(prepared, "~/Library/Application Support/KagiPeek/logs")
+        XCTAssertEqual(prepared, "~/Library/Application Support/Kaname/logs")
         XCTAssertFalse(prepared.contains("someone"))
     }
 

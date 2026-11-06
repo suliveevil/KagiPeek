@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// The guide panel's entrance: it leaves the KagiPeek window the user just clicked in and
+/// The guide panel's entrance: it leaves the Kaname window the user just clicked in and
 /// lands on the System Settings window along a parabolic arc.
 ///
 /// LobeHub's desktop guide drives this with closed-form damped springs; the shape that

@@ -1,7 +1,7 @@
 import XCTest
 @testable import KagiPeekCore
 
-// 这份报告过去只能靠 `KAGIPEEK_SELFTEST=1` 端到端验证：装配逻辑在引擎里，而引擎没有测试网，
+// 这份报告过去只能靠 `KANAME_SELFTEST=1` 端到端验证：装配逻辑在引擎里，而引擎没有测试网，
 // 也无法在测试里构造。搬到 `DiagnosticsReportBuilder` 之后它只需要一个 `Input`，于是字段映射
 // 可以在这里钉住——端到端那条路径仍然保留，但它验证的是「装得出来」，这里验证的是「装得对」。
 
@@ -10,7 +10,7 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
         generatedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
         settings: AppSettingsSnapshot = AppSettingsSnapshot(),
         dataFolderPath: String = "/tmp/kagipeek",
-        windowTitles: [String] = ["KagiPeek", "KagiPeek Settings"],
+        windowTitles: [String] = ["Kaname", "Kaname Settings"],
         scanState: ScanState = .ok,
         crashRecoveryErrors: [String] = [],
         actionMirrorError: String? = nil,
@@ -67,7 +67,7 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
         XCTAssertEqual(payload["usageTotalPresses"] as? Int, 512)
         XCTAssertEqual(payload["favorites"] as? Int, 6)
         XCTAssertEqual(payload["dataFolder"] as? String, "/tmp/kagipeek")
-        XCTAssertEqual(payload["windowTitles"] as? [String], ["KagiPeek", "KagiPeek Settings"])
+        XCTAssertEqual(payload["windowTitles"] as? [String], ["Kaname", "Kaname Settings"])
     }
 
     /// 时间由调用方传入而不是内部读 `Date()`，所以输出是确定的——这是能测的前提。
@@ -135,11 +135,11 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
     /// 报告是要给人的，所以它必须在写文件之前过一遍规则，而不是「反正只有标题」。
     func testWindowTitlesAreRedactedBeforeTheyReachTheFile() throws {
         let payload = try object(from: input(
-            windowTitles: ["KagiPeek", "Invoice for alice@example.com"]
+            windowTitles: ["Kaname", "Invoice for alice@example.com"]
         ))
         XCTAssertEqual(
             payload["windowTitles"] as? [String],
-            ["KagiPeek", "Invoice for <email>"]
+            ["Kaname", "Invoice for <email>"]
         )
         XCTAssertEqual(payload["redactedFields"] as? [String], ["windowTitles"])
     }
@@ -165,10 +165,10 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
     /// 否则 `redactedFields` 永远非空，真正被剪的字段就淹没在里面。
     func testTheHomeDirectoryBecomesATildeWithoutBeingAnnouncedAsARedaction() throws {
         let payload = try object(from: input(
-            dataFolderPath: "/Users/alice/Library/Application Support/KagiPeek",
+            dataFolderPath: "/Users/alice/Library/Application Support/Kaname",
             homePrefix: "/Users/alice"
         ))
-        XCTAssertEqual(payload["dataFolder"] as? String, "~/Library/Application Support/KagiPeek")
+        XCTAssertEqual(payload["dataFolder"] as? String, "~/Library/Application Support/Kaname")
         XCTAssertNil(payload["redactedFields"])
     }
 

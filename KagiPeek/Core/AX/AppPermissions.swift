@@ -35,7 +35,7 @@ struct PermissionPolicy {
     }
 }
 
-/// One system permission KagiPeek may need.
+/// One system permission Kaname may need.
 ///
 /// Modelled after the permission cards in Thaw (thaw-app/Thaw): a title, an icon, the
 /// concrete things the permission enables, whether it is required, the exact settings pane,

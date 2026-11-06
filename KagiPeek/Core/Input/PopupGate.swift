@@ -5,7 +5,7 @@ import CoreGraphics
 ///
 /// Two problems share one answer:
 ///
-/// 1. KagiPeek must not open its panel over a popup the user is working in.
+/// 1. Kaname must not open its panel over a popup the user is working in.
 /// 2. It must not swallow a modifier that a popup needs — Dock's "Force Quit" only appears
 ///    while Option is held down over the item, so eating Option breaks the menu.
 ///

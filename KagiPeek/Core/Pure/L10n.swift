@@ -223,11 +223,11 @@ nonisolated enum L10n {
     private typealias Entry = (en: String, zh: String)
 
     private static let table: [L10nKey: Entry] = [
-        .appName: ("KagiPeek", "KagiPeek"),
+        .appName: ("Kaname", "Kaname"),
         .menuSearch: ("Search Shortcuts…", "搜索快捷键…"),
         .menuPanel: ("Shortcut Panel", "快捷键面板"),
         .menuSettings: ("Settings…", "设置…"),
-        .menuQuit: ("Quit KagiPeek", "退出 KagiPeek"),
+        .menuQuit: ("Quit Kaname", "退出 Kaname"),
 
         .statusLabel: ("Status", "状态"),
         .statusReady: ("Listening", "监听中"),
@@ -250,8 +250,8 @@ nonisolated enum L10n {
         .permissionOpenSettings: ("Open System Settings", "打开系统设置"),
         .permissionsTitle: ("Enable Permissions", "启用权限"),
         .permissionsSubtitle: (
-            "KagiPeek needs these permissions to read the frontmost app's menu bar and to listen for shortcuts.",
-            "KagiPeek 需要以下权限来读取前台 App 的菜单栏并监听快捷键。"
+            "Kaname needs these permissions to read the frontmost app's menu bar and to listen for shortcuts.",
+            "Kaname 需要以下权限来读取前台 App 的菜单栏并监听快捷键。"
         ),
         .permissionsPrivacy: (
             "Everything stays on your Mac. Nothing is uploaded.",
@@ -343,7 +343,7 @@ nonisolated enum L10n {
         .permissionGrant: ("Grant Permission", "授权"),
         .permissionGrantedDone: ("Permission granted", "已授权"),
         .permissionContinue: ("Continue", "继续"),
-        .permissionQuit: ("Quit KagiPeek", "退出 KagiPeek"),
+        .permissionQuit: ("Quit Kaname", "退出 Kaname"),
         .permissionRequiredBadge: ("Required", "必需"),
         .permissionOptionalBadge: ("Optional", "可选"),
         .permissionAccessibilityDetail1: (
@@ -367,8 +367,8 @@ nonisolated enum L10n {
             "只有部分 macOS 版本或环境才需要。"
         ),
         .permissionDragHint: (
-            "Or drag the KagiPeek icon from here into the list in System Settings.",
-            "也可以把这里的 KagiPeek 图标直接拖进系统设置的列表里。"
+            "Or drag the Kaname icon from here into the list in System Settings.",
+            "也可以把这里的 Kaname 图标直接拖进系统设置的列表里。"
         ),
         .permissionGuideDrag: (
             "Drag the icon into the list above",
@@ -376,15 +376,15 @@ nonisolated enum L10n {
         ),
         .permissionGuideStaleHint: (
             "Already listed but the switch won't stick? Remove it with −, then drop the icon in again.",
-            "列表里已有 KagiPeek 但开关无效？先用 − 移除，再重新拖入。"
+            "列表里已有 Kaname 但开关无效？先用 − 移除，再重新拖入。"
         ),
         .permissionGuideGranted: (
             "Permission granted",
             "已授权"
         ),
         .permissionGuideGrantedHint: (
-            "KagiPeek is coming back to the front.",
-            "KagiPeek 正在回到前台。"
+            "Kaname is coming back to the front.",
+            "Kaname 正在回到前台。"
         ),
         .permissionGuideClose: (
             "Close the guide",
@@ -648,8 +648,8 @@ nonisolated enum L10n {
             "用 Carbon 注册的全局热键，全系统有效，但前提是栈里更低的层没有先拿走这个键。"
         ),
         .layerGlobalExplanation: (
-            "An always-on global shortcut. KagiPeek cannot tell from the config which layer it hooks, so its position here is a guess.",
-            "常驻的全局快捷键。KagiPeek 无法从配置判断它挂在哪一层，这里的位置是推测。"
+            "An always-on global shortcut. Kaname cannot tell from the config which layer it hooks, so its position here is a guess.",
+            "常驻的全局快捷键。Kaname 无法从配置判断它挂在哪一层，这里的位置是推测。"
         ),
         .layerMenuItemExplanation: (
             "An app menu shortcut. It fires only when that app is frontmost and nothing global claimed the key.",
@@ -697,14 +697,14 @@ nonisolated enum L10n {
         // Conflict verdicts
         .conflictVerdictWinnerFormat: ("%@ most likely wins.", "%@ 最可能生效。"),
         .conflictVerdictTied: (
-            "Several shortcuts hook the same layer, so whichever registered first wins. That order is not recorded anywhere KagiPeek can read.",
-            "多个快捷键挂在同一层，谁先注册谁生效。这个顺序没有记录在任何 KagiPeek 能读到的地方。"
+            "Several shortcuts hook the same layer, so whichever registered first wins. That order is not recorded anywhere Kaname can read.",
+            "多个快捷键挂在同一层，谁先注册谁生效。这个顺序没有记录在任何 Kaname 能读到的地方。"
         ),
         .conflictVerdictMenuOrder: (
             "These are all menu shortcuts of this app, so macOS matches them in menu order and the first one wins.",
             "这些都是当前 App 的菜单快捷键，macOS 会按菜单顺序匹配，靠前的那个生效。"
         ),
-        .conflictVerdictUnknown: ("KagiPeek cannot tell which one wins.", "KagiPeek 无法判断谁会生效。"),
+        .conflictVerdictUnknown: ("Kaname cannot tell which one wins.", "Kaname 无法判断谁会生效。"),
 
         // Conflict filters
         .conflictType: ("Type", "类型"),
@@ -763,16 +763,16 @@ nonisolated enum L10n {
         .testCancel: ("Cancel test", "取消实测"),
         .testListeningFormat: ("Listening for %d seconds…", "正在监听 %d 秒…"),
         .testHint: (
-            "Press the combo once. KagiPeek watches a real keypress instead of guessing from config files.",
-            "按下这个组合键一次。KagiPeek 会观察一次真实按键，而不是根据配置文件猜测。"
+            "Press the combo once. Kaname watches a real keypress instead of guessing from config files.",
+            "按下这个组合键一次。Kaname 会观察一次真实按键，而不是根据配置文件猜测。"
         ),
         .testUnavailableNoPermission: (
             "Testing needs Accessibility permission.",
             "实测需要辅助功能授权。"
         ),
         .testUnavailableNoTap: (
-            "macOS refused a keyboard listener. Quitting and reopening KagiPeek usually clears this.",
-            "macOS 拒绝了键盘监听。退出并重新打开 KagiPeek 通常能解决。"
+            "macOS refused a keyboard listener. Quitting and reopening Kaname usually clears this.",
+            "macOS 拒绝了键盘监听。退出并重新打开 Kaname 通常能解决。"
         ),
         .testVerdictSwallowedByTap: ("An event tap took the key", "有事件拦截层拿走了这个键"),
         .testVerdictSwallowedByTapOne: ("%@ took the key", "%@ 拿走了这个键"),
@@ -786,16 +786,16 @@ nonisolated enum L10n {
         .testToneInformative: ("Informative", "有信息量"),
         .testToneInconclusive: ("Inconclusive", "无法判断"),
         .testSummarySwallowedNone: (
-            "The key reached KagiPeek's first listener and never arrived at the second, so an event tap swallowed it on the way. Nothing in the scan claims this combo at that layer, so whatever took it is a tool KagiPeek cannot read the config of.",
-            "按键到达了 KagiPeek 的第一个监听器，却没有到达第二个，说明途中有事件拦截层把它吞了。扫描结果里没有谁在这一层占用这个组合键，所以拿走它的是 KagiPeek 读不到配置的工具。"
+            "The key reached Kaname's first listener and never arrived at the second, so an event tap swallowed it on the way. Nothing in the scan claims this combo at that layer, so whatever took it is a tool Kaname cannot read the config of.",
+            "按键到达了 Kaname 的第一个监听器，却没有到达第二个，说明途中有事件拦截层把它吞了。扫描结果里没有谁在这一层占用这个组合键，所以拿走它的是 Kaname 读不到配置的工具。"
         ),
         .testSummarySwallowedOne: (
-            "The key reached KagiPeek's first listener and never arrived at the second, so an event tap swallowed it on the way. %@ is the only tool in the scan that hooks that layer with this combo, so it is almost certainly holding the key.",
-            "按键到达了 KagiPeek 的第一个监听器，却没有到达第二个，说明途中有事件拦截层把它吞了。%@ 是扫描结果里唯一在这一层占用这个组合键的工具，几乎可以肯定就是它拿走了按键。"
+            "The key reached Kaname's first listener and never arrived at the second, so an event tap swallowed it on the way. %@ is the only tool in the scan that hooks that layer with this combo, so it is almost certainly holding the key.",
+            "按键到达了 Kaname 的第一个监听器，却没有到达第二个，说明途中有事件拦截层把它吞了。%@ 是扫描结果里唯一在这一层占用这个组合键的工具，几乎可以肯定就是它拿走了按键。"
         ),
         .testSummarySwallowedMany: (
-            "The key reached KagiPeek's first listener and never arrived at the second, so an event tap swallowed it on the way. %@ all hook that layer with this combo, and the tap chain does not record which of them acted.",
-            "按键到达了 KagiPeek 的第一个监听器，却没有到达第二个，说明途中有事件拦截层把它吞了。%@ 都在这一层占用这个组合键，而事件拦截链不会记录到底是谁动了手。"
+            "The key reached Kaname's first listener and never arrived at the second, so an event tap swallowed it on the way. %@ all hook that layer with this combo, and the tap chain does not record which of them acted.",
+            "按键到达了 Kaname 的第一个监听器，却没有到达第二个，说明途中有事件拦截层把它吞了。%@ 都在这一层占用这个组合键，而事件拦截链不会记录到底是谁动了手。"
         ),
         .testSummaryReachedApp: (
             "%@ came to the front right after the press, and it does claim this combo. Nothing swallowed the key at the event tap layer, so this is as close to a confirmed answer as watching from outside can get.",
@@ -806,8 +806,8 @@ nonisolated enum L10n {
             "没有事件拦截层拿走按键，也没有 App 切到前台。%@ 本来就在前台，而且有这个组合键的菜单项，所以最可能是它触发了。也有可能是 macOS 系统快捷键静默拿走了按键，这在系统外部无法观察。"
         ),
         .testSummaryUnregisteredApp: (
-            "%@ came to the front right after the press, but nothing in the scan records it claiming this combo. Either it registers the shortcut somewhere KagiPeek cannot read, or it was on its way to the front for an unrelated reason.",
-            "按下之后 %@ 立刻来到前台，但扫描结果里没有它占用这个组合键的记录。要么它的快捷键注册在 KagiPeek 读不到的地方，要么它切到前台只是出于别的原因。"
+            "%@ came to the front right after the press, but nothing in the scan records it claiming this combo. Either it registers the shortcut somewhere Kaname cannot read, or it was on its way to the front for an unrelated reason.",
+            "按下之后 %@ 立刻来到前台，但扫描结果里没有它占用这个组合键的记录。要么它的快捷键注册在 Kaname 读不到的地方，要么它切到前台只是出于别的原因。"
         ),
         .testSummarySurvived: (
             "The key got past every event tap, and nothing came to the front to give the winner away. From there a macOS system shortcut or a global hotkey can take a key without leaving a trace anything outside the OS can follow.",
@@ -822,8 +822,8 @@ nonisolated enum L10n {
             "你按下的键到达 macOS 时变成了 %1$@，而不是 %2$@。这说明它在操作系统之下就被改写了，这正是 Karabiner-Elements 这类虚拟键盘驱动做的事。建议再按一次排除手误，然后再相信这个结论。"
         ),
         .testSummaryNothingSeen: (
-            "KagiPeek listened and no keypress arrived at all. If you did press the combination, something intercepted it below the event tap layer, which in practice means a keyboard driver remap. If you did not, run the test again.",
-            "KagiPeek 监听了但没有收到任何按键。如果你确实按下了那个组合键，说明它在事件拦截层之下就被截走了，实际上就是键盘驱动层的重映射。如果你没按，请再测一次。"
+            "Kaname listened and no keypress arrived at all. If you did press the combination, something intercepted it below the event tap layer, which in practice means a keyboard driver remap. If you did not, run the test again.",
+            "Kaname 监听了但没有收到任何按键。如果你确实按下了那个组合键，说明它在事件拦截层之下就被截走了，实际上就是键盘驱动层的重映射。如果你没按，请再测一次。"
         ),
 
         .aboutTitle: ("About", "关于"),
@@ -920,8 +920,8 @@ nonisolated enum L10n {
         // listener the system will not service is what keeps the input stream contested, and
         // a quiet app is the safer failure.
         .errorEventTapStalledPermanent: (
-            "Shortcuts are off. The system would not service the key listener, so KagiPeek stopped retrying. Relaunch KagiPeek to try again.",
-            "快捷键已停用：系统不再为按键监听提供服务，KagiPeek 已停止重试。重新启动 KagiPeek 可再试。"
+            "Shortcuts are off. The system would not service the key listener, so Kaname stopped retrying. Relaunch Kaname to try again.",
+            "快捷键已停用：系统不再为按键监听提供服务，Kaname 已停止重试。重新启动 Kaname 可再试。"
         )
     ]
 }

@@ -33,7 +33,7 @@ final class ShortcutEngine: ObservableObject {
     let settingsStore: SettingsStore
     let usageStore: UsageStore
     let localization = Localization()
-    let permissions = AppPermissions(previewDenied: ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW"] == "permissions")
+    let permissions = AppPermissions(previewDenied: ProcessInfo.processInfo.environment["KANAME_PREVIEW"] == "permissions")
 
     private let monitor = KeyboardMonitor()
     private let appContext = AppContextService()
@@ -185,7 +185,7 @@ final class ShortcutEngine: ObservableObject {
     /// True while the screenshot fixture is driving the app. Read by the paths that must go
     /// quiet during a capture (scanning, executing, following the frontmost app).
     private(set) var isPreviewing = false
-    /// The most recent app that was not KagiPeek, handed focus back to during a live test.
+    /// The most recent app that was not Kaname, handed focus back to during a live test.
     private var lastExternalFrontmost: NSRunningApplication?
 
     var frontmostProcessIdentifier: pid_t { appContext.frontmost?.pid ?? 0 }
@@ -479,7 +479,7 @@ final class ShortcutEngine: ObservableObject {
 
     func refreshPermissions() {
         // Re-read symbolic hotkeys on activation: the user may have changed them in
-        // System Settings while KagiPeek was in the background.
+        // System Settings while Kaname was in the background.
         reloadSystemHotkeys()
         permissions.refreshAll(noticedBy: "activation")
         permissionStateChanged()
@@ -672,7 +672,7 @@ final class ShortcutEngine: ObservableObject {
         guard !isPreviewing else { return }
         guard !app.isSelf else { return }
         // Remembered so a live shortcut test can hand focus back here: a menu shortcut only
-        // fires for the app in front, and letting KagiPeek stay frontmost would rig it.
+        // fires for the app in front, and letting Kaname stay frontmost would rig it.
         lastExternalFrontmost = NSRunningApplication(processIdentifier: app.pid)
         Diag.debug(.scan, "frontmost changed: \(app.bundleID ?? "?") pid=\(app.pid)")
         Diag.action("app.activate", target: app.bundleID)
@@ -700,7 +700,7 @@ final class ShortcutEngine: ObservableObject {
         if let target = state.recordingTarget, handleRecording(event, target: target) {
             return
         }
-        // While a live test is listening, every key belongs to the test. Anything KagiPeek
+        // While a live test is listening, every key belongs to the test. Anything Kaname
         // did here — arming the panel, consuming a stroke — would make it the thing that
         // swallowed the key, which is the one result this feature must never report.
         if state.isTestingShortcut { return }
@@ -867,7 +867,7 @@ final class ShortcutEngine: ObservableObject {
         }
     }
 
-    /// Secure input is the one system restriction that turns KagiPeek off silently: the OS
+    /// Secure input is the one system restriction that turns Kaname off silently: the OS
     /// stops delivering keys to taps while a password field has focus. One line per few
     /// seconds is enough to explain a session, and cheap enough for the modifier path.
     private func logSecureInputOnce() {

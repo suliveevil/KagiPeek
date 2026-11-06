@@ -158,7 +158,7 @@ nonisolated final class CatalogLoader: @unchecked Sendable {
         // Defensive: the context service never reports the app itself, and a scan of our own
         // process would only produce an empty menu bar.
         guard !app.isSelf else {
-            Diag.error(.scan, "refusing to scan KagiPeek's own process")
+            Diag.error(.scan, "refusing to scan Kaname's own process")
             return .empty
         }
 

@@ -3,7 +3,7 @@ import Foundation
 /// The app a replayed chord is meant for.
 ///
 /// A panel row and a search result both belong to an app, and both are triggered after
-/// KagiPeek took the keyboard — so the app has to be brought back to the front before the
+/// Kaname took the keyboard — so the app has to be brought back to the front before the
 /// key events are posted. This is the name that decision is made against.
 nonisolated struct InjectionTarget: Equatable, Sendable {
     let processID: Int32

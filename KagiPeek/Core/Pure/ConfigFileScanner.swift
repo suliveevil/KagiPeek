@@ -167,7 +167,7 @@ nonisolated enum ConfigFileScanner {
 
     // MARK: - Shared key names
 
-    /// ANSI key names shared by several tools, mapped to KagiPeek's tokens.
+    /// ANSI key names shared by several tools, mapped to Kaname's tokens.
     ///
     /// Every scanner has its own spelling for the named keys (Karabiner says
     /// `return_or_enter`, skhd says `return`), but they all agree on single characters,
@@ -203,7 +203,7 @@ nonisolated enum CarbonModifierMask {
     static let option = 2048
     static let control = 4096
 
-    /// Converts a stored mask to KagiPeek's modifier set.
+    /// Converts a stored mask to Kaname's modifier set.
     static func modifierSet(fromCarbonMask mask: Int) -> ModifierSet {
         var modifiers: ModifierSet = []
         if mask & command != 0 { modifiers.insert(.command) }

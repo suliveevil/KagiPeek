@@ -20,7 +20,7 @@ nonisolated enum MenuCachePolicy {
     /// How long a cached scan stays usable.
     ///
     /// Ten minutes: long enough that re-opening the panel for the same app — or relaunching
-    /// KagiPeek — skips the AX walk, short enough that a menu which changed while the app
+    /// Kaname — skips the AX walk, short enough that a menu which changed while the app
     /// ran is refreshed quickly. Inside the window a press re-walks the row's path and
     /// verifies its title, so staleness costs a failed press at worst, never a wrong
     /// command.

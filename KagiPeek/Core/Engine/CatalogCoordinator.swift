@@ -60,7 +60,7 @@ final class CatalogCoordinator {
             clearLoadingState()
             return
         }
-        // KagiPeek is an accessory app that activates itself for the search palette, the
+        // Kaname is an accessory app that activates itself for the search palette, the
         // settings window. Scanning its own menu bar would replace the real
         // app's shortcuts with the built-in fallback, so it is never a catalog source.
         guard !app.isSelf else {

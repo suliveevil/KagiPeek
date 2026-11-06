@@ -4,7 +4,7 @@ import Foundation
 ///
 /// A build is identified by the source it was built from, not by a monotonic build number
 /// that only repeats the marketing version. `scripts/stamp_commit.sh` writes the short
-/// commit into `Info.plist` as `KagiPeekCommit`; the parentheses carry it.
+/// commit into `Info.plist` as `KanameCommit`; the parentheses carry it.
 ///
 /// A bundle built outside that script (an Xcode Run, a downloaded release without the key)
 /// has no commit to show. It says `unknown` rather than falling back to `CFBundleVersion`:
@@ -36,10 +36,10 @@ nonisolated enum AppVersion {
 extension Bundle {
     /// The version line every surface should show. Reads the bundle once so the About tab,
     /// the launch log, the diagnostics export and the crash report cannot drift apart.
-    nonisolated var kagiPeekVersionDisplay: String {
+    nonisolated var kanameVersionDisplay: String {
         AppVersion.display(
             shortVersion: object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-            commit: object(forInfoDictionaryKey: "KagiPeekCommit") as? String
+            commit: object(forInfoDictionaryKey: "KanameCommit") as? String
         )
     }
 }

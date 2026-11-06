@@ -8,7 +8,7 @@ nonisolated struct FrontmostApp {
 
     var identity: String { bundleID ?? "pid:\(pid)" }
 
-    /// True for KagiPeek itself. The app activates itself for the search palette, the
+    /// True for Kaname itself. The app activates itself for the search palette, the
     /// Settings window, and a menu bar agent has no menu bar of its own — so
     /// treating itself as a shortcut source would empty the panel.
     var isSelf: Bool { pid == ProcessInfo.processInfo.processIdentifier }

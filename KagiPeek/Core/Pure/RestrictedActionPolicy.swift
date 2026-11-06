@@ -1,6 +1,6 @@
 import Foundation
 
-/// The system actions KagiPeek shows but never runs.
+/// The system actions Kaname shows but never runs.
 ///
 /// Seven chords across six user-facing actions: log out and force log out are separate.
 /// They affect the whole machine, not the front app: a menu press would put the Mac to
@@ -61,7 +61,7 @@ nonisolated enum RestrictedActionPolicy {
         }
     }
 
-    /// ANSI Power key. `KagiPeek/Core/Pure/KeyMapper.swift` maps virtual key 0x7F to the
+    /// ANSI Power key. `Kaname/Core/Pure/KeyMapper.swift` maps virtual key 0x7F to the
     /// `"power"` token for exactly this whitelist.
     private static let power = KeyToken("power")
 

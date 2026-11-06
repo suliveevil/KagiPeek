@@ -73,7 +73,7 @@ nonisolated enum DiagnosticsReportBuilder {
             "generatedAt": ISO8601DateFormatter().string(from: input.generatedAt),
             "version": AppVersion.display(
                 shortVersion: info?["CFBundleShortVersionString"] as? String,
-                commit: info?["KagiPeekCommit"] as? String
+                commit: info?["KanameCommit"] as? String
             ),
             "build": info?["CFBundleVersion"] as? String ?? "?",
             "bundleID": bundleID,

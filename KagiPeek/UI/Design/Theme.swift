@@ -16,7 +16,7 @@ enum Theme {
 
     /// Used by the screenshot helper: materials cannot be captured with `cacheDisplay`,
     /// so preview builds draw a solid backdrop instead.
-    static let isPreview: Bool = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW"] != nil
+    static let isPreview: Bool = ProcessInfo.processInfo.environment["KANAME_PREVIEW"] != nil
 
     static var reduceTransparency: Bool {
         isPreview || NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
@@ -62,7 +62,7 @@ struct PanelPalette {
     let isLight: Bool
     let backgroundSolid: Color
     let text: Color
-    /// Red used for titles of actions KagiPeek will never run. The dark theme needs a
+    /// Red used for titles of actions Kaname will never run. The dark theme needs a
     /// brighter red than `systemRed` to stay legible on graphite.
     let restrictedText: Color
     let secondaryText: Color

@@ -25,7 +25,7 @@ enum KeyboardMonitorError: LocalizedError {
 ///
 /// The run-loop source lives on a **dedicated thread**, not the main run loop. This is the
 /// root fix for a class of failures measured four times on macOS 27 (2026-11-02): with the
-/// callback on the main run loop, any main-thread wedge — KagiPeek's or the system's —
+/// callback on the main run loop, any main-thread wedge — Kaname's or the system's —
 /// left the tap enabled in front of a callback that could not run, and every key and click
 /// in the session waited out the tap's timeout. Three of the four episodes ended in a
 /// power-button reset. On its own thread the callback keeps running no matter what the
@@ -282,7 +282,7 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         // source is added here, on the thread that drains it, as CFRunLoopAddSource
         // requires; nothing about the tap depends on the main thread after this.
         let thread = Thread { [weak self] in self?.tapThreadMain() }
-        thread.name = "KagiPeek event tap"
+        thread.name = "Kaname event tap"
         tapThread = thread
         thread.start()
     }
@@ -558,7 +558,7 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
             ))
             // Never eat a modifier while a popup menu is up: Dock's "Force Quit" only
             // shows up while Option is held over the item, so swallowing it would break
-            // the menu instead of merely suppressing KagiPeek.
+            // the menu instead of merely suppressing Kaname.
             let armed = withLock { modifierSwallowKeyCodes.contains(keyCode) }
             let consume = armed && !PopupGate.menuPresent()
             return consume ? nil : Unmanaged.passUnretained(event)

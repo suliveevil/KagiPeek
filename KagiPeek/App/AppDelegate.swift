@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The trigger is the one thing a new user cannot discover by looking at the menu bar.
     /// One HUD on first launch, never again; Settings keeps a button to replay it.
-    private static let triggerTipShownKey = "KagiPeekTriggerTipShown"
+    private static let triggerTipShownKey = "KanameTriggerTipShown"
 
     private func showTriggerTipIfNeeded() {
         guard !UserDefaults.standard.bool(forKey: Self.triggerTipShownKey) else { return }
@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Diagnostic mode runs before the single-instance guard: the whole point is to ask
         // the *installed* copy what it can see, and that copy is usually already running.
-        if ProcessInfo.processInfo.environment["KAGIPEEK_SELFTEST"] != nil {
+        if ProcessInfo.processInfo.environment["KANAME_SELFTEST"] != nil {
             Diag.info(.start, "selftest mode")
             engine.start()
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
@@ -94,10 +94,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard ensureSingleInstance() else { return }
         beginBackgroundActivity()
 
-        // Headless export: `KAGIPEEK_EXPORT_DIAGNOSTICS=/path/to/report.zip` writes the same
+        // Headless export: `KANAME_EXPORT_DIAGNOSTICS=/path/to/report.zip` writes the same
         // archive the settings window produces and exits. It exists so a user can hand over
         // diagnostics from a terminal when the window is the thing that is broken.
-        if let path = ProcessInfo.processInfo.environment["KAGIPEEK_EXPORT_DIAGNOSTICS"] {
+        if let path = ProcessInfo.processInfo.environment["KANAME_EXPORT_DIAGNOSTICS"] {
             do {
                 try DiagnosticsExporter.export(
                     to: URL(fileURLWithPath: path),
@@ -119,10 +119,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // The menu bar item is ours from here on: `StatusItemController` explains why it is
         // no longer a SwiftUI `MenuBarExtra`.
-        // Headless rescan: `KAGIPEEK_RESCAN_CONFLICTS=1` runs the cross-app conflict scan and
+        // Headless rescan: `KANAME_RESCAN_CONFLICTS=1` runs the cross-app conflict scan and
         // leaves the process running, so a support session can produce conflicts-cache.json
         // without opening the settings window.
-        if ProcessInfo.processInfo.environment["KAGIPEEK_RESCAN_CONFLICTS"] != nil {
+        if ProcessInfo.processInfo.environment["KANAME_RESCAN_CONFLICTS"] != nil {
             engine.rescanCrossAppConflicts()
         }
 
@@ -132,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeDockIconPreference()
         installMainMenu()
 
-        if let mode = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW"] {
+        if let mode = ProcessInfo.processInfo.environment["KANAME_PREVIEW"] {
             Diag.info(.start, "preview mode: \(mode)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 self?.engine.startPreview(mode: mode)
@@ -204,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(
-            withTitle: "\(localization.text(.aboutTitle)) KagiPeek",
+            withTitle: "\(localization.text(.aboutTitle)) Kaname",
             action: #selector(openAboutPanel),
             keyEquivalent: ""
         ).target = self
@@ -255,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the build to a person.
     @objc private func openAboutPanel() {
         NSApplication.shared.orderFrontStandardAboutPanel(options: [
-            .applicationVersion: Bundle.main.kagiPeekVersionDisplay,
+            .applicationVersion: Bundle.main.kanameVersionDisplay,
             .version: ""
         ])
     }
@@ -272,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func beginBackgroundActivity() {
         backgroundActivity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiatedAllowingIdleSystemSleep, .suddenTerminationDisabled, .automaticTerminationDisabled],
-            reason: "KagiPeek's event tap must stay responsive while it runs in the background"
+            reason: "Kaname's event tap must stay responsive while it runs in the background"
         )
         Diag.info(.start, "background activity begun (App Nap disabled, idle sleep unaffected)")
     }

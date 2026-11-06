@@ -63,15 +63,15 @@ nonisolated enum DiagnosticsExporter {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        return "KagiPeek-diagnostics-\(formatter.string(from: now)).zip"
+        return "Kaname-diagnostics-\(formatter.string(from: now)).zip"
     }
 
     /// Builds `destination` (a `.zip`). Throws only when nothing usable could be produced.
     static func export(to destination: URL, settings: AppSettingsSnapshot, now: Date = Date()) throws {
         let fileManager = FileManager.default
         let staging = fileManager.temporaryDirectory
-            .appendingPathComponent("KagiPeek-diagnostics-\(UUID().uuidString)", isDirectory: true)
-        let bundle = staging.appendingPathComponent("KagiPeek-diagnostics", isDirectory: true)
+            .appendingPathComponent("Kaname-diagnostics-\(UUID().uuidString)", isDirectory: true)
+        let bundle = staging.appendingPathComponent("Kaname-diagnostics", isDirectory: true)
         try fileManager.createDirectory(at: bundle, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: staging) }
 

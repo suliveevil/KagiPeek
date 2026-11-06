@@ -76,27 +76,27 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // A stable autosave name is what lets the system (and managers that read it) keep the
         // item's position across launches. The bundle id changed case at some point, and an
         // item without a name of its own inherits that churn.
-        item.autosaveName = "KagiPeekMenuBarItem"
+        item.autosaveName = "KanameMenuBarItem"
 
         if let button = item.button {
             let image = NSImage(named: "MenuBarIcon") ?? NSImage(
                 systemSymbolName: "keyboard",
-                accessibilityDescription: "KagiPeek"
+                accessibilityDescription: "Kaname"
             )
             image?.isTemplate = true
             image?.size = NSSize(width: 18, height: 18)
             button.image = image
             // The description is the identity a menu bar manager shows and records. Keeping
             // it constant across launches and languages keeps the recorded arrangement valid.
-            button.setAccessibilityLabel("KagiPeek")
-            button.toolTip = "KagiPeek"
+            button.setAccessibilityLabel("Kaname")
+            button.toolTip = "Kaname"
         }
 
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
         statusItem = item
-        Diag.info(.ui, "menu bar item created (autosave=KagiPeekMenuBarItem)")
+        Diag.info(.ui, "menu bar item created (autosave=KanameMenuBarItem)")
     }
 
     /// Removes and re-creates the item. Used when the button has lost its window, which is

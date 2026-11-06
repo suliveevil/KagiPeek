@@ -191,7 +191,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// pairs may be on at once, and none may be on. The arrows are always available and are
     /// deliberately not part of this set.
     var pagingPairs: Set<PagingPair> = [.semicolonQuote]
-    /// Whether the third-party config scanners run. Off means no file outside KagiPeek's
+    /// Whether the third-party config scanners run. Off means no file outside Kaname's
     /// own data folder is ever opened.
     var scanConfigFiles: Bool = true
     /// Whether the panel's third source — the config-tool cards — is drawn at all.
@@ -201,7 +201,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// answer keep reading `configBindings` either way. Also governs the search palette's
     /// unscoped list, which is the same third source.
     var showConfigToolsInPanel: Bool = false
-    /// Whether diagnostics are written to `Application Support/KagiPeek/logs`. On by default:
+    /// Whether diagnostics are written to `Application Support/Kaname/logs`. On by default:
     /// a bug report without logs is a guess, and the data never leaves the machine.
     var diagnosticsEnabled: Bool = true
     /// Include verbose/debug lines in the file log. Off by default: those levels cover

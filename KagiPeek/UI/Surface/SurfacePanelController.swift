@@ -219,7 +219,7 @@ final class SurfacePanelController: PanelPresenting {
             switchToSearch()
         }
         // Read the target pid before `NSApp.activate()`: afterwards the frontmost app is
-        // KagiPeek itself, and its window frame is not what the palette should centre on.
+        // Kaname itself, and its window frame is not what the palette should centre on.
         let pid = previousApp.map(\.processIdentifier) ?? engine.frontmostProcessIdentifier
         if anchor.beginRead(pid: pid) {
             refreshGeometry(for: pid)

@@ -15,7 +15,7 @@ final class MarkdownExporterTests: XCTestCase {
             generatedAt: Date(timeIntervalSince1970: 0),
             timeZone: TimeZone(identifier: "UTC")!
         )
-        XCTAssertTrue(markdown.contains("# KagiPeek — Demo"))
+        XCTAssertTrue(markdown.contains("# Kaname — Demo"))
         XCTAssertTrue(markdown.contains("## Edit"))
         XCTAssertTrue(markdown.contains("## File"))
         XCTAssertTrue(markdown.contains("| `⌘C` | Copy \\| Paste |"))

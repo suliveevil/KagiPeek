@@ -525,7 +525,7 @@ nonisolated enum CrashReporter {
     // MARK: - Helpers
 
     private static var appVersion: String {
-        Bundle.main.kagiPeekVersionDisplay
+        Bundle.main.kanameVersionDisplay
     }
 
     private static var appBuild: String {

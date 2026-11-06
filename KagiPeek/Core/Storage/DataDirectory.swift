@@ -6,7 +6,7 @@ import os
 /// UserDefaults lives inside the app's preference domain and is easy to lose when the app is
 /// reinstalled under a different signature or bundle identifier, so settings and statistics
 /// live in `~/Library/Application Support/Kaname` as plain JSON files with atomic writes.
-/// The previous name's folder (`.../KagiPeek`) is copied once into the new one; the old folder
+/// The previous name's folder (`.../Kaname`) is copied once into the new one; the old folder
 /// is left untouched. `nonisolated` for the same reason as `PermissionCenter`: this is pure
 /// path arithmetic (`FileManager` lookup + `appendingPathComponent`) with no mutable state,
 /// and it is read from the file-log queue and the crash handler as well as the main thread.

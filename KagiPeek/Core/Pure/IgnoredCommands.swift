@@ -1,6 +1,6 @@
 import Foundation
 
-/// One command the user asked KagiPeek to hide.
+/// One command the user asked Kaname to hide.
 ///
 /// `appBundleID` is nil for a rule that applies everywhere. The same title is not the same
 /// command in two apps — every app has “Settings…”, while “Reload Page” belongs to a browser —

@@ -82,7 +82,7 @@ nonisolated enum KarabinerScanner {
         }
     }
 
-    /// Karabiner key names → KagiPeek tokens.
+    /// Karabiner key names → Kaname tokens.
     ///
     /// The names are Karabiner's own (underscored, spelled out), so a single character
     /// falls through to the shared ANSI table rather than being listed twice.

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The screenshot fixture: `KAGIPEEK_PREVIEW=panel|search|settings|...` drives the app into a
+/// The screenshot fixture: `KANAME_PREVIEW=panel|search|settings|...` drives the app into a
 /// named state, waits for it to settle and writes PNGs plus window frames to
 /// `/tmp/kagipeek-shots`.
 ///
@@ -42,7 +42,7 @@ private final class PreviewWindowOwner {
 extension ShortcutEngine {
     // MARK: - Preview (screenshots)
 
-    /// Debug helper driven by `KAGIPEEK_PREVIEW=overlay|overlay-held|overlay-chips|...`.
+    /// Debug helper driven by `KANAME_PREVIEW=overlay|overlay-held|overlay-chips|...`.
     /// Which settings tab a preview mode opens. Kept next to the preview switch so adding a
     /// mode is one line without touching the window setup.
     private static func previewSettingsTab(for mode: String) -> SettingsTab {
@@ -73,7 +73,7 @@ extension ShortcutEngine {
         settingsStore.settings.columnCount = 2
         // Screenshot runs default to two columns; the override exists so a capture can
         // exercise the three-column layout the panel now fills down.
-        if let raw = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_COLUMNS"],
+        if let raw = ProcessInfo.processInfo.environment["KANAME_PREVIEW_COLUMNS"],
            let columns = Int(raw), (1...3).contains(columns) {
             settingsStore.settings.columnCount = columns
         }
@@ -138,7 +138,7 @@ extension ShortcutEngine {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "KagiPeek Settings"
+            window.title = "Kaname Settings"
             // A hosting view with sizingOptions resizes the window to its fitting size
             // (600), overriding the contentRect; keep the requested size.
             let hosting = NSHostingView(
@@ -243,7 +243,7 @@ extension ShortcutEngine {
             state.search.query = ""
         case "search":
             showSearch()
-            state.search.query = ProcessInfo.processInfo.environment["KAGIPEEK_PREVIEW_QUERY"] ?? "copy"
+            state.search.query = ProcessInfo.processInfo.environment["KANAME_PREVIEW_QUERY"] ?? "copy"
         default:
             activatePanel()
         }

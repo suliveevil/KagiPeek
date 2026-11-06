@@ -45,7 +45,7 @@ struct SettingsView: View {
     @State private var confirmResetUsage = false
     @State private var confirmRestoreDefaults = false
     private static let findingPageStep = 40
-    /// Lets the preview harness open a specific tab (e.g. `KAGIPEEK_PREVIEW=settings-ranking`).
+    /// Lets the preview harness open a specific tab (e.g. `KANAME_PREVIEW=settings-ranking`).
     init(initialTab: SettingsTab = .general) {
         _tab = State(initialValue: initialTab)
     }
@@ -1212,7 +1212,7 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private var appVersion: String {
-        Bundle.main.kagiPeekVersionDisplay
+        Bundle.main.kanameVersionDisplay
     }
 }
 
@@ -1295,7 +1295,7 @@ enum SettingsTab: String, CaseIterable {
 
 /// The add sheet for an ignored command: choose the scope, then the command.
 ///
-/// The suggestion list is what KagiPeek has already read for that app — the frontmost
+/// The suggestion list is what Kaname has already read for that app — the frontmost
 /// catalog, or the disk cache behind it. It is a convenience, not a requirement: the title
 /// field accepts anything, which is what makes the feature work for an app that is not
 /// running (and therefore cannot be scanned) and for a command that appeared a minute ago.

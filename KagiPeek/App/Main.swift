@@ -13,7 +13,7 @@ import AppKit
 /// An agent that owns its `NSStatusItem` has no use for scenes. Everything the app shows is an
 /// `NSWindowController` opened on demand.
 @main
-enum KagiPeekMain {
+enum KanameMain {
     /// `NSApplication.delegate` is a weak reference: without this, the delegate would be
     /// deallocated right after `run()` starts and the app would come up with no behaviour.
     @MainActor private static let delegate = AppDelegate()

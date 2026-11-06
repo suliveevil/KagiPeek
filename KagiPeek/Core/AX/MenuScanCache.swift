@@ -5,7 +5,7 @@ import os
 /// Disk cache for menu scans, modelled on Menu-Bar-Search's: one JSON entry per app plus
 /// a control file recording the settings every entry was written under.
 ///
-/// The cache lives in `Application Support/KagiPeek/menu-cache`. Unlike settings and
+/// The cache lives in `Application Support/Kaname/menu-cache`. Unlike settings and
 /// statistics it is derived data — every entry can be reproduced by a scan — so an
 /// unreadable file is dropped instead of preserved.
 nonisolated struct MenuScanCache {

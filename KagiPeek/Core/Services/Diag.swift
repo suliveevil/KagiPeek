@@ -187,7 +187,7 @@ nonisolated enum DeviceInfo {
     }
 
     static var appVersion: String {
-        Bundle.main.kagiPeekVersionDisplay
+        Bundle.main.kanameVersionDisplay
     }
 
     static var appBuild: String {

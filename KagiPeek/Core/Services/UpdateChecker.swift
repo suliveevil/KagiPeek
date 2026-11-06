@@ -34,7 +34,7 @@ final class UpdateChecker: ObservableObject {
         var request = URLRequest(url: url)
         request.timeoutInterval = 12
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("KagiPeek-update-check", forHTTPHeaderField: "User-Agent")
+        request.setValue("Kaname-update-check", forHTTPHeaderField: "User-Agent")
 
         task?.cancel()
         let started = Date()

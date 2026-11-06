@@ -2,7 +2,7 @@ import Combine
 import Foundation
 import os
 
-/// keyfreq-style statistics persisted in `Application Support/KagiPeek/usage.json`.
+/// keyfreq-style statistics persisted in `Application Support/Kaname/usage.json`.
 ///
 /// Records are keyed by `bundleID|chord`, so statistics are per app and survive
 /// reinstalls that do not wipe Application Support. Only identifiers and timestamps are

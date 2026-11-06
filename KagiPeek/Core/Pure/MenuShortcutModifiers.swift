@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decodes the `AXMenuItemCmdModifiers` bit field into KagiPeek's modifier set.
+/// Decodes the `AXMenuItemCmdModifiers` bit field into Kaname's modifier set.
 ///
 /// The raw values below are measured from running apps, not assumed. On macOS 26 Safari:
 ///
@@ -20,7 +20,7 @@ import Foundation
 /// them instead of silently discarding them, and the scanner refuses to build a chord from
 /// an incomplete decode.
 nonisolated struct MenuShortcutModifiers: Equatable, Sendable {
-    /// Bits KagiPeek knows how to name.
+    /// Bits Kaname knows how to name.
     static let knownBits = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4)
 
     var modifiers: ModifierSet

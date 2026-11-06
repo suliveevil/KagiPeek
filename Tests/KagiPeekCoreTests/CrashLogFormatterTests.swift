@@ -20,7 +20,7 @@ final class CrashLogFormatterTests: XCTestCase {
             recentActions: [
                 ActionRecord(ts: 1_699_999_990, action: "panel.run", target: "com.apple.Safari")
             ],
-            callStack: ["0 KagiPeek 0x1 main + 1"]
+            callStack: ["0 Kaname 0x1 main + 1"]
         )
     }
 

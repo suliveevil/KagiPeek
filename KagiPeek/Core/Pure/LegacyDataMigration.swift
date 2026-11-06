@@ -2,7 +2,7 @@ import Foundation
 
 /// One-time, idempotent copy of the data left by the app's previous name.
 ///
-/// The app used to keep everything in `~/Library/Application Support/KagiPeek`; the folder is
+/// The app used to keep everything in `~/Library/Application Support/Kaname`; the folder is
 /// now `Kaname`. Nothing may be overwritten: the user's current data always wins, and a
 /// partially copied tree is completed on the next launch. The old folder is never touched or
 /// deleted, so it stays usable for rollback and for a manual comparison.

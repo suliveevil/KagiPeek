@@ -199,7 +199,7 @@ final class EngineState {
     /// that is in front. "Search Shortcuts" was a label where the answer belonged.
     /// `defaultTitle` is set by the engine (the localised app name) so this computed value
     /// stays free of collaborators.
-    var defaultTitle = "KagiPeek"
+    var defaultTitle = "Kaname"
 
     var searchPaletteTitle: String {
         if !search.scopeName.isEmpty { return search.scopeName }

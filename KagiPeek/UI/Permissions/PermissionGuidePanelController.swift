@@ -21,7 +21,7 @@ final class PermissionGuideAnimation: ObservableObject {
 /// the panel is a small state machine, not a static hint. It reports the four ways the flow
 /// goes wrong — Settings closed, the user navigated away, the password prompt was
 /// cancelled — instead of repeating a drag instruction the user cannot act on, and it flies
-/// in from the KagiPeek window along an arc so the panel is visibly *from* the thing that
+/// in from the Kaname window along an arc so the panel is visibly *from* the thing that
 /// was clicked.
 @MainActor
 final class PermissionGuidePanelController {
@@ -229,7 +229,7 @@ final class PermissionGuidePanelController {
 
     /// The view flips itself into its granted state (it observes the same permission); the
     /// controller stops tracking, waits out the linger, closes, and hands the front back to
-    /// KagiPeek — the grant happened inside System Settings, so without the explicit
+    /// Kaname — the grant happened inside System Settings, so without the explicit
     /// activation the user is left staring at a settings window with no next step.
     private func permissionGranted() {
         guard phase != .granted else { return }
@@ -280,7 +280,7 @@ final class PermissionGuidePanelController {
         if !hasAnchored {
             hasAnchored = true
             // The window the guide has been waiting for: fly to it.
-            flightOrigin = flightOrigin ?? kagiPeekAnchor()
+            flightOrigin = flightOrigin ?? kanameAnchor()
         } else if phase == .settingsClosed {
             apply(.settingsAppeared)
         }
@@ -423,10 +423,10 @@ final class PermissionGuidePanelController {
         flightStartedAt = nil
     }
 
-    /// Where the panel flies out of: the largest visible KagiPeek window, which is the one
+    /// Where the panel flies out of: the largest visible Kaname window, which is the one
     /// the user just clicked in. Nil when nothing of ours is on screen, in which case the
     /// panel simply fades in.
-    private func kagiPeekAnchor() -> CGPoint? {
+    private func kanameAnchor() -> CGPoint? {
         let candidate = NSApp.windows
             .filter { $0.isVisible && $0.level == .normal && $0.frame.width > 80 }
             .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }

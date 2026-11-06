@@ -10,7 +10,7 @@ nonisolated enum NavigationDirection: Equatable, Sendable {
 /// Maps arrow keys and their Emacs/macOS equivalents to a direction.
 ///
 /// macOS text views have always bound ⌃F/⌃B/⌃N/⌃P to forward/backward/next/previous,
-/// so KagiPeek accepts them wherever it consumes arrow keys.
+/// so Kaname accepts them wherever it consumes arrow keys.
 nonisolated enum NavigationKey {
     /// Whether this press is the search palette's bare `/`.
     ///

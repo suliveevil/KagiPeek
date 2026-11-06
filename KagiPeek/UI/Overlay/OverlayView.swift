@@ -794,7 +794,7 @@ private struct OverlayPanelContentView: View {
     /// and locate it; locating needs a shortcut page this app cannot open yet, so the first
     /// three are here, in that order, and settings stays below them as the fifth door.
     ///
-    /// Rows KagiPeek refuses to run get a shorter menu instead: copying stays, running does
+    /// Rows Kaname refuses to run get a shorter menu instead: copying stays, running does
     /// not, and the reason is written where the action would have been.
     @ViewBuilder
     private func rowMenu(_ row: PanelRow) -> some View {
@@ -1057,7 +1057,7 @@ private struct OverlayPanelContentView: View {
 
     private func rowTitleColor(_ row: PanelRow) -> Color {
         // Red is a statement about safety, not decoration: these rows are shown precisely so
-        // the user can see that the shortcut exists, and that KagiPeek will not run it.
+        // the user can see that the shortcut exists, and that Kaname will not run it.
         if row.isRestricted { return palette.restrictedText }
         if row.isCompleted { return palette.text }
         if !row.isEnabled { return palette.tertiaryText }
@@ -1160,7 +1160,7 @@ private struct OverlaySearchContentView: View {
                     .font(.system(size: 22))
                     .foregroundStyle(palette.tertiaryText)
                 // Name the scope: with the palette scoped to one app, "No matches" reads
-                // as "KagiPeek does not know this shortcut" when the answer is "not in this
+                // as "Kaname does not know this shortcut" when the answer is "not in this
                 // app".
                 Text(state.search.scopeName.isEmpty
                      ? localization.text(.searchNoResults)

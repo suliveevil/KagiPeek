@@ -13,7 +13,7 @@ nonisolated struct SwallowRule: Equatable, Sendable {
 ///
 /// Three channels feed one answer, and they are not interchangeable:
 ///
-/// - **`rules`** — the user's global hotkeys. A keystroke they name is KagiPeek's, so the
+/// - **`rules`** — the user's global hotkeys. A keystroke they name is Kaname's, so the
 ///   front app must not also see it.
 /// - **`capturedIdentifiers`** — key + modifier pairs the panel is using right now (arrows,
 ///   Return, Escape) while it is pinned. Modifier-sensitive, so ⌥; stays available to the
