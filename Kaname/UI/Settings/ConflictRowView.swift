@@ -15,7 +15,7 @@ struct ConflictRowView: View {
     let style: KeyFormatter.Style
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
             header
             verdict
             members
@@ -27,7 +27,7 @@ struct ConflictRowView: View {
     // MARK: - Pieces
 
     private var header: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 8) {
             KeycapView(text: KeyFormatter.render(chord, style: style), compact: true)
             CategoryBadge(category: conflict.category, localization: localization)
             Spacer(minLength: 0)
@@ -79,7 +79,7 @@ struct ConflictRowView: View {
     private var members: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(conflict.items) { item in
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
                     LayerBadge(layer: ShortcutLayer.classify(item), localization: localization)
                     Text("\(engine.displayOwner(of: item)) — \(item.title)")
                         .font(.caption)
@@ -153,7 +153,7 @@ struct CategoryBadge: View {
     var body: some View {
         Text(localization.text(category.labelKey))
             .font(.caption2.weight(.medium))
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(Capsule().fill(fill))
             .overlay(Capsule().stroke(stroke, lineWidth: 0.5))
@@ -186,7 +186,7 @@ struct LayerBadge: View {
             .font(.system(size: TypeScale.micro, weight: .medium))
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
-            .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Color.secondary.opacity(0.14)))
+            .background(RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous).fill(Color.secondary.opacity(0.14)))
             .foregroundStyle(.secondary)
             .fixedSize()
     }
@@ -198,8 +198,8 @@ struct LiveTestCallout: View {
     let verdict: LiveTestVerdict
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
                 Image(systemName: iconName)
                     .font(.system(size: TypeScale.micro))
                     .foregroundStyle(tint)
@@ -215,10 +215,10 @@ struct LiveTestCallout: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(7)
-        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(tint.opacity(0.08)))
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous).fill(tint.opacity(0.08)))
         .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous)
                 .stroke(tint.opacity(0.25), lineWidth: 0.5)
         )
     }

@@ -14,7 +14,7 @@ struct ComboLookupBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: answer.items.isEmpty ? "checkmark.circle" : "keyboard")
                     .font(.system(size: TypeScale.micro))
                     .foregroundStyle(answer.items.isEmpty ? palette.tertiaryText : palette.keyHighlight)
@@ -39,11 +39,11 @@ struct ComboLookupBanner: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .fill(palette.selection)
         )
         .padding(.horizontal, 12)

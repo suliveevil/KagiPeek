@@ -14,7 +14,7 @@ struct PermissionsView: View {
     let onContinue: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             header
             cards
             footer
@@ -25,7 +25,7 @@ struct PermissionsView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             Text(localization.text(.permissionsTitle))
                 .font(.system(size: IconScale.large, weight: .semibold))
             Text(localization.text(.permissionsSubtitle))
@@ -91,13 +91,13 @@ private struct PermissionCardView: View {
                 // the symbol's own name ("checkmark.shield") before the thing that matters.
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(localization.text(permission.presentation.titleKey))
                         .font(.system(size: TypeScale.body, weight: .semibold))
                     Text(localization.text(permission.policy.isRequired ? .permissionRequiredBadge : .permissionOptionalBadge))
                         .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                         .background(Capsule().fill(permission.policy.isRequired ? Color.orange.opacity(0.16) : Color.secondary.opacity(0.12)))
                         .foregroundStyle(permission.policy.isRequired ? .orange : .secondary)
@@ -128,7 +128,7 @@ private struct PermissionCardView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     if permission.id == .accessibility {
                         DragAppIcon(side: 26)
                     }
@@ -144,15 +144,15 @@ private struct PermissionCardView: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1)
                 .decorative()
         )

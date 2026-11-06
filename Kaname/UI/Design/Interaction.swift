@@ -16,7 +16,7 @@ import UniformTypeIdentifiers
 struct IconButtonStyle: ButtonStyle {
     var hoverFill: Color
     var size: CGFloat = 24
-    var cornerRadius: CGFloat = 6
+    var cornerRadius: CGFloat = Theme.radiusControl
 
     func makeBody(configuration: ButtonStyleConfiguration) -> some View {
         IconButtonBody(

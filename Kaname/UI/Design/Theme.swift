@@ -27,7 +27,16 @@ enum IconScale {
 }
 
 enum Theme {
-    static let cornerRadius: CGFloat = 12
+    /// Corner radii, four steps and no more: the panel window, the cards inside it,
+    /// the compact controls in a row, and the badges that sit inside those controls.
+    /// Before this there were nine: 3, 4, 5, 6, 7, 8, 10, 12, plus the 1.5 indicator
+    /// sliver, which is a hairline rather than a container and stays off the ladder.
+    static let radiusWindow: CGFloat = 12
+    static let radiusCard: CGFloat = 8
+    static let radiusControl: CGFloat = 6
+    static let radiusTag: CGFloat = 4
+    /// The panel window's radius. Kept as the old name so call sites read as a window.
+    static let cornerRadius: CGFloat = radiusWindow
     // The numbers the panel window is sized with live in `OverlayMetrics` (pure, testable);
     // the view reads the same ones, so a resize rule can be asserted rather than eyeballed.
     static let rowHeight: CGFloat = OverlayMetrics.rowHeight
@@ -176,14 +185,14 @@ struct KeycapView: View {
         Text(text)
             .font(.system(size: compact ? TypeScale.caption : TypeScale.callout, weight: .semibold, design: .rounded))
             .monospacedDigit()
-            .padding(.horizontal, compact ? 5 : 7)
-            .padding(.vertical, compact ? 2 : 3)
+            .padding(.horizontal, compact ? 4 : 8)
+            .padding(.vertical, compact ? 2 : 4)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous)
                     .fill(background)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous)
                     .stroke(border, lineWidth: 0.5)
             )
             .foregroundStyle(foreground)

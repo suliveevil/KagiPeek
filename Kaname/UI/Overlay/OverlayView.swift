@@ -129,7 +129,7 @@ private struct OverlayHeaderView: View {
     }
 
     private func headerContent(layout: HeaderLayout) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             headerIdentity(layout: layout)
             Spacer(minLength: 6)
             if isSearch {
@@ -143,7 +143,7 @@ private struct OverlayHeaderView: View {
 
     /// What the list belongs to — plus the way back when the palette is the visible surface.
     private func headerIdentity(layout: HeaderLayout) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             // The palette is a second view of the same window, so it gets a way back. `/`
             // does the same thing, but only while the search field is not taking text — and
             // it usually is.
@@ -153,7 +153,7 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: TypeScale.callout, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: 6))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: Theme.radiusControl))
                 .help(localization.text(.searchBackToPanel))
                 .accessibilityLabel(localization.text(.searchBackToPanel))
             }
@@ -168,7 +168,7 @@ private struct OverlayHeaderView: View {
     /// `/` opens the palette, which is where typing belongs. A second, quieter search box in
     /// the panel only asked the user to guess which one to use.
     private func headerActions(layout: HeaderLayout) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             // Looking at another app and exporting what you see belong in the palette: it is
             // where the question is actually asked.
             if isSearch, layout != .minimal {
@@ -218,7 +218,7 @@ private struct OverlayHeaderView: View {
                     .font(.system(size: TypeScale.caption, weight: .semibold))
                     .foregroundStyle(palette.secondaryText)
             }
-            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: 6))
+            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: Theme.radiusControl))
             .help(localization.text(.panelClose))
             .accessibilityLabel(localization.text(.panelClose))
         }
@@ -239,7 +239,7 @@ private struct OverlayHeaderView: View {
                     .font(.system(size: TypeScale.micro))
                     .foregroundStyle(Theme.warning.opacity(0.75))
             }
-            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 22, cornerRadius: 5))
+            .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 22, cornerRadius: Theme.radiusControl))
             .help(localization.text(.overlayConflictOpen))
             .accessibilityLabel(localization.text(.overlayConflictOpen))
             .accessibilityHint(localization.text(.overlayConflictHint))
@@ -283,17 +283,17 @@ private struct OverlayHeaderView: View {
                 .foregroundStyle(chipColor(ticked: ticked, held: held))
                 .frame(width: 20, height: 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous)
                         .fill(ticked ? Color.accentColor.opacity(palette.isLight ? Theme.tickedChipFillLight : Theme.tickedChipFillDark) : .clear)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous)
                         .stroke(ticked ? Color.accentColor.opacity(Theme.tickedChipStroke) : .clear, lineWidth: 1)
                         .decorative()
                 )
-                .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous))
         }
-        .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 20, cornerRadius: 5))
+        .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 20, cornerRadius: Theme.radiusTag))
         .accessibilityLabel(KeyFormatter.word(for: modifier))
         .accessibilityAddTraits(ticked ? [.isSelected] : [])
     }
@@ -310,7 +310,7 @@ private struct OverlayHeaderView: View {
     /// on the icon silently dismiss the panel. It now only identifies; closing has its own
     /// button and still works by clicking outside or pressing Esc.
     private func appIdentity(layout: HeaderLayout) -> some View {
-        HStack(spacing: 11) {
+        HStack(spacing: 12) {
             if let icon = isSearch ? state.searchPaletteIcon : state.appIcon {
                 Image(nsImage: icon)
                     .resizable()
@@ -356,7 +356,7 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: TypeScale.caption, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(RoundedRectangle(cornerRadius: 4).fill(palette.selection))
+                        .background(RoundedRectangle(cornerRadius: Theme.radiusTag).fill(palette.selection))
                         .foregroundStyle(palette.secondaryText)
                 }
                 if state.panel.usedBuiltInCatalog {
@@ -416,7 +416,7 @@ private struct OverlayHeaderView: View {
     }
 
     private func searchField(layout: HeaderLayout) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: TypeScale.callout, weight: .medium))
                 .foregroundStyle(palette.secondaryText)
@@ -436,22 +436,22 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.tertiaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.selection, size: 18, cornerRadius: 4))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.selection, size: 18, cornerRadius: Theme.radiusTag))
                 // The clear control is one glyph and nothing else. `.help` is a mouse
                 // tooltip; VoiceOver would only say "xmark circle fill".
                 .accessibilityLabel(localization.text(.searchClearHint))
                 .help(localization.text(.searchClearHint))
             }
         }
-        .padding(.horizontal, 9)
+        .padding(.horizontal, 8)
         .frame(minWidth: CGFloat(layout.fieldMin), idealWidth: CGFloat(layout.fieldIdeal),
                maxWidth: CGFloat(layout.fieldIdeal), minHeight: 28, maxHeight: 28)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .fill(palette.hover)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .stroke(palette.rule, lineWidth: 1)
                 .decorative()
         )
@@ -510,7 +510,7 @@ private struct OverlayPanelContentView: View {
                         .foregroundStyle(palette.secondaryText)
                 }
             } else if kind == .permissionRequired {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text(localization.text(kind.messageKey))
                         .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.secondaryText)
@@ -611,7 +611,7 @@ private struct OverlayPanelContentView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if !group.title.isEmpty {
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
                     if group.isCollapsible {
                         Image(systemName: group.isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: TypeScale.micro, weight: .semibold))
@@ -662,15 +662,15 @@ private struct OverlayPanelContentView: View {
             .padding(.vertical, OverlayMetrics.cardVerticalInset)
         }
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .fill(palette.hover)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .stroke(palette.border, lineWidth: Theme.increaseContrast ? 1.5 : 1)
                 .decorative()
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
     }
 
     /// One hairline per internal column boundary.
@@ -707,7 +707,7 @@ private struct OverlayPanelContentView: View {
             .padding(.horizontal, Theme.rowHorizontalPadding)
             .frame(height: Theme.rowHeight)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous)
                     .fill(rowFill(row, isSelected: isSelected))
             )
             // The selection marker sits in the row's own gutter: appearing and disappearing
@@ -906,7 +906,7 @@ private struct OverlayPanelContentView: View {
     /// A fixed width, not a natural one — the menu path has to start at the same x on every
     /// row, and that is only true if this column does not grow and shrink with its text.
     private func titleColumn(_ row: PanelRow, width: Double, selected: Bool) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 4) {
             if state.panel.runningRowID == row.id {
                 ProgressView()
                     .progressViewStyle(.circular)
@@ -1012,7 +1012,7 @@ private struct OverlayPanelContentView: View {
                     .foregroundStyle(palette.text)
                     .frame(width: 17, height: 17)
                     .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        RoundedRectangle(cornerRadius: Theme.radiusTag, style: .continuous)
                             .fill(Color.accentColor.opacity(palette.isLight ? Theme.hintBadgeFillLight : Theme.hintBadgeFillDark))
                     )
             } else {
@@ -1022,7 +1022,7 @@ private struct OverlayPanelContentView: View {
                             // A word standing in for a chord ("No shortcut") is a note, not a key: at
                             // chord size it no longer fits the slot the chord column was narrowed to.
                             .font(.system(
-                                size: isLabel(segment) ? 10.5 : 12.5,
+                                size: isLabel(segment) ? TypeScale.micro : TypeScale.callout,
                                 weight: isEmphasized(segment) ? .bold : (isLabel(segment) ? .regular : .semibold),
                                 design: isLabel(segment) ? .default : .monospaced
                             ))
@@ -1099,14 +1099,14 @@ private struct OverlaySearchContentView: View {
                 ComboLookupBanner(answer: answer, palette: palette)
             }
             if state.search.usedBuiltInCatalog {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "shippingbox")
                     Text(localization.text(.searchBuiltInNotice))
                 }
                 .font(.system(size: TypeScale.caption))
                 .foregroundStyle(palette.secondaryText)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(palette.hover)
             }
@@ -1142,7 +1142,7 @@ private struct OverlaySearchContentView: View {
                     .foregroundStyle(palette.secondaryText)
             }
         } else if state.search.loadState == .permissionDenied {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Image(systemName: "lock.fill")
                     .font(.system(size: IconScale.hero))
                     .foregroundStyle(palette.secondaryText)
@@ -1228,7 +1228,7 @@ private struct OverlayFooterView: View {
                         .font(.system(size: TypeScale.caption, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: Theme.radiusControl))
                 .accessibilityLabel(localization.text(.panelPreviousPage))
                 .help(localization.text(.panelPreviousPage))
 
@@ -1241,7 +1241,7 @@ private struct OverlayFooterView: View {
                         .font(.system(size: TypeScale.caption, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
-                .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
+                .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: Theme.radiusControl))
                 .accessibilityLabel(localization.text(.panelNextPage))
                 .help(localization.text(.panelNextPage))
             }
@@ -1324,13 +1324,13 @@ private struct SearchResultList: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 10) {
+                LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(sections) { section in
                         sectionCard(section)
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 10)
+                .padding(.top, 12)
                 .padding(.bottom, 12)
             }
             .onChange(of: scrollRequest) { _, _ in
@@ -1341,7 +1341,7 @@ private struct SearchResultList: View {
 
     private func sectionCard(_ section: SearchSection) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
+            HStack(spacing: 8) {
                 Text(section.title.isEmpty ? "—" : section.title)
                     .font(.system(size: TypeScale.callout, weight: .medium))
                     .foregroundStyle(palette.secondaryText)
@@ -1390,15 +1390,15 @@ private struct SearchResultList: View {
         // One step louder than the palette background, and an edge that survives it: the
         // card has to read as a card at a glance, or the grouping is only a heading again.
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .fill(palette.hover)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous)
                 .stroke(palette.border, lineWidth: Theme.increaseContrast ? 1.5 : 1)
                 .decorative()
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
     }
 
     private func scroll(to index: Int, proxy: ScrollViewProxy) {
@@ -1457,7 +1457,7 @@ private struct SearchResultRow: View {
         .padding(.vertical, 4)
         .frame(minHeight: 36)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.radiusControl, style: .continuous)
                 .fill(isSelected ? Color.accentColor.opacity(Theme.selectedGutterEmphasis) : Color.clear)
         )
         // Same gutter marker as the panel rows: the title must not slide when the selection
@@ -1567,7 +1567,7 @@ private struct SearchResultRow: View {
         func flushRun() {
             guard !run.isEmpty else { return }
             var piece = AttributedString(run)
-            piece.font = .system(size: 13.5, weight: runIsMatched ? .semibold : .regular)
+            piece.font = .system(size: TypeScale.body, weight: runIsMatched ? .semibold : .regular)
             if runIsMatched { piece.foregroundColor = .accentColor }
             attributed.append(piece)
             run = ""

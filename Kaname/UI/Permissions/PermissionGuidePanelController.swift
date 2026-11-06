@@ -480,7 +480,7 @@ private struct PermissionGuideView: View {
                 strip
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(width: Self.width)
         .scaleEffect(animation.scale, anchor: .center)
@@ -490,7 +490,7 @@ private struct PermissionGuideView: View {
     }
 
     private var grantedLabel: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: IconScale.large, weight: .semibold))
                 .foregroundStyle(.green)
@@ -508,8 +508,8 @@ private struct PermissionGuideView: View {
     private var strip: some View {
         HStack(spacing: 12) {
             leadingGlyph
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
                     Text(localization.text(headlineKey))
                         .font(.system(size: TypeScale.callout, weight: .semibold))
                         .foregroundStyle(tint)
@@ -571,7 +571,7 @@ private struct PermissionGuideView: View {
                 .font(.system(size: TypeScale.micro, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
-        .buttonStyle(IconButtonStyle(hoverFill: .white.opacity(0.14), size: 22, cornerRadius: 6))
+        .buttonStyle(IconButtonStyle(hoverFill: .white.opacity(0.14), size: 22, cornerRadius: Theme.radiusControl))
         .accessibilityLabel(localization.text(.permissionGuideClose))
         .help(localization.text(.permissionGuideClose))
     }

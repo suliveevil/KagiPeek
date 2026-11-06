@@ -255,7 +255,7 @@ struct SettingsView: View {
                 .focused($excludedListFocused)
                 .onDeleteCommand { removeSelectedExcludedApp() }
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: Theme.radiusControl)
                         .stroke(Color.secondary.opacity(0.25), lineWidth: 0.8)
                 )
             }
@@ -278,7 +278,7 @@ struct SettingsView: View {
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(selected ? Color.accentColor.opacity(0.16) : Color.clear)
@@ -456,7 +456,7 @@ struct SettingsView: View {
         title: L10nKey,
         isOn: Binding<Bool>
     ) -> some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: 8) {
             Toggle("", isOn: isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
@@ -1049,12 +1049,12 @@ struct SettingsView: View {
         request: @escaping () -> Void,
         openSettings: @escaping () -> Void
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(title).font(.system(size: TypeScale.callout, weight: .semibold))
                 Text(granted ? localization.text(.permissionGranted) : localization.text(.permissionMissing))
                     .font(.system(size: TypeScale.caption, weight: .semibold))
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 8)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(granted ? Color.green.opacity(0.18) : Color.orange.opacity(0.18)))
                     .foregroundStyle(granted ? .green : .orange)
@@ -1066,7 +1066,7 @@ struct SettingsView: View {
             }
             Text(hint).font(.footnote).foregroundStyle(.secondary)
             if showDrag, !granted {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     DragAppIcon()
                     Text(localization.text(.permissionDragHint))
                         .font(.footnote)
@@ -1229,11 +1229,11 @@ struct SettingsView: View {
     private var aboutTab: some View {
         Form {
             Section {
-                HStack(alignment: .center, spacing: 14) {
+                HStack(alignment: .center, spacing: 16) {
                     Image(nsImage: NSApp.applicationIconImage)
                         .resizable()
                         .frame(width: 56, height: 56)
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(localization.text(.appName))
                             .font(.system(size: IconScale.large, weight: .semibold))
                         Text(appVersion)
@@ -1293,7 +1293,7 @@ private struct UpdateCheckRow: View {
 
     var body: some View {
         LabeledContent(localization.text(.updateCheck)) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 status
                 Button(localization.text(.updateCheckNow)) {
                     checker.check(currentVersion: currentVersion)
@@ -1309,7 +1309,7 @@ private struct UpdateCheckRow: View {
         case .idle:
             EmptyView()
         case .checking:
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text(localization.text(.updateChecking))
                     .foregroundStyle(.secondary)
@@ -1441,7 +1441,7 @@ private struct IgnoreCommandSheet: View {
                                 Text(suggestion)
                                     .lineLimit(1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 3)
+                                    .padding(.vertical, 4)
                                     .padding(.horizontal, 4)
                                     .contentShape(Rectangle())
                             }
@@ -1451,7 +1451,7 @@ private struct IgnoreCommandSheet: View {
                 }
                 .frame(height: 140)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: Theme.radiusControl)
                         .stroke(Color.secondary.opacity(0.25), lineWidth: 0.8)
                 )
             }
