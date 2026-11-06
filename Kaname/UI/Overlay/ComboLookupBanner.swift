@@ -16,15 +16,15 @@ struct ComboLookupBanner: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: answer.items.isEmpty ? "checkmark.circle" : "keyboard")
-                    .font(.system(size: 10))
+                    .font(.system(size: TypeScale.micro))
                     .foregroundStyle(answer.items.isEmpty ? palette.tertiaryText : palette.keyHighlight)
                 Text(localization.text(.comboLookupTitle))
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: TypeScale.micro, weight: .semibold))
                     .foregroundStyle(palette.tertiaryText)
                 Spacer(minLength: 0)
             }
             Text(headline)
-                .font(.system(size: 12))
+                .font(.system(size: TypeScale.callout))
                 .foregroundStyle(palette.text)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -33,7 +33,7 @@ struct ComboLookupBanner: View {
             if !distinctItems.isEmpty, distinctItems.count <= 3 {
                 ForEach(distinctItems) { item in
                     Text("• \(engine.displayOwner(of: item)) — \(engine.displayName(of: item))")
-                        .font(.system(size: 11))
+                        .font(.system(size: TypeScale.caption))
                         .foregroundStyle(palette.secondaryText)
                         .lineLimit(1)
                 }

@@ -150,7 +150,7 @@ private struct OverlayHeaderView: View {
             if isSearch {
                 Button(action: engine.returnToPanelFromSearch) {
                     Image(systemName: "chevron.backward")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: TypeScale.callout, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: 6))
@@ -175,7 +175,7 @@ private struct OverlayHeaderView: View {
                 searchScopeMenu
                 Button { exportSearchMarkdown() } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: TypeScale.callout, weight: .medium))
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
@@ -190,7 +190,7 @@ private struct OverlayHeaderView: View {
             if !isSearch, layout.showsFavoritesToggle {
                 Button(action: engine.toggleFavoritesFilter) {
                     Image(systemName: state.showsFavoritesOnly ? "star.fill" : "star")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: TypeScale.body, weight: .semibold))
                         .foregroundStyle(state.showsFavoritesOnly ? Theme.favoriteStar : palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
@@ -204,7 +204,7 @@ private struct OverlayHeaderView: View {
 
             Button(action: engine.showSettings) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: TypeScale.body, weight: .medium))
                     .foregroundStyle(palette.secondaryText)
             }
             .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28))
@@ -215,7 +215,7 @@ private struct OverlayHeaderView: View {
 
             Button(action: dismissCurrentSurface) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: TypeScale.caption, weight: .semibold))
                     .foregroundStyle(palette.secondaryText)
             }
             .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 28, cornerRadius: 6))
@@ -236,7 +236,7 @@ private struct OverlayHeaderView: View {
         if state.panel.hasConflicts {
             Button(action: engine.showConflicts) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
+                    .font(.system(size: TypeScale.micro))
                     .foregroundStyle(Theme.warning.opacity(0.75))
             }
             .buttonStyle(IconButtonStyle(hoverFill: palette.controlHover, size: 22, cornerRadius: 5))
@@ -250,7 +250,7 @@ private struct OverlayHeaderView: View {
             Text(isSearch
                  ? "\(state.search.results.count)"
                  : localization.format(.overlayCountFormat, state.panel.totalCount))
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: TypeScale.callout, weight: .medium, design: .rounded))
                 .foregroundStyle(palette.secondaryText)
                 .monospacedDigit()
         }
@@ -279,7 +279,7 @@ private struct OverlayHeaderView: View {
             engine.toggleModifier(modifier)
         } label: {
             Text(KeyFormatter.symbol(for: modifier))
-                .font(.system(size: 11.5, weight: ticked ? .bold : .medium, design: .rounded))
+                .font(.system(size: TypeScale.caption, weight: ticked ? .bold : .medium, design: .rounded))
                 .foregroundStyle(chipColor(ticked: ticked, held: held))
                 .frame(width: 20, height: 20)
                 .background(
@@ -321,7 +321,7 @@ private struct OverlayHeaderView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     if layout.showsAppName {
                         Text(isSearch ? state.searchPaletteTitle : appTitle)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: TypeScale.display, weight: .semibold))
                             .lineLimit(1)
                             .foregroundStyle(palette.text)
                     }
@@ -341,19 +341,19 @@ private struct OverlayHeaderView: View {
     private var subtitle: some View {
         if isSearch {
             Text(localization.text(state.search.scopeAppID == nil ? .searchSubtitle : .searchSubtitleScoped))
-                .font(.system(size: 11))
+                .font(.system(size: TypeScale.caption))
                 .foregroundStyle(palette.secondaryText)
                 .lineLimit(1)
         } else if state.panel.prefixLabels.isEmpty {
             Text(localization.text(.panelIdleHint))
-                .font(.system(size: 11))
+                .font(.system(size: TypeScale.caption))
                 .foregroundStyle(palette.secondaryText)
                 .lineLimit(1)
         } else {
             HStack(spacing: 4) {
                 ForEach(Array(state.panel.prefixLabels.enumerated()), id: \.offset) { _, label in
                     Text(label)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: TypeScale.caption, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(RoundedRectangle(cornerRadius: 4).fill(palette.selection))
@@ -364,7 +364,7 @@ private struct OverlayHeaderView: View {
                     // blocked outright, say that too, instead of leaving the user to
                     // wonder why the app's own commands are missing.
                     Text(localization.text(state.scanState == .permissionDenied ? .scanFallbackHint : .overlayBuiltInBadge))
-                        .font(.system(size: 11))
+                        .font(.system(size: TypeScale.caption))
                         .foregroundStyle(palette.tertiaryText)
                         .lineLimit(1)
                 }
@@ -388,11 +388,11 @@ private struct OverlayHeaderView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "macwindow.on.rectangle")
-                    .font(.system(size: 11))
+                    .font(.system(size: TypeScale.caption))
                 Text(state.search.scopeName.isEmpty
                      ? localization.text(.frontmostApp)
                      : state.search.scopeName)
-                    .font(.system(size: 11.5, weight: .medium))
+                    .font(.system(size: TypeScale.caption, weight: .medium))
                     .lineLimit(1)
             }
             .foregroundStyle(palette.secondaryText)
@@ -418,11 +418,11 @@ private struct OverlayHeaderView: View {
     private func searchField(layout: HeaderLayout) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: TypeScale.callout, weight: .medium))
                 .foregroundStyle(palette.secondaryText)
             TextField(localization.text(.searchPlaceholder), text: searchQuery)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13))
+                .font(.system(size: TypeScale.body))
                 .focused($searchFocused)
                 .onSubmit {
                     engine.confirmSearchSelection()
@@ -433,7 +433,7 @@ private struct OverlayHeaderView: View {
                     searchFocused = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
+                        .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.tertiaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.selection, size: 18, cornerRadius: 4))
@@ -506,13 +506,13 @@ private struct OverlayPanelContentView: View {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small).tint(palette.secondaryText)
                     Text(localization.text(kind.messageKey))
-                        .font(.system(size: 12))
+                        .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.secondaryText)
                 }
             } else if kind == .permissionRequired {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(localization.text(kind.messageKey))
-                        .font(.system(size: 12))
+                        .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(localization.text(.permissionsTitle)) {
@@ -523,7 +523,7 @@ private struct OverlayPanelContentView: View {
                 }
             } else {
                 Text(localization.text(kind.messageKey))
-                    .font(.system(size: 12))
+                    .font(.system(size: TypeScale.callout))
                     .foregroundStyle(palette.secondaryText)
             }
         }
@@ -614,15 +614,15 @@ private struct OverlayPanelContentView: View {
                 HStack(spacing: 7) {
                     if group.isCollapsible {
                         Image(systemName: group.isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: TypeScale.micro, weight: .semibold))
                             .foregroundStyle(palette.secondaryText)
                     }
                     Text(group.title)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: TypeScale.callout, weight: .medium))
                         .lineLimit(1)
                         .foregroundStyle(palette.secondaryText)
                     Text(localization.format(.overlayCountFormat, group.totalCount ?? group.rows.count))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: TypeScale.caption, weight: .medium, design: .rounded))
                         .foregroundStyle(palette.secondaryText)
                     Spacer(minLength: 0)
                 }
@@ -862,7 +862,7 @@ private struct OverlayPanelContentView: View {
         let visible = hoveredRowID == row.id || selected || row.isFavorite
         let lit = hoveredStarID == row.id
         return Image(systemName: row.isFavorite ? "star.fill" : "star")
-            .font(.system(size: 9.5))
+            .font(.system(size: TypeScale.micro))
             .foregroundStyle(row.isFavorite ? Theme.favoriteStar : palette.tertiaryText)
             .scaleEffect(lit ? 1.2 : 1)
             .frame(width: 14, height: 14)
@@ -915,7 +915,7 @@ private struct OverlayPanelContentView: View {
                     .accessibilityHidden(true)
             }
             Text(row.title)
-                .font(.system(size: 13.5, weight: row.isCompleted ? .semibold : .regular))
+                .font(.system(size: TypeScale.body, weight: row.isCompleted ? .semibold : .regular))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(rowTitleColor(row))
@@ -926,7 +926,7 @@ private struct OverlayPanelContentView: View {
                 // A dimmed row and a row the app cannot run looked identical; the lock says
                 // the cause at a glance without turning the row into an error banner.
                 Image(systemName: "lock.slash")
-                    .font(.system(size: 9.5))
+                    .font(.system(size: TypeScale.micro))
                     .foregroundStyle(palette.tertiaryText)
                     .accessibilityLabel(localization.text(.overlayUnavailableBadge))
                     .accessibilityHint(localization.text(.panelDisabledReason))
@@ -953,7 +953,7 @@ private struct OverlayPanelContentView: View {
     /// that tell the user where the command lives, so those are what survive.
     private func noteColumn(_ row: PanelRow, width: Double, hugsChord: Bool) -> some View {
         Text(row.note)
-            .font(.system(size: 10.5))
+            .font(.system(size: TypeScale.caption))
             .lineLimit(1)
             .truncationMode(.middle)
             // The menu path is the only answer to "where does this command live"; at 32 %
@@ -977,13 +977,13 @@ private struct OverlayPanelContentView: View {
     private func gutter(_ row: PanelRow) -> some View {
         HStack(spacing: RowLayout.gutterSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 9))
+                .font(.system(size: TypeScale.micro))
                 .foregroundStyle(Theme.warning.opacity(0.85))
                 .frame(width: 12)
                 .opacity(row.hasConflict ? 1 : 0)
                 .accessibilityHidden(!row.hasConflict)
             Image(systemName: "chevron.right")
-                .font(.system(size: 8, weight: .bold))
+                .font(.system(size: TypeScale.micro, weight: .bold))
                 .foregroundStyle(palette.tertiaryText)
                 .frame(width: RowLayout.chevronWidth)
                 .opacity(row.isGroup ? 1 : 0)
@@ -1008,7 +1008,7 @@ private struct OverlayPanelContentView: View {
                 // Shift is held: the hint glyph stands in for the chord, so the row answers
                 // "which key runs me" without the user reading the shortcut first.
                 Text(hint)
-                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                    .font(.system(size: TypeScale.caption, weight: .semibold, design: .rounded))
                     .foregroundStyle(palette.text)
                     .frame(width: 17, height: 17)
                     .background(
@@ -1103,7 +1103,7 @@ private struct OverlaySearchContentView: View {
                     Image(systemName: "shippingbox")
                     Text(localization.text(.searchBuiltInNotice))
                 }
-                .font(.system(size: 11))
+                .font(.system(size: TypeScale.caption))
                 .foregroundStyle(palette.secondaryText)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
@@ -1138,16 +1138,16 @@ private struct OverlaySearchContentView: View {
             VStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text(localization.text(.searchScopeLoading))
-                    .font(.system(size: 12))
+                    .font(.system(size: TypeScale.callout))
                     .foregroundStyle(palette.secondaryText)
             }
         } else if state.search.loadState == .permissionDenied {
             VStack(spacing: 10) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: IconScale.hero))
                     .foregroundStyle(palette.secondaryText)
                 Text(localization.text(.scanPermissionDenied))
-                    .font(.system(size: 12))
+                    .font(.system(size: TypeScale.callout))
                     .foregroundStyle(palette.secondaryText)
                 Button(localization.text(.permissionWizard)) {
                     engine.showPermissionsWindow()
@@ -1157,7 +1157,7 @@ private struct OverlaySearchContentView: View {
         } else {
             VStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 22))
+                    .font(.system(size: IconScale.hero))
                     .foregroundStyle(palette.tertiaryText)
                 // Name the scope: with the palette scoped to one app, "No matches" reads
                 // as "Kaname does not know this shortcut" when the answer is "not in this
@@ -1165,10 +1165,10 @@ private struct OverlaySearchContentView: View {
                 Text(state.search.scopeName.isEmpty
                      ? localization.text(.searchNoResults)
                      : localization.format(.searchNoResultsScopedFormat, state.search.scopeName))
-                    .font(.system(size: 12))
+                    .font(.system(size: TypeScale.callout))
                     .foregroundStyle(palette.secondaryText)
                 Text(localization.text(.searchNoResultsHint))
-                    .font(.system(size: 11))
+                    .font(.system(size: TypeScale.caption))
                     .foregroundStyle(palette.secondaryText)
                     .multilineTextAlignment(.center)
             }
@@ -1220,12 +1220,12 @@ private struct OverlayFooterView: View {
                 Text(state.search.results.count == 1
                      ? localization.text(.searchResultCountOne)
                      : localization.format(.searchResultCount, state.search.results.count))
-                    .font(.system(size: 11, design: .rounded))
+                    .font(.system(size: TypeScale.caption, design: .rounded))
                     .foregroundStyle(palette.secondaryText)
             } else if state.panel.pageCount > 1 {
                 Button(action: engine.previousPage) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: TypeScale.caption, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
@@ -1233,12 +1233,12 @@ private struct OverlayFooterView: View {
                 .help(localization.text(.panelPreviousPage))
 
                 Text(localization.format(.overlayPageFormat, state.panel.pageIndex + 1, state.panel.pageCount))
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.system(size: TypeScale.caption, weight: .medium, design: .rounded))
                     .foregroundStyle(palette.secondaryText)
 
                 Button(action: engine.nextPage) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: TypeScale.caption, weight: .semibold))
                         .foregroundStyle(palette.secondaryText)
                 }
                 .buttonStyle(IconButtonStyle(hoverFill: palette.hover, size: 22, cornerRadius: 5))
@@ -1248,7 +1248,7 @@ private struct OverlayFooterView: View {
 
             Spacer()
             Text(footerHint(layout: layout))
-                .font(.system(size: 11))
+                .font(.system(size: TypeScale.caption))
                 // This line is the only place the panel teaches its own keys; at 32 % white
                 // it measured 2.5:1, the faintest text on the surface.
                 .foregroundStyle(palette.secondaryText)
@@ -1343,11 +1343,11 @@ private struct SearchResultList: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
                 Text(section.title.isEmpty ? "—" : section.title)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: TypeScale.callout, weight: .medium))
                     .foregroundStyle(palette.secondaryText)
                     .lineLimit(1)
                 Text("\(section.rows.count)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .font(.system(size: TypeScale.caption, weight: .medium, design: .rounded))
                     .foregroundStyle(palette.tertiaryText)
                 Spacer(minLength: 0)
             }
@@ -1443,7 +1443,7 @@ private struct SearchResultRow: View {
                 // The row is still searchable and selectable — that is the point of showing it
                 // — but the trailing text says why pressing it will not run.
                 Text(localization.text(.panelRestrictedReason))
-                    .font(.system(size: 10.5))
+                    .font(.system(size: TypeScale.caption))
                     .foregroundStyle(palette.restrictedText)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -1495,7 +1495,7 @@ private struct SearchResultRow: View {
                 .foregroundStyle(restriction.isRestricted ? palette.restrictedText : palette.text)
             if let subgroup = item.subgroup {
                 Text(subgroup)
-                    .font(.system(size: 10.5))
+                    .font(.system(size: TypeScale.caption))
                     .foregroundStyle(palette.tertiaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -1512,7 +1512,7 @@ private struct SearchResultRow: View {
             // A command with no shortcut keeps the column: the dash says "none" without
             // letting the titles beside it shift left.
             Text(item.chord.isEmpty ? "—" : KeyFormatter.render(item.chord, style: style))
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: TypeScale.callout, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(item.chord.isEmpty
                                  ? palette.tertiaryText

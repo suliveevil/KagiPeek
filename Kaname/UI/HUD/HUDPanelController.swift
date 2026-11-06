@@ -34,7 +34,7 @@ final class HUDPanelController: NoticePresenting {
         effect.layer?.cornerRadius = 12
         effect.layer?.masksToBounds = true
 
-        label.font = .systemFont(ofSize: 12.5, weight: .medium)
+        label.font = .systemFont(ofSize: TypeScale.callout, weight: .medium)
         // Long errors are sentences, not chord titles: wrap up to three lines instead of
         // truncating at 460 pt. The width cap only bounds the toast, it no longer decides
         // how much of the message survives.

@@ -27,7 +27,7 @@ struct PermissionsView: View {
     private var header: some View {
         VStack(spacing: 6) {
             Text(localization.text(.permissionsTitle))
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: IconScale.large, weight: .semibold))
             Text(localization.text(.permissionsSubtitle))
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -84,7 +84,7 @@ private struct PermissionCardView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: permission.presentation.iconName)
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(size: IconScale.large, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: 30)
                 // Decorative: the row's title sits next to it. Without this VoiceOver reads
@@ -94,7 +94,7 @@ private struct PermissionCardView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
                     Text(localization.text(permission.presentation.titleKey))
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: TypeScale.body, weight: .semibold))
                     Text(localization.text(permission.policy.isRequired ? .permissionRequiredBadge : .permissionOptionalBadge))
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 6)
@@ -114,7 +114,7 @@ private struct PermissionCardView: View {
 
             if permission.isGranted {
                 Label(localization.text(.permissionGrantedDone), systemImage: "checkmark")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: TypeScale.callout, weight: .medium))
                     .foregroundStyle(.green)
             } else if permission.guideStatus == .waiting {
                 // The guide is on screen and the next move is the user's, in System Settings.
@@ -124,7 +124,7 @@ private struct PermissionCardView: View {
                     ProgressView()
                         .controlSize(.small)
                     Text(localization.text(.permissionWaitingForAccess))
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: TypeScale.callout, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
             } else {

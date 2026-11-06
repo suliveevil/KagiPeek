@@ -183,7 +183,7 @@ struct LayerBadge: View {
 
     var body: some View {
         Text(localization.text(layer.badgeKey))
-            .font(.system(size: 9, weight: .medium))
+            .font(.system(size: TypeScale.micro, weight: .medium))
             .padding(.horizontal, 4)
             .padding(.vertical, 1)
             .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Color.secondary.opacity(0.14)))
@@ -201,13 +201,13 @@ struct LiveTestCallout: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 5) {
                 Image(systemName: iconName)
-                    .font(.system(size: 10))
+                    .font(.system(size: TypeScale.micro))
                     .foregroundStyle(tint)
                 Text(headline)
                     .font(.caption.weight(.medium))
                 Spacer(minLength: 0)
                 Text(localization.text(verdict.toneKey))
-                    .font(.system(size: 9))
+                    .font(.system(size: TypeScale.micro))
                     .foregroundStyle(.secondary)
             }
             Text(summary)

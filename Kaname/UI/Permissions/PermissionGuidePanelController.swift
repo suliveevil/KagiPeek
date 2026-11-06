@@ -492,13 +492,13 @@ private struct PermissionGuideView: View {
     private var grantedLabel: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: IconScale.large, weight: .semibold))
                 .foregroundStyle(.green)
             VStack(alignment: .leading, spacing: 2) {
                 Text(localization.text(.permissionGuideGranted))
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(.system(size: TypeScale.body, weight: .semibold))
                 Text(localization.text(.permissionGuideGrantedHint))
-                    .font(.system(size: 11))
+                    .font(.system(size: TypeScale.caption))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
@@ -511,16 +511,16 @@ private struct PermissionGuideView: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(localization.text(headlineKey))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: TypeScale.callout, weight: .semibold))
                         .foregroundStyle(tint)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(localization.text(PermissionGuideState.detailKey(for: phase)))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: TypeScale.callout, weight: .medium))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if PermissionGuideState.showsDragSource(phase) {
                     Text(localization.text(.permissionGuideStaleHint))
-                        .font(.system(size: 11))
+                        .font(.system(size: TypeScale.caption))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -552,7 +552,7 @@ private struct PermissionGuideView: View {
             DragAppIcon(side: 40, cue: .dragTarget)
         } else {
             Image(systemName: statusGlyphName)
-                .font(.system(size: 19, weight: .medium))
+                .font(.system(size: IconScale.large, weight: .medium))
                 .foregroundStyle(tint)
                 .frame(width: 40, height: 40)
                 .accessibilityHidden(true)
@@ -568,7 +568,7 @@ private struct PermissionGuideView: View {
             onClose()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: TypeScale.micro, weight: .semibold))
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(IconButtonStyle(hoverFill: .white.opacity(0.14), size: 22, cornerRadius: 6))

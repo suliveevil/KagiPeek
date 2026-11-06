@@ -1,6 +1,31 @@
 import AppKit
 import SwiftUI
 
+/// Text sizes, one step per macOS system text style. Views must use these tokens instead
+/// of raw point sizes: the panel is dense enough that a single stray 9.5 or 11.5 turns
+/// into a visible rhythm break, and macOS never renders text below 10 pt.
+enum TypeScale {
+    /// `.title3` — empty-state headlines.
+    static let display: CGFloat = 15
+    /// `.body` — menu titles, row labels, search field.
+    static let body: CGFloat = 13
+    /// `.callout` — group headers and card titles.
+    static let callout: CGFloat = 12
+    /// `.subheadline` — hints, keycaps, status badges.
+    static let caption: CGFloat = 11
+    /// `.footnote` — the floor: counts, layer tags, compact chrome.
+    static let micro: CGFloat = 10
+}
+
+/// SF Symbol sizes. Symbols are sized by the glyph they draw, not by the text scale,
+/// so they stay in their own small table.
+enum IconScale {
+    /// Empty-state and permission-card symbols.
+    static let large: CGFloat = 20
+    /// The panel's own empty-state illustration.
+    static let hero: CGFloat = 22
+}
+
 enum Theme {
     static let cornerRadius: CGFloat = 12
     // The numbers the panel window is sized with live in `OverlayMetrics` (pure, testable);
@@ -143,7 +168,7 @@ struct KeycapView: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: compact ? 11 : 12.5, weight: .semibold, design: .rounded))
+            .font(.system(size: compact ? TypeScale.caption : TypeScale.callout, weight: .semibold, design: .rounded))
             .monospacedDigit()
             .padding(.horizontal, compact ? 5 : 7)
             .padding(.vertical, compact ? 2 : 3)

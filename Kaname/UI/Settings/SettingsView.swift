@@ -355,7 +355,7 @@ struct SettingsView: View {
                         }
                     } label: {
                         Text(scopeTitle(for: scope))
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: TypeScale.callout, weight: .semibold))
                     }
                 }
             }
@@ -763,7 +763,7 @@ struct SettingsView: View {
         let renderedChord = entry.chord.map { KeyFormatter.render($0, style: settings.keyStyle) }
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(renderedChord ?? "—")
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: TypeScale.caption, design: .monospaced))
                 .foregroundStyle(entry.isShortcutless ? .secondary : .primary)
                 .frame(width: 76, alignment: .leading)
                 // The dash is the column's word for "this command has no shortcut";
@@ -1047,9 +1047,9 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(title).font(.system(size: 12, weight: .semibold))
+                Text(title).font(.system(size: TypeScale.callout, weight: .semibold))
                 Text(granted ? localization.text(.permissionGranted) : localization.text(.permissionMissing))
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: TypeScale.caption, weight: .semibold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(granted ? Color.green.opacity(0.18) : Color.orange.opacity(0.18)))
@@ -1231,7 +1231,7 @@ struct SettingsView: View {
                         .frame(width: 56, height: 56)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(localization.text(.appName))
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.system(size: IconScale.large, weight: .semibold))
                         Text(appVersion)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
