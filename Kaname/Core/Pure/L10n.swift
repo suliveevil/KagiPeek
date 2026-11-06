@@ -103,7 +103,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case panelCopyHintCompact, panelEscCloseHint
 
     // Overlay
-    case overlayNoCandidates, overlayScanning, overlayPageFormat, overlayUnavailableBadge
+    case overlayNoCandidates, overlayNoCandidatesHint, overlayScanning, overlayPageFormat, overlayUnavailableBadge
     case panelDisabledReason
     case triggerTip
     case overlayBuiltInBadge, overlayRunning
@@ -542,6 +542,10 @@ nonisolated enum L10n {
         .pagingPairSemicolonQuote: ("Semicolon / Quote  ( ; ' )", "分号、引号（; '）"),
 
         .overlayNoCandidates: ("No matching shortcuts", "没有匹配的快捷键"),
+        .overlayNoCandidatesHint: (
+            "Release the modifiers or clear the filter to see the full list.",
+            "松开修饰键或清除筛选即可查看完整列表。"
+        ),
         .scanPermissionDenied: (
             "Accessibility permission is off, so no menus could be read",
             "辅助功能权限未开启，无法读取菜单栏"

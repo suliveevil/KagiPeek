@@ -497,8 +497,11 @@ private struct OverlayPanelContentView: View {
             }
     }
 
-    /// The four "nothing here" answers. Scanning is the only one with a spinner; the
-    /// permission one is the only one with a way out.
+    /// The four "nothing here" answers.
+    ///
+    /// Scanning keeps its spinner and stays one line. The other three borrow the palette's
+    /// own empty state structure — symbol, conclusion, next step, centred — because a single
+    /// 12 pt sentence at the top-left read as a rendering fault rather than an answer.
     @ViewBuilder
     private func emptyState(_ kind: PanelEmptyKind) -> some View {
         Group {
@@ -509,27 +512,47 @@ private struct OverlayPanelContentView: View {
                         .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.secondaryText)
                 }
-            } else if kind == .permissionRequired {
-                VStack(alignment: .leading, spacing: 12) {
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: emptyStateSymbol(kind))
+                        .font(.system(size: IconScale.hero))
+                        .foregroundStyle(palette.tertiaryText)
+                        .accessibilityHidden(true)
                     Text(localization.text(kind.messageKey))
                         .font(.system(size: TypeScale.callout))
                         .foregroundStyle(palette.secondaryText)
+                        .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button(localization.text(.permissionsTitle)) {
-                        engine.showPermissionsWindow()
+                    // The favourites message already ends with how to pin something, so
+                    // only the filter/hold case needs a separate hint line.
+                    if kind == .noMatches {
+                        Text(localization.text(.overlayNoCandidatesHint))
+                            .font(.system(size: TypeScale.caption))
+                            .foregroundStyle(palette.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    if kind == .permissionRequired {
+                        Button(localization.text(.permissionsTitle)) {
+                            engine.showPermissionsWindow()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
-            } else {
-                Text(localization.text(kind.messageKey))
-                    .font(.system(size: TypeScale.callout))
-                    .foregroundStyle(palette.secondaryText)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 16)
-        .padding(.top, kind == .scanning ? 0 : 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .padding(.horizontal, 24)
+    }
+
+    private func emptyStateSymbol(_ kind: PanelEmptyKind) -> String {
+        switch kind {
+        case .permissionRequired: return "lock.fill"
+        case .scanning: return "hourglass"
+        case .noFavorites: return "star"
+        case .noMatches: return "magnifyingglass"
+        }
     }
 
     @ViewBuilder
