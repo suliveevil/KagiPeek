@@ -7,26 +7,26 @@ report.
 
 ## Where the diagnostics live
 
-Everything KagiPeek records stays on this Mac. Nothing is uploaded.
+Everything Kaname records stays on this Mac. Nothing is uploaded.
 
 | What | Path |
 |------|------|
-| Daily logs (kept 7 days, 20 MB total) | `~/Library/Application Support/KagiPeek/logs/kagipeek-YYYY-MM-DD.log` |
-| Crash reports | `~/Library/Application Support/KagiPeek/crash/kagipeek-crash-<date>-<kind>.json` |
-| Last 30 user actions (for crash context) | `~/Library/Application Support/KagiPeek/logs/last-actions.json` |
-| Session sentinel (crash vs. clean exit) | `~/Library/Application Support/KagiPeek/logs/session.active` |
+| Daily logs (kept 7 days, 20 MB total) | `~/Library/Application Support/Kaname/logs/kaname-YYYY-MM-DD.log` |
+| Crash reports | `~/Library/Application Support/Kaname/crash/kaname-crash-<date>-<kind>.json` |
+| Last 30 user actions (for crash context) | `~/Library/Application Support/Kaname/logs/last-actions.json` |
+| Session sentinel (crash vs. clean exit) | `~/Library/Application Support/Kaname/logs/session.active` |
 
 Open the folder from **Settings → Diagnostics → Open log folder**, or run
 
 ```sh
-open "$HOME/Library/Application Support/KagiPeek/logs"
+open "$HOME/Library/Application Support/Kaname/logs"
 ```
 
 The same archive can be produced without the window, which is useful when the window is the
 thing that is broken:
 
 ```sh
-KAGIPEEK_EXPORT_DIAGNOSTICS=/tmp/kagipeek.zip /Applications/KagiPeek.app/Contents/MacOS/KagiPeek
+KANAME_EXPORT_DIAGNOSTICS=/tmp/kaname.zip /Applications/Kaname.app/Contents/MacOS/Kaname
 ```
 
 A line looks like `2026-10-23 17:24:11.070 I [tap] event tap installed (accessibility granted)`:
@@ -40,7 +40,7 @@ are always written.
 |---------|------|------------------------|
 | Menu bar icon is gone | `[ui]` | `menu bar item on screen at x=…` means it exists and sits in the bar; `lost (…); rebuilding it` means the item's window disappeared and the app rebuilt it |
 | Nothing happens at all | `[tap]` | `event tap installed` vs. `failed`; `disabled by the system` means macOS pulled the tap and it was re-armed |
-| Shortcuts dead after a password field | `[perm] secure input` | The OS hides key events while secure input is on — not a KagiPeek bug |
+| Shortcuts dead after a password field | `[perm] secure input` | The OS hides key events while secure input is on — not a Kaname bug |
 | "It worked yesterday" | `[perm] accessibility` | The grant was revoked, usually by reinstalling under a new signature |
 | Panel is empty / "built-in" | `[scan]` | `state=noMenus`, `state=permissionDenied`, `menu-bar attribute missing`, `truncated at maxItems` |
 | Panel is slow every time | `[scan] cache-miss` | Why the disk cache did not answer: `control`, `fingerprint`, `entryFingerprint`, `expired`, `decode` |
@@ -60,7 +60,7 @@ without asking the user to reproduce it.
 2. **Is Accessibility granted?** **Settings → Permissions** shows both grants. A missing
    Accessibility grant disables the key tap entirely.
 3. **Is secure input active?** Password fields, login windows and some terminals hide key
-   events from every app. KagiPeek hides while that is true. Leave the field and try again.
+   events from every app. Kaname hides while that is true. Leave the field and try again.
 4. **Is the front app excluded?** **Settings → General → Excluded apps** lists bundle
    identifiers whose panel is suppressed. `UsageStore`/`ShortcutEngine` log nothing here by
    design; check the list.
@@ -78,14 +78,14 @@ Log category: `input` (event tap installed / failed), `ui` (permission state).
 - **The scan failed.** Log category `scan` records the app identity, the item count and whether
   a menu bar was found. `no menu bar exposed and no fallback allowed` means
   **Settings → General → Use built-in catalog…** is off.
-- **KagiPeek was scanning itself.** Before v2.2.0, opening the search palette or Settings
+- **Kaname was scanning itself.** Before v2.2.0, opening the search palette or Settings
   activated the app, and its own (empty) menu bar replaced the catalog. That is fixed; if you
   see it on an older build, update.
 
 ## Pressing the run key does nothing
 
 1. **A disabled menu item is ignored.** The menu item is greyed out for a reason.
-2. **The app received nothing.** From the panel, KagiPeek presses the menu item through
+2. **The app received nothing.** From the panel, Kaname presses the menu item through
    Accessibility; the chord is only replayed when that press fails, so a shortcut handled in a
    custom view (with no menu item behind it) cannot be run this way. From the palette, the
    scoped app is activated first and the menu item is triggered after it comes forward, so an app that is
@@ -107,7 +107,7 @@ first. Log category: `input` (nothing is logged while composing, by design).
 
 The accessibility grant is tied to the code signature. Ad-hoc signed builds get a new signature
 on every build, so macOS treats each one as a new app. Run `./scripts/setup_signing.sh` once to
-create the stable `KagiPeek Local` identity; after that the designated requirement
+create the stable `Kaname Local` identity; after that the designated requirement
 (`identifier com.voltline.kagipeek and certificate root = …`) does not change when the code
 does. The grant then survives rebuilds **on the same machine and keychain**.
 
@@ -129,13 +129,13 @@ swift test --disable-sandbox           # unit tests
 A write failed. Before v2.2.0 that was silent; now `log show --predicate 'subsystem ==
 "com.voltline.kagipeek" AND category == "storage"'` says `could not write settings.json: …`.
 The usual causes are a read-only or full volume, or a permission change on
-`~/Library/Application Support/KagiPeek`. A file that cannot be decoded is kept as
+`~/Library/Application Support/Kaname`. A file that cannot be decoded is kept as
 `settings.corrupt-<timestamp>.json`, so nothing is lost — you can inspect or restore it.
 
 ## A shortcut is marked ⚠︎
 
 Another binding claims the same combination: an app menu item, or an enabled macOS system
-shortcut (Spotlight, Mission Control, …). macOS decides which one wins. KagiPeek only reports
+shortcut (Spotlight, Mission Control, …). macOS decides which one wins. Kaname only reports
 it; **Settings → Conflicts** lists both sides with a type and a likely winner.
 
 ## The menu bar icon is gone
@@ -152,9 +152,9 @@ Check the log first: `[ui]` tells you which of two very different things happene
 **Menu bar managers take the item on purpose.** Thaw, Ice and Bartender capture every status
 item and lay them out themselves. With Thaw's *Ice Bar* enabled (`useIceBar`) and *always show
 hidden items* off, a newly seen item starts in the collapsed section behind the `•••` icon.
-Drag KagiPeek out of that section once and the layout remembers it.
+Drag Kaname out of that section once and the layout remembers it.
 
-**Watch for a stale identity.** These tools key items by `bundle id:item title`. KagiPeek's
+**Watch for a stale identity.** These tools key items by `bundle id:item title`. Kaname's
 bundle id changed case once (`com.Voltline.KagiPeek` → `com.voltline.kagipeek`), so a manager
 can hold two records for the same app and treat the current one as new. Deleting the old
 record is enough; the stale one is the entry that is no longer produced by the running app.
@@ -166,7 +166,7 @@ disappears. What it cannot do is force a manager to show it.
 **Second door.** **Settings → General → Show a Dock icon as well** turns the Dock icon back on;
 clicking it opens Settings. The keyboard shortcuts themselves never depended on the icon.
 
-## Keeping KagiPeek running in the background
+## Keeping Kaname running in the background
 
 What is already in place, and what each part is for:
 

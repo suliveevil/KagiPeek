@@ -1,4 +1,4 @@
-# KagiPeek 可观测性架构设计
+# Kaname 可观测性架构设计
 
 版本: v1.0 · 作者: Archi (System Architect) · 状态: Implemented（部分历史段落已标注）
 
@@ -46,11 +46,11 @@
 
 | 维度 | 评估 |
 |---|---|
-| 依赖体积 | Lumberjack ~2MB 源码 + PLCrashReporter 二进制；KagiPeek 是轻量菜单栏工具，体积占比刺眼 |
+| 依赖体积 | Lumberjack ~2MB 源码 + PLCrashReporter 二进制；Kaname 是轻量菜单栏工具，体积占比刺眼 |
 | 架构侵入 | Lumberjack 要求自有 Logger 类型 → 所有调用点都要改写；且引入 fileLogFormatter/DDFileLogger 一整套心智模型 |
 | 崩溃捕获 | PLCrashReporter 成熟（含信号处理、dwarf 符号化），是它唯一显著优势 |
 | MainActor/Swift 并发 | ObjC 时代的库，Sendable 标注缺失，与现有 Swift 严格并发检查摩擦 |
-| 维护方 | KagiPeek 单人项目，多一层依赖 = 多一层升级维护税 |
+| 维护方 | Kaname 单人项目，多一层依赖 = 多一层升级维护税 |
 
 **结论：否决。** PLCrashReporter 的符号化优势，对"用户手动导出日志给自己看/发给作者"的场景收益很小——系统本身已生成崩溃报告（re-raise 即可拿到），我们要的是"自家时间线上的最小报告 + 上下文补全"，自研百行代码可覆盖。
 
@@ -59,7 +59,7 @@
 ## 二、最终架构
 
 ```
-┌────────────────────────── KagiPeek 进程 ──────────────────────────┐
+┌────────────────────────── Kaname 进程 ──────────────────────────┐
 │                                                                    │
 │  所有调用点（同一处门面，同一个调用）                                │
 │        │ Diag.info(.tap, "...") / Diag.error(.inject, "...")       │
@@ -78,13 +78,13 @@
 │  CrashReporter(异常处理器 + 信号处理器 + 哨兵)                       │
 │  DiagnosticsExporter(zip 打包, 用户手动触发)                        │
 └────────────────────────────────────────────────────────────────────┘
-          ▼ 文件落点 ~/Library/Application Support/KagiPeek/
-             logs/    kagipeek-YYYY-MM-DD.log
+          ▼ 文件落点 ~/Library/Application Support/Kaname/
+             logs/    kaname-YYYY-MM-DD.log
              logs/    session.active           (意外退出哨兵)
              logs/    last-actions.json        (RingBuffer 磁盘镜像)
-             crash/   kagipeek-crash-YYYYMMDD-HHMMSS-signal.partial   (信号现场)
-             crash/   kagipeek-crash-YYYYMMDD-HHMMSS-SIGSEGV.json     (下次启动补全)
-             crash/   kagipeek-crash-YYYYMMDD-HHMMSS-exception.json   (NSException 当场写)
+             crash/   kaname-crash-YYYYMMDD-HHMMSS-signal.partial   (信号现场)
+             crash/   kaname-crash-YYYYMMDD-HHMMSS-SIGSEGV.json     (下次启动补全)
+             crash/   kaname-crash-YYYYMMDD-HHMMSS-exception.json   (NSException 当场写)
 ```
 
 ### 模块职责
@@ -102,15 +102,15 @@
 ### 文件布局与命名
 
 ```
-~/Library/Application Support/KagiPeek/
+~/Library/Application Support/Kaname/
 ├── logs/
-│   ├── kagipeek-2026-10-23.log               # 行格式见下
+│   ├── kaname-2026-10-23.log               # 行格式见下
 │   ├── session.active                        # 启动写、正常退出删；残留 = 意外退出
 │   └── last-actions.json                     # ActionRecorder 的 30 条磁盘镜像
 └── crash/
-    ├── kagipeek-crash-20261023-141522-signal.partial      # 信号现场，handler 内 open/write
-    ├── kagipeek-crash-20261023-141522-SIGSEGV.json        # 下次启动补全后，按信号名命名
-    └── kagipeek-crash-20261023-141522-exception.json      # NSException 当场写，只有这一种
+    ├── kaname-crash-20261023-141522-signal.partial      # 信号现场，handler 内 open/write
+    ├── kaname-crash-20261023-141522-SIGSEGV.json        # 下次启动补全后，按信号名命名
+    └── kaname-crash-20261023-141522-exception.json      # NSException 当场写，只有这一种
 ```
 
 片段名里没有"崩溃种类"占位符：信号路径固定叫 `-signal.partial`，补全后的报告按信号名
@@ -144,7 +144,7 @@
 NSSetUncaughtExceptionHandler { exception in
     // 仍在可分配内存的正常上下文：可以走 Foundation、可以分配
     CrashReporter.handleException(exception)
-    //   → 过 Sanitizer、拼 CrashReport、写 kagipeek-crash-<ts>-exception.json
+    //   → 过 Sanitizer、拼 CrashReport、写 kaname-crash-<ts>-exception.json
     //   → logs.flushNow(timeout: 0.3)（进程即将死亡）
 }
 ```
@@ -193,7 +193,7 @@ raise(sig);
   2. `reportPreviousSessionIfNeeded()`：哨兵还在 → 上次不是正常退出。带时间窗内崩溃报告的一条是 `W [exit] previous session ended unexpectedly (crash report: …)`，没有的则是 `(no crash report: killed, force quit or power loss)`。然后**直接删除**残留哨兵，不归档、不改名；
   3. `writeSentinel()`：写本次的哨兵；
   4. `prepareSignalFragment()`：编码本次的信号片段路径与上下文。
-- 边界：selftest 模式（`KAGIPEEK_SELFTEST`）也走正常 `NSApp.terminate`，哨兵自然清理。
+- 边界：selftest 模式（`KANAME_SELFTEST`）也走正常 `NSApp.terminate`，哨兵自然清理。
 - 挂起/watchdog：明确不做（accessory 应用无 iOS 式 watchdog 语义），列为非目标。
 
 ---
@@ -242,10 +242,10 @@ raise(sig);
 3. 日志目录路径 + **打开文件夹**。
 4. Button：**Export diagnostics archive…**（zip）与 Button：**Export diagnostics report…**（单个 JSON）。两个按钮都在这一页，About 页没有导出入口。
 
-**导出内容**（zip 内，注意顶层目录固定叫 `KagiPeek-diagnostics`，日期在 zip 的文件名里）：
+**导出内容**（zip 内，注意顶层目录固定叫 `Kaname-diagnostics`，日期在 zip 的文件名里）：
 
 ```
-KagiPeek-diagnostics/
+Kaname-diagnostics/
 ├── session-info.json     # app 版本/构建号、macOS 版本、设备型号、本次运行时长、locale、
 │                         # 两个权限的当前状态、两个诊断开关、
 │                         # 关键设置摘要（modifierTriggerEnabled / hotkeyTriggerEnabled /
@@ -261,7 +261,7 @@ KagiPeek-diagnostics/
 一句原因，归档缺文件这件事必须让收件人看得见。
 
 **方式**：`DiagnosticsExporter.export(to:settings:)` 在后台队列组包（`ditto` 打 zip，主线程
-只转菊花）→ `NSSavePanel` 选目的地，默认文件名 `KagiPeek-diagnostics-<yyyyMMdd-HHmmss>.zip`。
+只转菊花）→ `NSSavePanel` 选目的地，默认文件名 `Kaname-diagnostics-<yyyyMMdd-HHmmss>.zip`。
 
 **明确无自动上传**：`DiagnosticsExporter` 无任何网络能力；`UpdateChecker` 仍是进程内唯一网络请求。导出动作本身记 `I [export] exporting diagnostics: N log files, M crash files`。
 
@@ -274,8 +274,8 @@ KagiPeek-diagnostics/
 
 | 变量 | 位置 | 行为 |
 |---|---|---|
-| `KAGIPEEK_SELFTEST` | **单实例守卫之前** | 记 `I [start] selftest mode`，照常 `engine.start()`，3 秒后把 `engine.diagnosticsReport()` 写到 `NSTemporaryDirectory()/kagipeek-selftest.json`，再 `stop()` + flush 两个 store + `NSApp.terminate(nil)`。放在守卫之前，是因为要问的往往是**已经装着、正在运行**的那份拷贝"你看见了什么" |
-| `KAGIPEEK_EXPORT_DIAGNOSTICS=<path>` | **单实例守卫之后** | 调 `DiagnosticsExporter.export(to:settings:)` 写 zip 到给定路径，然后 `NSApp.terminate(nil)`；失败把原因写到 stderr |
+| `KANAME_SELFTEST` | **单实例守卫之前** | 记 `I [start] selftest mode`，照常 `engine.start()`，3 秒后把 `engine.diagnosticsReport()` 写到 `NSTemporaryDirectory()/kaname-selftest.json`，再 `stop()` + flush 两个 store + `NSApp.terminate(nil)`。放在守卫之前，是因为要问的往往是**已经装着、正在运行**的那份拷贝"你看见了什么" |
+| `KANAME_EXPORT_DIAGNOSTICS=<path>` | **单实例守卫之后** | 调 `DiagnosticsExporter.export(to:settings:)` 写 zip 到给定路径，然后 `NSApp.terminate(nil)`；失败把原因写到 stderr |
 
 两者都走正常的 `NSApp.terminate`，所以哨兵照常清理、不会在日志里留下假的"意外退出"。
 写入结果记 `I [ui] selftest written to <path>` 或 `E [ui] selftest failed: <reason>`。

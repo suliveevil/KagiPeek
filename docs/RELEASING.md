@@ -6,24 +6,24 @@
 ./scripts/setup_signing.sh
 ```
 
-Creates the stable self-signed `KagiPeek Local` identity in its own keychain (see
+Creates the stable self-signed `Kaname Local` identity in its own keychain (see
 [Signing keychain](#signing-keychain)), not in the login keychain. Its designated requirement
-(`identifier com.voltline.kagipeek and certificate root = …`) does not change when the code
+(`identifier com.suliveevil.kaname and certificate root = …`) does not change when the code
 does, so the Accessibility grant survives rebuilds **on this machine and keychain**. For a
 downloadable release, use a Developer ID Application certificate instead
-(`KAGIPEEK_SIGN_IDENTITY`) and a `notarytool` keychain profile (`KAGIPEEK_NOTARY_PROFILE`).
+(`KANAME_SIGN_IDENTITY`) and a `notarytool` keychain profile (`KANAME_NOTARY_PROFILE`).
 
 ## Signing keychain
 
-The `KagiPeek Local` private key lives in a dedicated keychain so `codesign` never has to ask
+The `Kaname Local` private key lives in a dedicated keychain so `codesign` never has to ask
 for authorization:
 
 | Item | Path | Mode |
 | --- | --- | --- |
-| Keychain | `~/Library/Keychains/kagipeek-signing.keychain-db` | `600` |
-| Keychain passphrase | `~/Library/Application Support/KagiPeek/signing/keychain-pass` | `600` |
-| `.p12` backup | `~/Library/Application Support/KagiPeek/signing/KagiPeek-Local.p12` | `600` |
-| `.p12` passphrase | `~/Library/Application Support/KagiPeek/signing/p12-pass` | `600` |
+| Keychain | `~/Library/Keychains/kaname-signing.keychain-db` | `600` |
+| Keychain passphrase | `~/Library/Application Support/Kaname/signing/keychain-pass` | `600` |
+| `.p12` backup | `~/Library/Application Support/Kaname/signing/Kaname-Local.p12` | `600` |
+| `.p12` passphrase | `~/Library/Application Support/Kaname/signing/p12-pass` | `600` |
 
 The `signing/` directory is `700`. Nothing here is in the repository. `scripts/build_swiftc.sh`
 reads the passphrase, runs `security unlock-keychain`, and passes `--keychain` to `codesign`;
@@ -36,42 +36,27 @@ the effective grant is the key's ACL and partition list, which the login keychai
 resets per process. A dedicated keychain imported with `-A` and configured with
 `set-key-partition-list` signs without any prompt.
 
-### Move an existing identity (one time)
+### Keep the old identity for rollback
 
-Keep the same certificate. A new certificate changes the designated requirement and every TCC
-permission would have to be granted again.
+The rename created a new certificate and key pair, so the designated requirement changed and
+Accessibility must be granted again. The previous identity is left untouched as a rollback copy:
+
+| Item | Path |
+| --- | --- |
+| Old keychain | `~/Library/Keychains/kagipeek-signing.keychain-db` |
+| Old passphrase | `~/Library/Application Support/KagiPeek/signing/keychain-pass` |
+
+`scripts/setup_signing.sh` appends the new keychain to the user search list instead of replacing
+it, so the old keychain stays usable. To sign with it temporarily:
 
 ```sh
-KC="$HOME/Library/Keychains/kagipeek-signing.keychain-db"
-SIGN="$HOME/Library/Application Support/KagiPeek/signing"
-LOGIN="$HOME/Library/Keychains/login.keychain-db"
-
-# 1. Export the identity to a .p12 (use a random passphrase, store it in "$SIGN/p12-pass", 600)
-security export -k "$LOGIN" -t identities -f pkcs12 -P "<p12 passphrase>" \
-  -o "$SIGN/KagiPeek-Local.p12" "KagiPeek Local"
-
-# 2. Create the keychain; store a random passphrase in "$SIGN/keychain-pass" (600). The dir is 700.
-security create-keychain -p "<keychain passphrase>" "$KC"
-security set-keychain-settings -t 43200 "$KC"
-
-# 3. Import with -A (allow codesign to use the key without a prompt), then set the partition list
-security import "$SIGN/KagiPeek-Local.p12" -k "$KC" -f pkcs12 -P "<p12 passphrase>" -A
-security unlock-keychain -p "<keychain passphrase>" "$KC"
-security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "<keychain passphrase>" "$KC"
-security list-keychains -d user -s "$LOGIN" "$KC"
-
-# 4. Prove signing works, then remove the login copy
-codesign --force --sign "KagiPeek Local" --keychain "$KC" /tmp/some-binary-copy
-security find-identity -v -p codesigning   # exactly one KagiPeek Local line
-security delete-identity -c "KagiPeek Local" "$LOGIN"
+codesign --force --sign "KagiPeek Local" \
+  --keychain "$HOME/Library/Keychains/kagipeek-signing.keychain-db" /tmp/some-binary-copy
 ```
 
-`security delete-identity` removes both the certificate and its private key from the login
-keychain; omit `-t` so the user trust settings survive. Afterwards
-`security find-identity -v -p codesigning` must print exactly one **KagiPeek Local** line.
-The designated requirement can be compared before and after with `codesign -d -r-`; the
-`certificate root = H"…"` hash must stay identical, which is the evidence that Accessibility
-was not re-asked.
+Delete the old keychain and certificate only after the Kaname install has run normally for a
+while. Removing it while old backups (signed `KagiPeek Local`) are still kept would make those
+backups unverifiable; keep both until the old backups have aged out.
 
 ### New machine / restore
 
@@ -84,7 +69,7 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
 
 ## Steps
 
-1. **Decide the version.** `MARKETING_VERSION` in `KagiPeek.xcodeproj/project.pbxproj` (both
+1. **Decide the version.** `MARKETING_VERSION` in `Kaname.xcodeproj/project.pbxproj` (both
    the Debug and Release configurations) and make sure `CHANGELOG.md` has the entries under
    `[Unreleased]`. That file is the single source for both build paths: the Xcode build reads
    it directly, and the fallback build (`scripts/build_swiftc.sh`) overwrites
@@ -102,12 +87,12 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
 
    ```sh
    ./scripts/build_release.sh
-   # build/KagiPeek-<version>.dmg, build/KagiPeek-<version>.dmg.sha256, and the signed .app
+   # build/Kaname-<version>.dmg, build/Kaname-<version>.dmg.sha256, and the signed .app
    ```
 
    The script reads the version from the built bundle and refuses to continue if it does not
    match the project file. It signs the `.app` **and** the `.dmg`, notarizes and staples both
-   when a notary profile is configured, and writes `build/KagiPeek-<version>.dmg.sha256`.
+   when a notary profile is configured, and writes `build/Kaname-<version>.dmg.sha256`.
 
    It also stamps the build: `build/.release-stamp` holds one line, `<version> <HEAD>`, with
    `-dirty` appended when the tree had uncommitted changes. `scripts/publish_release.sh`
@@ -119,11 +104,11 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
 4. **Verify before publishing.**
 
    ```sh
-   codesign -dv --verbose=4 build/DerivedData/Build/Products/Release/KagiPeek.app
-   codesign --verify --strict build/DerivedData/Build/Products/Release/KagiPeek.app
-   spctl -a -vv build/DerivedData/Build/Products/Release/KagiPeek.app   # Developer ID only
-   xcrun stapler validate build/KagiPeek-<version>.dmg                  # notarized only
-   lipo -info build/DerivedData/Build/Products/Release/KagiPeek.app/Contents/MacOS/KagiPeek
+   codesign -dv --verbose=4 build/DerivedData/Build/Products/Release/Kaname.app
+   codesign --verify --strict build/DerivedData/Build/Products/Release/Kaname.app
+   spctl -a -vv build/DerivedData/Build/Products/Release/Kaname.app   # Developer ID only
+   xcrun stapler validate build/Kaname-<version>.dmg                  # notarized only
+   lipo -info build/DerivedData/Build/Products/Release/Kaname.app/Contents/MacOS/Kaname
    ```
 
    With the local self-signed identity `spctl` and `stapler` will fail — that build is for this
@@ -143,8 +128,8 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
    ```
 
 7. **Install locally and smoke test.** `./scripts/install.sh` (it stages the bundle, verifies the
-   signature, copies the replaced build to `~/Library/Application Support/KagiPeek/backups/`,
-   then swaps the new one in). The installer refuses an ad-hoc build: only `KagiPeek Local` or a
+   signature, copies the replaced build to `~/Library/Application Support/Kaname/backups/`,
+   then swaps the new one in). The installer refuses an ad-hoc build: only `Kaname Local` or a
    Developer ID signature may sit in `/Applications`. Then the short list:
    trigger the panel, narrow it with ⌘, run a menu item, copy a menu item, open the palette with `/`, switch
    its app scope, export Markdown, search and press Return, open Settings and check the
@@ -155,23 +140,29 @@ trusted (`security add-trusted-cert -r trustRoot -k "$KC" cert.pem`, or Keychain
 Every install keeps one backup, named for the day, the build and the identity it carried:
 
 ```
-KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app
+Kaname-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app
 ```
 
-They live in `~/Library/Application Support/KagiPeek/backups/`, never in `/Applications`
+They live in `~/Library/Application Support/Kaname/backups/`, never in `/Applications`
 (a second copy of the same bundle id is registered by LaunchServices, and an ad-hoc copy gets
 its own TCC identity). The newest five are kept; older ones are pruned by
-`scripts/backup_app.sh`. Raise or lower the count with `KAGIPEEK_BACKUP_KEEP`.
+`scripts/backup_app.sh`. Raise or lower the count with `KANAME_BACKUP_KEEP`.
 
 Roll back to one of them (copy-paste; replace `<backup.app>` with the full path):
 
 ```sh
-osascript -e 'tell application id "com.voltline.kagipeek" to quit'; sleep 2
-rm -rf /Applications/KagiPeek.app.new && ditto "<backup.app>" /Applications/KagiPeek.app.new
-rm -rf /Applications/KagiPeek.app && mv /Applications/KagiPeek.app.new /Applications/KagiPeek.app
-open /Applications/KagiPeek.app
-/usr/libexec/PlistBuddy -c "Print :KagiPeekCommit" /Applications/KagiPeek.app/Contents/Info.plist
+osascript -e 'tell application id "com.suliveevil.kaname" to quit'; sleep 2
+rm -rf /Applications/Kaname.app.new && ditto "<backup.app>" /Applications/Kaname.app.new
+rm -rf /Applications/Kaname.app && mv /Applications/Kaname.app.new /Applications/Kaname.app
+open /Applications/Kaname.app
+/usr/libexec/PlistBuddy -c "Print :KanameCommit" /Applications/Kaname.app/Contents/Info.plist
 ```
+
+A rollback to the pre-rename app is a separate move: quit `com.suliveevil.kaname`, copy the
+`KagiPeek-*.app` backup from `~/Library/Application Support/Kaname/backups/` (or the old
+`~/Library/Application Support/KagiPeek/backups/`) to `/Applications/KagiPeek.app`, then launch
+by `com.voltline.kagipeek`. Remove `/Applications/Kaname.app` first so two event taps cannot run
+at once.
 
 The last command must print the commit embedded in the backup's name; compare the two before
 declaring the rollback good. A backup carries the signature it was installed with, so a

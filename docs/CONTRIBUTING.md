@@ -7,10 +7,10 @@
 - No third-party dependencies; there is nothing to install or pin.
 
 ```sh
-xcodebuild -project KagiPeek.xcodeproj -scheme KagiPeek -configuration Debug \
+xcodebuild -project Kaname.xcodeproj -scheme Kaname -configuration Debug \
   -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
 
-swift test        # pure-logic suite (KagiPeekCore)
+swift test        # pure-logic suite (KanameCore)
 ```
 
 If your environment cannot create nested sandboxes — the symptom is
@@ -33,12 +33,12 @@ swiftc … -load-plugin-library "$PLUG/libSwiftUIMacros.dylib" \
 
 | Layer | Path | Rules |
 | --- | --- | --- |
-| Pure logic | `KagiPeek/Core/Pure` | Foundation only — no AppKit, no SwiftUI, no `NSWorkspace`. Compiled twice: into the app and into the `KagiPeekCore` SwiftPM target that `swift test` runs. |
-| AX | `KagiPeek/Core/AX` | Accessibility and `NSWorkspace` access. |
-| Input | `KagiPeek/Core/Input` | The event tap, injection, and the AppKit→pure bridges. |
-| Storage | `KagiPeek/Core/Storage` | The only code that touches disk. |
-| Engine | `KagiPeek/Core/Engine` | `ShortcutEngine` wires the layers together. |
-| UI | `KagiPeek/UI` | SwiftUI views and `NSWindow` controllers. |
+| Pure logic | `Kaname/Core/Pure` | Foundation only — no AppKit, no SwiftUI, no `NSWorkspace`. Compiled twice: into the app and into the `KanameCore` SwiftPM target that `swift test` runs. |
+| AX | `Kaname/Core/AX` | Accessibility and `NSWorkspace` access. |
+| Input | `Kaname/Core/Input` | The event tap, injection, and the AppKit→pure bridges. |
+| Storage | `Kaname/Core/Storage` | The only code that touches disk. |
+| Engine | `Kaname/Core/Engine` | `ShortcutEngine` wires the layers together. |
+| UI | `Kaname/UI` | SwiftUI views and `NSWindow` controllers. |
 
 If a decision can be expressed without AppKit, put it in `Core/Pure` and test it there. The
 row contract, list selection, the panel row builder and the header layout all moved there for
@@ -54,7 +54,7 @@ tests drifted:
 2. `UI/Settings/SettingsView.swift` — the control, on the tab it belongs to.
 3. `Core/Pure/L10n.swift` — the label in **both** languages.
 4. `README.md` — the configuration table (and the feature table if it is user-visible).
-5. `Tests/KagiPeekCoreTests` — a default-value assertion, and a decode test if the change can
+5. `Tests/KanameCoreTests` — a default-value assertion, and a decode test if the change can
    affect an existing `settings.json`.
 6. `CHANGELOG.md` — one line under `## [Unreleased]`, in the user's terms, not the type's.
 
@@ -72,15 +72,15 @@ them onto the prefix — and the documentation had been written from the comment
 - `swift test` must pass. It is pure-logic only.
 - New pure logic needs a test; new AppKit code needs a note in the pull request describing how
   you checked it by hand.
-- `Tests/KagiPeekCoreTests` is the only test target. There is no UI test target, so anything you
-  cannot reach from `KagiPeekCore` is untested by definition — another reason to keep decisions
+- `Tests/KanameCoreTests` is the only test target. There is no UI test target, so anything you
+  cannot reach from `KanameCore` is untested by definition — another reason to keep decisions
   out of the views.
 
 ## Style
 
 - Swift 6 language mode, macOS 14 deployment target, no dependencies. The app target sets
   `SWIFT_VERSION = 6.0`, `SWIFT_STRICT_CONCURRENCY = complete` and
-  `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; `Package.swift` compiles `KagiPeekCore` in
+  `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; `Package.swift` compiles `KanameCore` in
   Swift 6 mode with `StrictConcurrency`. So a new type is main-actor-isolated unless it says
   `nonisolated` — that keyword is a contract, not decoration: it is how `Diag`,
   `CrashReporter`, `KeyboardMonitor` and the `Core/Pure` types are allowed to be called from
@@ -116,7 +116,7 @@ gives two consequences worth remembering:
   only by committing and letting the integrator merge; never by leaving uncommitted files around.
 
 The main working tree stays on `main` and does integration, review and release only. Pair the
-two concepts — `branch` gives history a fork, `worktree` gives the fork its own desk:
+two concepts — `branch` gives history a parallel line, `worktree` gives that line its own desk:
 
 ```sh
 # Integrator, in the main working tree
@@ -137,7 +137,7 @@ Write each agent's absolute worktree path into that agent's own configuration or
 sessions, task lists and context are not shared, and each may run git commands itself, so a
 verbal "please stay in your directory" is not a boundary. The same applies to global side
 effects: `scripts/install.sh` writes `/Applications`, rotates backups under
-`~/Library/Application Support/KagiPeek/backups/` and reads the signing keychain. Three agents
+`~/Library/Application Support/Kaname/backups/` and reads the signing keychain. Three agents
 installing at once overwrite the same app on the same machine — worktrees cannot isolate that.
 **One integrator, one install, run outside the sandbox.** Keep `build/` and `DerivedData/` per
 worktree too: an incremental build once carried a stale `AppIcon.icns` into `/Applications`.
@@ -172,5 +172,5 @@ Include the version (**Settings → About**), macOS version, and a diagnostics e
 folders, *Export diagnostics report…* writes a single `.json` snapshot. Both live on the
 Diagnostics tab; the About tab has no export button. The archive contains permissions, the
 listener state, the last scan result, your settings, and the command that prints the matching
-log lines — no documents, no typed text, and nothing is uploaded. `KAGIPEEK_EXPORT_DIAGNOSTICS=<path>`
+log lines — no documents, no typed text, and nothing is uploaded. `KANAME_EXPORT_DIAGNOSTICS=<path>`
 does the same from a terminal when the window is the broken part.

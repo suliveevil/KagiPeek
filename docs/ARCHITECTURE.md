@@ -6,11 +6,11 @@
 > Where they disagree with the code, the code is the authority. Everything else describes what
 > the app does today.
 
-This document describes the v2.2.0 architecture. A development branch (the v2.3.0 refactor) has since pulled the engine's decision logic into pure, unit-tested modules — see [Engine state and key routing](#engine-state-and-key-routing-development-after-v220). KagiPeek 2.1.0 builds on the v2.0.0 actionable panel — the v1.2.0 rewrite replaced the v1.1 static list with live Accessibility (AX) menu scanning, a chord resolver, a search index, and a set of small SwiftUI panels; v2.0 made the panel keyboard-driven and clickable; and v2.1.0 makes it **persistent**. The panel is persistent: it stays open until you press Esc or toggle it off. A modifier pressed while it is open joins an ordered filter, and a letter pressed while that modifier is still down narrows further; the trigger key's own press is not a filter token, so the hold, the double tap and the hotkey all open on the full list of complete combinations. v2.1.0 added four placement modes, tokenized/pinyin search, Hyper-key hotkey matching, JSON storage in Application Support with per-app statistics, guided permission onboarding, a dedicated About tab, and a panel/search switch hotkey. v2.2.0 removes the separate browser window — the search palette took over its two jobs, app scope and Markdown export — puts the panel's menu items in two cards ordered by the shortcut itself, gives the menu items one contract with two recorded action keys, makes the title bar responsive, drops the two no-op "execute menu commands" switches, splits Settings into eight tabs, and isolates the app's own activation from the frontmost-app input. The panel is ordered by the shortcut itself — the menu path is a note on the menu item instead of a section heading — the title bar carries checkable ⌃ ⌥ ⇧ ⌘ chips that narrow the list, and a modifier held down is lit inside every surviving menu item's chord rather than stripped from it. The update check is still the only network code, and it runs only when you press the button.
+This document describes the v2.2.0 architecture. A development branch (the v2.3.0 refactor) has since pulled the engine's decision logic into pure, unit-tested modules — see [Engine state and key routing](#engine-state-and-key-routing-development-after-v220). Kaname 2.1.0 builds on the v2.0.0 actionable panel — the v1.2.0 rewrite replaced the v1.1 static list with live Accessibility (AX) menu scanning, a chord resolver, a search index, and a set of small SwiftUI panels; v2.0 made the panel keyboard-driven and clickable; and v2.1.0 makes it **persistent**. The panel is persistent: it stays open until you press Esc or toggle it off. A modifier pressed while it is open joins an ordered filter, and a letter pressed while that modifier is still down narrows further; the trigger key's own press is not a filter token, so the hold, the double tap and the hotkey all open on the full list of complete combinations. v2.1.0 added four placement modes, tokenized/pinyin search, Hyper-key hotkey matching, JSON storage in Application Support with per-app statistics, guided permission onboarding, a dedicated About tab, and a panel/search switch hotkey. v2.2.0 removes the separate browser window — the search palette took over its two jobs, app scope and Markdown export — puts the panel's menu items in two cards ordered by the shortcut itself, gives the menu items one contract with two recorded action keys, makes the title bar responsive, drops the two no-op "execute menu commands" switches, splits Settings into eight tabs, and isolates the app's own activation from the frontmost-app input. The panel is ordered by the shortcut itself — the menu path is a note on the menu item instead of a section heading — the title bar carries checkable ⌃ ⌥ ⇧ ⌘ chips that narrow the list, and a modifier held down is lit inside every surviving menu item's chord rather than stripped from it. The update check is still the only network code, and it runs only when you press the button.
 
 The governing constraints are:
 
-- **Observational by default, with one deliberate exception.** KagiPeek observes the menu bar and key events; it does not remap shortcuts or read text. The events it consumes are its own panel, search, and switch hotkeys plus the panel's navigation and action keys. A completed shortcut closes the panel and is **not** swallowed: the front app receives it as usual. The exception is *running a menu item*: pressing the run key, clicking a menu item, or pressing Return in the palette presses that menu item through `MenuTrigger` (`AXPress`), and replays its chord through `ShortcutInjector` (`CGEvent`, HID tap) only when there is no element or the press fails. Nothing is injected while merely browsing, and the copy key never injects.
+- **Observational by default, with one deliberate exception.** Kaname observes the menu bar and key events; it does not remap shortcuts or read text. The events it consumes are its own panel, search, and switch hotkeys plus the panel's navigation and action keys. A completed shortcut closes the panel and is **not** swallowed: the front app receives it as usual. The exception is *running a menu item*: pressing the run key, clicking a menu item, or pressing Return in the palette presses that menu item through `MenuTrigger` (`AXPress`), and replays its chord through `ShortcutInjector` (`CGEvent`, HID tap) only when there is no element or the press fails. Nothing is injected while merely browsing, and the copy key never injects.
 - **One manual network call.** The only outbound request is the update check you trigger yourself; there is no polling and no background traffic.
 - **The UI thread never waits on Accessibility.** AX calls can block for seconds in a hung app. Every scan runs off the main thread with a per-call timeout.
 - **Pure logic is testable.** Chord parsing, prefix matching, ranking, formatting, description cleanup, conflict detection, search (corpus, tokenizer, pinyin), hotkey matching, panel placement, usage statistics, Markdown export, and semantic versions live in a SwiftPM target with no AppKit dependency.
@@ -24,12 +24,12 @@ The governing constraints are:
 ## Source layout
 
 ```
-KagiPeek/
+Kaname/
 ├── App/
 │   ├── AppDelegate.swift          # lifecycle, single instance, diagnostics, login item, main menu
 │   └── Main.swift                 # AppKit entry point (no SwiftUI App/scene, so no window at launch)
 ├── Core/
-│   ├── Pure/                      # SwiftPM target KagiPeekCore (Foundation only)
+│   ├── Pure/                      # SwiftPM target KanameCore (Foundation only)
 │   │   ├── KeyChord.swift         # keys, modifiers, normalization, parsing
 │   │   ├── RowKeys.swift          # key codes, Enter alias, RowKeyRouter
 │   │   ├── BindingItem.swift      # one shortcut/action binding
@@ -122,7 +122,7 @@ KagiPeek/
 │   ├── Services/
 │   │   ├── Diag.swift             # the one diagnostic façade: the four os.Logger categories
 │   │   │                          # (scan/input/storage/ui) plus the file sink
-│   │   ├── FileLogStore.swift     # logs/kagipeek-<date>.log, rotation, redaction
+│   │   ├── FileLogStore.swift     # logs/kaname-<date>.log, rotation, redaction
 │   │   ├── ActionRecorder.swift   # last 30 action names, for a crash report
 │   │   ├── CrashReporter.swift    # signal handlers, crash/, clean-exit sentinel
 │   │   ├── DiagnosticsExporter.swift # one JSON/zip report for a bug report
@@ -150,21 +150,21 @@ KagiPeek/
 │   └── Design/                    # Theme, Localization, Interaction, TextComposition
 └── Assets.xcassets/
 
-Package.swift                      # KagiPeekCore library + KagiPeekCoreTests
-Tests/KagiPeekCoreTests/           # XCTest coverage for Core/Pure
+Package.swift                      # KanameCore library + KanameCoreTests
+Tests/KanameCoreTests/           # XCTest coverage for Core/Pure
 scripts/build_release.sh           # build → sign → notarize (optional) → DMG
 scripts/build_swiftc.sh            # fallback build for hosts where xcodebuild cannot run
 scripts/install.sh                 # atomic install, refuses ad-hoc; backups go to Application Support
 scripts/backup_app.sh              # dated, commit-tagged pre-install backups; keeps the newest 5
 scripts/publish_release.sh         # upload the DMG as a GitHub release
-scripts/setup_signing.sh           # create the stable "KagiPeek Local" identity
-Distribution/kagipeek.rb           # Homebrew cask template
+scripts/setup_signing.sh           # create the stable "Kaname Local" identity
+Distribution/kaname.rb           # Homebrew cask template
 ```
 
-`KagiPeek/Core/Pure` is compiled twice: as part of the app target and as the `KagiPeekCore` library in `Package.swift`. That is what lets `swift test` exercise the engine without launching an AppKit app or granting permissions.
+`Kaname/Core/Pure` is compiled twice: as part of the app target and as the `KanameCore` library in `Package.swift`. That is what lets `swift test` exercise the engine without launching an AppKit app or granting permissions.
 
 The tree above names the modules a reader needs to find their way; it is not an exhaustive
-file list. `ls KagiPeek/Core/Pure` is the only complete answer, and it is the one to trust when
+file list. `ls Kaname/Core/Pure` is the only complete answer, and it is the one to trust when
 a file is missing here.
 
 ## Runtime overview
@@ -246,17 +246,17 @@ For each `AXMenuItem` it reads:
 Design notes:
 
 - **Menu path is data.** The breadcrumb "File → Open Recent → …" and the note on each menu item in the panel both come from the traversal itself, so they follow whatever language and structure the app uses.
-- **No key equivalent still means a menu item.** A menu item without `AXMenuItemCmdChar` or `AXMenuItemVirtualKey` becomes a menu item with an *empty chord*: KagiPeek still does not guess a shortcut the app does not advertise, but the menu item is reachable — it is triggered by pressing it (`MenuTrigger`), which is the only way to reach it. Such menu items sort after every chorded menu item, leave the shortcut column blank, and never match a modifier prefix (they carry no modifiers to narrow by). The one structural rule borrowed here from Menu-Bar-Search: an item that has children is a submenu parent and is walked, not recorded — unless it also carries a key equivalent of its own.
+- **No key equivalent still means a menu item.** A menu item without `AXMenuItemCmdChar` or `AXMenuItemVirtualKey` becomes a menu item with an *empty chord*: Kaname still does not guess a shortcut the app does not advertise, but the menu item is reachable — it is triggered by pressing it (`MenuTrigger`), which is the only way to reach it. Such menu items sort after every chorded menu item, leave the shortcut column blank, and never match a modifier prefix (they carry no modifiers to narrow by). The one structural rule borrowed here from Menu-Bar-Search: an item that has children is a submenu parent and is walked, not recorded — unless it also carries a key equivalent of its own.
 - **The Apple menu is off by default.** Its items belong to the system, not to the app in front, and would pad every list with menu items the app does not own — so `showAppleMenu` defaults to `false` (Menu-Bar-Search's `showAppleMenu` setting). Turning it on includes them; the menu bar index is counted either way, so cached menu paths do not shift when the setting flips.
 - **AX index path.** Every recorded item carries its position in the menu tree (`axPath`, e.g. `"2,0,5"` — again from Menu-Bar-Search's `pathIndices`). An empty chord has no chord to make an id or a usage key unique, and two dynamic entries can share a path and a title; without the index they would silently merge into one menu item with one click target and one set of statistics.
 - **Depth and count are capped.** Recursion is bounded and guarded against cycles (a menu that contains itself); oversized menus are truncated rather than scanned forever.
 - **Timeouts.** `AXUIElementSetMessagingTimeout` is set to 0.35 s for the application element. A hung app cannot stall the scan queue indefinitely.
 - **Threading.** Scanning happens on a dedicated serial queue. Results are delivered to the main actor; UI state is main-actor only.
-- **Whose menus are read.** The menu bar has exactly one owning app, and during a switch it is not always the frontmost one: `AppContextService` prefers `NSWorkspace.menuBarOwningApplication` and falls back to `frontmostApplication` (Menu-Bar-Search's `menuBarOwningApplication`). KagiPeek itself is still never a source — activating its own window would otherwise replace the real app's shortcuts with the fallback catalog.
+- **Whose menus are read.** The menu bar has exactly one owning app, and during a switch it is not always the frontmost one: `AppContextService` prefers `NSWorkspace.menuBarOwningApplication` and falls back to `frontmostApplication` (Menu-Bar-Search's `menuBarOwningApplication`). Kaname itself is still never a source — activating its own window would otherwise replace the real app's shortcuts with the fallback catalog.
 - **Scanning says why it came back empty.** `MenuScanner` checks `AXIsProcessTrusted()` before walking, and every result carries a `ScanState`: `.ok`, `.noMenus` (the app exposes nothing), or `.permissionDenied` (nothing could be read at all — Menu-Bar-Search's `initState`). An empty list and a read that never happened look identical to the user, so the panel's empty state and the "built-in" badge say which one it was instead of both reading "no matching shortcuts".
 - **Cache, two layers.** In memory, results are keyed by app identity and kept for 20 seconds. On disk, one JSON entry per app (`menu-cache/menus-<identity>.json`) plus a control file recording the settings the entries were written under (Menu-Bar-Search's cache). Switching apps is the moment the disk cache exists for: it hands back the menu items the user last saw for that app instead of walking the menu bar again. Its rules are `MenuCachePolicy`:
   - **Fingerprint.** An entry is only used when it was written under the current settings; a scan-shaping setting (today `showAppleMenu`) and the entry schema go into the fingerprint, so changing either invalidates every entry without reading one.
-  - **Ten-minute cap.** Menus change while an app runs. Ten minutes is long enough that re-opening the panel for the same app — or relaunching KagiPeek — skips the AX walk, and short enough that a stale list refreshes quickly. A press inside the window re-walks the menu item's `axPath` and verifies its title, so a menu that changed under the cache resolves to nil, never to the menu item that took its place.
+  - **Ten-minute cap.** Menus change while an app runs. Ten minutes is long enough that re-opening the panel for the same app — or relaunching Kaname — skips the AX walk, and short enough that a stale list refreshes quickly. A press inside the window re-walks the menu item's `axPath` and verifies its title, so a menu that changed under the cache resolves to nil, never to the menu item that took its place.
   - **A forced reload is an explicit refresh.** The palette scope refresh, a settings change, and a permission grant bypass both caches and rescan. App launch/quit only drops the in-memory snapshots: one app starting up says nothing about the menus of the app the user is working in. There is still no live menu-bar observer, so menu edits inside the app are picked up on the next scan.
 
 A snapshot restored from disk carries menu items but no elements — `AXUIElement` cannot be serialised — so pressing such a menu item re-walks its `axPath` against the snapshot's pid with `MenuScanner.element(atAxPath:pid:expectingTitle:)`, a handful of AX calls rather than a scan, and memoises the result on the snapshot.
@@ -294,7 +294,7 @@ The AX layer keeps the element reference needed for opt-in execution; `BindingIt
 2. Does this prefix itself have completions (so a chord should stay open)?
 3. Is the pressed key absent (so the panel closes and the HUD can show)?
 
-`ConflictDetector` groups bindings by normalized chord. Entries with the same title, group, and source are treated as duplicates rather than conflicts. A group with genuinely different bindings marks every affected entry with ⚠︎ and feeds **Settings → Conflicts**. Conflicts are informational: macOS, not KagiPeek, decides which menu item actually receives a key equivalent.
+`ConflictDetector` groups bindings by normalized chord. Entries with the same title, group, and source are treated as duplicates rather than conflicts. A group with genuinely different bindings marks every affected entry with ⚠︎ and feeds **Settings → Conflicts**. Conflicts are informational: macOS, not Kaname, decides which menu item actually receives a key equivalent.
 
 `SearchCorpus` is built once per catalog and precomputes every haystack a query can hit: the lowercased title, its pinyin forms, its Latin word initials, the menu path, the rendered chord, the raw key tokens, and modifier words/symbols. `SearchIndex` remains a thin, backward-compatible entry point that builds a corpus per call.
 
@@ -324,7 +324,7 @@ Rules:
 - **Six whole-Mac actions are never run at all.** Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are matched by chord in `RestrictedActionPolicy`, not by title; the same chord is restricted in the menu section and in the system section. A click copies the chord instead of running it, a restricted row's context menu offers only the two copy actions, and both `PanelSession` and `RowRunner` refuse the run path. ⌘Q is deliberately not in the set: it quits the front app, not the Mac session.
 - The list is read at startup, when the interface language changes (the group title is localized), and whenever the app is re-activated, so edits made in System Settings are picked up without a relaunch.
 - `ConflictDetector.conflicts(in:external:)` groups app entries, system entries and config-file entries by normalized chord. Identical titles are treated as duplicates; genuinely different bindings become a conflict. Every member — including the system entry — is flagged ⚠︎ in the panel.
-- **Read-only.** KagiPeek never binds, changes, disables, or remaps a system shortcut; it only reports the collision. Reading the list needs no additional permission.
+- **Read-only.** Kaname never binds, changes, disables, or remaps a system shortcut; it only reports the collision. Reading the list needs no additional permission.
 
 ### How much a conflict bites
 
@@ -352,7 +352,7 @@ A flat list of "two things want ⌘⇧4" invites the next question — *so which
 
 `LayerVerdict` reasons from files and can be wrong. `ShortcutTester` (`Core/Input`) settles it by watching a real keypress: it installs **two listen-only event taps**, one at the head of the tap chain and one at the tail. A key that reaches the head and never arrives at the tail was swallowed by another app's tap in between — a fact, not an inference. Above the tap layer nothing is observable, so it falls back to whether an app came to the front.
 
-`LiveTestVerdict` turns that observation into one of six outcomes with an explicit tone (`confirmed` / `informative` / `inconclusive`), and names its own blind spot: past the tap layer a system shortcut can take a key without leaving a trace. While a test is listening, `ShortcutEngine` suspends every panel behaviour and all swallowing, so KagiPeek can never be the thing that ate the key.
+`LiveTestVerdict` turns that observation into one of six outcomes with an explicit tone (`confirmed` / `informative` / `inconclusive`), and names its own blind spot: past the tap layer a system shortcut can take a key without leaving a trace. While a test is listening, `ShortcutEngine` suspends every panel behaviour and all swallowing, so Kaname can never be the thing that ate the key.
 
 ## Config file sources
 
@@ -371,7 +371,7 @@ Tools that rewrite the keyboard keep their shortcuts in a file, not in a menu ba
 
 Config bindings carry `configTool`, which feeds `ShortcutLayer` and keeps the id unique per owner. They are **not** merged into the app's catalog: there is no menu item to press and no element to trigger, so a row in the app's own block would only be clickable-looking decoration. They arrive as a section of their own instead — one card per tool, folded by default (`PanelSectionID.tool`, `PanelState.toolSectionExpanded`) — where they can be searched, copied and favourited but never run; activation of a config row copies its chord. They also feed conflict detection, the combo lookup and the settings list.
 
-Scanning is **on** by default, and **Settings → Conflicts → Config file sources** can turn it off entirely, which forgets what was found and opens no file outside KagiPeek's own data folder afterwards. A scan runs at launch and on demand, deliberately *not* on every app switch: these files change when the user edits them, not when they change apps.
+Scanning is **on** by default, and **Settings → Conflicts → Config file sources** can turn it off entirely, which forgets what was found and opens no file outside Kaname's own data folder afterwards. A scan runs at launch and on demand, deliberately *not* on every app switch: these files change when the user edits them, not when they change apps.
 
 ### Combo lookup
 
@@ -405,7 +405,7 @@ While modifiers are held, the menu items that can be reached from them keep the 
 `KeyboardMonitor` installs one global event tap under the Accessibility grant. It observes `flagsChanged` and `keyDown` (plus tap-disabled notifications) and passes events through unchanged, with these exceptions:
 
 - the three recorded hotkeys (panel, search, switch) are consumed so the front app does not also receive them — through the same `HotkeyMatcher` rule used for activation, including the Hyper superset tolerance;
-- while a panel is active, its navigation keys (↑/↓/←/→, ⌃F/⌃B/⌃N/⌃P), the characters of every enabled paging pair (`,`/`.`, `[`/`]`, `-`/`=`, `;`/`'`), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette KagiPeek just opened;
+- while a panel is active, its navigation keys (↑/↓/←/→, ⌃F/⌃B/⌃N/⌃P), the characters of every enabled paging pair (`,`/`.`, `[`/`]`, `-`/`=`, `;`/`'`), whatever the two action keys are recorded to (including the keypad-Enter alias), Esc and a bare `/` are captured through `updateCapturedKeys`. `/` is captured so the app behind never also sees it — in a browser that key is *quick find*, which would otherwise open on top of the palette Kaname just opened;
 - a key that **completes** a shortcut is not swallowed: the panel closes and the event continues to the front app.
 - repeats of a captured key are swallowed too. Letting them through would move the panel selection and scroll the front app at the same time; the engine separately ignores repeats for actions that should not fire twice.
 
@@ -439,7 +439,7 @@ Additional rules:
 - **Releasing modifiers does not dismiss the panel.** There is no idle timer and no auto-hide task; the panel is dismissed by Esc, the panel/switch hotkey, or a completed shortcut. Switching the frontmost app or the active Space dismisses it as well, because its contents belong to the app it was opened over.
 - Secure input is checked before showing anything; if it is active, the panel is hidden and the trigger is ignored.
 - **Panel and search are mutually exclusive.** `showSearch()` dismisses the panel, and `activatePanel()` (via the panel hotkey) is not allowed to stack on top of search; the switch hotkey encodes the rule: search visible → panel, panel visible → search, neither → panel.
-- **The trigger is taught once.** `AppDelegate` reads `KagiPeekTriggerTipShown` from `UserDefaults` after the engine starts; if it is unset, one HUD says **Hold ⌘ or double-tap it to open the panel** and the key is written. **Settings → Trigger** keeps a **Show the trigger tip again** button that calls the same HUD.
+- **The trigger is taught once.** `AppDelegate` reads `KanameTriggerTipShown` from `UserDefaults` after the engine starts; if it is unset, one HUD says **Hold ⌘ or double-tap it to open the panel** and the key is written. **Settings → Trigger** keeps a **Show the trigger tip again** button that calls the same HUD.
 - **Panel order is announced, not labelled.** Changing `panelOrder` while the panel is visible shows its name in one HUD line (`showHUD`); the panel itself carries no permanent mode label, so the change is a one-off notification. Editing the setting in Settings while the panel is hidden stays silent.
 
 ### Engine state and key routing (development, after v2.2.0)
@@ -464,7 +464,7 @@ The decision half of the engine has been moving into `Core/Pure`, where the XCTe
 - **Two collaboration injection points keep the container pure.** `defaultTitle` is set by the engine from the localised app name; `searchChangeHandler` is the engine's `refreshSearch`, installed so that a query change re-searches without the container knowing about the catalog. `search`'s `didSet` only fires the handler when the *query* changed, so `refreshSearch()` writing results/selection/visibility back cannot loop.
 - **`ShortcutEngine` is now the coordinator**: collaborators (`settingsStore`, `usageStore`, `surface`, `hud`, `appContext`, …) plus all behaviour methods, and a single `let state = EngineState()` in place of the former declaration block. The engine seeds `state.settings`/`state.defaultTitle`/`state.searchChangeHandler` in `init` and writes state as before; SwiftUI surfaces bind straight to the container.
 - **UI wiring.** `OverlayView`, `SettingsView` and `ConflictRowView` gain `@Environment(EngineState.self) private var state` and read `state.panel`; the hosting controllers (`SurfacePanelController`, `SettingsWindowController`) inject `.environment(engine.state)`, so the `engine` environment object remains for collaborators only. The search field and the two conflict filters use explicit `Binding` values, because Observation has no projected value.
-- **Types shared between engine and state moved to file scope**: `HotkeyTarget` is now a file-level enum, and the cache keys `OrderedHitsKey`/`RowBudgetKey` live at the bottom of `EngineState.swift` (they no longer nest inside the engine). `EngineState` is part of the AppKit target, not the SwiftPM `KagiPeekCore` target, so the pure layer stays AppKit-free.
+- **Types shared between engine and state moved to file scope**: `HotkeyTarget` is now a file-level enum, and the cache keys `OrderedHitsKey`/`RowBudgetKey` live at the bottom of `EngineState.swift` (they no longer nest inside the engine). `EngineState` is part of the AppKit target, not the SwiftPM `KanameCore` target, so the pure layer stays AppKit-free.
 
 ### Engine collaborators split (development, R-3)
 
@@ -637,7 +637,7 @@ Because every panel is persistent, it is usable without the shortcut that opened
 - **The menu item contract is two recorded keys, one surface (the search palette is a run-only second surface).** `RowAction` (`.execute` / `.copy`) is applied by `performPanelRow`: `.execute` sends the menu item through `activate(rowID:)` — a group row descends one level, a disabled menu item is ignored, everything else records usage, closes the surface and triggers the menu item — while `.copy` writes the rendered chord to the pasteboard and shows the "Copied" toast without closing anything (a menu item with no shortcut has nothing to copy and says so instead of clearing the pasteboard). `RowKeyRouter.action(for:modifiers:run:copy:)` is the single implementation of that rule, shared by the panel and the palette's list; run is matched before copy, so recording both to the same chord degrades to the primary action instead of leaving one unreachable. The footer hints render the two recorded chords, so remapping cannot leave a lying hint.
 - **Triggering the menu item is the primary goal, so every run surface presses the menu item first.** `MenuTrigger.press(_:)` performs `AXPress` on the `AXUIElement` the scan retained for the menu item. That is the only way to reach a menu item with no keyboard shortcut, and for the ones that do have one it is exactly what clicking the menu would do — the app's own validation and current state apply, and a chord that was decoded wrong never gets replayed. Replaying the chord through `ShortcutInjector` is the fallback, used when the press fails (a stale element after the menu changed, an app that refuses the action) or when the menu item has no element at all (system hotkeys, fallback-catalog entries). The element does not have to belong to the frontmost app, so the panel can trigger without stealing focus; the search palette, which does take the keyboard, hands it back to the app it is scoped to afterwards.
 - **Recording is stricter for global hotkeys than for action keys.** A global hotkey must carry ⌘/⌥/⌃ or typing would fire it; a action key is only read while the panel owns the keyboard, so a bare Return is fine. Bare characters and the panel's navigation keys (Esc, arrows) are refused either way — a bare letter would break chord entry and filtering.
-- Selection, key highlighting, and completion are separate visual states, as described above; a completed shortcut is not executed by KagiPeek, so the front app still receives it. Running a menu item is the explicit exception: it closes the surface and triggers the menu item — pressing it when there is one, replaying the chord otherwise.
+- Selection, key highlighting, and completion are separate visual states, as described above; a completed shortcut is not executed by Kaname, so the front app still receives it. Running a menu item is the explicit exception: it closes the surface and triggers the menu item — pressing it when there is one, replaying the chord otherwise.
 
 Selection is index-based over `flatRowIDs` so grouped two- or three-column layouts move in reading order without flattening rows in the view. Every rebuild and page change clamps `selectionIndex` to the current page.
 
@@ -684,7 +684,7 @@ Two things that used to live in a separate window are now in its title bar:
   a query, the scope's full list when there is not. The palette presents an `NSSavePanel`
   (default file name `<App>.md`), writes UTF-8, and confirms through the HUD.
 
-The document contains a `# KagiPeek — <App>` title with a timestamp and menu item count, one
+The document contains a `# Kaname — <App>` title with a timestamp and menu item count, one
 `## <menu group>` section per first-level menu, a `| Shortcut | Action |` table per section
 (pipes escaped, disabled menu items suffixed `_(unavailable)_`), and a footer link. The exporter does
 no file I/O, which is why it is unit tested without AppKit.
@@ -700,11 +700,11 @@ no file I/O, which is why it is unit tested without AppKit.
 | Appearance | Key style, panel theme (System / Light / Dark), key position, columns, rows per page, description length, disabled items, favourite pinning and filtering, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected |
 | Statistics | Sort order, per-app statistics (press count and shortcut count per app, one collapsible section per app, *Show data folder*, *Reset statistics*), *Restore defaults* |
 | Conflicts | Config file sources (what was read, counts, rescan), type filter, related-app filter, scan timestamp, manual rescan, paged findings with **Test this combo** |
-| Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt + opening the matching System Settings pane), and a draggable KagiPeek icon |
+| Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt + opening the matching System Settings pane), and a draggable Kaname icon |
 | Diagnostics | Logging on/off, verbose logging, log folder, **Export diagnostics archive…** (.zip), live status (Accessibility, Input Monitoring, listening, catalog count), **Export diagnostics report…** (.json) |
 | About | Icon, version with commit (`v2.2.0 (836e3c3)`), system version, manual update check, data folder (open button), repository and license |
 
-The statistics tab is fed by `UsageStore.summariesByApp()`: one row per bundle identifier with the total presses and the number of distinct shortcuts, plus **System / built-in** for `*`, ordered by `UsageOrdering.apps` and expanded per app through `usageEntries(for:)` (which puts `sortMode` in its cache signature so changing the picker cannot serve the previous list). **Show data folder** opens `~/Library/Application Support/KagiPeek` in Finder.
+The statistics tab is fed by `UsageStore.summariesByApp()`: one row per bundle identifier with the total presses and the number of distinct shortcuts, plus **System / built-in** for `*`, ordered by `UsageOrdering.apps` and expanded per app through `usageEntries(for:)` (which puts `sortMode` in its cache signature so changing the picker cannot serve the previous list). **Show data folder** opens `~/Library/Application Support/Kaname` in Finder.
 
 The Settings window is a single utility window with `[.titled, .closable, .resizable]` — no `.miniaturizable`, because a minimised copy used to sit in the Dock while the menu-bar item had to hunt for it; close and the existing menu restore path remain the ways out. When the window is visible, **Open the permission guide** attaches it as a sheet (`beginSheet`), so the guide cannot end up behind Settings or in another Space; on first launch, before Settings has ever been opened, the guide still stands alone. The **Trigger** tab keeps a **Show the trigger tip again** button that replays the one-time HUD.
 
@@ -717,7 +717,7 @@ The permissions tab's icon is a real drag source (`NSItemProvider` / file URL): 
 The About tab of **Settings** offers a manual release check, and it is the only network code in the app.
 
 - `UpdateChecker` is a main-actor `ObservableObject` with states `idle`, `checking`, `upToDate`, `available(tag, url)`, and `failed`.
-- `check(currentVersion:)` sends one GET to `https://api.github.com/repos/suliveevil/KagiPeek/releases/latest` with `Accept: application/vnd.github+json`, a `KagiPeek-update-check` user agent, and a 12 s timeout.
+- `check(currentVersion:)` sends one GET to `https://api.github.com/repos/suliveevil/KagiPeek/releases/latest` with `Accept: application/vnd.github+json`, a `Kaname-update-check` user agent, and a 12 s timeout.
 - The response must contain `tag_name` and `html_url`. `SemanticVersion` strips a leading `v` and any pre-release/build suffix, then compares `major.minor.patch` against the running `CFBundleShortVersionString`.
 - A newer tag → `.available`, and the row becomes a link that opens the release page in the default browser. Equal or older → "You're up to date". Any network, HTTP, or parse failure → a short failure message.
 - **No polling, no automatic download, no installation.** Nothing runs until the button is pressed, and the request carries no user, app, or shortcut data.
@@ -736,7 +736,7 @@ The About tab of **Settings** offers a manual release check, and it is the only 
 
   Placement is recalculated each time the panel is shown or resized. The anchor snapshot is deliberately not kept between presentations: `hide()` cancels an in-flight geometry read, resets `isRefreshingGeometry`, and empties `PanelAnchorCache`; the controller also clears it on `NSWorkspace.activeSpaceDidChangeNotification` and `NSApplication.didChangeScreenParametersNotification`, because a window frame read before the change describes a window that has since moved. The next presentation reads the window and focused-element frames again in the background. While there is no snapshot, `OverlayPlacement.coverSize` returns the whole visible frame instead of a guessed fraction, so the first frame already covers whatever window is in front. `containedFrame` clamps the size to the visible frame first and adds a direction's 8 pt `screenMargin` only when both margins still fit; `.fixedSize` and `.coverWindow` then pass the frame through `clampedTop`, which shifts it down as a whole when its top would land inside `topInset = max(safeAreaTop, screenMargin)`. In native fullscreen the front window fills the screen and the visible frame equals the screen frame, so the 24 pt cover margin is clipped away: the panel matches the screen exactly and still covers the window; `.fillScreen` trims the height by that top inset and leaves the origin alone.
 - **A Space change dismisses the panel and refreshes the front app's menu.** `ShortcutEngine` observes `activeSpaceDidChangeNotification`: it calls `dismissEverything()` first, then `SpaceRescanGate` (0.75 s, per pid) drops duplicate notifications and forces one rescan of the app that is now frontmost (`space changed → forced rescan <app>`). `CatalogCoordinator.reload(force:preserveOnEmpty:)` passes the result through `CatalogPublishPolicy`: an empty list with no menu bar, when a non-empty list was already showing, is not published — the previous catalog stays and the loading state is reset — because the menu bar may not have reattached yet. An app that genuinely has no menu bar, or a revoked permission, still publishes the empty result.
-- **The search palette sits on the front window, not on the screen.** Its width is fixed at 680 pt and its height is at least the window's height (clamped to the visible frame), so it spans the front window vertically instead of a fixed 460 pt near the top edge. The frame is centred on the window's centre and clamped into the visible frame; with no window frame it falls back to the screen centre. The front app's pid is read before `NSApp.activate()`, because afterwards the frontmost app is KagiPeek itself.
+- **The search palette sits on the front window, not on the screen.** Its width is fixed at 680 pt and its height is at least the window's height (clamped to the visible frame), so it spans the front window vertically instead of a fixed 460 pt near the top edge. The frame is centred on the window's centre and clamped into the visible frame; with no window frame it falls back to the screen centre. The front app's pid is read before `NSApp.activate()`, because afterwards the frontmost app is Kaname itself.
 - **The panel is sized for the widest list of the session, not for the page on screen.** Pressing a modifier narrows the list by definition, so a window sized from the current page changed height on every press and again on release — on screen that read as the panel jumping. `PanelState.rowBudget` / `headingBudget` carry how many rows and headings the un-narrowed list shows (nothing composed, paginated, with one heading per non-empty section — the app, the system hotkeys, and each config tool that has rows while the display switch is on; with a filter standing, every tool card counts as open), and `OverlayMetrics` sizes from the larger of that budget and the rows actually drawn, so the frame holds while the list moves inside it and can never clip a row. The budget is recomputed when the catalog, the chips, the favourites-only toggle, the ignored titles or the page size change — never per keystroke. An inline filter used to have a budget of its own; the filter is gone, and with it the question of what "the list before the query" means.
 - `PanelTheme` stores System / Light / Dark, resolves against the window's
   `effectiveAppearance`, and decodes old Graphite / Midnight / Paper files onto the dark and
@@ -755,27 +755,27 @@ The About tab of **Settings** offers a manual release check, and it is the only 
 | Accessibility | `AXIsProcessTrustedWithOptions` | Menu scanning, creating the global event tap, `AXPress` execution |
 | Input Monitoring | `CGPreflightListenEventAccess` / `CGRequestListenEventAccess` | Optional fallback when key events are not delivered with Accessibility alone |
 
-Accessibility is required. Input Monitoring is a fallback, not a second mandatory gate: KagiPeek checks it separately and points to it only when the key tap is not receiving events. Missing Accessibility leaves the fallback catalog and disables triggering; missing Input Monitoring only matters on systems that gate key delivery. **Request Access** in the Permissions tab calls the system prompt and then opens the matching pane, and the tab also exposes the app as a drag source so it can be dropped into the System Settings list. Both deep links use the System Settings (macOS 13+) anchors and are spelled out once, in `PermissionCenter`.
+Accessibility is required. Input Monitoring is a fallback, not a second mandatory gate: Kaname checks it separately and points to it only when the key tap is not receiving events. Missing Accessibility leaves the fallback catalog and disables triggering; missing Input Monitoring only matters on systems that gate key delivery. **Request Access** in the Permissions tab calls the system prompt and then opens the matching pane, and the tab also exposes the app as a drag source so it can be dropped into the System Settings list. Both deep links use the System Settings (macOS 13+) anchors and are spelled out once, in `PermissionCenter`.
 
-Status is observed three ways: a 3-second poll per ungranted permission (stops once granted), a `DistributedNotificationCenter` observer for the undocumented `com.apple.accessibility.api` notification — the system posts it when an app's Accessibility trust is toggled, so a revocation while KagiPeek keeps running is acted on immediately instead of at the next activation — and a re-check whenever the app becomes active or the Mac wakes. The polls and activation re-checks stay as the fallback if the notification ever stops being posted; Input Monitoring has no equivalent notification and relies on them. Reading the system hotkey list goes through Carbon and needs no additional grant, and the update check needs no permission. See [PERMISSIONS.md](PERMISSIONS.md) for the user-facing guide.
+Status is observed three ways: a 3-second poll per ungranted permission (stops once granted), a `DistributedNotificationCenter` observer for the undocumented `com.apple.accessibility.api` notification — the system posts it when an app's Accessibility trust is toggled, so a revocation while Kaname keeps running is acted on immediately instead of at the next activation — and a re-check whenever the app becomes active or the Mac wakes. The polls and activation re-checks stay as the fallback if the notification ever stops being posted; Input Monitoring has no equivalent notification and relies on them. Reading the system hotkey list goes through Carbon and needs no additional grant, and the update check needs no permission. See [PERMISSIONS.md](PERMISSIONS.md) for the user-facing guide.
 
 ## Persistence
 
-Settings and statistics live in `~/Library/Application Support/KagiPeek/` as plain JSON files, not in `UserDefaults`. That location does not depend on the preference domain, so a reinstall or a differently signed build keeps the data.
+Settings and statistics live in `~/Library/Application Support/Kaname/` as plain JSON files, not in `UserDefaults`. That location does not depend on the preference domain, so a reinstall or a differently signed build keeps the data.
 
 ```text
-~/Library/Application Support/KagiPeek/
+~/Library/Application Support/Kaname/
   settings.json                  # { schemaVersion, settings } — user data
   usage.json                     # { schemaVersion, statistics, favorites } — user data
   conflicts-cache.json           # the last cross-app conflict scan, read at launch
   menu-cache/
     control.json                 # schema + settings fingerprint every entry was written under
     menus-<identity>.json        # one cached menu scan per app identity
-  logs/                          # kagipeek-<date>.log, last-actions.json, session.active
+  logs/                          # kaname-<date>.log, last-actions.json, session.active
   crash/                         # crash reports, one JSON file each
 ```
 
-`DataDirectory` resolves the folder (`FileManager.applicationSupportDirectory` + `KagiPeek`) and creates it on demand. `JsonFileStore` is the small shared store both stores use:
+`DataDirectory` resolves the folder (`FileManager.applicationSupportDirectory` + `Kaname`) and creates it on demand. `JsonFileStore` is the small shared store both stores use:
 
 - **Atomic writes.** The payload is encoded with `JSONEncoder` and written with `.atomic`, so a crash mid-write cannot leave a truncated file.
 - **Corrupt files are preserved, not discarded.** If `JSONDecoder` fails, the file is renamed to `<name>.corrupt-<unix timestamp>.json` (for example `settings.corrupt-1761112345.json`) and kept beside the original; the app continues with defaults. A later save writes a fresh file, and the corrupt copy remains for inspection.
@@ -802,7 +802,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 
 ## Testing and CI
 
-`Package.swift` declares `KagiPeekCore` (path `KagiPeek/Core/Pure`) and `KagiPeekCoreTests` (path `Tests/KagiPeekCoreTests`). The XCTest suite covers:
+`Package.swift` declares `KanameCore` (path `Kaname/Core/Pure`) and `KanameCoreTests` (path `Tests/KanameCoreTests`). The XCTest suite covers:
 
 - chord parsing and normalization
 - key mapping and special keys
@@ -866,11 +866,11 @@ GitHub Actions runs the job on a matrix of `macos-15` and `macos-26`, so a toolc
 
 ## Release
 
-`scripts/build_release.sh` builds Release, reads the version **from the built bundle** (`CFBundleShortVersionString`), and cross-checks it against `MARKETING_VERSION`; a mismatch or an empty value is a hard error, because a `sed` that picked the wrong copy of that setting once produced `KagiPeek-.dmg` and a `v` release tag. It signs with a Developer ID Application identity when available (and attempts `notarytool` notarization; missing credentials skip it with a warning), otherwise falls back to the stable local identity or ad-hoc signing. The self-signed branch skips `--timestamp`, so an offline build does not fail at the last step. The `.app` and the `.dmg` are both signed and verified, both are stapled when notarizing, and a `<dmg>.sha256` file is written next to the image (`shasum -a 256 "$DMG" | tee "$DMG.sha256"`).
+`scripts/build_release.sh` builds Release, reads the version **from the built bundle** (`CFBundleShortVersionString`), and cross-checks it against `MARKETING_VERSION`; a mismatch or an empty value is a hard error, because a `sed` that picked the wrong copy of that setting once produced `Kaname-.dmg` and a `v` release tag. It signs with a Developer ID Application identity when available (and attempts `notarytool` notarization; missing credentials skip it with a warning), otherwise falls back to the stable local identity or ad-hoc signing. The self-signed branch skips `--timestamp`, so an offline build does not fail at the last step. The `.app` and the `.dmg` are both signed and verified, both are stapled when notarizing, and a `<dmg>.sha256` file is written next to the image (`shasum -a 256 "$DMG" | tee "$DMG.sha256"`).
 
-`scripts/install.sh` builds, stages the bundle next to the destination, verifies the signature, swaps it in with `mv`, and copies the replaced bundle to `~/Library/Application Support/KagiPeek/backups/` through `scripts/backup_app.sh`. Backups are named `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` and the five most recent are kept; a failure mid-swap restores the newest backup. Nothing but `KagiPeek.app` is ever placed in `/Applications`: a second copy of the same bundle id is picked up by LaunchServices, and an ad-hoc copy becomes a separate TCC identity. The installer refuses an ad-hoc build outright — a stable `KagiPeek Local` or Developer ID signature is required — because an ad-hoc cdhash changes on every compile, so macOS treats each rebuild as a new app and permissions are asked again. Ad-hoc output from `scripts/build_swiftc.sh` is for `codesign --verify` in a temporary directory only. It quits the app by bundle identifier first (an AppleScript `quit`), waits up to ten seconds, and only then terminates what is left with `pkill -f` against the destination's own executable path — the path matters, because an unfiltered `pkill -f` used to match build copies and other users' instances too. `scripts/build_swiftc.sh` is the fallback build for hosts where the Xcode build system cannot run at all, because it wraps every compile in `sandbox-exec` and nested sandboxing can be denied.
+`scripts/install.sh` builds, stages the bundle next to the destination, verifies the signature, swaps it in with `mv`, and copies the replaced bundle to `~/Library/Application Support/Kaname/backups/` through `scripts/backup_app.sh`. Backups are named `Kaname-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` and the five most recent are kept; a failure mid-swap restores the newest backup. Nothing but `Kaname.app` is ever placed in `/Applications`: a second copy of the same bundle id is picked up by LaunchServices, and an ad-hoc copy becomes a separate TCC identity. The installer refuses an ad-hoc build outright — a stable `Kaname Local` or Developer ID signature is required — because an ad-hoc cdhash changes on every compile, so macOS treats each rebuild as a new app and permissions are asked again. Ad-hoc output from `scripts/build_swiftc.sh` is for `codesign --verify` in a temporary directory only. It quits the app by bundle identifier first (an AppleScript `quit`), waits up to ten seconds, and only then terminates what is left with `pkill -f` against the destination's own executable path — the path matters, because an unfiltered `pkill -f` used to match build copies and other users' instances too. `scripts/build_swiftc.sh` is the fallback build for hosts where the Xcode build system cannot run at all, because it wraps every compile in `sandbox-exec` and nested sandboxing can be denied.
 
-`Distribution/kagipeek.rb` is a Homebrew cask template. It must be copied into a `homebrew-tap` repository before `brew install --cask kagipeek` works.
+`Distribution/kaname.rb` is a Homebrew cask template. It must be copied into a `homebrew-tap` repository before `brew install --cask kaname` works.
 
 The app is not distributed through the Mac App Store. The sandbox is disabled because reading another app's menu bar and observing global key events are not possible inside the App Sandbox.
 
@@ -882,11 +882,11 @@ The app is not distributed through the Mac App Store. The sandbox is disabled be
 - **The panel has no idle timer.** It stays until Esc or the panel/switch hotkey. That is deliberate, but a panel left on screen stays there.
 - **Cover-window geometry is a snapshot.** The cover size is computed from the front window's frame when the panel opens; resizing the window afterwards does not re-place the panel until it is reopened.
 - **Hyper matching is permissive by design.** A hotkey with three or more modifiers also matches events carrying extra modifiers, so an unrelated app that adds a modifier can still trigger it. Hotkeys with fewer than three modifiers are matched exactly.
-- **Conflicts are informational.** macOS picks the winner. The system shortcut list is read-only: KagiPeek cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
+- **Conflicts are informational.** macOS picks the winner. The system shortcut list is read-only: Kaname cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
 - **Cross-app scope is a snapshot.** The palette shows the selected app's menu scan at that moment; the 20 s cache and lazy menu construction still apply, and the panel never switches away from the frontmost app.
 - **Panel execution needs live menu items.** Fallback-catalog entries copy instead of executing, and disabled menu items are not run at all.
 - **The update check is manual.** It needs network access, only compares versions, and opens the release page instead of downloading or installing anything.
-- **No remapping.** KagiPeek reports shortcuts and can optionally press a menu item; it does not define custom bindings.
+- **No remapping.** Kaname reports shortcuts and can optionally press a menu item; it does not define custom bindings.
 - **A copy key recorded on a narrowing modifier is ambiguous.** Held modifiers are stripped while narrowing, so the old default copy key ⌘↩ could not be told apart from `⌘` + `↩` and answered run. The default copy key is now plain Return and has no such collision; a custom copy key on ⌘ meets the old rule again, so copying then means releasing ⌘ first, recording it on ⇧↩, or ticking ⌘ in the title bar instead of holding it — the tick is not in the event.
 - **The tap's key-up memory is per key code.** A consumed key-down makes the tap consume that key's release whatever the modifiers are by then, which is the safe direction; it cannot distinguish two keyboards.
 - **macOS only.** It relies on AppKit, Accessibility, and Core Graphics event taps.

@@ -76,8 +76,9 @@ if [ "${1:-}" = "--prerelease" ]; then
     ARGS+=(--prerelease)
 fi
 
-# `gh` picks a repo from the git remotes and lands on `upstream` (Voltline/KagiPeek) when
-# one exists; releases belong to this fork, so the script pins it. The .sha256 sidecar is
-# what README tells users to verify against, and `release create` uploads only the DMG.
+# `gh` picks a repo from the git remotes and can land on the Voltline/KagiPeek remote when
+# one exists; releases belong to the Kaname repository, so the script pins it. The .sha256
+# sidecar is what README tells users to verify against, and `release create` uploads only
+# the DMG.
 gh "${ARGS[@]}"
 gh release upload "$TAG" "$DMG.sha256" --repo suliveevil/KagiPeek

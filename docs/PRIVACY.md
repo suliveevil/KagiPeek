@@ -1,6 +1,6 @@
 # Privacy
 
-KagiPeek reads other apps' menu bars and watches the keyboard, so it is fair to ask exactly
+Kaname reads other apps' menu bars and watches the keyboard, so it is fair to ask exactly
 what it does with either. This page is the complete list.
 
 ## What it reads
@@ -24,7 +24,7 @@ everything found and opens none of them again.
 
 ## What it writes
 
-Two JSON files in `~/Library/Application Support/KagiPeek/`:
+Two JSON files in `~/Library/Application Support/Kaname/`:
 
 - `settings.json` — your settings, including the recorded hotkeys and row keys.
 - `usage.json` — a press count and a last-used timestamp per `bundleID|chord` (800 entries at
@@ -40,7 +40,7 @@ Everything else that is written is derived or diagnostic rather than personal da
 - `menu-cache/` — one cached menu scan per app identity (`menus-<identity>.json`) plus a small
   `control.json` recording the settings the entries were written under. It holds exactly what a
   scan already read (menu titles, menu paths, key equivalents, enabled state), so re-opening the
-  panel for the same app, or relaunching KagiPeek, does not walk the menu bar again. Entries are
+  panel for the same app, or relaunching Kaname, does not walk the menu bar again. Entries are
   kept for at most 10 minutes and dropped when a scan-shaping setting changes or when you press
   "Restore defaults". An entry that cannot be decoded is dropped instead of preserved, because
   unlike settings and statistics it can be reproduced by scanning again.
@@ -66,7 +66,7 @@ reaching for the menu.
 
 - Browsing the panel injects nothing.
 - The copy key injects nothing; it only writes to the pasteboard.
-- KagiPeek never replays what you type, and never injects more than the one chord.
+- Kaname never replays what you type, and never injects more than the one chord.
 
 ## What it consumes
 
@@ -83,7 +83,7 @@ the panel closes and the event continues, so the command runs exactly once.
 
 ## Logs
 
-The app writes to the unified log under the subsystem `com.voltline.kagipeek`, in four
+The app writes to the unified log under the subsystem `com.suliveevil.kaname`, in four
 categories: `scan`, `input`, `storage`, `ui`. Entries name the app being scanned, whether a
 chord was posted and to which bundle identifier, and whether a file write failed. They do not
 contain typed text or the contents of your documents, and they stay on your machine unless you
@@ -94,16 +94,16 @@ archive…** writes a zip for exactly that purpose, and you decide who receives 
 
 Accessibility is required (menu reading and the key tap). Input Monitoring is an optional
 fallback for systems that do not deliver key events with Accessibility alone. There are no
-other grants; KagiPeek never asks for Full Disk Access, Screen Recording, or Automation. See
+other grants; Kaname never asks for Full Disk Access, Screen Recording, or Automation. See
 [PERMISSIONS.md](PERMISSIONS.md).
 
 ## Verifying this
 
 The source is GPL-2.0. The relevant files are small and easy to audit:
 
-- `KagiPeek/Core/Input/KeyboardMonitor.swift` — what is observed and what is swallowed;
-- `KagiPeek/Core/Input/ShortcutInjector.swift` (`postKey`) — the only code that posts events;
-- `KagiPeek/Core/Storage/`, `KagiPeek/Core/Services/` (`FileLogStore`, `ActionRecorder`,
-  `CrashReporter`, `ConflictCache`) and `KagiPeek/Core/AX/MenuScanCache.swift` — everything that
+- `Kaname/Core/Input/KeyboardMonitor.swift` — what is observed and what is swallowed;
+- `Kaname/Core/Input/ShortcutInjector.swift` (`postKey`) — the only code that posts events;
+- `Kaname/Core/Storage/`, `Kaname/Core/Services/` (`FileLogStore`, `ActionRecorder`,
+  `CrashReporter`, `ConflictCache`) and `Kaname/Core/AX/MenuScanCache.swift` — everything that
   writes under Application Support;
-- `KagiPeek/Core/Services/UpdateChecker.swift` — the only network code.
+- `Kaname/Core/Services/UpdateChecker.swift` — the only network code.

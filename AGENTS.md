@@ -1,7 +1,7 @@
 # AGENTS.md
 
-KagiPeek 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）。纯逻辑在
-`KagiPeek/Core/Pure`，由 SwiftPM 测试覆盖；UI/AX/Input 由 Xcode target 编译，
+Kaname 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）。纯逻辑在
+`Kaname/Core/Pure`，由 SwiftPM 测试覆盖；UI/AX/Input 由 Xcode target 编译，
 `scripts/build_swiftc.sh` 是同源码的回退路径。
 
 - 构建/安装：`scripts/install.sh` 先跑 `scripts/build_release.sh`（xcodebuild），
@@ -14,7 +14,7 @@ KagiPeek 是 macOS 菜单栏快捷键浏览器（Swift 6 / SwiftUI + AppKit）�
 
 ## git（多 agent 协作）
 
-**拓扑**：主工作树 `/Users/suliveevil/Documents/GitHub/KagiPeek` 固定在 `main`，
+**拓扑**：主工作树 `/Users/suliveevil/Documents/GitHub/Kaname` 固定在 `main`，
 只做集成、审查、发布，不在里面直接写代码。**1 个 agent = 1 个 worktree = 1 条 branch**。
 纯只读调研也开一个 `--detach` worktree，不占共享工作树。
 
@@ -87,17 +87,17 @@ worktree 隔离不了这一层。`push` 也由集成者单独决定，不由 age
 
 ## 安装、备份与签名
 
-- 安装：`scripts/install.sh`。它拒绝 ad-hoc 包；`/Applications/KagiPeek.app` 必须是
-  `KagiPeek Local`（或 Developer ID）签名。
+- 安装：`scripts/install.sh`。它拒绝 ad-hoc 包；`/Applications/Kaname.app` 必须是
+  `Kaname Local`（或 Developer ID）签名。
 - 备份：覆盖前由 `scripts/backup_app.sh` 拷到
-  `~/Library/Application Support/KagiPeek/backups/`，命名
-  `KagiPeek-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，保留最近 5 份
-  （`KAGIPEEK_BACKUP_KEEP` 可调）。
-- `/Applications` 下**只放一份** `KagiPeek.app`；备份不放 `/Applications`，也不放废纸篓。
+  `~/Library/Application Support/Kaname/backups/`，命名
+  `Kaname-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app`，保留最近 5 份
+  （`KANAME_BACKUP_KEEP` 可调）。
+- `/Applications` 下**只放一份** `Kaname.app`；备份不放 `/Applications`，也不放废纸篓。
 - ad-hoc 包只用于临时目录里的 `codesign --verify --deep --strict`。ad-hoc 没有稳定代码
   身份，每次构建 cdhash 都变，TCC 会当成新 app：权限反复授权、设置里堆僵尸条目。
-- 签名密钥**不在登录钥匙串**：`~/Library/Keychains/kagipeek-signing.keychain-db`，口令在
-  `~/Library/Application Support/KagiPeek/signing/keychain-pass`（600，绝不入库）。
+- 签名密钥**不在登录钥匙串**：`~/Library/Keychains/kaname-signing.keychain-db`，口令在
+  `~/Library/Application Support/Kaname/signing/keychain-pass`（600，绝不入库）。
   `scripts/build_swiftc.sh` 自动解锁并显式指定该钥匙串；迁移与换机器步骤见
   [docs/RELEASING.md](docs/RELEASING.md) 的「Signing keychain」。
 - 回滚命令见 [docs/RELEASING.md](docs/RELEASING.md) 的「Backups and rollback」。

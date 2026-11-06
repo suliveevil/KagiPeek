@@ -6,28 +6,28 @@ Answers to questions that come up after the first launch. For installation and p
 
 Work through these in order:
 
-1. **Is KagiPeek running?** It is a menu bar app with no Dock icon. Look for the keyboard icon in the menu bar.
+1. **Is Kaname running?** It is a menu bar app with no Dock icon. Look for the keyboard icon in the menu bar.
 2. **Is a trigger enabled?** Open **Settings → Trigger**. There are two independent switches: **Modifier gesture** and **Global hotkeys**. Turn on at least one. Both off means no trigger fires.
-3. **Is Accessibility granted?** Open **Settings → Permissions**. Accessibility is required for menu reading and for creating the key tap. If keys still do not arrive, grant **Input Monitoring** as a fallback and relaunch KagiPeek.
+3. **Is Accessibility granted?** Open **Settings → Permissions**. Accessibility is required for menu reading and for creating the key tap. If keys still do not arrive, grant **Input Monitoring** as a fallback and relaunch Kaname.
 4. **Are you in a password field?** Secure input hides the panel by design. Click into a normal window and try again.
-5. **Does the app have a menu bar?** Some games, overlays, and custom-drawn apps do not. With Accessibility granted but no menu bar, KagiPeek falls back to its built-in catalog; if the catalog is disabled you will see nothing.
+5. **Does the app have a menu bar?** Some games, overlays, and custom-drawn apps do not. With Accessibility granted but no menu bar, Kaname falls back to its built-in catalog; if the catalog is disabled you will see nothing.
 6. **Is the hold long enough, and is the trigger key the one you think?** The default pause is 0.5 s (0.3–0.9 s). The default trigger key is **Right Command**; if you press the left one, the gesture deliberately does not fire.
 7. **Is another app grabbing the hotkey?** If you use the global hotkey trigger, check for a conflict with another launcher or automation tool. Hotkeys with three or more modifiers also match when a Hyper-key tool adds a fourth modifier, so check for that too.
 
-If the menu bar icon is missing entirely, quit any duplicate copy and relaunch KagiPeek from `/Applications`.
+If the menu bar icon is missing entirely, quit any duplicate copy and relaunch Kaname from `/Applications`.
 
 ## Why does app X show no shortcuts?
 
-KagiPeek reads the app's **menu bar** through Accessibility. It can only show what the app actually advertises as a menu key equivalent.
+Kaname reads the app's **menu bar** through Accessibility. It can only show what the app actually advertises as a menu key equivalent.
 
-- Shortcuts implemented directly in custom views, toolbars, web content, or games are invisible to Accessibility and therefore to KagiPeek.
-- Some apps build their menus lazily. Open the app's menu bar once, then trigger KagiPeek again; switching apps forces a fresh scan, and the per-app cache lasts 20 seconds.
-- Some menu items intentionally have no key equivalent. KagiPeek does not guess one.
+- Shortcuts implemented directly in custom views, toolbars, web content, or games are invisible to Accessibility and therefore to Kaname.
+- Some apps build their menus lazily. Open the app's menu bar once, then trigger Kaname again; switching apps forces a fresh scan, and the per-app cache lasts 20 seconds.
+- Some menu items intentionally have no key equivalent. Kaname does not guess one.
 - If the app's menu bar is unusually large or slow, the 0.35 s AX timeout may truncate the scan. Retry after the app becomes responsive.
 
 The built-in catalog (about 100 system, text-editing, Finder, and screenshot shortcuts) fills in common cases but cannot know an app's private shortcuts.
 
-## Why is the panel empty even though KagiPeek is running?
+## Why is the panel empty even though Kaname is running?
 
 An empty panel always says which of four states it is in, in this priority:
 
@@ -46,39 +46,39 @@ The floating panel is deliberately separate: whichever app the window is browsin
 
 ## How do I export a shortcut sheet?
 
-In the search palette, press the export button and choose a location. KagiPeek writes a Markdown file named after the app you are scoped to, with one section per menu and a `Shortcut` / `Action` table per section. Unavailable items are marked `(unavailable)`, and the sheet reflects the matches on screen — or the whole list when the field is empty.
+In the search palette, press the export button and choose a location. Kaname writes a Markdown file named after the app you are scoped to, with one section per menu and a `Shortcut` / `Action` table per section. Unavailable items are marked `(unavailable)`, and the sheet reflects the matches on screen — or the whole list when the field is empty.
 
 ## Why two permissions instead of one?
 
 **Accessibility is required. Input Monitoring is an optional fallback.**
 
-- **Accessibility** lets KagiPeek read another app's menu bar, create the global key tap, and (if you opt in) press a menu item through `AXPress`. Without it, only the built-in catalog can be shown and no trigger can fire.
-- **Input Monitoring** covers the cases where macOS does not deliver key events to a tap created with Accessibility alone. On most Macs you never need it; KagiPeek checks it separately and only points you there when the key tap is not receiving events.
+- **Accessibility** lets Kaname read another app's menu bar, create the global key tap, and (if you opt in) press a menu item through `AXPress`. Without it, only the built-in catalog can be shown and no trigger can fire.
+- **Input Monitoring** covers the cases where macOS does not deliver key events to a tap created with Accessibility alone. On most Macs you never need it; Kaname checks it separately and only points you there when the key tap is not receiving events.
 
 You do not need both to get started. Grant Accessibility first, try holding ⌘, and add Input Monitoring only if the panel does not appear. See [PERMISSIONS.md](PERMISSIONS.md) for the full walkthrough.
 
-**Request** in **Settings → Permissions** opens the matching System Settings pane (Accessibility or Input Monitoring), so you do not have to find it yourself. Only Input Monitoring also raises the system authorization prompt: for Accessibility a prompt would pre-register the app without enabling it, so the entry is added by dragging the KagiPeek icon into the list.
+**Request** in **Settings → Permissions** opens the matching System Settings pane (Accessibility or Input Monitoring), so you do not have to find it yourself. Only Input Monitoring also raises the system authorization prompt: for Accessibility a prompt would pre-register the app without enabling it, so the entry is added by dragging the Kaname icon into the list.
 
-## How do I add KagiPeek to the permission list by dragging it?
+## How do I add Kaname to the permission list by dragging it?
 
-The Permissions tab shows a KagiPeek app icon that is a real drag source. Drag it into the list in **System Settings → Privacy & Security → Accessibility** (or **Input Monitoring**) to add the running app there: open the pane, then drop the icon on the list. This is the quickest fix when KagiPeek is not listed at all. You still have to switch the entry on afterwards — macOS grants nothing until you toggle it.
+The Permissions tab shows a Kaname app icon that is a real drag source. Drag it into the list in **System Settings → Privacy & Security → Accessibility** (or **Input Monitoring**) to add the running app there: open the pane, then drop the icon on the list. This is the quickest fix when Kaname is not listed at all. You still have to switch the entry on afterwards — macOS grants nothing until you toggle it.
 
-## Does KagiPeek record what I type?
+## Does Kaname record what I type?
 
 No. There is no keystroke log and no text capture. Shortcut processing is local; the only network request is the manual update check described below.
 
-- The global key tap is used to compute modifier/key state and to detect the recorded hotkeys. Events pass through to the front app untouched, except KagiPeek's own panel, search, and switch hotkeys and the panel's navigation keys, which are consumed; a shortcut that completes a menu item is **not** consumed. No event is logged, replayed, or written to disk.
+- The global key tap is used to compute modifier/key state and to detect the recorded hotkeys. Events pass through to the front app untouched, except Kaname's own panel, search, and switch hotkeys and the panel's navigation keys, which are consumed; a shortcut that completes a menu item is **not** consumed. No event is logged, replayed, or written to disk.
 - Usage statistics store a **count and a last-used timestamp per `bundleID|chord`**, not a stream of key presses. They live in `usage.json` in Application Support, are grouped by app in Settings, and can be reset.
 - Menu scans are cached in memory per app for 20 seconds. Switching apps forces a rescan, app launch/quit clears the cache, and changing the language or catalog setting refreshes it. They are not uploaded or archived.
 - Search queries are not recorded.
 - **The update check is the only network request.** It runs only when you press **Check for updates**, fetches the public GitHub release document, and sends nothing about you, your apps, or your shortcuts.
 - When macOS reports secure input (password fields, login windows), the panel hides.
 
-KagiPeek has no accounts, telemetry, or crash-reporting endpoint. See the privacy sections in the [README](../README.md#privacy).
+Kaname has no accounts, telemetry, or crash-reporting endpoint. See the privacy sections in the [README](../README.md#privacy).
 
-## Why isn't KagiPeek on the Mac App Store?
+## Why isn't Kaname on the Mac App Store?
 
-Because the App Sandbox makes the core features impossible. KagiPeek must read another app's menu bar via the Accessibility API and observe global key events with an event tap; both are outside what a sandboxed app may do. The project therefore ships as a Developer ID/notarized (or ad-hoc, for local builds) app outside the store, with the sandbox disabled.
+Because the App Sandbox makes the core features impossible. Kaname must read another app's menu bar via the Accessibility API and observe global key events with an event tap; both are outside what a sandboxed app may do. The project therefore ships as a Developer ID/notarized (or ad-hoc, for local builds) app outside the store, with the sandbox disabled.
 
 The app is also GPL-2.0 licensed. App Store distribution would impose additional terms that conflict with the license.
 
@@ -98,31 +98,31 @@ Press **⌃⌥⌘F** (default) to open the search palette, or press `/` while th
 
 ## What does the ⚠︎ next to a shortcut mean?
 
-Another binding claims the same key combination. KagiPeek lists every conflict in **Settings → Conflicts**, with a type — menu-order overlap, a system shortcut shadowing a menu item, a tool shadowing a menu item, a tool overlapping itself, system-vs-system, system-vs-tool, tool-vs-tool — and a likely winner. Clashes with enabled macOS system shortcuts are included and marked as the system layer.
+Another binding claims the same key combination. Kaname lists every conflict in **Settings → Conflicts**, with a type — menu-order overlap, a system shortcut shadowing a menu item, a tool shadowing a menu item, a tool overlapping itself, system-vs-system, system-vs-tool, tool-vs-tool — and a likely winner. Clashes with enabled macOS system shortcuts are included and marked as the system layer.
 
-The warning is informational. macOS decides which menu item actually receives the key equivalent; KagiPeek cannot change that. A conflict often means an app exposes the same shortcut twice in different menus, or that a global shortcut collides with an app menu shortcut. If the app's own behavior surprises you, the conflict list is the place to look.
+The warning is informational. macOS decides which menu item actually receives the key equivalent; Kaname cannot change that. A conflict often means an app exposes the same shortcut twice in different menus, or that a global shortcut collides with an app menu shortcut. If the app's own behavior surprises you, the conflict list is the place to look.
 
 ## Why does a macOS system shortcut show up as a conflict?
 
-macOS keeps its own system-wide shortcuts (Spotlight, Mission Control, screenshots, input-source switching, …). KagiPeek reads the enabled ones through Carbon and compares them with the app's menu shortcuts. When they collide, both entries are marked ⚠︎ and the conflict list shows the system entry under **System hotkeys** / **系统热键**.
+macOS keeps its own system-wide shortcuts (Spotlight, Mission Control, screenshots, input-source switching, …). Kaname reads the enabled ones through Carbon and compares them with the app's menu shortcuts. When they collide, both entries are marked ⚠︎ and the conflict list shows the system entry under **System hotkeys** / **系统热键**.
 
-That list is read-only. KagiPeek never binds, changes, or disables a system shortcut; change those in **System Settings → Keyboard → Keyboard Shortcuts**.
+That list is read-only. Kaname never binds, changes, or disables a system shortcut; change those in **System Settings → Keyboard → Keyboard Shortcuts**.
 
 ## Why are some system shortcuts shown as a key combination instead of a name?
 
-macOS does not publish the name of its own hotkeys; the description field is always empty. KagiPeek keeps a table of the assignments a stock Mac ships with, so common ones read as **Spotlight**, **Screenshot**, **Mission Control**. A chord outside that table — one you reassigned, or one of the enabled slots that has no function behind it — keeps the chord itself as the row's title, with the shortcut column left empty.
+macOS does not publish the name of its own hotkeys; the description field is always empty. Kaname keeps a table of the assignments a stock Mac ships with, so common ones read as **Spotlight**, **Screenshot**, **Mission Control**. A chord outside that table — one you reassigned, or one of the enabled slots that has no function behind it — keeps the chord itself as the row's title, with the shortcut column left empty.
 
 ## Why can't I run a shortcut that came from Karabiner, skhd or another config tool?
 
-Those tools implement shortcuts in their own keyboard layer, below the menu bar. KagiPeek reads their config files to warn about collisions, and those rows can appear in the panel and in search — see the next question — but they are **shown only, never executed**: clicking copies the shortcut, and the context menu says so. Replaying a key would not reach the tool's layer anyway, and guessing at it could fire the wrong action. Bind those shortcuts in the tool itself.
+Those tools implement shortcuts in their own keyboard layer, below the menu bar. Kaname reads their config files to warn about collisions, and those rows can appear in the panel and in search — see the next question — but they are **shown only, never executed**: clicking copies the shortcut, and the context menu says so. Replaying a key would not reach the tool's layer anyway, and guessing at it could fire the wrong action. Bind those shortcuts in the tool itself.
 
 ## Why don't I see the Karabiner, skhd or Alfred rows in the panel?
 
 Showing them is a separate switch, **off by default**, at **Settings → Conflicts → Config files → Show config tools in the panel and search**. A menu-shortcut cheat sheet should open on the app's own commands, not behind six tool cards. Turning it off does not stop the scan and does not empty the conflict list: the two switches are independent, and the conflict page keeps working either way. When shown, each tool is its own card and each card remembers its own fold; a filter in force opens every card, so a matching row is never hidden behind a folded one.
 
-## Why won't KagiPeek run sleep, restart, shut down, lock, log out or force quit?
+## Why won't Kaname run sleep, restart, shut down, lock, log out or force quit?
 
-Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by KagiPeek: a click says why, the copy key copies the shortcut, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.
+Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by Kaname: a click says why, the copy key copies the shortcut, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.
 
 ## Why does the panel stay open after ⌘K?
 
@@ -152,11 +152,11 @@ Esc is the panel's explicit "dismiss" gesture. It is matched on the key code bef
 
 ## Why does the shortcut I press still reach the app?
 
-Because KagiPeek only **observes** keys; it does not remap them or replay them. When you press a complete shortcut, KagiPeek uses the event to highlight the matching menu item, closes the panel, and lets the same event continue to the frontmost app. That is why the menu item runs immediately, exactly as if the panel had never been open. The events KagiPeek actually consumes are only its own hotkeys and the panel's navigation keys (arrows, Space/Return, Esc); a completed shortcut is never swallowed.
+Because Kaname only **observes** keys; it does not remap them or replay them. When you press a complete shortcut, Kaname uses the event to highlight the matching menu item, closes the panel, and lets the same event continue to the frontmost app. That is why the menu item runs immediately, exactly as if the panel had never been open. The events Kaname actually consumes are only its own hotkeys and the panel's navigation keys (arrows, Space/Return, Esc); a completed shortcut is never swallowed.
 
-## Can I use a Hyper key (⌃⌥⇧⌘) with KagiPeek?
+## Can I use a Hyper key (⌃⌥⇧⌘) with Kaname?
 
-Yes. When a recorded hotkey has **three or more modifiers**, KagiPeek accepts events that carry a **superset** of them. A Karabiner-Elements or BetterTouchTool Hyper key (usually ⌃⌥⇧⌘) therefore triggers a recorded ⌃⌥⌘ hotkey. Hotkeys with fewer than three modifiers are matched strictly, so a two-modifier shortcut is not widened.
+Yes. When a recorded hotkey has **three or more modifiers**, Kaname accepts events that carry a **superset** of them. A Karabiner-Elements or BetterTouchTool Hyper key (usually ⌃⌥⇧⌘) therefore triggers a recorded ⌃⌥⌘ hotkey. Hotkeys with fewer than three modifiers are matched strictly, so a two-modifier shortcut is not widened.
 
 Record the hotkey as usual in **Settings → Trigger** — you do not need to configure anything extra for the extra modifier. The trade-off is intentional: a three-modifier hotkey can also fire when another tool adds a modifier.
 
@@ -188,7 +188,7 @@ The panel keeps an ordered queue of what you added, and **⌫** takes back one t
 
 ## Why doesn't ⌘F filter the panel?
 
-⌘F is still the front app's chord (or one of KagiPeek's hotkeys — search is ⌃⌥⌘F by default), so it is not a filter token. The filter only accepts a lowercase letter when the modifiers on that key press are already in the queue; a letter pressed with a modifier the queue does not hold belongs to the chord/hotkey path. To narrow with F, press ⌃ **while the panel is open**, then F: the queue becomes `⌃ f` and the list keeps only menu items that carry both. An extra ⌘ on the F press is never stepped on — only a modifier already in the queue turns the letter into a filter token.
+⌘F is still the front app's chord (or one of Kaname's hotkeys — search is ⌃⌥⌘F by default), so it is not a filter token. The filter only accepts a lowercase letter when the modifiers on that key press are already in the queue; a letter pressed with a modifier the queue does not hold belongs to the chord/hotkey path. To narrow with F, press ⌃ **while the panel is open**, then F: the queue becomes `⌃ f` and the list keeps only menu items that carry both. An extra ⌘ on the F press is never stepped on — only a modifier already in the queue turns the letter into a filter token.
 
 ## Why did the panel copy instead of running the menu item?
 
@@ -196,35 +196,41 @@ It should not: the run key runs the menu item. If a menu item copies, you either
 
 ## Why did nothing happen when I pressed the run key?
 
-Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, KagiPeek presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
+Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, Kaname presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
 
 ## Why does the panel disappear in some apps or fields?
 
-macOS **secure event input** is active. Password fields, login windows, and some terminals deliberately hide key events from event taps. KagiPeek detects this, hides immediately, and does not try to work around it. Leave the secure field (or close the app holding secure input) and the panel returns.
+macOS **secure event input** is active. Password fields, login windows, and some terminals deliberately hide key events from event taps. Kaname detects this, hides immediately, and does not try to work around it. Leave the secure field (or close the app holding secure input) and the panel returns.
 
 ## Where are settings and statistics stored? How do I reset them?
 
-In **`~/Library/Application Support/KagiPeek/`**, as two plain JSON files — not in UserDefaults:
+In **`~/Library/Application Support/Kaname/`**, as two plain JSON files — not in UserDefaults:
 
 ```text
-~/Library/Application Support/KagiPeek/
+~/Library/Application Support/Kaname/
   settings.json
   usage.json
 ```
 
-Both are written atomically. If a file cannot be decoded, KagiPeek renames it to `settings.corrupt-<timestamp>.json` (or `usage.corrupt-<timestamp>.json`) and starts from defaults, so the damaged file is kept rather than silently lost. **Settings → Statistics → Show data folder** opens the folder in Finder, and the About tab shows its path.
+Both are written atomically. If a file cannot be decoded, Kaname renames it to `settings.corrupt-<timestamp>.json` (or `usage.corrupt-<timestamp>.json`) and starts from defaults, so the damaged file is kept rather than silently lost. **Settings → Statistics → Show data folder** opens the folder in Finder, and the About tab shows its path.
 
 - **Reset statistics only:** **Reset statistics** in **Settings → Statistics**.
-- **Reset all settings:** **Restore defaults** in **Settings → Statistics**, or quit KagiPeek and delete `settings.json`.
-- **Remove everything:** quit KagiPeek and move the whole `~/Library/Application Support/KagiPeek` folder to the Trash.
+- **Reset all settings:** **Restore defaults** in **Settings → Statistics**, or quit Kaname and delete `settings.json`.
+- **Remove everything:** quit Kaname and move the whole `~/Library/Application Support/Kaname` folder to the Trash.
 
 The first v2.1.0 launch migrates the old UserDefaults data (including the 1.x `com.Voltline.KagiPeek` domain) exactly once. The old defaults are left untouched afterwards; you can remove them with `defaults delete com.voltline.kagipeek` and `defaults delete com.Voltline.KagiPeek`.
 
 ## Will I lose my settings and statistics if I reinstall or update?
 
-Normally no. Because the data lives in Application Support rather than the app's preference domain, uninstalling KagiPeek (moving the app to the Trash), replacing it with a differently signed build, or updating it does not remove `settings.json` / `usage.json`. The data is lost only if you delete the folder manually, reset it, or use a "clean uninstall" tool that removes Application Support data.
+Normally no. Because the data lives in Application Support rather than the app's preference domain, uninstalling Kaname (moving the app to the Trash), replacing it with a differently signed build, or updating it does not remove `settings.json` / `usage.json`. The data is lost only if you delete the folder manually, reset it, or use a "clean uninstall" tool that removes Application Support data.
 
 The flip side: an old preferences-only cleanup command (`defaults delete`) no longer clears your statistics. Remove the folder instead.
+
+## Will my settings move over from KagiPeek?
+
+Yes, on the first launch. Kaname copies `settings.json`, `usage.json`, the menu cache, logs, crash reports and the signing material from `~/Library/Application Support/KagiPeek/` into `~/Library/Application Support/Kaname/`, skipping anything that already exists and never modifying the old folder. `backups/` is copied in the background, and an interrupted copy is retried on the next launch. The old folder stays in place until you delete it yourself.
+
+Permissions do **not** move: the bundle identifier and signing certificate changed, so macOS sees a new app. Remove the old KagiPeek rows in Accessibility and Input Monitoring, enable Kaname, and add the login item again.
 
 ## How do I switch between the panel and search?
 
@@ -243,14 +249,14 @@ It depends on the signature:
 - The **v1.1 → v1.2 upgrade always required re-granting Accessibility**, because the bundle identifier changed from `com.Voltline.KagiPeek` to `com.voltline.kagipeek`. Remove the stale entry if it remains and enable the new app.
 - The **v1.2 → v2.0 and v2.0.0 → v2.1.0 upgrades do not change the bundle identifier**, so a signed update keeps its Accessibility grant. The v1.1 → v1.2 exception above still applies if you skipped a release.
 - A **Developer ID-signed, notarized release** keeps its code identity, so later updates normally keep the grants.
-- An **ad-hoc signed build** (the default for local builds) changes identity when rebuilt. macOS may treat it as a different app: remove the old KagiPeek entry from Accessibility (and from Input Monitoring if you granted it), add the new build, and relaunch.
-- Replacing `/Applications/KagiPeek.app` with a build signed by another identity has the same effect.
+- An **ad-hoc signed build** (the default for local builds) changes identity when rebuilt. macOS may treat it as a different app: remove the old Kaname entry from Accessibility (and from Input Monitoring if you granted it), add the new build, and relaunch.
+- Replacing `/Applications/Kaname.app` with a build signed by another identity has the same effect.
 
-This is a macOS privacy protection, not a KagiPeek bug. See [PERMISSIONS.md](PERMISSIONS.md).
+This is a macOS privacy protection, not a Kaname bug. See [PERMISSIONS.md](PERMISSIONS.md).
 
 ## Why is there no Dock icon?
 
-KagiPeek is an `LSUIElement` agent app: it lives in the menu bar with no Dock icon and opens no window at launch. The menu bar icon opens the panel, the palette and Settings; ⌘, opens Settings from inside any of its windows.
+Kaname is an `LSUIElement` agent app: it lives in the menu bar with no Dock icon and opens no window at launch. The menu bar icon opens the panel, the palette and Settings; ⌘, opens Settings from inside any of its windows.
 
 ## Why can't I minimise the Settings window?
 
@@ -269,13 +275,13 @@ Yes. **Settings → Trigger** has two independent switches: **Modifier gesture**
 | Search hotkey | ⌃⌥⌘F |
 | Switch panel/search | ⌃⌥⌘S |
 
-KagiPeek does not remap application shortcuts. It reports what the app already declares.
+Kaname does not remap application shortcuts. It reports what the app already declares.
 
-macOS system shortcuts are read-only here as well: KagiPeek reports collisions with them in the conflict list, but it cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
+macOS system shortcuts are read-only here as well: Kaname reports collisions with them in the conflict list, but it cannot bind, change, or disable Spotlight, Mission Control, or any other system hotkey.
 
 ## How do I see the trigger hint again?
 
-The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and writes `KagiPeekTriggerTipShown` to `UserDefaults` so it never repeats. To replay it, open **Settings → Trigger** and press **Show the trigger tip again**; the button calls the same HUD and does not clear the flag or affect either trigger switch.
+The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and writes `KanameTriggerTipShown` to `UserDefaults` so it never repeats. To replay it, open **Settings → Trigger** and press **Show the trigger tip again**; the button calls the same HUD and does not clear the flag or affect either trigger switch.
 
 ## What is Smart order?
 
@@ -291,7 +297,7 @@ Yes. Menu items whose `AXEnabled` state is false are greyed out by default, end 
 
 ## Why does clicking a greyed-out menu item show a message?
 
-Because the app reported the menu item as unavailable, so there is no action to run. Right-clicking it opens a menu whose first line is **This menu item is unavailable right now** above the actions, and clicking the row shows the same sentence in a HUD. The notice is rate-limited: the same menu item explains itself at most once per three seconds, so repeated clicks do not stack identical toasts. A greyed row is not an error; the lock and the sentence simply say that the app's own state, not KagiPeek, is refusing.
+Because the app reported the menu item as unavailable, so there is no action to run. Right-clicking it opens a menu whose first line is **This menu item is unavailable right now** above the actions, and clicking the row shows the same sentence in a HUD. The notice is rate-limited: the same menu item explains itself at most once per three seconds, so repeated clicks do not stack identical toasts. A greyed row is not an error; the lock and the sentence simply say that the app's own state, not Kaname, is refusing.
 
 ## Why does the panel show fewer menu items than I set?
 
@@ -322,24 +328,24 @@ No. A window frame read before a Space or display change would be stale, so the 
 
 On a full-screen space the visible frame is the screen minus the top safe area — the menu bar, or the notch on a display that has one — and the panel fills that area without drawing under it, so its first rows and its footer both stay reachable. Switching Space also forces a fresh scan of the app now in front; if macOS has not put that app's menu bar back yet, the previous list is kept rather than replaced by an empty panel.
 
-## Does KagiPeek use much CPU or battery?
+## Does Kaname use much CPU or battery?
 
 It is event-driven. The key tap is idle until you press a key; menu scans happen on trigger and are cached per app for 20 seconds; nothing polls in the background. If you see sustained CPU use, note the frontmost app: a hung app with a very large menu can make AX scans expensive until the timeout kicks in.
 
 The macOS system hotkey list is read once at launch (and again after you change the interface language), and the update check runs only when you press the button.
 
-## Does KagiPeek check for updates automatically?
+## Does Kaname check for updates automatically?
 
-No. There is no background polling. **Settings → About** has a **Check for updates** button; only when you press it does KagiPeek request the latest GitHub release, compare it with the running version, and then either link to the release page, say you are up to date, or report that the check failed. It never downloads or installs anything on its own.
+No. There is no background polling. **Settings → About** has a **Check for updates** button; only when you press it does Kaname request the latest GitHub release, compare it with the running version, and then either link to the release page, say you are up to date, or report that the check failed. It never downloads or installs anything on its own.
 
-## How do I uninstall KagiPeek?
+## How do I uninstall Kaname?
 
-1. Quit KagiPeek from the menu bar.
-2. Move `/Applications/KagiPeek.app` to the Trash.
+1. Quit Kaname from the menu bar.
+2. Move `/Applications/Kaname.app` to the Trash.
 3. Optionally remove settings and statistics:
 
 ```bash
-rm -rf ~/Library/Application\ Support/KagiPeek
+rm -rf ~/Library/Application\ Support/Kaname
 defaults delete com.voltline.kagipeek        # only for a v2.0-era install
 defaults delete com.Voltline.KagiPeek        # only for a 1.x-era install
 tccutil reset Accessibility com.voltline.kagipeek
@@ -350,17 +356,17 @@ The `tccutil` commands are optional; they clear the leftover privacy entries. `L
 
 ## What are the system requirements? Is there a Windows or Linux version?
 
-KagiPeek requires macOS 14 Sonoma or later. It is built on AppKit, Accessibility, and Core Graphics event taps, all of which are macOS-only. There is no Windows or Linux version and none is planned.
+Kaname requires macOS 14 Sonoma or later. It is built on AppKit, Accessibility, and Core Graphics event taps, all of which are macOS-only. There is no Windows or Linux version and none is planned.
 
 ## Why do the shortcuts differ from the app's own cheat sheet?
 
-A cheat sheet documents what the app supports; KagiPeek reports what the app currently exposes in its menu bar, including enabled/disabled state and localized menu titles. Custom views, web apps, and context menus can support shortcuts that never appear in the menu bar, so those will not show up. Conversely, a menu item can be present but disabled, which KagiPeek greys out.
+A cheat sheet documents what the app supports; Kaname reports what the app currently exposes in its menu bar, including enabled/disabled state and localized menu titles. Custom views, web apps, and context menus can support shortcuts that never appear in the menu bar, so those will not show up. Conversely, a menu item can be present but disabled, which Kaname greys out.
 
 ## Something else is wrong
 
 Open an issue at [github.com/suliveevil/KagiPeek/issues](https://github.com/suliveevil/KagiPeek/issues) with:
 
-- macOS version and KagiPeek version
+- macOS version and Kaname version
 - the app you were in when it happened
 - whether Accessibility shows as granted (and Input Monitoring, if you needed it)
 - steps to reproduce, and a screenshot if the panel misbehaves

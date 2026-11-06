@@ -1,6 +1,6 @@
 # Release notes
 
-KagiPeek reads the frontmost app's menu bar through Accessibility and shows its shortcuts in a
+Kaname reads the frontmost app's menu bar through Accessibility and shows its shortcuts in a
 floating panel, which can also run them. These notes record what the app does, what changed
 along the way, and what to do about it when upgrading.
 
@@ -42,7 +42,7 @@ along the way, and what to do about it when upgrading.
 - **Panel placement options** — cover the front window (default, screen-centred and guaranteed
   larger than the window in both dimensions), fixed size with editable width/height, fill the
   screen, or the old "beside the window".
-- **System hotkey conflicts** — KagiPeek reads macOS symbolic hotkeys (Spotlight, Mission
+- **System hotkey conflicts** — Kaname reads macOS symbolic hotkeys (Spotlight, Mission
   Control, window tiling, …) and flags the ones that collide with the frontmost app's menu
   shortcuts. System shortcuts are read-only: nothing is bound, changed, or remapped.
 - **A title bar that fits** — three densities measured from the panel width, so the settings and
@@ -50,18 +50,18 @@ along the way, and what to do about it when upgrading.
 - **Ordering** — the statistics page orders by Smart order (decayed usage frequency), most used
   first, key order, or alphabetical.
 - **Per-app statistics, durable storage** — settings and usage live in
-  `~/Library/Application Support/KagiPeek/` as atomic JSON files, with corrupt files preserved
+  `~/Library/Application Support/Kaname/` as atomic JSON files, with corrupt files preserved
   for inspection. Statistics are grouped by app, and reinstalling the app no longer risks the
   data.
 - **Permission help** — a dedicated window with one card per permission: what it is for,
   Required/Optional, a live status, and a Grant button that fires the system prompt **and** opens
   the exact System Settings pane. A poll flips the card to a green "Permission granted" and brings
-  the window forward; the KagiPeek icon can also be dragged straight into the Accessibility list.
+  the window forward; the Kaname icon can also be dragged straight into the Accessibility list.
 - **A dedicated About tab** — version, build, system, update check, data folder, repository,
   licence, and live diagnostics (permissions, listener, menu item count).
 - **Diagnostics you can attach to a bug report** — **Settings → Diagnostics → Export diagnostics…**
   writes one JSON report: permissions, listener state, the scan result, your settings, and the
-  command that prints the matching log lines. The same report is written by `KAGIPEEK_SELFTEST=1`,
+  command that prints the matching log lines. The same report is written by `KANAME_SELFTEST=1`,
   which works while the app is already running.
 - **One panel at a time** — opening search closes the panel and vice versa; a global hotkey
   (⌃⌥⌘S by default) swaps between them.
@@ -77,9 +77,9 @@ along the way, and what to do about it when upgrading.
 - Esc closes the panel with or without modifiers. ⌫ still backs out one chord stroke, and only
   with no other modifier held, so ⌘⌫ stays an ordinary shortcut.
 - Switching to another app or another Space closes the panel; summon it again for the new app.
-- **KagiPeek no longer mistakes itself for the frontmost app.** Opening the search palette or
+- **Kaname no longer mistakes itself for the frontmost app.** Opening the search palette or
   Settings activated the app, and the catalog was then rescanned from its own menu bar — the panel
-  fell back to the built-in catalog and the palette renamed itself "KagiPeek".
+  fell back to the built-in catalog and the palette renamed itself "Kaname".
 - Nothing is injected while you browse; running a row injects that one chord and finishes.
 - The two "Execute menu commands" switches are gone. Neither had controlled anything since rows
   started replaying their chord, and one of them told users Return copies while it ran.
@@ -101,7 +101,7 @@ cd KagiPeek
 ```
 
 > Builds from a machine without a Developer ID certificate are **not notarized**, so Gatekeeper
-> warns on first launch. After downloading: `xattr -dr com.apple.quarantine /Applications/KagiPeek.app`.
+> warns on first launch. After downloading: `xattr -dr com.apple.quarantine /Applications/Kaname.app`.
 
 Either way, the app needs **Accessibility** on first launch (System Settings → Privacy &
 Security → Accessibility). Input Monitoring is only needed if key events do not arrive.
@@ -110,7 +110,7 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
 
 - **The code signature or bundle identifier changing means re-granting Accessibility.** A build
   signed by a different identity, or an ad-hoc local rebuild, is a new app to macOS: remove the
-  stale KagiPeek entry under Privacy & Security and enable the new one. A signed update that
+  stale Kaname entry under Privacy & Security and enable the new one. A signed update that
   changes neither keeps its grant.
 - **Settings and statistics move to Application Support.** The first launch reads the JSON files if
   present, otherwise migrates the previous UserDefaults payloads, including the older
