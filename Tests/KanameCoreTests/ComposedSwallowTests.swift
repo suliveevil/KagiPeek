@@ -48,6 +48,22 @@ final class ComposedSwallowTests: XCTestCase {
         XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: c, modifiers: [.option, .command])))
     }
 
+    /// ⌥⌘M while ⌥⌘ is narrowing the list: the token queue is non-empty but the letter
+    /// carries physical modifiers, so it belongs to a chord and has to reach the system.
+    /// A bare letter is still filter input and must be eaten.
+    func testModifiedLetterPassesThroughWhileFilterIsUp() {
+        var state = ComposedSwallowState()
+        state.panelIsActive = true
+        state.filter = PanelFilter(tokens: [.modifier(.option), .modifier(.command)])
+        state.catalogItems = catalog
+
+        XCTAssertFalse(ComposedSwallow.decide(
+            state,
+            event: event(key: KeyToken("m"), modifiers: [.option, .command])
+        ))
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("m"))))
+    }
+
     func testInactivePanelSwallowsNothing() {
         var state = ComposedSwallowState()
         state.panelIsActive = false
@@ -126,34 +142,53 @@ final class ComposedSwallowTests: XCTestCase {
         XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("z"), keyCode: 6)))
     }
 
-    /// While the hint layer is up a Shift + glyph is a row address, not text: the press has
-    /// to be eaten or the front app receives a stray capital letter.
-    func testShiftHintPressIsSwallowedWhileHintsAreUp() {
+    /// A tap of Shift raises the hint layer; the address that follows is a bare glyph. It
+    /// has to be eaten or the front app receives a stray character.
+    func testBareHintGlyphIsSwallowedWhileHintsAreUp() {
         var state = ComposedSwallowState()
         state.panelIsActive = true
         state.shiftHintsActive = true
+        state.hintRowCount = 36
 
-        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("A"), modifiers: [.shift])))
-        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("0"), modifiers: [.shift])))
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("0"))))
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("a"))))
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("z"))))
     }
 
-    /// The same glyph without Shift is still typing: the hint layer only owns the shifted
-    /// spelling.
-    func testUnshiftedGlyphIsNotSwallowedByTheHintLayer() {
+    /// A glyph past the last visible row addresses nothing. Swallowing it would make the
+    /// key vanish without running a row, so the tap and the key handler share one page
+    /// boundary instead of each applying their own.
+    func testGlyphPastThePageIsNotSwallowed() {
         var state = ComposedSwallowState()
         state.panelIsActive = true
         state.shiftHintsActive = true
+        state.hintRowCount = 10
 
+        XCTAssertTrue(ComposedSwallow.decide(state, event: event(key: KeyToken("9"))))
         XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("a"))))
+        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("z"))))
     }
 
-    /// With the panel closed (the search palette is its own surface) Shift belongs to the
-    /// text field, so nothing is swallowed even if a stale snapshot still says hints are up.
+    /// A press still carrying a modifier is not a hint address: Shift was tapped to raise
+    /// the layer, not held into the addressing keystroke.
+    func testModifiedGlyphIsNotABareHintAddress() {
+        var state = ComposedSwallowState()
+        state.panelIsActive = true
+        state.shiftHintsActive = true
+        state.hintRowCount = 36
+
+        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("a"), modifiers: [.shift])))
+    }
+
+    /// With the panel closed (the search palette is its own surface) the glyph belongs to
+    /// the text field, so nothing is swallowed even if a stale snapshot still says hints
+    /// are up.
     func testHintLayerStaysOutOfTheSearchPalette() {
         var state = ComposedSwallowState()
         state.panelIsActive = false
         state.shiftHintsActive = true
+        state.hintRowCount = 36
 
-        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("A"), modifiers: [.shift])))
+        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("a"))))
     }
 }

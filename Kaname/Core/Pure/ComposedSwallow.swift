@@ -27,10 +27,18 @@ nonisolated struct ComposedSwallowState {
     var copyRowKey: HotkeySpec?
     /// The punctuation pairs the settings currently enable, for `PanelKeyIntake`.
     var pagingPairs: Set<PagingPair> = [.semicolonQuote]
+    /// The bindings a chord can resolve against: the front app's menu items *and* the
+    /// system hotkeys, the same set the panel draws its rows from. A visible row that the
+    /// tap cannot match would be swallowed for no reason.
     var catalogItems: [BindingItem] = []
-    /// `panel.shiftHintActive`: the first 36 rows are addressed by 0–9 / a–z, so a
-    /// Shift + glyph press belongs to the panel and must not reach the front app as text.
+    /// `panel.shiftHintActive`: a tap of Shift has labelled the first 36 rows with 0–9 /
+    /// a–z. The labels stay up after Shift is released, and a bare glyph press belongs to
+    /// the panel rather than reaching the front app as text.
     var shiftHintsActive = false
+    /// Rows on the current page. The key handler only runs a glyph that names a row on
+    /// screen, so the swallow decision shares that boundary: swallowing a glyph that
+    /// addresses nothing is a keypress that vanishes without a trace.
+    var hintRowCount = 0
 }
 
 /// Whether a key event has to be consumed because the panel is composing a stroke.
@@ -47,20 +55,24 @@ nonisolated enum ComposedSwallow {
     static func decide(_ state: ComposedSwallowState, event: KeyEvent) -> Bool {
         guard !state.isTestingShortcut else { return false }
         guard state.panelIsActive else { return false }
-        guard let key = event.key else { return false }
-        // The Shift-hint layer owns a Shift + glyph press. It reaches here before the
-        // composition rules because nothing is latched while hints are up: the panel is
-        // open, Shift is down, and the glyph is a row address — if it were let through the
-        // app would get a stray capital letter.
+        // While the hint layer is up a bare glyph is a row address, not text. It reaches
+        // here before the composition rules because the address must not be offered to
+        // chord composition either. The same resolver the key handler uses answers this,
+        // so a press is swallowed exactly when a row will run for it — no swallowed key
+        // that vanishes, and no row key that also types into the front app.
         if state.shiftHintsActive,
-           event.modifiers == [.shift],
-           ShiftHintLayer.index(forCharacter: key.raw) != nil { return true }
-        // A non-empty token queue owns its own input: letters the filter accepts and ⌫
-        // would otherwise reach the front app as text or a deletion. The Shift hint layer
-        // keeps priority, and a search palette never reaches here (`panelIsActive`).
+           event.modifiers.isEmpty,
+           ShiftHintLayer.index(for: event, pageRowCount: state.hintRowCount) != nil { return true }
+        guard let key = event.key else { return false }
+        // A non-empty token queue owns its own input: bare letters the filter accepts and
+        // ⌫ would otherwise reach the front app as text or a deletion. A letter still
+        // carrying physical modifiers belongs to a chord, so `letter(for:)` refuses it and
+        // this press passes through — that is how ⌥⌘M reaches the system while ⌥⌘ narrows
+        // the list. The Shift hint layer keeps priority, and a search palette never reaches
+        // here (`panelIsActive`).
         if !state.filter.isEmpty, !state.shiftHintsActive {
             if event.keyCode == KeyCode.delete { return true }
-            if PanelFilterPlan.letter(for: event, filter: state.filter) != nil { return true }
+            if PanelFilterPlan.letter(for: event) != nil { return true }
         }
         guard state.hasLatchedModifiers else { return false }
         if event.modifiers.isEmpty, key == .backspace { return true }

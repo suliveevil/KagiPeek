@@ -174,6 +174,10 @@ final class ShortcutEngine: ObservableObject {
     /// The Esc key-down that closed a context menu. Its key-up can arrive after the menu
     /// stopped tracking, and must not be mistaken for a fresh Esc aimed at the panel.
     private var contextMenuConsumedEscape = false
+    /// The Esc key-down that only left the Shift-hint layer. Its key-up must not close the
+    /// panel underneath it: Esc has two exits, and the release belongs to the one the press
+    /// took.
+    private var escapeConsumedByHintLayer = false
     /// A tap that tore itself down is rebuilt later, not immediately: rebuilding it into the
     /// same stall would repeat the whole episode within a second.
     private var monitorRetry: DispatchWorkItem?
@@ -804,13 +808,15 @@ final class ShortcutEngine: ObservableObject {
                 break
             }
         }
-        // A lone Shift is the hint layer: labels instead of chords, and Shift + glyph runs
-        // the row. Anything else down with it is a real narrowing prefix, so the hints step
-        // aside — the two would otherwise fight over the same glyph press. The tap reads the
-        // flag through the published snapshot, so the flip is pushed before the rebuild.
-        let hintsNow = modifiers == [.shift]
-        if state.panel.shiftHintActive != hintsNow {
-            state.panel.shiftHintActive = hintsNow
+        // A tap of Shift flips the hint layer on — and a second one flips it off. The mode
+        // stays on after the key comes back up, so the row-address keys are pressed bare.
+        // Keeping a modifier physically down while the row's own chord is replayed is what
+        // made ⇧⌘N reach the front app, and ⇧3 arrive as `#` rather than `3`; a sticky
+        // mode has neither problem. The flip is pushed to the tap before the rebuild,
+        // because the addressing key-down can arrive immediately.
+        let shiftWentDown = !previous.contains(.shift) && modifiers.contains(.shift)
+        if shiftWentDown, modifiers == [.shift] {
+            state.panel.shiftHintActive.toggle()
             publishInputState()
         }
         // A lone hyper press (⌃⌥⇧⌘) is the user's "Escape" key: do not narrow the panel to a
@@ -911,6 +917,29 @@ final class ShortcutEngine: ObservableObject {
             return
         }
 
+        // Esc leaves the hint layer before it leaves the panel: the labels are an overlay on
+        // the same list, so one Esc drops them and a second one closes the surface. The
+        // key-up has to be told which exit the press took, or `handleKeyUp` would close the
+        // panel on release anyway.
+        if state.panel.shiftHintActive, event.keyCode == KeyCode.escape {
+            state.panel.shiftHintActive = false
+            escapeConsumedByHintLayer = true
+            rebuildPanel()
+            updateKeyCapture()
+            return
+        }
+
+        // The hint layer answers before the filter and the router: a bare 0–9 / a–z is a row
+        // address, not a letter to filter by and not a chord stroke. Run the row the same
+        // way a click or the run key does — pressing the menu item through accessibility,
+        // on the key-down — so the row's own rules (disabled items, restricted actions,
+        // deeper levels) apply and nothing waits for a modifier to be released.
+        if let rowID = shiftHintRowID(for: event) {
+            noteGestureUse(.none, event: event)
+            panel.performPanelRow(rowID: rowID, action: .execute)
+            return
+        }
+
         // The token queue answers before the router: a letter that the filter owns must not
         // become a chord stroke, and ⌫ while the queue is non-empty pops a token instead of
         // going up a level.
@@ -951,14 +980,10 @@ final class ShortcutEngine: ObservableObject {
 
     /// The decision is made in pure code (`KeyEventRouter`), exactly as the walk used to run:
     /// hotkeys first (they answer in any phase), then the phase, then the panel's own keys,
-    /// then chord composition. `handleKeyDown` only executes what this returns.
+    /// then chord composition. The hint layer and the filter queue have already claimed
+    /// their keys in `handleKeyDown`, so what reaches here is a navigation key or a chord.
+    /// `handleKeyDown` only executes what this returns.
     private func routeKeyDown(_ event: KeyEvent) -> KeyDownAction {
-        // The Shift-hint layer answers before anything else: the typed glyph is not a chord
-        // stroke, it is a row address, so it must not be offered to chord composition or to
-        // the front app.
-        if let hinted = shiftHintItem(for: event) {
-            return .replayComposed(item: hinted, probe: hinted.chord)
-        }
         return KeyEventRouter.route(
             event,
             in: RoutingContext(
@@ -967,31 +992,34 @@ final class ShortcutEngine: ObservableObject {
                 panel: state.panel,
                 prefix: state.prefix,
                 pending: state.pending,
-                items: state.catalog.items
+                items: state.chordItems
             )
         )
     }
 
-    /// The row a Shift + glyph press addresses, or nil when the hint layer is not in charge.
+    /// The id of the row a bare hint glyph addresses, or nil when the hint layer is off.
     ///
-    /// Only the top level of the panel carries hints: one level down the rows are the
-    /// continuations of a chord, and numbering them would answer a question the user did not
-    /// ask. The search palette never reaches here — while it is visible the text field owns
-    /// Shift, which is why the panel and the palette are separate surfaces.
+    /// Shift only *toggles* the layer; the address itself is an unmodified key, so the
+    /// glyph arrives as `3` or `f` and shares no modifier state with the row's chord.
+    /// Only the top level carries hints: one level down the rows are the continuations of
+    /// a chord, and numbering them would answer a question the user did not ask. The
+    /// search palette never reaches here — it is a separate surface with its own text
+    /// field.
     ///
     /// The glyph addresses the current page's visible rows only: the numbers restart with
-    /// every page, so a glyph that belongs to another page must not run it.
-    private func shiftHintItem(for event: KeyEvent) -> BindingItem? {
+    /// every page, so a glyph that belongs to another page must not run it. `flatRowIDs` is
+    /// the list the panel drew those rows from, so the id it produces is the one the row
+    /// runner expects — no second lookup that could disagree with the display.
+    private func shiftHintRowID(for event: KeyEvent) -> String? {
         guard state.phase == .active,
               state.panel.shiftHintActive,
               state.prefix.isEmpty,
-              event.modifiers == [.shift],
-              let raw = event.key?.raw,
+              event.modifiers.isEmpty,
               let index = ShiftHintLayer.index(
-                  forCharacter: raw,
+                  for: event,
                   pageRowCount: state.panel.flatRowIDs.count
               ) else { return nil }
-        return panel.item(atVisibleRowIndex: index)
+        return state.panel.flatRowIDs[index]
     }
 
     /// Two gestures watch the keys that pass through here.
@@ -1132,6 +1160,10 @@ final class ShortcutEngine: ObservableObject {
                 contextMenuConsumedEscape = false
                 return
             }
+            if escapeConsumedByHintLayer {
+                escapeConsumedByHintLayer = false
+                return
+            }
             dismissPanel()
         }
     }
@@ -1160,8 +1192,9 @@ final class ShortcutEngine: ObservableObject {
             runRowKey: state.settings.runRowKey,
             copyRowKey: state.settings.copyRowKey,
             pagingPairs: state.settings.pagingPairs,
-            catalogItems: state.catalog.items,
-            shiftHintsActive: state.panel.shiftHintActive
+            catalogItems: state.chordItems,
+            shiftHintsActive: state.panel.shiftHintActive,
+            hintRowCount: state.panel.flatRowIDs.count
         )
         monitor.updateComposedSwallowState(snapshot)
     }
@@ -1271,6 +1304,7 @@ final class ShortcutEngine: ObservableObject {
         // full chords instead of arriving narrowed.
         state.modifierTap.reset()
         state.panel.heldModifiers = []
+        escapeConsumedByHintLayer = false
         // A sequence belongs to one panel session: opening a new one starts from nothing.
         state.panel.latchedModifiers = []
         state.panel.latchedOrder = []
@@ -1291,6 +1325,7 @@ final class ShortcutEngine: ObservableObject {
         state.prefix = .empty
         state.hyperEscape = HyperEscape()
         state.modifierTap.reset()
+        escapeConsumedByHintLayer = false
         state.panel = .hidden
         // The filter corpus is the biggest cache this session holds, and only a visible panel
         // can ask for it. The next open rebuilds it from whatever catalog is current.

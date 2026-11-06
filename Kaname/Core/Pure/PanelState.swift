@@ -24,8 +24,8 @@ nonisolated struct PanelRow: Identifiable {
     let isCompleted: Bool
     /// Pinned by the user.
     let isFavorite: Bool
-    /// The Shift-hint glyph (0–9, a–z) standing in for the chord while Shift is held. Nil
-    /// means the chord column shows the shortcut as usual.
+    /// The Shift-hint glyph (0–9, a–z) standing in for the chord while the hint layer is
+    /// up. Nil means the chord column shows the shortcut as usual.
     let hintLabel: String?
     /// Which source owns this row. The view uses it to decide whether a right-click may
     /// offer Run at all (config rows never run).
@@ -36,6 +36,10 @@ nonisolated struct PanelRow: Identifiable {
     /// Whether the item has a chord at all. A row without one cannot copy a shortcut and
     /// falls back to its menu path.
     var hasChord: Bool = true
+    /// Why the reachability audit decided this row cannot be triggered right now, or nil
+    /// when its last key does reach the front app. A visible row that silently does nothing
+    /// is worse than no row, so the view warns in the gutter.
+    var unreachableReason: PanelTriggerAudit.Reason? = nil
 
     /// The chord as plain text — the segmented form joined back together, so the two can
     /// never drift.
@@ -99,9 +103,12 @@ nonisolated struct PanelState {
     /// ⌃⌥⇧⌘ order — ticking ⌘ and then ⌥ and pressing ⌫ must drop the ⌥.
     var latchedOrder: [ModifierSet] = []
     var completedRowID: String?
-    /// Shift is down with no other modifier: the first 36 rows show their hint labels and a
-    /// Shift + glyph press runs the matching row. Kept in the snapshot because the tap's
-    /// swallow decision reads it, and because the rows have to be rebuilt when it flips.
+    /// A tap of Shift toggled the hint layer: the first 36 rows show their 0–9 / a–z labels
+    /// and a bare glyph press runs the matching row. Sticky — it survives the Shift release,
+    /// so the addressing key carries no modifier — and cleared when the row runs, Shift is
+    /// tapped again, or Esc leaves the layer without closing the panel. Kept in the snapshot
+    /// because the tap's swallow decision reads it, and because the rows have to be rebuilt
+    /// when it flips.
     var shiftHintActive = false
     /// The config-tool cards the user opened. Empty on every new panel session: the tool
     /// shortcuts are the third source and should not push the app's own list off the first

@@ -101,14 +101,14 @@ final class PanelSortOrderTests: XCTestCase {
         XCTAssertEqual(SettingsMigrator.migrate(payload).panelOrder, .byModifier)
     }
 
-    func testCurrentSchemaWritesVersionElevenAndTheOrder() throws {
+    func testCurrentSchemaWritesVersionTwelveAndTheOrder() throws {
         var settings = AppSettingsSnapshot()
         settings.panelOrder = .byMenuGroup
         let payload = SettingsPayload(schemaVersion: AppSettingsSnapshot.currentSchemaVersion, settings: settings)
         let data = try JSONEncoder().encode(payload)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(object["schemaVersion"] as? Int, 11)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 12)
         let storedSettings = try XCTUnwrap(object["settings"] as? [String: Any])
         XCTAssertEqual(storedSettings["panelOrder"] as? String, "byMenuGroup")
     }

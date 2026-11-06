@@ -949,6 +949,12 @@ private struct OverlayPanelContentView: View {
                     .accessibilityHidden(true)
             }
             Text(row.title)
+                // A hint glyph sits at the far end of the row, a long way from the name it
+                // addresses. Underlining the addressable names in the same accent colour as
+                // the badge gives the eye an anchor on this side too, so a glance is less
+                // likely to land on the row above or below and run the wrong command.
+                // `hintLabel` is non-nil only while the hint layer is up.
+                .underline(row.hintLabel != nil, color: Color.accentColor.opacity(0.65))
                 .font(.system(size: TypeScale.body, weight: row.isCompleted ? .semibold : .regular))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -998,6 +1004,17 @@ private struct OverlayPanelContentView: View {
             .frame(width: width, alignment: hugsChord ? .trailing : .leading)
     }
 
+    /// Why the audit says this row cannot be triggered. The reason travels with the row as
+    /// an enum; only the view turns it into words, so the pure layer stays language-free.
+    private func auditReasonKey(_ reason: PanelTriggerAudit.Reason) -> L10nKey {
+        switch reason {
+        case .claimedByFilter: return .auditReasonClaimedByFilter
+        case .capturedByPanelKey: return .auditReasonCapturedByPanelKey
+        case .unresolvedByRouter: return .auditReasonUnresolvedByRouter
+        case .unmappableKey: return .auditReasonUnmappableKey
+        }
+    }
+
     /// The row's trailing slot: conflict badge, sub-level chevron and favourite star, always
     /// the same width.
     ///
@@ -1010,12 +1027,27 @@ private struct OverlayPanelContentView: View {
     /// recognisable whichever columns are showing.
     private func gutter(_ row: PanelRow) -> some View {
         HStack(spacing: RowLayout.gutterSpacing) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: TypeScale.micro))
-                .foregroundStyle(Theme.warning.opacity(0.85))
-                .frame(width: 12)
-                .opacity(row.hasConflict ? 1 : 0)
-                .accessibilityHidden(!row.hasConflict)
+            // One warning slot, two meanings. An unreachable row is the more serious of
+            // the two — the shortcut in front of the user does nothing — so it takes the
+            // slot, in the same colour the panel uses for actions it will not run. Neither
+            // marker may change the gutter width: a warning must not reflow the row it
+            // warns about.
+            Group {
+                if let reason = row.unreachableReason {
+                    Image(systemName: "bolt.slash.fill")
+                        .font(.system(size: TypeScale.micro))
+                        .foregroundStyle(palette.restrictedText)
+                        .help(localization.text(auditReasonKey(reason)))
+                        .accessibilityLabel(Text(localization.text(auditReasonKey(reason))))
+                } else {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: TypeScale.micro))
+                        .foregroundStyle(Theme.warning.opacity(0.85))
+                }
+            }
+            .frame(width: 12)
+            .opacity(row.unreachableReason != nil || row.hasConflict ? 1 : 0)
+            .accessibilityHidden(row.unreachableReason == nil && !row.hasConflict)
             Image(systemName: "chevron.right")
                 .font(.system(size: TypeScale.micro, weight: .bold))
                 .foregroundStyle(palette.tertiaryText)
@@ -1039,7 +1071,7 @@ private struct OverlayPanelContentView: View {
     private func keyLabel(_ row: PanelRow, width: Double, alignment: Alignment) -> some View {
         Group {
             if let hint = row.hintLabel {
-                // Shift is held: the hint glyph stands in for the chord, so the row answers
+                // Hint layer up: the glyph stands in for the chord, so the row answers
                 // "which key runs me" without the user reading the shortcut first.
                 Text(hint)
                     .font(.system(size: TypeScale.caption, weight: .semibold, design: .rounded))
@@ -1226,8 +1258,8 @@ private struct OverlaySearchContentView: View {
 // MARK: - Footer
 
 /// The footer: search count, panel paging, and the action hint. Reads `search.*`, the
-/// panel's page fields and the remappable run/copy keys, so unrelated state changes do
-/// not redraw it.
+/// panel's page fields, `shiftHintActive` and the remappable run/copy keys, so unrelated
+/// state changes do not redraw it.
 private struct OverlayFooterView: View {
     @EnvironmentObject private var engine: ShortcutEngine
     @Environment(EngineState.self) private var state
@@ -1285,9 +1317,12 @@ private struct OverlayFooterView: View {
             Text(footerHint(layout: layout))
                 .font(.system(size: TypeScale.caption))
                 // This line is the only place the panel teaches its own keys; at 32 % white
-                // it measured 2.5:1, the faintest text on the surface.
-                .foregroundStyle(palette.secondaryText)
+                // it measured 2.5:1, the faintest text on the surface. While the hint layer
+                // is up it borrows the same accent the row labels use, so the footer and the
+                // labelled rows read as one mode.
+                .foregroundStyle(state.panel.shiftHintActive ? palette.keyHighlight : palette.secondaryText)
                 .lineLimit(1)
+                .truncationMode(.tail)
         }
         .padding(.horizontal, 16)
     }
@@ -1303,20 +1338,34 @@ private struct OverlayFooterView: View {
             // The palette is run-only: Return replays the shortcut and there is no copy key.
             return localization.text(.searchHintRun)
         }
-        guard state.panel.isPinned else { return localization.text(.overlayHint) }
+        // The hint layer is a sticky mode with two exits and no other visible clue. Name
+        // the way in before it is up and both ways out while it is; the row labels are the
+        // primary information then, so the run/copy keys step aside.
+        if state.panel.shiftHintActive {
+            switch layout {
+            case .full, .tight: return localization.text(.panelHintActive)
+            case .minimal: return localization.text(.panelHintActiveCompact)
+            }
+        }
+        let enter = localization.text(.panelHintEnter)
+        guard state.panel.isPinned else {
+            return enter + " · " + localization.text(.overlayHint)
+        }
         // A deleted row key is `nil`; the hint drops only the action it no longer has.
         let run = settings.runRowKey.map { KeyFormatter.render($0.chord, style: settings.keyStyle) }
         let copy = settings.copyRowKey.map { KeyFormatter.render($0.chord, style: settings.keyStyle) }
+        let base: String
         switch layout {
         case .full:
-            if let run, let copy { return localization.format(.panelActionHintSearch, run, copy) }
-            return rowHint(run: run, copy: copy)
+            if let run, let copy { base = localization.format(.panelActionHintSearch, run, copy) }
+            else { base = rowHint(run: run, copy: copy) }
         case .tight:
-            if let run, let copy { return localization.format(.panelActionHint, run, copy) }
-            return rowHint(run: run, copy: copy)
+            if let run, let copy { base = localization.format(.panelActionHint, run, copy) }
+            else { base = rowHint(run: run, copy: copy) }
         case .minimal:
-            return rowHint(run: run, copy: copy)
+            base = rowHint(run: run, copy: copy)
         }
+        return enter + " · " + base
     }
 
     /// The narrow forms, for a footer that has one action key or none.

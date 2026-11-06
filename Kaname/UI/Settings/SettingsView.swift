@@ -148,6 +148,14 @@ struct SettingsView: View {
 
                 Toggle(localization.text(.rankingHUD), isOn: $store.settings.showExecutedHUD)
 
+                Toggle(
+                    localization.text(.settingsAutoAuditUnreachable),
+                    isOn: $store.settings.autoAuditUnreachableShortcuts
+                )
+                Text(localization.text(.settingsAutoAuditHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
                 Toggle(localization.text(.generalShowDockIcon), isOn: $store.settings.showDockIcon)
                 Text(localization.text(.generalShowDockIconHint))
                     .font(.footnote)

@@ -94,7 +94,9 @@ update this file before relying on it again.
   outside `.active` (the search palette, for instance) letters stay in the field; the arrows and
   the four paging pairs are unaffected, and the `PanelTriggerNarrow` rule that the trigger key does
   not narrow is unchanged. Added `PanelFilterTests`, `PanelFilterPlanTests`; `swift test`
-  726 → 741.
+  726 → 741. A later fix narrowed the letter rule: only a *bare* letter becomes a token, so
+  ⌥⌘M / ⌥⌘F stay chords while their modifiers narrow the list, and `PanelTriggerAudit` marks
+  listed rows whose key press cannot reach the app.
 - **Panel geometry invalidation and Space rescan (G1–G4)**: `containedFrame` now clamps the size to
   the visible area first, then decides per direction whether the 8 pt `screenMargin` still fits —
   taking 0 for that direction when it does not, so a screen-sized frame is no longer pushed off

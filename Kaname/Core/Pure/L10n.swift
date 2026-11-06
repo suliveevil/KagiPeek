@@ -103,6 +103,10 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case pagingPairCommaPeriod, pagingPairBrackets, pagingPairMinusEqual, pagingPairSemicolonQuote
     case panelActionHint, panelActionHintSearch, panelActionHintCompact
     case panelCopyHintCompact, panelEscCloseHint
+    case panelHintEnter, panelHintActive, panelHintActiveCompact
+    case auditReasonClaimedByFilter, auditReasonCapturedByPanelKey
+    case auditReasonUnresolvedByRouter, auditReasonUnmappableKey
+    case settingsAutoAuditUnreachable, settingsAutoAuditHint
 
     // Overlay
     case overlayNoCandidates, overlayNoCandidatesHint, overlayScanning, overlayPageFormat, overlayUnavailableBadge
@@ -620,6 +624,40 @@ nonisolated enum L10n {
         // A row key can be deleted; the footer drops only the action that has no key.
         .panelCopyHintCompact: ("%1$@ copy · Esc close", "%1$@ 复制 · Esc 关闭"),
         .panelEscCloseHint: ("Esc close", "Esc 关闭"),
+        // The hint layer is a mode with two exits and no other visible clue: the footer
+        // names the way in before it is entered, and the ways out while it is up.
+        .panelHintEnter: ("⇧ hints", "⇧ 标记"),
+        .panelHintActive: (
+            "0–9 / a–z run · ⇧ or Esc leave hints",
+            "0–9 / a–z 执行 · ⇧ 或 Esc 退出标记"
+        ),
+        .panelHintActiveCompact: ("⇧ / Esc leave hints", "⇧ / Esc 退出标记"),
+        // Why a row the panel shows cannot be triggered by its own shortcut. These name
+        // Kaname's routing, never the shortcut's definition.
+        .auditReasonClaimedByFilter: (
+            "Its key becomes a filter token instead of a shortcut",
+            "这一键被当成筛选字符，快捷键不会执行"
+        ),
+        .auditReasonCapturedByPanelKey: (
+            "The panel uses this key for one of its own actions",
+            "提示面板把这个键用作自己的操作键"
+        ),
+        .auditReasonUnresolvedByRouter: (
+            "The key router cannot find this shortcut",
+            "按键路由查不到这条快捷键"
+        ),
+        .auditReasonUnmappableKey: (
+            "This key has no virtual key code to replay",
+            "这个键没有可回放的虚拟键码"
+        ),
+        .settingsAutoAuditUnreachable: (
+            "Warn about shortcuts that cannot be triggered",
+            "标记无法被触发的快捷键"
+        ),
+        .settingsAutoAuditHint: (
+            "Checks every shortcut the panel lists against the current key routing, and marks rows whose key press cannot reach the app.",
+            "对面板列出的每条快捷键按当前按键路由做一次检查，标出按下去无法触发的行。"
+        ),
 
         .frontmostApp: ("Frontmost app", "前台 App"),
         .exportMarkdown: ("Export Markdown", "导出 Markdown"),

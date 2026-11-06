@@ -111,10 +111,14 @@ final class PanelFilterPlanTests: XCTestCase {
 
     func testShiftHintLayerOwnsTheGlyph() {
         let active = filter([.control])
+        // A bare letter is a row address while hints are up, not another filter token.
         XCTAssertEqual(
-            decision(event(KeyToken("f"), modifiers: [.shift]), filter: active, shiftHintActive: true),
+            decision(event(KeyToken("f")), filter: active, shiftHintActive: true),
             .none
         )
+        // With hints off the same letter belongs to the filter again: the guard is what
+        // keeps the two layers from fighting over it.
+        XCTAssertEqual(decision(event(KeyToken("f")), filter: active), .append("f"))
     }
 
     func testSearchPaletteAndIdlePhasesDoNotFilter() {
@@ -136,9 +140,38 @@ final class PanelFilterPlanTests: XCTestCase {
         queue.toggleModifier(.control)   // off
         queue.toggleModifier(.control)   // back on, at the tail
 
-        XCTAssertEqual(decision(event(KeyToken("f"), modifiers: [.control]), filter: queue), .append("f"))
+        // Filter letters are bare: the modifier was released before F was typed.
+        XCTAssertEqual(decision(event(KeyToken("f")), filter: queue), .append("f"))
         queue.appendLetter("f")
         XCTAssertEqual(queue.query, "⌃ f")
+    }
+
+    /// A letter pressed while the narrowing modifiers are still physically down is a chord,
+    /// not the next filter token. ⌥⌘M is "Minimize All": the queue used to claim `m`
+    /// because `filter.modifiers` held ⌥ and ⌘, so the tap swallowed a keystroke the
+    /// system never saw and the panel had no row to complete.
+    func testModifiedLetterIsAChordNotAFilterToken() {
+        let narrowed = filter([.option, .command])
+        XCTAssertEqual(
+            decision(event(KeyToken("m"), modifiers: [.option, .command]), filter: narrowed),
+            .none
+        )
+        // Released first, the same letter is filter input again.
+        XCTAssertEqual(decision(event(KeyToken("m")), filter: narrowed), .append("m"))
+        // A modifier the filter does not hold was always a chord and still is.
+        XCTAssertEqual(
+            decision(event(KeyToken("m"), modifiers: [.command, .control]), filter: narrowed),
+            .none
+        )
+    }
+
+    /// Shift is the hint layer, not a filter dimension: a capital letter is still a letter.
+    /// `KeyToken` lowercases it, so the queue stores "f" either way.
+    func testShiftStillAllowsAFilterLetter() {
+        XCTAssertEqual(
+            decision(event(KeyToken("F"), modifiers: [.shift]), filter: filter([.control])),
+            .append("f")
+        )
     }
 
     func testBareLetterWithAnEmptyFilterStaysAChordStroke() {

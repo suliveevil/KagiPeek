@@ -1,12 +1,13 @@
 import Foundation
 
-/// The zero-to-nine / a-to-z labels the panel shows while Shift is held.
+/// The zero-to-nine / a-to-z labels the panel shows while the hint layer is up.
 ///
-/// The draft asks for the first 36 shortcuts to be overlaid with labels so one swipe of
-/// Shift plus a letter can run a row without reading the chord. The label table is the
-/// whole mechanism: index → glyph, and glyph → index. It lives in pure code because the
-/// hardware keyboard never sees these labels — they are a model the panel and the key
-/// handler have to agree on.
+/// A tap of Shift overlays the first 36 shortcuts with labels; a bare glyph then runs the
+/// corresponding row without reading the chord. Keeping Shift out of the addressing press
+/// is the point: the row's own chord can then be replayed into the front app without a
+/// physical ⇧ being mixed into it. The label table is the whole mechanism: index → glyph,
+/// and glyph → index. It lives in pure code because the hardware keyboard never sees these
+/// labels — they are a model the panel and the key handler have to agree on.
 nonisolated enum ShiftHintLayer {
     /// 0–9 and a–z: ten digits plus twenty-six letters.
     static let capacity = 36
@@ -54,6 +55,31 @@ nonisolated enum ShiftHintLayer {
     /// later page.
     static func index(forCharacter character: String, pageRowCount: Int) -> Int? {
         guard let index = index(forCharacter: character), index < pageRowCount else { return nil }
+        return index
+    }
+
+    /// The row a bare glyph press addresses, read from the event rather than from the
+    /// character alone.
+    ///
+    /// A label names the physical key the finger hit, so a press whose character is not a
+    /// label — or that decodes no character at all, as a virtual keyboard can — falls back
+    /// to the virtual key code, the second spelling of the same press. That also keeps a
+    /// non-ANSI layout pointing at the row its key is labelled with.
+    ///
+    /// `pageRowCount` is the number of rows on screen. The caller that swallows the press
+    /// and the caller that runs the row both pass it, so a glyph past the last row is
+    /// neither swallowed nor executed.
+    static func index(for event: KeyEvent, pageRowCount: Int? = nil) -> Int? {
+        if let key = event.key, let index = bounded(key.raw, pageRowCount: pageRowCount) {
+            return index
+        }
+        guard let physical = KeyMapper.token(forKeyCode: event.keyCode) else { return nil }
+        return bounded(physical.raw, pageRowCount: pageRowCount)
+    }
+
+    private static func bounded(_ character: String, pageRowCount: Int?) -> Int? {
+        guard let index = index(forCharacter: character) else { return nil }
+        if let pageRowCount, index >= pageRowCount { return nil }
         return index
     }
 }

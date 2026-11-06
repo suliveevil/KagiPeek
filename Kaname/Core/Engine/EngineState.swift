@@ -56,6 +56,14 @@ final class EngineState {
     var searchFocusToken = 0
     var systemBindings: [BindingItem] = []
     var configBindings: [BindingItem] = []
+
+    /// Every binding a typed chord can resolve against. The panel draws rows from the front
+    /// app's menu bar *and* the system hotkeys, so the key router and the tap's swallow
+    /// snapshot must see both: a row the user can see has to be a row a key can complete.
+    /// System hotkeys live outside the menu bar — ⌥⌘M is "Minimize All" — and feeding only
+    /// `catalog.items` here made such a row visible but inert. The reachability audit reads
+    /// this same list, so it cannot quietly answer a different question than the engine.
+    var chordItems: [BindingItem] { catalog.items + systemBindings }
     var configScan = ConfigScanResult()
     var conflictCategory: ConflictCategory?
     var conflictOwner: ConflictOwnerFilter = .all

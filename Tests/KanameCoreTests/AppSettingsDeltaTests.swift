@@ -42,6 +42,7 @@ final class AppSettingsDeltaTests: XCTestCase {
         ("fixedPanelWidth", { $0.fixedPanelWidth = 800 }),
         ("fixedPanelHeight", { $0.fixedPanelHeight = 700 }),
         ("showExecutedHUD", { $0.showExecutedHUD = false }),
+        ("autoAuditUnreachableShortcuts", { $0.autoAuditUnreachableShortcuts = false }),
         ("keyStyle", { $0.keyStyle = .words }),
         ("columnCount", { $0.columnCount = 3 }),
         ("maxItemsPerPage", { $0.maxItemsPerPage = 30 }),

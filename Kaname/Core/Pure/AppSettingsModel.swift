@@ -163,6 +163,10 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var fixedPanelWidth: Double = 720
     var fixedPanelHeight: Double = 620
     var showExecutedHUD: Bool = true
+    /// Audit every shortcut the panel can list and warn on rows a key press cannot reach.
+    /// On by default: a visible row that silently does nothing is exactly the bug this
+    /// catches. Turning it off removes both the warnings and the audit's per-rebuild cost.
+    var autoAuditUnreachableShortcuts: Bool = true
     var keyStyle: KeyFormatter.Style = .symbols
     var columnCount: Int = 2
     var maxItemsPerPage: Int = 24
@@ -247,15 +251,18 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// file has no key, so the default (shortcut order) applies without a rewrite. Version 11
     /// adds `karabinerPanelSignalEnabled`; an old file has no key, so the default (`true`,
     /// the behaviour that keeps a Karabiner-bound trigger key usable) applies without a
-    /// rewrite.
-    static let currentSchemaVersion = 11
+    /// rewrite. Version 12 adds `autoAuditUnreachableShortcuts`; an old file has no key, so
+    /// the default (`true`, the check that catches a row no key can trigger) applies without
+    /// a rewrite.
+    static let currentSchemaVersion = 12
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
         case triggerMode, modifierTriggerEnabled, hotkeyTriggerEnabled, triggerGesture, triggerKey
         case holdDelay, panelHotkey, searchHotkey, switchHotkey
-        case showExecutedHUD, keyStyle, columnCount, maxItemsPerPage, maxDescriptionLength
+        case showExecutedHUD, autoAuditUnreachableShortcuts
+        case keyStyle, columnCount, maxItemsPerPage, maxDescriptionLength
         case showDisabledItems, includeBuiltInCatalog, usageSortField, language
         case showAppleMenu
         case panelPlacement, fixedPanelWidth, fixedPanelHeight
@@ -302,6 +309,10 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         searchHotkey = try decodeHotkey(.searchHotkey, fallback.searchHotkey)
         switchHotkey = try decodeHotkey(.switchHotkey, fallback.switchHotkey)
         showExecutedHUD = try decode(.showExecutedHUD, fallback.showExecutedHUD)
+        autoAuditUnreachableShortcuts = try decode(
+            .autoAuditUnreachableShortcuts,
+            fallback.autoAuditUnreachableShortcuts
+        )
         keyStyle = try decode(.keyStyle, fallback.keyStyle)
         columnCount = try decode(.columnCount, fallback.columnCount)
         maxItemsPerPage = try decode(.maxItemsPerPage, fallback.maxItemsPerPage)
@@ -364,6 +375,10 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         try container.encode(searchHotkey, forKey: .searchHotkey)
         try container.encode(switchHotkey, forKey: .switchHotkey)
         try container.encode(showExecutedHUD, forKey: .showExecutedHUD)
+        try container.encode(
+            autoAuditUnreachableShortcuts,
+            forKey: .autoAuditUnreachableShortcuts
+        )
         try container.encode(keyStyle, forKey: .keyStyle)
         try container.encode(columnCount, forKey: .columnCount)
         try container.encode(maxItemsPerPage, forKey: .maxItemsPerPage)
@@ -454,6 +469,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         "panelHotkey", "searchHotkey", "switchHotkey",
         // Panel geometry and contents
         "panelPlacement", "fixedPanelWidth", "fixedPanelHeight", "showExecutedHUD",
+        "autoAuditUnreachableShortcuts",
         "keyStyle", "columnCount", "maxItemsPerPage", "maxDescriptionLength",
         "showDisabledItems", "includeBuiltInCatalog", "showAppleMenu",
         // Ordering, filtering and language

@@ -25,6 +25,10 @@ final class PanelSession {
     private let onInputStateChanged: () -> Void
     /// Same disabled row, same explanation: at most once per `DisabledNoticeGate.interval`.
     private var disabledNoticeGate = DisabledNoticeGate()
+    /// The reachability answer is expensive (one pure route per shortcut), and a panel
+    /// rebuild happens on every arrow key. Keyed by everything the answer reads, so a
+    /// catalog rescan, a filter change or a settings change recomputes and nothing else does.
+    private var triggerAuditCache: (key: String, result: PanelTriggerAudit.Result)?
 
     init(
         state: EngineState,
@@ -219,12 +223,14 @@ final class PanelSession {
         let page = panelPage(of: sequence, pageSize: panelPageSize)
         let systemTitle = localization.text(.groupSystemHotkeys)
         let sectionTitle = panelSectionTitle
+        let audit = triggerAudit()
         let specs = rowSpecs(
             for: page.entries,
             highlighted: highlightedIDs(for: page.entries.map(\.hit)),
             systemTitle: systemTitle,
             appTitle: sectionTitle,
-            hintLabels: hintLabels(for: page.entries)
+            hintLabels: hintLabels(for: page.entries),
+            unreachable: audit
         )
         if isPreviewing() {
             let counts = PanelSections.counts(in: allEntries)
@@ -260,15 +266,48 @@ final class PanelSession {
         return ShiftHintLayer.labels(for: page.map(\.hit.id))
     }
 
-    /// The item drawn at this position on the current page, or nil past its last row.
+    /// Which shortcuts the panel lists cannot actually be triggered with the keys as they
+    /// are routed right now. Off when the setting is off; cached for every other rebuild.
     ///
-    /// The hint layer addresses the page (`flatRowIDs` is what was built for it), so the key
-    /// handler must resolve through the same list. Walking the whole sequence instead would
-    /// make Shift on page 2 run page 1's row.
-    func item(atVisibleRowIndex index: Int) -> BindingItem? {
-        guard state.panel.flatRowIDs.indices.contains(index) else { return nil }
-        let id = state.panel.flatRowIDs[index]
-        return panelSequence().first { $0.hit.id == id }?.hit.item
+    /// The audit reads `state.chordItems` — the very list the key router consults — rather
+    /// than assembling its own catalog. If those two ever drift apart again, the audit
+    /// reports the rows the router cannot reach instead of quietly agreeing with a list the
+    /// engine does not use.
+    private func triggerAudit() -> PanelTriggerAudit.Result {
+        guard state.settings.autoAuditUnreachableShortcuts else { return PanelTriggerAudit.Result() }
+        let items = state.chordItems
+        let hotkeys = [
+            state.settings.panelHotkey, state.settings.searchHotkey, state.settings.switchHotkey,
+            state.settings.runRowKey, state.settings.copyRowKey
+        ].map { String(describing: $0) }.joined(separator: ",")
+        let key = [
+            String(items.count),
+            String(state.catalog.scannedAt.timeIntervalSince1970),
+            String(state.systemBindings.count),
+            state.panel.filter.query,
+            String(describing: state.phase),
+            String(state.panel.shiftHintActive),
+            String(state.panel.triggerNarrowPending),
+            String(state.panel.latchedModifiers.rawValue),
+            state.prefix.cacheKey,
+            hotkeys
+        ].joined(separator: "|")
+        if let cached = triggerAuditCache, cached.key == key { return cached.result }
+
+        let result = PanelTriggerAudit.audit(
+            items: items,
+            context: PanelTriggerAudit.Context(
+                phase: state.phase,
+                settings: state.settings,
+                panel: state.panel,
+                prefix: state.prefix,
+                pending: state.pending,
+                triggerPending: state.panel.triggerNarrowPending,
+                routingItems: state.chordItems
+            )
+        )
+        triggerAuditCache = (key, result)
+        return result
     }
 
     /// One row per entry, described for the builder.
@@ -277,7 +316,8 @@ final class PanelSession {
         highlighted: Set<String>,
         systemTitle: String,
         appTitle: String,
-        hintLabels: [String: String]
+        hintLabels: [String: String],
+        unreachable: PanelTriggerAudit.Result
     ) -> [PanelRowBuilder.Spec] {
         entries.map { entry in
             let hit = entry.hit
@@ -308,7 +348,8 @@ final class PanelSession {
                 // Both the system section and the Apple-menu section carry the same chord
                 // for Sleep/Restart/…; the policy is evaluated on every row so both are red.
                 restriction: RestrictedActionPolicy.restriction(for: hit.item).action,
-                hasChord: !hit.item.chord.isEmpty
+                hasChord: !hit.item.chord.isEmpty,
+                unreachableReason: unreachable.reason(forRowID: hit.id)
             )
         }
     }

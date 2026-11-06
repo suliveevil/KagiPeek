@@ -44,28 +44,32 @@ nonisolated enum PanelFilterPlan {
         if event.keyCode == KeyCode.delete, !filter.isEmpty {
             return .popToken
         }
-        // Letters only belong to the filter once it has something in it. An empty filter
-        // makes `filter.modifiers` an empty superset, so without this guard every bare
-        // letter would be appended — stealing ⌘C / ⌥C chord strokes and the latched
-        // modifiers' "tick ⌥ then press C" path, and clearing the prefix on top.
+        // Letters only belong to the filter once it has something in it, and only when they
+        // arrive bare. An empty filter would otherwise steal ⌘C / ⌥C chord strokes and the
+        // latched modifiers' "tick ⌥ then press C" path, and clear the prefix on top; a
+        // letter still carrying modifiers is a chord, not a query (see `letter(for:)`).
         guard !filter.isEmpty else { return .none }
-        guard !event.isRepeat, let letter = letter(for: event, filter: filter) else { return .none }
+        guard !event.isRepeat, let letter = letter(for: event) else { return .none }
         return .append(letter)
     }
 
     /// The lowercase a–z this event would append, or nil when it belongs to something else.
     ///
-    /// Only modifiers the filter already holds are allowed through: ⌘F and ⌥F remain the
-    /// front app's (or a hotkey's) chord, while a lone F after ⌃ was pressed filters. Shift
-    /// is stripped because it is the hint layer, never a filter dimension.
-    static func letter(for event: KeyEvent, filter: PanelFilter) -> Character? {
+    /// Only a *bare* letter is filter input. A letter carrying physical modifiers is a chord
+    /// stroke, even when those modifiers are the very ones narrowing the list: ⌥⌘M is
+    /// "Minimize All", not the filter query "⌥ ⌘ m". Letting the queue claim it swallowed
+    /// the keystroke — the front app never saw ⌥⌘M, and a system hotkey has no menu row for
+    /// the panel to complete — so neither the shortcut nor the dismissal happened.
+    ///
+    /// Shift is the hint layer, not a filter dimension, and a capital letter is still a
+    /// letter; it is the one modifier a filter token may carry.
+    static func letter(for event: KeyEvent) -> Character? {
         guard let key = event.key,
               key.raw.count == 1,
               let character = key.raw.first,
               character >= "a", character <= "z"
         else { return nil }
-        let pressed = event.modifiers.subtracting(.shift)
-        guard filter.modifiers.isSuperset(of: pressed) else { return nil }
+        guard event.modifiers.subtracting(.shift).isEmpty else { return nil }
         return character
     }
 }

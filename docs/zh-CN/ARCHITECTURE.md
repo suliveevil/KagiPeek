@@ -720,7 +720,7 @@ empty prefix (hotkey summon)   ⌘ pressed while open       chord prefix ⌘K
 因为面包屑已经写明了敲过什么。键列由 `KeyFormatter.segments` 构建，一段一个字形，所以强调是按住的那个修饰键上的颜色变化——绝不是对格式化字符串的重新解析。
 
 **筛选是一个有序词元队列，不是一个集合。** `panel.filter`（`PanelFilter`）按加入顺序保存 `tokens`：一个修饰键的**按下沿**追加一次 `.modifier(ModifierSet)`，
-无论随后按住多久；一个小写字母键的 key-down 追加 `.letter(Character)`。顺序就是重点——`⌃` 然后 `f` 是查询"⌃ f"，最后加入的是 ⌫ 第一个收回的；
+无论随后按住多久；一个**裸**小写字母键的 key-down 追加 `.letter(Character)`。顺序就是重点——`⌃` 然后 `f` 是查询"⌃ f"，最后加入的是 ⌫ 第一个收回的；
 一个集合会丢掉这个，让 ⌫ 去猜。`filter.modifiers` 把修饰键词元并起来，`heldModifiers` 跟随它（所以保留下来的、首段带该修饰键的行会点亮它），
 而筛除非空会清掉 `prefix`——让同样的修饰键收窄两次会把规则应用两遍。
 
@@ -735,8 +735,8 @@ empty prefix (hotkey summon)   ⌘ pressed while open       chord prefix ⌘K
 查询在排序之后、跨 App 与系统的合并序列上运行，所以筛选决定哪些行存活，绝不决定它们的顺序。
 
 这些边界住在一个守卫里（`PanelFilterPlan.decision`）：只有 `.active` 的筛选生效；`shiftHintActive` 把 `0–9` / `a–z` 交给提示层；
-`triggerNarrowPending` 在任何词元之前消费召唤的那次按压。Shift 从事件里被剥掉、永不成为维度——它是提示层——而字母只有在事件的物理修饰键（去掉 Shift）
-已经在队列里时才被接收，这就是裸字母会筛选面板、而 ⌘F 仍是前台 App 的组合键或某个热键的原因。搜索面板保留自己的字母，因为打开它会关闭面板、让阶段留在 `.idle`；
+`triggerNarrowPending` 在任何词元之前消费召唤的那次按压。Shift 从事件里被剥掉、永不成为维度——它是提示层；字母只有在**不带物理修饰键**（去掉 Shift 后为空）
+时才被接收，这就是 ⌥⌘M 仍是系统快捷键、⌥⌘F 仍是 Safari 菜单项，而松开修饰键后裸按 `f` 会筛选面板的原因。搜索面板保留自己的字母，因为打开它会关闭面板、让阶段留在 `.idle`；
 方向键与分页键（`←`/`→` 以及任何启用的标点对）不携带单个小写字符，永不追加。
 
 **高亮的数据流。** 菜单项与它们的视觉状态一起重算，所以不存在会变陈旧的部分高亮状态：
@@ -759,8 +759,9 @@ Esc 无论有无修饰键都关闭。按下一个没有匹配的键会让面板�
 
 **一段可以由两个来源拼成。** `PendingModifiers` 把 `held`（物理按下、瞬态）与 `latched`（标题栏勾上、粘性）分开，只有 `effective`——它们的并集减去孤立的按住 ⇧——点亮菜单项。
 `ChordComposition.resolve(prefix:physical:pending:key:in:)` 是那唯一的纯决定：用 `physical ∪ latched` 构建探针组合键，对它分类（`complete` / `descend` / `noMatch`）
-并报告 `composed`——当组合键的一部分来自面板而不是事件时为真。不过筛选先于组装回答一次 key-down：物理修饰键已在队列里的小写字母是筛选词元而不是组合键的一段，
-所以按住修饰键再敲字母会收窄列表，而不是完成一段。组合键仍要按组合键敲——修饰键与键一起按，或从组合键前缀一层一层来。
+并报告 `composed`——当组合键的一部分来自面板而不是事件时为真。不过筛选先于组装回答一次 key-down：只有**裸**小写字母才是筛选词元，仍带着物理修饰键的字母
+属于组合键，哪怕这些修饰键正是正在收窄列表的那几个——⌥⌘M 必须送到系统，而不是变成查询"⌥ ⌘ m"。`PanelTriggerAudit` 用同一组纯决定回放面板列出的每条
+快捷键的最后一击，标出按下去无法触发的行；警示落在行尾槽位，可在设置里关掉。组合键仍要按组合键敲——修饰键与键一起按，或从组合键前缀一层一层来。
 
 后果是**吞键与注入是同一个决定**。`KeyboardMonitor.shouldSwallow` 在 tap 线程上、通过 `ComposedSwallow.decide` 作用于引擎发布的快照（`ComposedSwallowState`，
 每次变更后更新）来回答"拼成"的那一半，而 `handleKeyDown` 在处理这个键时再问同一条纯规则，所以 tap 与 handler 不会分歧、把快捷键跑两遍。这条规则的引擎侧仍是 `ChordComposition`：
