@@ -21,7 +21,7 @@ nonisolated final class FileLogStore: @unchecked Sendable {
     /// How long a partial batch may sit in memory.
     private static let flushInterval: TimeInterval = 0.2
 
-    private let queue = DispatchQueue(label: "com.voltline.kagipeek.diag.file", qos: .utility)
+    private let queue = DispatchQueue(label: "com.suliveevil.kaname.diag.file", qos: .utility)
     private let directory: URL
     private let nowProvider: () -> Date
     private let timeZone: TimeZone

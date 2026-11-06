@@ -1140,7 +1140,7 @@ struct SettingsView: View {
     /// save paid for work that was immediately thrown away — the archive export above has
     /// always asked first.
     private func exportDiagnostics() {
-        guard let url = ExportPanel.run(defaultName: "kagipeek-diagnostics.json", pathExtension: "json") else { return }
+        guard let url = ExportPanel.run(defaultName: "kaname-diagnostics.json", pathExtension: "json") else { return }
         do {
             let data = try engine.diagnosticsReport()
             try data.write(to: url, options: [.atomic])

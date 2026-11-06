@@ -463,7 +463,7 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
 
     private func startWatchdog() {
         guard watchdogTimer == nil else { return }
-        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.voltline.kagipeek.tap-watchdog"))
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "com.suliveevil.kaname.tap-watchdog"))
         timer.schedule(deadline: .now() + Self.watchdogInterval, repeating: Self.watchdogInterval)
         timer.setEventHandler { [weak self] in self?.watchdogTick() }
         timer.resume()

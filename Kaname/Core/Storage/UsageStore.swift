@@ -31,7 +31,7 @@ final class UsageStore: ObservableObject {
 
     private let defaults: UserDefaults
     private let fileStore = JsonFileStore(fileName: "usage.json")
-    private let writeQueue = DispatchQueue(label: "com.voltline.kagipeek.usage-write", qos: .utility)
+    private let writeQueue = DispatchQueue(label: "com.suliveevil.kaname.usage-write", qos: .utility)
     private var pendingWrite: DispatchWorkItem?
     private static let storageKey = "usage.v2"
     private static let writeDelay: TimeInterval = 1.2

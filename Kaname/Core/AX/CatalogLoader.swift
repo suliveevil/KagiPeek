@@ -78,7 +78,7 @@ nonisolated final class CatalogLoader: @unchecked Sendable {
     /// second request wait for the first. More than two would let a burst of frontmost
     /// changes start a scan per app.
     private let scanQueue = DispatchQueue(
-        label: "com.voltline.kagipeek.catalog.scan",
+        label: "com.suliveevil.kaname.catalog.scan",
         qos: .userInitiated,
         attributes: .concurrent
     )
@@ -86,7 +86,7 @@ nonisolated final class CatalogLoader: @unchecked Sendable {
     /// Element lookups are short but can block on a busy app's AX server, so they get their
     /// own queue: waiting behind a menu scan here would put the wait back on the click path.
     private let elementQueue = DispatchQueue(
-        label: "com.voltline.kagipeek.catalog.element",
+        label: "com.suliveevil.kaname.catalog.element",
         qos: .userInitiated,
         attributes: .concurrent
     )

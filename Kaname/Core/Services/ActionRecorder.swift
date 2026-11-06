@@ -22,7 +22,7 @@ nonisolated final class ActionRecorder: @unchecked Sendable {
 
     private let capacity = 30
     private let buffer: RingBuffer<ActionRecord>
-    private let queue = DispatchQueue(label: "com.voltline.kagipeek.diag.actions", qos: .utility)
+    private let queue = DispatchQueue(label: "com.suliveevil.kaname.diag.actions", qos: .utility)
     private var pendingMirror: DispatchWorkItem?
     private let mirrorURL: URL
     /// The last write failure, owned by `queue`. Carried into diagnostics reports so a crash

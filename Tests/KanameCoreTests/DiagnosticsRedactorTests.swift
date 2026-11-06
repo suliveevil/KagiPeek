@@ -20,12 +20,12 @@ final class DiagnosticsRedactorTests: XCTestCase {
     /// 说清是哪个字段被剪就够了；具体第几个元素不改变读者要做的事。
     func testArraysReportTheFieldNotTheIndex() {
         let outcome = DiagnosticsRedactor.redact([
-            "windowTitles": ["KagiPeek", "a@b.com", "another@b.com"]
+            "windowTitles": ["Kaname", "a@b.com", "another@b.com"]
         ])
         XCTAssertEqual(outcome.redactedFields, ["windowTitles"])
         XCTAssertEqual(
             outcome.payload["windowTitles"] as? [String],
-            ["KagiPeek", "<email>", "<email>"]
+            ["Kaname", "<email>", "<email>"]
         )
     }
 
@@ -43,10 +43,10 @@ final class DiagnosticsRedactorTests: XCTestCase {
 
     func testAHomePrefixIsShortenedButNotReported() {
         let outcome = DiagnosticsRedactor.redact(
-            ["dataFolder": "/Users/alice/Library/KagiPeek"],
+            ["dataFolder": "/Users/alice/Library/Kaname"],
             homePrefix: "/Users/alice"
         )
-        XCTAssertEqual(outcome.payload["dataFolder"] as? String, "~/Library/KagiPeek")
+        XCTAssertEqual(outcome.payload["dataFolder"] as? String, "~/Library/Kaname")
         XCTAssertTrue(outcome.redactedFields.isEmpty)
     }
 }

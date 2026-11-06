@@ -9,7 +9,7 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
     private func input(
         generatedAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
         settings: AppSettingsSnapshot = AppSettingsSnapshot(),
-        dataFolderPath: String = "/tmp/kagipeek",
+        dataFolderPath: String = "/tmp/kaname",
         windowTitles: [String] = ["Kaname", "Kaname Settings"],
         scanState: ScanState = .ok,
         crashRecoveryErrors: [String] = [],
@@ -66,7 +66,7 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
         XCTAssertEqual(payload["usageTracked"] as? Int, 41)
         XCTAssertEqual(payload["usageTotalPresses"] as? Int, 512)
         XCTAssertEqual(payload["favorites"] as? Int, 6)
-        XCTAssertEqual(payload["dataFolder"] as? String, "/tmp/kagipeek")
+        XCTAssertEqual(payload["dataFolder"] as? String, "/tmp/kaname")
         XCTAssertEqual(payload["windowTitles"] as? [String], ["Kaname", "Kaname Settings"])
     }
 

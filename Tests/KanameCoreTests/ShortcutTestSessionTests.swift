@@ -182,7 +182,7 @@ final class ShortcutTestSessionTests: XCTestCase {
         var session = ShortcutTestSession()
         session.begin(chord: cmdA, permissionGranted: true)
         session.keyAtHead(chord: cmdA, hasModifier: true, frontmostAppName: "Other", frontmostBundleID: "other", now: 0)
-        session.appActivated(bundleID: "reactor", name: "Reactor", selfBundleID: "kagipeek")
+        session.appActivated(bundleID: "reactor", name: "Reactor", selfBundleID: "kaname")
         session.settle()
         guard case .finished(let observation) = session.state else {
             return XCTFail("expected finished, got \(session.state)")
@@ -196,19 +196,19 @@ final class ShortcutTestSessionTests: XCTestCase {
         var session = ShortcutTestSession()
         session.begin(chord: cmdA, permissionGranted: true)
         session.keyAtHead(chord: cmdA, hasModifier: true, frontmostAppName: "Other", frontmostBundleID: "other", now: 0)
-        session.appActivated(bundleID: "kagipeek", name: "KagiPeek", selfBundleID: "kagipeek")
+        session.appActivated(bundleID: "kaname", name: "Kaname", selfBundleID: "kaname")
         session.settle()
         guard case .finished(let observation) = session.state else {
             return XCTFail("expected finished, got \(session.state)")
         }
-        XCTAssertNil(observation?.activatedBundleID, "KagiPeek coming back to the front is focus settling")
+        XCTAssertNil(observation?.activatedBundleID, "Kaname coming back to the front is focus settling")
     }
 
     func testReturnOfFrontmostAppIsIgnored() {
         var session = ShortcutTestSession()
         session.begin(chord: cmdA, permissionGranted: true)
         session.keyAtHead(chord: cmdA, hasModifier: true, frontmostAppName: "Other", frontmostBundleID: "other", now: 0)
-        session.appActivated(bundleID: "other", name: "Other", selfBundleID: "kagipeek")
+        session.appActivated(bundleID: "other", name: "Other", selfBundleID: "kaname")
         session.settle()
         guard case .finished(let observation) = session.state else {
             return XCTFail("expected finished, got \(session.state)")
@@ -220,9 +220,9 @@ final class ShortcutTestSessionTests: XCTestCase {
         var session = ShortcutTestSession()
         session.begin(chord: cmdA, permissionGranted: true)
         // An activation without a pending press (e.g. stepAside at the start) means nothing.
-        session.appActivated(bundleID: "reactor", name: "Reactor", selfBundleID: "kagipeek")
+        session.appActivated(bundleID: "reactor", name: "Reactor", selfBundleID: "kaname")
         session.keyAtHead(chord: cmdA, hasModifier: true, frontmostAppName: "Other", frontmostBundleID: "other", now: 0)
-        session.appActivated(bundleID: "reactor", name: "Reactor", selfBundleID: "kagipeek")
+        session.appActivated(bundleID: "reactor", name: "Reactor", selfBundleID: "kaname")
         session.settle()
         guard case .finished(let observation) = session.state else {
             return XCTFail("expected finished, got \(session.state)")

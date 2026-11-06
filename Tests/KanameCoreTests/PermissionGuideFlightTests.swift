@@ -2,7 +2,7 @@ import XCTest
 @testable import KanameCore
 
 /// The entrance curve. Checked as geometry rather than as animation: the panel has to start
-/// exactly where KagiPeek is and end exactly on the target, or the hand-off to the anchored
+/// exactly where Kaname is and end exactly on the target, or the hand-off to the anchored
 /// follow loop flickers by however much the last frame was off.
 final class PermissionGuideFlightTests: XCTestCase {
     private let from = CGPoint(x: 400, y: 300)

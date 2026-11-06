@@ -18,7 +18,7 @@ import os
 /// and useless at the same time. Every line now goes through `Diag`, and the four `Logger`s
 /// below are the private detail of the mirror:
 ///
-///     log show --last 10m --predicate 'subsystem == "com.voltline.kagipeek"'
+///     log show --last 10m --predicate 'subsystem == "com.suliveevil.kaname"'
 nonisolated enum Diag {
     /// The three switches behind one lock, in a `static let` box.
     ///
@@ -46,7 +46,7 @@ nonisolated enum Diag {
     }
 
     private static let state = State()
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.voltline.kagipeek"
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.suliveevil.kaname"
     /// Menu scanning: which app, how many items, why a catalog was empty or dropped.
     private static let scanLogger = Logger(subsystem: subsystem, category: "scan")
     /// Event tap, swallowing decisions, key injection.
