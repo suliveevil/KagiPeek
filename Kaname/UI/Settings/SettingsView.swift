@@ -43,9 +43,13 @@ struct SettingsView: View {
     @State private var confirmResetUsage = false
     @State private var confirmRestoreDefaults = false
     private static let findingPageStep = 40
+    private let onTabChange: ((SettingsTab) -> Void)?
     /// Lets the preview harness open a specific tab (e.g. `KANAME_PREVIEW=settings-ranking`).
-    init(initialTab: SettingsTab = .general) {
+    /// `onTabChange` is how the hosting window keeps its title on the visible pane without
+    /// lifting the whole selection state out of the view.
+    init(initialTab: SettingsTab = .general, onTabChange: ((SettingsTab) -> Void)? = nil) {
         _tab = State(initialValue: initialTab)
+        self.onTabChange = onTabChange
     }
 
     var body: some View {
@@ -90,7 +94,7 @@ struct SettingsView: View {
     private var tabSelection: Binding<SettingsTab?> {
         Binding(
             get: { tab },
-            set: { if let selected = $0 { tab = selected } }
+            set: { if let selected = $0 { tab = selected; onTabChange?(selected) } }
         )
     }
 

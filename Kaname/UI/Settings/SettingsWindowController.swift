@@ -29,10 +29,17 @@ final class SettingsWindowController {
             makeWindow(initialTab: initialTab ?? .general)
         } else if let initialTab, let window {
             window.contentView = NSHostingView(rootView: makeRoot(initialTab: initialTab))
+            applyTitle(initialTab)
         }
         guard let window else { return }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Keeps the title on the pane the user is looking at, the way macOS settings windows
+    /// behave. The view owns the selection, so it reports changes back through `makeRoot`.
+    private func applyTitle(_ tab: SettingsTab) {
+        window?.title = engine.localization.text(tab.titleKey)
     }
 
     /// The window the permission guide attaches to as a sheet. Nil until Settings has been
@@ -40,7 +47,9 @@ final class SettingsWindowController {
     var hostingWindow: NSWindow? { window }
 
     private func makeRoot(initialTab: SettingsTab) -> some View {
-        SettingsView(initialTab: initialTab)
+        SettingsView(initialTab: initialTab, onTabChange: { [weak self] tab in
+            self?.applyTitle(tab)
+        })
             .environmentObject(engine)
             .environment(engine.state)
             .environmentObject(engine.settingsStore)
@@ -60,9 +69,12 @@ final class SettingsWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = engine.localization.text(.settingsTitle)
+        window.title = engine.localization.text(initialTab.titleKey)
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: makeRoot(initialTab: initialTab))
+        // Settings is a single utility window: HIG asks for the zoom control to be dimmed
+        // rather than offering a maximised settings window nobody asked for.
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
         window.center()
         self.window = window
     }
