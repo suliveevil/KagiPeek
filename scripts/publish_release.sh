@@ -108,9 +108,17 @@ if [ ! -f "$CASK_SRC" ]; then
     exit 1
 fi
 mkdir -p "$ROOT/build"
-sed -e "s|__VERSION__|$VERSION|g" -e "s|__SHA256__|$SHA256|g" "$CASK_SRC" > "$CASK_OUT"
+# The template carries a block of notes that would be wrong in the tap ("this file is a
+# template and must never be pushed"): it is stripped here rather than kept in a file that
+# is *only* read inside this repository.
+sed -e "s|__VERSION__|$VERSION|g" -e "s|__SHA256__|$SHA256|g" \
+    -e '/^# TEMPLATE-ONLY-BEGIN$/,/^# TEMPLATE-ONLY-END$/d' "$CASK_SRC" > "$CASK_OUT"
 if grep -q '__VERSION__\|__SHA256__' "$CASK_OUT"; then
     echo "error: rendering $CASK_OUT left a placeholder in place" >&2
+    exit 1
+fi
+if grep -q 'TEMPLATE-ONLY' "$CASK_OUT"; then
+    echo "error: rendering $CASK_OUT left a template-only block in place" >&2
     exit 1
 fi
 echo "==> Rendered cask: $CASK_OUT (version $VERSION, sha256 $SHA256)"

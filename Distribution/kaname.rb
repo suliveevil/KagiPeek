@@ -1,18 +1,16 @@
-# Homebrew cask template for Kaname.
-#
-# This file is a TEMPLATE, not an installable cask. The `version` and `sha256`
-# declarations are filled in by `scripts/publish_release.sh` from the DMG it just
-# uploaded; the template itself must never be pushed to a tap. The rendered result
-# is written to build/kaname.rb, and only that file goes into Casks/kaname.rb of the
-# tap repository.
-#
-# The tap repository is suliveevil/homebrew-tap (public), so users install with:
+# Homebrew cask for Kaname. Users install with:
 #   brew tap suliveevil/tap
 #   brew install --cask kaname
 #
 # The DMG URL and asset name must match scripts/build_release.sh exactly.
+#
+# TEMPLATE-ONLY-BEGIN
+# Distribution/kaname.rb is a TEMPLATE, not an installable cask: `version` and `sha256`
+# are filled in by `scripts/publish_release.sh` from the DMG it just uploaded, and only
+# the rendered build/kaname.rb is pushed to Casks/kaname.rb of suliveevil/homebrew-tap.
+# The rendering step strips this block, so the published cask carries no template notes.
+# TEMPLATE-ONLY-END
 cask "kaname" do
-  # Placeholders: replaced by scripts/publish_release.sh after `gh release upload`.
   version "__VERSION__"
   sha256 "__SHA256__"
 
