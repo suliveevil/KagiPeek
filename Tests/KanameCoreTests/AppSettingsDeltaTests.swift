@@ -68,6 +68,7 @@ final class AppSettingsDeltaTests: XCTestCase {
         ("pagingPairs", { $0.pagingPairs = [] }),
         ("scanConfigFiles", { $0.scanConfigFiles = false }),
         ("showConfigToolsInPanel", { $0.showConfigToolsInPanel = true }),
+        ("karabinerPanelSignalEnabled", { $0.karabinerPanelSignalEnabled = false }),
         ("diagnosticsEnabled", { $0.diagnosticsEnabled = false }),
         ("verboseDiagnostics", { $0.verboseDiagnostics = true }),
         ("showDockIcon", { $0.showDockIcon = true }),

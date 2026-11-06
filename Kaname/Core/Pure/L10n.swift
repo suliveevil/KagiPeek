@@ -65,6 +65,8 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case triggerHoldDelay, triggerPanelHotkey, triggerSearchHotkey
     case triggerSwitchHotkey, triggerRecording, triggerRecordingHint, triggerStopRecording
     case triggerEnableAccessibility, triggerUnset, triggerClear
+    case triggerKarabinerSignal, triggerKarabinerSignalNote
+    case triggerKarabinerSignalMissing
 
     // Appearance
     case appearanceTitle, appearanceLayoutSection, appearanceLayoutAdvanced, appearanceKeyStyle, appearanceStyleSymbols, appearanceStyleWords
@@ -454,6 +456,24 @@ nonisolated enum L10n {
         .triggerEnableAccessibility: ("Enable %@", "启用%@"),
         .triggerUnset: ("Not set", "未设置"),
         .triggerClear: ("Delete", "删除"),
+
+        .triggerKarabinerSignal: (
+            "Tell Karabiner when the panel is open",
+            "面板打开时通知 Karabiner"
+        ),
+        .triggerKarabinerSignalNote: (
+            "Writes the Karabiner variable kaname_panel: 1 while the panel is up, 0 when it "
+                + "closes. Add conditions: [{\"type\": \"variable_unless\", \"name\": "
+                + "\"kaname_panel\", \"value\": 1}] to the rule bound to your trigger key, so "
+                + "it only applies while the panel is closed.",
+            "写入 Karabiner 变量 kaname_panel：面板显示时为 1，关闭时为 0。给占用触发键的规则"
+                + "加上 conditions: [{\"type\": \"variable_unless\", \"name\": \"kaname_panel\", "
+                + "\"value\": 1}]，它只在面板关闭时生效。"
+        ),
+        .triggerKarabinerSignalMissing: (
+            "Karabiner-Elements was not found, so nothing is written.",
+            "没有找到 Karabiner-Elements，因此不会写入。"
+        ),
 
         .appearanceTitle: ("Appearance", "外观"),
         .appearanceLayoutSection: ("Panel layout", "面板布局"),

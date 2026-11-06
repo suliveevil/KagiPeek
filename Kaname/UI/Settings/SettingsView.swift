@@ -463,6 +463,29 @@ struct SettingsView: View {
                 triggerSectionHeader(title: .triggerGlobalHotkey,
                                      isOn: $store.settings.hotkeyTriggerEnabled)
             }
+
+            // Karabiner rewrites the keyboard below the tap, so a rule bound to the trigger key
+            // keeps firing while the panel is up. This switch is the one channel that lets
+            // such a rule stand down; see `KarabinerPanelSignal`.
+            //
+            // The switch sits in the header like the other two on this tab: it is the card's
+            // on/off, and the body is the explanation plus the one condition the user's own
+            // Karabiner rule needs.
+            Section {
+                Text(localization.text(.triggerKarabinerSignalNote))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !KarabinerBridge.isInstalled {
+                    Text(localization.text(.triggerKarabinerSignalMissing))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } header: {
+                triggerSectionHeader(title: .triggerKarabinerSignal,
+                                     isOn: $store.settings.karabinerPanelSignalEnabled)
+            }
         }
         .formStyle(.grouped)
     }

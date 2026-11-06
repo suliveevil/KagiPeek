@@ -122,6 +122,7 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
 
 ## Upgrade notes
 
+- **A trigger key that is remapped in Karabiner-Elements needs one condition in that rule.** Karabiner applies its rules below Kaname's event tap, so a rule on the trigger key (a `left_command` with `to_if_alone`, for instance) keeps firing while the panel is open and the panel only sees the rule's output. Since 2.3.1 Kaname writes Karabiner's `kaname_panel` variable from **Settings → Trigger → Tell Karabiner when the panel is open** (on by default); add `conditions: [{"type": "variable_unless", "name": "kaname_panel", "value": 1}]` to that rule and it applies only while the panel is closed. Without the condition the setting changes nothing, and a machine without Karabiner never sees a write. `variable_if` is the inverse and keeps the rule *on* while the panel is up.
 - **The code signature or bundle identifier changing means re-granting Accessibility.** A build
   signed by a different identity, or an ad-hoc local rebuild, is a new app to macOS: remove the
   stale Kaname entry under Privacy & Security and enable the new one. A signed update that

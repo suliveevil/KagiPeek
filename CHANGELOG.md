@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
+## Kaname 2.3.1 (2026-11-06)
+
+### Added
+
+- **A Karabiner rule can stand down while the panel is open.** Karabiner rewrites the keyboard below the event tap, so a rule bound to the trigger key (a `left_command` with `to_if_alone`, typically) kept firing while the panel was up, and the panel only ever saw the rule's output: a lone ⌘ arrived as that rule's shortcut and never joined the filter. **Settings → Trigger → Tell Karabiner when the panel is open** now writes Karabiner's `kaname_panel` variable — 1 while the panel is shown, 0 when it closes, and 0 at launch and at quit so a crash cannot leave a rule suppressed — and a rule carrying `conditions: [{"type": "variable_unless", "name": "kaname_panel", "value": 1}]` applies only while the panel is closed. On by default, silent when Karabiner is not installed, and settings schema 10 → 11 (`karabinerPanelSignalEnabled`). The variable is written through `/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli`, once per state change, off the main thread.
+
 ## Kaname 2.3.0 (2026-11-06)
 
 ### Changed

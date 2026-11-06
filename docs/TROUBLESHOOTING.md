@@ -96,6 +96,10 @@ Log category: `input` (event tap installed / failed), `ui` (permission state).
 3. **The chord is incomplete.** A menu item that still has further steps descends a level instead of
    running; the breadcrumb tells you where you are.
 
+## A modifier press while the panel is open does something else
+
+Karabiner-Elements rewrites the keyboard below Kaname's event tap, so a rule bound to that key (a `left_command` with `to_if_alone`, a Caps Lock mapping, a Hyper mapping) fires first and the panel receives the rule's result. **Settings → Trigger → Tell Karabiner when the panel is open** writes the variable `kaname_panel` while the panel is shown; add `conditions: [{"type": "variable_unless", "name": "kaname_panel", "value": 1}]` to that rule so it applies only while the panel is closed. `[settings]` logs `Karabiner panel signal not sent: …` once if the write fails or the CLI is missing. The full explanation, with the JSON, is in [FAQ.md](FAQ.md).
+
 ## Chinese input does not work in the search field
 
 The window-level key monitors step back while an input method is composing, so ↑↓ moves the

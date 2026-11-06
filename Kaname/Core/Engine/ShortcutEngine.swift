@@ -39,6 +39,9 @@ final class ShortcutEngine: ObservableObject {
     private let appContext = AppContextService()
     private let catalogLoader = CatalogLoader()
     private let appDirectory = AppDirectory()
+    /// Tells Karabiner whether a panel is on screen, for a rule that tests the variable and
+    /// stands down while it is. See `KarabinerPanelSignal`.
+    private let karabiner = KarabinerBridge()
     let updateChecker = UpdateChecker()
     /// The windows the engine drives, built on first use by the factory the App layer supplied.
     ///
@@ -338,6 +341,9 @@ final class ShortcutEngine: ObservableObject {
         conflicts.loadCached()
         scanConfigFiles()
         startLiveTestCountdown()
+        // Nothing is on screen yet, and a force quit may have left the variable at 1. The
+        // first publish always speaks for that reason; it is a no-op without the Karabiner CLI.
+        signalKarabiner()
 
         if !permissions.accessibility.isGranted {
             showPermissionsWindow()
@@ -362,6 +368,9 @@ final class ShortcutEngine: ObservableObject {
         permissions.stopObservingSystemChanges()
         state.isListening = false
         dismissEverything()
+        // block until the variable is 0: the process is about to end, and an async write
+        // would be cut in half by the exit, leaving the user's Karabiner rule suppressed.
+        karabiner.clearAndWait()
     }
 
     // MARK: - Settings
@@ -375,6 +384,12 @@ final class ShortcutEngine: ObservableObject {
         logSettingsDelta(from: previous, to: newValue)
         localization.update(preference: newValue.language)
         applyHotkeySwallowing()
+        // The Karabiner signal follows its switch immediately: turning it off while the panel
+        // is up has to clear the variable, or the user's rule stays suppressed by a setting
+        // they just turned off.
+        if previous.karabinerPanelSignalEnabled != newValue.karabinerPanelSignalEnabled {
+            signalKarabiner()
+        }
 
         if previous.modifierTriggerEnabled != newValue.modifierTriggerEnabled
             || previous.hotkeyTriggerEnabled != newValue.hotkeyTriggerEnabled
@@ -1191,6 +1206,18 @@ final class ShortcutEngine: ObservableObject {
         monitor.updateDecodesKeyEvents(needed)
     }
 
+    /// Tells Karabiner whether a panel is on screen.
+    ///
+    /// One statement of the panel's state rather than an event per surface: the bridge
+    /// compares it with what it last wrote, so calling it from every lifecycle path costs
+    /// nothing when nothing changed. See `KarabinerPanelSignal` for the variable a rule tests.
+    private func signalKarabiner() {
+        karabiner.publish(
+            panelIsVisible: state.panel.isVisible,
+            isEnabled: state.settings.karabinerPanelSignalEnabled
+        )
+    }
+
     // MARK: - Panel lifecycle
 
     private func armShow() {
@@ -1251,6 +1278,9 @@ final class ShortcutEngine: ObservableObject {
         rebuildPanel()
         updateKeyCapture()
         publishInputState()
+        // The panel is up: tell Karabiner, so a rule bound to the trigger key stands down and
+        // the key reaches this list as a modifier instead of as the rule's shortcut.
+        signalKarabiner()
     }
 
     func dismissPanel() {
@@ -1269,6 +1299,8 @@ final class ShortcutEngine: ObservableObject {
         updateKeyCapture()
         publishInputState()
         presenters.panel.presentPanel(state: state.panel, settings: state.settings)
+        // The panel is gone: the rule that stood down for it is the user's again.
+        signalKarabiner()
         // One run loop later: `showSearch()` closes the panel on its way to opening the
         // search palette, and pulling the pointer back out from under a surface that is
         // about to want it would be worse than leaving it where it is.

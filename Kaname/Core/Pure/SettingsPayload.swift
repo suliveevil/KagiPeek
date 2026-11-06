@@ -43,6 +43,9 @@ nonisolated enum SettingsMigrator {
     /// decode to `false` anyway but the decision belongs on the record (see below).
     /// v10 adds `usageSortField`: no step, a v9 file has no key and the default (shortcut
     /// order) applies; an unknown value from a newer build also falls back to it.
+    /// v11 adds `karabinerPanelSignalEnabled`: no step for the same reason — a v10 file has
+    /// no key and the default (`true`) applies, and a build that never wrote the variable
+    /// leaves nothing stale behind.
     static func migrate(_ payload: SettingsPayload) -> AppSettingsSnapshot {
         var settings = payload.settings
         // v3 stored the old default pair (↩ runs, ⌘↩ copies). Only that exact pair moves:

@@ -120,6 +120,38 @@ Those tools implement shortcuts in their own keyboard layer, below the menu bar.
 
 Showing them is a separate switch, **off by default**, at **Settings → Conflicts → Config files → Show config tools in the panel and search**. A menu-shortcut cheat sheet should open on the app's own commands, not behind six tool cards. Turning it off does not stop the scan and does not empty the conflict list: the two switches are independent, and the conflict page keeps working either way. When shown, each tool is its own card and each card remembers its own fold; a filter in force opens every card, so a matching row is never hidden behind a folded one.
 
+## Why does ⌘ do nothing while the panel is open, when my trigger key is remapped in Karabiner?
+
+Because Karabiner rewrites the keyboard *below* Kaname. It takes the physical key at the driver level, applies the rule, and posts the result through its own virtual keyboard; Kaname's event tap sits above that and can only see what Karabiner produced. A rule bound to the same key — `left_command` with `to_if_alone` is the usual shape — therefore fires while the panel is open, and a lone ⌘ arrives as that rule's shortcut (⌘/ switches input methods) instead of as a modifier press, so it never joins the filter.
+
+Kaname cannot see through Karabiner, and swallowing the rewritten event would only stop the front app from seeing it too. What it can do is say when the panel is up, on the one channel Karabiner reads from the outside: a variable.
+
+1. **Settings → Trigger → Tell Karabiner when the panel is open** (on by default). While the panel is shown Kaname writes `kaname_panel=1`; when it closes it writes `0`; it also writes `0` at launch and at quit, so a crash or a force quit cannot leave your rule suppressed.
+2. Add one condition to the rule that fires on that key, for **the rule to apply only while the panel is closed**:
+
+```json
+"conditions": [{"type": "variable_unless", "name": "kaname_panel", "value": 1}]
+```
+
+It is a sibling of `from`/`to`, as a whole rule looks like this:
+
+```json
+{
+  "description": "Command to Cmd+Slash (click) for toggle Input Method",
+  "manipulators": [
+    {
+      "type": "basic",
+      "from": {"key_code": "left_command", "modifiers": {"optional": ["any"]}},
+      "to": [{"key_code": "left_command"}],
+      "to_if_alone": [{"key_code": "slash", "modifiers": ["left_command"]}],
+      "conditions": [{"type": "variable_unless", "name": "kaname_panel", "value": 1}]
+    }
+  ]
+}
+```
+
+`variable_if` would be the inverse and would keep the rule *on* exactly while the panel is up, so use `variable_unless`. Karabiner reloads `karabiner.json` when you save it, and the variable is live — no restart of either app is needed. A rule without the condition behaves exactly as before, and a machine without Karabiner never sees a write: the switch does nothing when its CLI is missing.
+
 ## Why won't Kaname run sleep, restart, shut down, lock, log out or force quit?
 
 Because those six actions affect the whole Mac, and one mistaken Enter is not recoverable here. Sleep (⌥⌘Power), restart (⌃⌘Power), shut down (⌃⌥⌘Power), lock screen (⌃⌘Q), log out and force log out (⇧⌘Q, ⌥⇧⌘Q) and force quit (⌥⌘Esc) are marked red and are never executed by Kaname: a click says why, the copy key copies the shortcut, and the context menu offers only the two copy actions. The rule matches the chord, not the localized title, and it applies in both the app's menu section and the system section. ⌘Q is **not** restricted: it quits the front app and leaves the Mac running.

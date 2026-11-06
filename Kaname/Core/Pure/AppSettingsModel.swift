@@ -199,6 +199,16 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// Whether the third-party config scanners run. Off means no file outside Kaname's
     /// own data folder is ever opened.
     var scanConfigFiles: Bool = true
+    /// Whether Kaname tells Karabiner-Elements when the panel is open.
+    ///
+    /// Karabiner rewrites the keyboard below the event tap, so a rule bound to the trigger key
+    /// keeps firing while the panel is up and the panel only ever sees the rule's output. The
+    /// switch writes Karabiner's `kaname_panel` variable on every panel show and hide, for a
+    /// rule that tests it with `variable_if` to stand down; see `KarabinerPanelSignal`.
+    ///
+    /// On by default: the write is a no-op unless the Karabiner CLI is installed, and without
+    /// the switch there is no way for a user who has that rule to keep the panel working.
+    var karabinerPanelSignalEnabled: Bool = true
     /// Whether the panel's third source — the config-tool cards — is drawn at all.
     ///
     /// Off by default: a cheat sheet of menu shortcuts should open on the app's own commands,
@@ -234,8 +244,11 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// `showConfigToolsInPanel`; earlier builds drew the tool cards unconditionally, but that
     /// was never a choice the user made, so the migration pins an old file to the new default
     /// (`false`) instead of leaving the cards on. Version 10 adds `usageSortField`; an old
-    /// file has no key, so the default (shortcut order) applies without a rewrite.
-    static let currentSchemaVersion = 10
+    /// file has no key, so the default (shortcut order) applies without a rewrite. Version 11
+    /// adds `karabinerPanelSignalEnabled`; an old file has no key, so the default (`true`,
+    /// the behaviour that keeps a Karabiner-bound trigger key usable) applies without a
+    /// rewrite.
+    static let currentSchemaVersion = 11
 
     init() {}
 
@@ -250,6 +263,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         case ignoredCommands
         case panelTheme, keyPosition, panelOrder, pinFavoritesToTop, favoritesCanBeFiltered
         case runRowKey, copyRowKey, pagingPairs, scanConfigFiles, showConfigToolsInPanel
+        case karabinerPanelSignalEnabled
         case diagnosticsEnabled, verboseDiagnostics, showDockIcon
     }
 
@@ -328,6 +342,10 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         }
         scanConfigFiles = try decode(.scanConfigFiles, fallback.scanConfigFiles)
         showConfigToolsInPanel = try decode(.showConfigToolsInPanel, fallback.showConfigToolsInPanel)
+        karabinerPanelSignalEnabled = try decode(
+            .karabinerPanelSignalEnabled,
+            fallback.karabinerPanelSignalEnabled
+        )
         diagnosticsEnabled = try decode(.diagnosticsEnabled, fallback.diagnosticsEnabled)
         verboseDiagnostics = try decode(.verboseDiagnostics, fallback.verboseDiagnostics)
         showDockIcon = try decode(.showDockIcon, fallback.showDockIcon)
@@ -376,6 +394,10 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         )
         try container.encode(scanConfigFiles, forKey: .scanConfigFiles)
         try container.encode(showConfigToolsInPanel, forKey: .showConfigToolsInPanel)
+        try container.encode(
+            karabinerPanelSignalEnabled,
+            forKey: .karabinerPanelSignalEnabled
+        )
         try container.encode(diagnosticsEnabled, forKey: .diagnosticsEnabled)
         try container.encode(verboseDiagnostics, forKey: .verboseDiagnostics)
         try container.encode(showDockIcon, forKey: .showDockIcon)
@@ -440,7 +462,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         // Keys
         "runRowKey", "copyRowKey", "pagingPairs",
         // Diagnostics and app presence
-        "scanConfigFiles", "showConfigToolsInPanel",
+        "scanConfigFiles", "showConfigToolsInPanel", "karabinerPanelSignalEnabled",
         "diagnosticsEnabled", "verboseDiagnostics", "showDockIcon",
     ]
 
