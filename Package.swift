@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "KagiPeekCore",
+    name: "KanameCore",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "KagiPeekCore", targets: ["KagiPeekCore"])
+        .library(name: "KanameCore", targets: ["KanameCore"])
     ],
     targets: [
         .target(
-            name: "KagiPeekCore",
-            path: "KagiPeek/Core/Pure",
+            name: "KanameCore",
+            path: "Kaname/Core/Pure",
             // The pure layer is where the migration ends up, so it is checked first: a new
             // non-`Sendable` decision type fails here long before it can reach a tap
             // callback. Swift 6 language mode + `complete` matches both app build paths.
@@ -20,9 +20,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "KagiPeekCoreTests",
-            dependencies: ["KagiPeekCore"],
-            path: "Tests/KagiPeekCoreTests"
+            name: "KanameCoreTests",
+            dependencies: ["KanameCore"],
+            path: "Tests/KanameCoreTests"
         )
     ]
 )

@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' KagiPeek.xcodeproj/project.pbxproj | head -1)"
+VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' Kaname.xcodeproj/project.pbxproj | head -1)"
 TAG="v${VERSION}"
 DMG="build/Kaname-${VERSION}.dmg"
 NOTES="docs/releases/${TAG}.md"

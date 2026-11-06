@@ -30,8 +30,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 SCRATCH="$WORK/data"
 
-cp "$ROOT/KagiPeek/Core/Storage/DataDirectory.swift" "$WORK/DataDirectory.swift"
-cp "$ROOT/KagiPeek/Core/Pure/DiagModel.swift" "$WORK/DiagModel.swift"
+cp "$ROOT/Kaname/Core/Storage/DataDirectory.swift" "$WORK/DataDirectory.swift"
+cp "$ROOT/Kaname/Core/Pure/DiagModel.swift" "$WORK/DiagModel.swift"
 
 cat > "$WORK/stub-diag.swift" <<'SWIFT'
 import Foundation

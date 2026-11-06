@@ -27,7 +27,7 @@ xcuserdata/
 *.ipa
 *.dSYM
 *.dSYM.zip
-KagiPeek.xcodeproj/project.xcworkspace/
+Kaname.xcodeproj/project.xcworkspace/
 
 # ---------------------------------------------------------------------------
 # Swift Package Manager
@@ -87,7 +87,7 @@ logs/
 *.swo
 # Atomic-save scratch files. An editor that writes through a temporary (`.!12345!File.swift`,
 # `.#File.swift`) leaves one behind whenever it is interrupted, and because the name keeps the
-# `.swift` extension it is picked up by `find KagiPeek -name '*.swift'` and compiled as a second
+# `.swift` extension it is picked up by `find Kaname -name '*.swift'` and compiled as a second
 # copy of the same type. One such file reached a commit on 2026-11-05.
 .!*
 .#*

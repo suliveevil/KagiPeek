@@ -70,7 +70,7 @@ echo "==> Compiling ($CONFIG, arm64, Swift 6)"
     -load-plugin-library "$PLUG/libSwiftUIMacros.dylib" \
     -load-plugin-library "$PLUG/libSwiftMacros.dylib" \
     -load-plugin-library "$PLUG/libObservationMacros.dylib" \
-    $(find KagiPeek -name '*.swift')
+    $(find Kaname -name '*.swift')
 
 if [ -f "$TEMPLATE" ]; then
     echo "==> Info.plist from $TEMPLATE"
@@ -86,7 +86,7 @@ fi
 # the About page said 2.1.0. The template still supplies everything else, but the two keys
 # that name the build are read from the project file whenever it carries them.
 PLIST="$APP/Contents/Info.plist"
-PBXPROJ="$ROOT/KagiPeek.xcodeproj/project.pbxproj"
+PBXPROJ="$ROOT/Kaname.xcodeproj/project.pbxproj"
 PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST" 2>/dev/null || true)"
 PROJECT_VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' "$PBXPROJ" 2>/dev/null | head -1)"
 PROJECT_BUILD="$(sed -n 's/.*CURRENT_PROJECT_VERSION = \(.*\);/\1/p' "$PBXPROJ" 2>/dev/null | head -1)"
@@ -113,8 +113,8 @@ fi
 # even at deployment target 14.0 and emits Kaname.icns for older macOS.
 # The generated partial plist names Kaname for both icon keys; the template
 # above carries those values because this path copies Info.plist verbatim.
-ICON_SOURCE="$ROOT/KagiPeek/Kaname.icon"
-CATALOG="$ROOT/KagiPeek/Assets.xcassets"
+ICON_SOURCE="$ROOT/Kaname/Kaname.icon"
+CATALOG="$ROOT/Kaname/Assets.xcassets"
 if [ -d "$ICON_SOURCE" ] && [ -d "$CATALOG" ]; then
     echo "==> Compiling Kaname.icon + asset catalog"
     xcrun actool --compile "$APP/Contents/Resources" \

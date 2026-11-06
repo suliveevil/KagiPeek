@@ -23,8 +23,8 @@ the icon geometry. Everything else is generated from it:
 
   deliverables/kaname-icon/  local previews, editable SVGs, a .icon copy
                              (working papers, ignored by git)
-  KagiPeek/Kaname.icon/      the package both build paths compile (tracked)
-  KagiPeek/Assets.xcassets/MenuBarIcon.imageset/*.png (tracked)
+  Kaname/Kaname.icon/      the package both build paths compile (tracked)
+  Kaname/Assets.xcassets/MenuBarIcon.imageset/*.png (tracked)
 
 Keeping the generator out of deliverables/ matters: that directory is ignored,
 so a generator living there only exists on one machine and a fresh checkout
@@ -45,8 +45,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 DELIVER = REPO / "deliverables" / "kaname-icon"
-PROJECT_ICON = REPO / "KagiPeek" / "Kaname.icon"
-CATALOG = REPO / "KagiPeek" / "Assets.xcassets"
+PROJECT_ICON = REPO / "Kaname" / "Kaname.icon"
+CATALOG = REPO / "Kaname" / "Assets.xcassets"
 MENUBAR_CATALOG = CATALOG / "MenuBarIcon.imageset"
 SRC = DELIVER / "source"
 PREVIEW = DELIVER / "preview"

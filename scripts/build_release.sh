@@ -34,13 +34,13 @@ if ! xcodebuild -version >/dev/null 2>&1; then
     exit 1
 fi
 
-VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' KagiPeek.xcodeproj/project.pbxproj | head -1)"
+VERSION="$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' Kaname.xcodeproj/project.pbxproj | head -1)"
 BUILD_DIR="$ROOT/build"
 DERIVED="$BUILD_DIR/DerivedData"
 APP="$DERIVED/Build/Products/Release/Kaname.app"
 
 echo "==> Building Kaname ${VERSION} (Release)"
-xcodebuild     -project KagiPeek.xcodeproj     -scheme KagiPeek     -configuration Release     -derivedDataPath "$DERIVED"     CODE_SIGNING_ALLOWED=NO     build
+xcodebuild     -project Kaname.xcodeproj     -scheme Kaname     -configuration Release     -derivedDataPath "$DERIVED"     CODE_SIGNING_ALLOWED=NO     build
 
 # The bundle is the only single source of truth for the version: the project file carries
 # MARKETING_VERSION twice (Debug and Release) and a `sed` that matches the wrong one, or

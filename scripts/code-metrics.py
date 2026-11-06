@@ -27,9 +27,9 @@ def strip_comments(src):
 
 
 root = sys.argv[1].rstrip('/')
-app = sorted(glob.glob(root + '/KagiPeek/**/*.swift', recursive=True))
+app = sorted(glob.glob(root + '/Kaname/**/*.swift', recursive=True))
 tst = sorted(glob.glob(root + '/Tests/**/*.swift', recursive=True))
-core = sorted(glob.glob(root + '/KagiPeek/Core/**/*.swift', recursive=True))
+core = sorted(glob.glob(root + '/Kaname/Core/**/*.swift', recursive=True))
 allf = app + tst
 
 
