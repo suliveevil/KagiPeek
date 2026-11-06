@@ -62,11 +62,10 @@ Local`）、不要每次构建都改 `CFBundleVersion` 以外的身份字段。
 用户实际看到的是「无法验证开发者」/「Apple 无法验证是否包含恶意软件」，随后：
 
 - **系统设置 → 隐私与安全性 → 仍要打开**；或
-- `brew install --cask --no-quarantine kaname`，或
 - `xattr -dr com.apple.quarantine /Applications/Kaname.app`。
 
-`--no-quarantine` 只对当次安装有效，副作用是跳过这个包的首次 Gatekeeper 检查；后续
-`brew upgrade` 不带该参数会重新隔离。
+Homebrew 7 移除了 `--no-quarantine` 参数，所以没有「安装时跳过隔离」的写法；每次
+`brew upgrade` 都会重新下载并隔离，首次启动要再放行一次。
 
 **不要引导用户导入 `Kaname Local` 根证书并设为信任。** 这不会让 Gatekeeper 放行（缺的是
 Apple 公证，不是本地信任设置），却把一个自签 CA 放进了用户的信任链，是明确的安全反模式。

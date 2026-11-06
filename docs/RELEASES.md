@@ -111,11 +111,11 @@ cd Kaname
 ```
 
 > Builds from a machine without a Developer ID certificate are **not notarized**, so Gatekeeper
-> warns on first launch. Homebrew quarantines cask downloads by default. Either approve the app once
-> in System Settings → Privacy & Security → **Open Anyway**, install with
-> `brew install --cask --no-quarantine kaname`, or remove the attribute with
-> `xattr -dr com.apple.quarantine /Applications/Kaname.app`. The `--no-quarantine` flag applies to
-> that install only; a later `brew upgrade` without it quarantines the new copy again.
+> warns on first launch. Homebrew quarantines cask downloads by default. Approve the app once in
+> System Settings → Privacy & Security → **Open Anyway**, or remove the attribute from the
+> installed copy with `xattr -dr com.apple.quarantine /Applications/Kaname.app`. Homebrew 7 removed
+> `--no-quarantine`, so that flag is no longer available; the attribute returns with every
+> `brew upgrade`.
 
 Either way, the app needs **Accessibility** on first launch (System Settings → Privacy &
 Security → Accessibility). Input Monitoring is only needed if key events do not arrive.
@@ -129,8 +129,8 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
 - **Homebrew upgrades replace the app in place.** Quit Kaname first (`brew upgrade --cask kaname`
   while it is running leaves the old process holding a deleted binary and event tap). The
   Accessibility grant survives only when the bundle identifier and signing identity stay the same.
-  `--no-quarantine` is not remembered: without it, the next upgrade is quarantined and blocked on
-  first launch again.
+  Each upgrade is quarantined again, so first launch on the new copy is blocked until it is
+  approved (or the attribute is removed) once more.
 - **Uninstall removes the app, not its data.** `brew uninstall --cask kaname` leaves
   `~/Library/Application Support/Kaname` (settings, statistics, logs, local backups), the
   preferences plist, caches and saved state. `brew uninstall --cask --zap kaname` deletes all of

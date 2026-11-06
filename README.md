@@ -107,7 +107,7 @@ brew install --cask kaname
 
 The cask lives in the public `suliveevil/homebrew-tap` repository and points at the DMG attached to the matching GitHub release. [`Distribution/kaname.rb`](Distribution/kaname.rb) is the template that `scripts/publish_release.sh` renders after the release upload; it is not installable until the DMG and its `.sha256` exist.
 
-- **Not notarized.** Homebrew quarantines downloads by default, so the first launch is blocked by Gatekeeper. Either approve Kaname once under **System Settings → Privacy & Security → Open Anyway**, or install with `brew install --cask --no-quarantine kaname`. The flag skips the first-launch check for this one install only; a later `brew upgrade` without it quarantines the app again.
+- **Not notarized.** Homebrew quarantines downloads by default, so the first launch is blocked by Gatekeeper. Approve Kaname once under **System Settings → Privacy & Security → Open Anyway**, or strip the attribute from the installed copy with `xattr -dr com.apple.quarantine /Applications/Kaname.app`. Homebrew 7 removed `--no-quarantine`, and every `brew upgrade` downloads a fresh copy that is quarantined again.
 - **Upgrade:** `brew upgrade --cask kaname`. Quit Kaname first — it is a menu bar agent, and a running copy keeps the old binary and event tap alive.
 - **Uninstall:** `brew uninstall --cask kaname` removes the app. `brew uninstall --cask --zap kaname` also deletes `~/Library/Application Support/Kaname` (settings, statistics, logs and local backups), the preferences plist, caches and saved state. Neither form removes the Accessibility grant — reset it with `tccutil reset Accessibility com.suliveevil.kaname` — and a login item may have to be removed in **System Settings → General → Login Items**.
 
@@ -470,7 +470,7 @@ brew install --cask kaname
 
 cask 位于公开仓库 `suliveevil/homebrew-tap`，指向对应 GitHub Release 上附带的 DMG。[`Distribution/kaname.rb`](Distribution/kaname.rb) 是模板，由 `scripts/publish_release.sh` 在发布上传成功后渲染；在 DMG 与 `.sha256` 存在之前，它不是可安装文件。
 
-- **未公证。** Homebrew 默认会给下载产物打 quarantine，首次启动会被 Gatekeeper 拦下。要么在**系统设置 → 隐私与安全性**里点**仍要打开**，要么用 `brew install --cask --no-quarantine kaname` 安装。这个 flag 只跳过这一次安装的首次检查；之后不带它执行 `brew upgrade`，新版本会重新被 quarantine。
+- **未公证。** Homebrew 默认会给下载产物打 quarantine，首次启动会被 Gatekeeper 拦下。在**系统设置 → 隐私与安全性**里点**仍要打开**，或对已安装副本执行 `xattr -dr com.apple.quarantine /Applications/Kaname.app`。Homebrew 7 已移除 `--no-quarantine`；每次 `brew upgrade` 都会重新下载并再次隔离。
 - **升级：** `brew upgrade --cask kaname`。先退出 Kaname——它是菜单栏常驻 App，旧进程会继续持有旧二进制与事件 tap。
 - **卸载：** `brew uninstall --cask kaname` 只删 App；`brew uninstall --cask --zap kaname` 还会删除 `~/Library/Application Support/Kaname`（设置、统计、日志与本地备份）、偏好 plist、缓存与窗口状态。两种方式都不会清掉辅助功能授权——需要 `tccutil reset Accessibility com.suliveevil.kaname`；登录项可能还要去**系统设置 → 通用 → 登录项**手动删除。
 
