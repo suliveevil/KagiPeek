@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The screenshot fixture: `KANAME_PREVIEW=panel|search|settings|...` drives the app into a
 /// named state, waits for it to settle and writes PNGs plus window frames to
-/// `/tmp/kagipeek-shots`.
+/// `/tmp/kaname-shots`.
 ///
 /// It is a fixture, not engine logic, and it does not belong in `ShortcutEngine.swift`: 250
 /// lines of "take a picture of this state" made the class read as a screenshot tool with a
@@ -254,7 +254,7 @@ extension ShortcutEngine {
     }
 
     private func writePreviewArtifacts(mode: String) {
-        let directory = URL(fileURLWithPath: "/tmp/kagipeek-shots", isDirectory: true)
+        let directory = URL(fileURLWithPath: "/tmp/kaname-shots", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         var index = 0
@@ -293,6 +293,6 @@ extension ShortcutEngine {
             "scale": screen?.backingScaleFactor ?? 1
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) else { return }
-        try? data.write(to: URL(fileURLWithPath: "/tmp/kagipeek-preview.json"))
+        try? data.write(to: URL(fileURLWithPath: "/tmp/kaname-preview.json"))
     }
 }

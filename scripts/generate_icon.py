@@ -288,7 +288,7 @@ def system_previews():
     if shutil.which("xcrun") is None or shutil.which("iconutil") is None:
         print("warning: Xcode tools unavailable; no system-rendered previews")
         return
-    tmp = Path(tempfile.mkdtemp(prefix="kagipeek-icon-"))
+    tmp = Path(tempfile.mkdtemp(prefix="kaname-icon-"))
     try:
         out = tmp / "compiled"
         out.mkdir()

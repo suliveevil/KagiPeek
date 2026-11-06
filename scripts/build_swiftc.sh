@@ -136,12 +136,6 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # and over. The passphrase is read, never printed, and never stored in the repository.
 SIGN_KEYCHAIN_FILE="${KANAME_SIGNING_KEYCHAIN:-$HOME/Library/Keychains/kaname-signing.keychain-db}"
 SIGN_PASS_FILE="${KANAME_SIGNING_PASS_FILE:-$HOME/Library/Application Support/Kaname/signing/keychain-pass}"
-# During the rename the old folder still holds the passphrase until the first launch
-# migrates it (or setup_signing.sh writes the new one); read the old copy as a fallback.
-if [ ! -r "$SIGN_PASS_FILE" ]; then
-    LEGACY_SIGN_PASS="$HOME/Library/Application Support/KagiPeek/signing/keychain-pass"
-    [ -r "$LEGACY_SIGN_PASS" ] && SIGN_PASS_FILE="$LEGACY_SIGN_PASS"
-fi
 
 IDENTITY=""
 SIGN_KEYCHAIN=""

@@ -1,7 +1,7 @@
-# KagiPeek 代码审查报告（第四轮）
+# Kaname 代码审查报告（第四轮）
 
 - 审查日期：2026-11-03
-- 仓库：`/Users/suliveevil/Documents/GitHub/KagiPeek`
+- 仓库：`/Users/suliveevil/Documents/GitHub/Kaname`
 - 工作树起点：clean（HEAD `3b140a1`）
 - 参考资料：《macOS Apprentice》第三版、Apple Human Interface Guidelines（macOS）、《Clean Code》、《Clean Architecture》、《The Pragmatic Programmer》、《Migrating to Swift 6》
 - 前置文档：`docs/code-review-2026-11-02.md`、`docs/code-review-2026-11-02-round2.md`、`docs/engine-split-design.md`、`docs/ARCHITECTURE.md`
@@ -10,7 +10,7 @@
 
 ## 1. 执行摘要
 
-KagiPeek 已历经三轮审查并持续重构，当前是一个**质量显著高于同类 macOS 工具的 Swift 6 项目**：分层清晰、依赖方向正确、并发以编译器可验证的方式隔离、纯逻辑可单元测试、注释解释“为什么”而非“做什么”。本轮不重复前三轮已闭合的结论，而是在全库独立精读后，聚焦**仍存在的真实重复与一个零测试的用户路径**，并实际落地了三项行为保持的重构。
+Kaname 已历经三轮审查并持续重构，当前是一个**质量显著高于同类 macOS 工具的 Swift 6 项目**：分层清晰、依赖方向正确、并发以编译器可验证的方式隔离、纯逻辑可单元测试、注释解释“为什么”而非“做什么”。本轮不重复前三轮已闭合的结论，而是在全库独立精读后，聚焦**仍存在的真实重复与一个零测试的用户路径**，并实际落地了三项行为保持的重构。
 
 结果（全部经构建与测试验证）：
 
@@ -105,7 +105,7 @@ KagiPeek 已历经三轮审查并持续重构，当前是一个**质量显著高
 
 - 新增纯的 `Core/Pure/SearchKeyRouter.swift`：`SearchKeyAction`（moveSelection/close/returnToPanel/passThrough）与 `SearchKeyRouter.action(keyCode:modifiers:isQueryEmpty:)`（`SearchKeyRouter.swift:23`），复用 `NavigationKey` 以保留 Emacs 键；
 - `SurfacePanelController.swift:219` 改为“获取决策 → 执行动作”的薄封装；输入法组合状态（`TextComposition.isComposing`）因涉及面板状态，仍保留在控制器并提前放行；
-- 新增 `Tests/KagiPeekCoreTests/SearchKeyRouterTests.swift`，11 个测试覆盖物理方向键、Emacs 键、带修饰符方向键、`⌃⌘P/⌃⌥P 必须放行`的回归点、Esc、斜杠各边界与普通字符。
+- 新增 `Tests/KanameCoreTests/SearchKeyRouterTests.swift`，11 个测试覆盖物理方向键、Emacs 键、带修饰符方向键、`⌃⌘P/⌃⌥P 必须放行`的回归点、Esc、斜杠各边界与普通字符。
 
 **原理映射**：决策与机制分离（Clean Architecture、Pragmatic 的“分离关注点”）、纯逻辑可测（Clean Code）、把隐式行为显式化并钉住（契约式设计）。
 
@@ -122,7 +122,7 @@ KagiPeek 已历经三轮审查并持续重构，当前是一个**质量显著高
 | `Core/Pure/SkhdScanner.swift` | 修改 | 改用 `scanTextConfig` |
 | `Core/Pure/SearchKeyRouter.swift` | 新增 | 搜索框按键纯路由（45 行） |
 | `UI/Surface/SurfacePanelController.swift` | 修改 | 事件监视器改为调用纯路由（净减约 20 行） |
-| `Tests/KagiPeekCoreTests/SearchKeyRouterTests.swift` | 新增 | 11 个测试（145 行） |
+| `Tests/KanameCoreTests/SearchKeyRouterTests.swift` | 新增 | 11 个测试（145 行） |
 
 `git diff --stat`（已跟踪文件）：6 文件，+58 / −54；另含两个新增文件共 190 行。
 
@@ -155,7 +155,7 @@ KagiPeek 已历经三轮审查并持续重构，当前是一个**质量显著高
 ## 7. 验证记录
 
 - `swift test`：**Executed 557 tests, with 0 failures**（含新增 11 个 `SearchKeyRouterTests`）。
-- `xcodebuild -scheme KagiPeek -configuration Debug build CODE_SIGNING_ALLOWED=NO`：**BUILD SUCCEEDED**；除“多目标 destination 选择”提示外无代码警告/错误。
+- `xcodebuild -scheme Kaname -configuration Debug build CODE_SIGNING_ALLOWED=NO`：**BUILD SUCCEEDED**；除“多目标 destination 选择”提示外无代码警告/错误。
 - 重复度：`metrics` 的 Core 跨文件 ≥5 行重复块 **4 → 2**，剩余项已在 §6.1 核实为合理。
 - 覆盖范围与缺口：本轮结论基于对 App/Core(Pure, Engine, Input, Ports, Services, Storage, AX)/UI 各层代表文件及测试的独立精读；未逐行阅读的文件不做全称判断，所有“全部/无”类结论均限定在已核查范围内。
 
@@ -173,7 +173,7 @@ KagiPeek 已历经三轮审查并持续重构，当前是一个**质量显著高
 
 ### 9.1 现象与证据（confirmed）
 
-- 系统报告 `~/Library/Logs/DiagnosticReports/KagiPeek-2026-11-03-020959.ips`：`EXC_BREAKPOINT (SIGTRAP)`，崩溃线程位于后台队列 `com.voltline.kagipeek.usage-write`，栈为 `_dispatch_assert_queue_fail → dispatch_assert_queue → _swift_task_checkIsolatedSwift → swift_task_isCurrentExecutorWithFlagsImpl → closure #1 in UsageStore.flush()/schedulePersist()`。
+- 系统报告 `~/Library/Logs/DiagnosticReports/Kaname-2026-11-03-020959.ips`：`EXC_BREAKPOINT (SIGTRAP)`，崩溃线程位于后台队列 `com.suliveevil.kaname.usage-write`，栈为 `_dispatch_assert_queue_fail → dispatch_assert_queue → _swift_task_checkIsolatedSwift → swift_task_isCurrentExecutorWithFlagsImpl → closure #1 in UsageStore.flush()/schedulePersist()`。
 - 即运行时检测到“当前 executor 与声明的 actor 隔离不符”，主动触发 trap。
 
 ### 9.2 根因（两层，均与默认 MainActor 隔离有关）

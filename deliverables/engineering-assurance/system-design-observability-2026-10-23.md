@@ -1,4 +1,4 @@
-# KagiPeek 可观测性能力建设 · 系统设计与实施报告
+# Kaname 可观测性能力建设 · 系统设计与实施报告
 
 **日期**：2026-10-23
 **工作流**：工作流 2（系统设计）+ 实施 + 独立验证
@@ -50,7 +50,7 @@
         └─────────────► FileLogStore（串行队列、32 行/200ms 批量、按日切、限额裁剪）
                               │ Sanitizer.prepare（控制字符 + 家目录 ~ + 7 条脱敏）
                               ▼
-             ~/Library/Application Support/KagiPeek/logs/kagipeek-YYYY-MM-DD.log
+             ~/Library/Application Support/Kaname/logs/kaname-YYYY-MM-DD.log
 
 崩溃路径：AppDelegate.init 首行 → CrashReporter.install()
    ├─ NSException：NSSetUncaughtExceptionHandler → 完整 JSON（含栈 + 最近 30 动作）
@@ -99,9 +99,9 @@ handler 内禁止 Swift 分配/String/锁/os.Logger。实现：安装期预开 f
 
 ## 可运维性（排查支持）
 
-**日志位置**：`~/Library/Application Support/KagiPeek/logs/`，设置页 Diagnostics tab 可一键打开。
-**崩溃报告**：`~/Library/Application Support/KagiPeek/crash/kagipeek-crash-<date>-<kind>.json`。
-**无 GUI 导出**：`KAGIPEEK_EXPORT_DIAGNOSTICS=/tmp/kagipeek.zip /Applications/KagiPeek.app/Contents/MacOS/KagiPeek`。
+**日志位置**：`~/Library/Application Support/Kaname/logs/`，设置页 Diagnostics tab 可一键打开。
+**崩溃报告**：`~/Library/Application Support/Kaname/crash/kaname-crash-<date>-<kind>.json`。
+**无 GUI 导出**：`KANAME_EXPORT_DIAGNOSTICS=/tmp/kaname.zip /Applications/Kaname.app/Contents/MacOS/Kaname`。
 
 关键日志关键字（`[start] [perm] [tap] [scan] [inject] [net] [run] [settings] [crash] [exit] [export]`）与问题类型的完整对照表见 `docs/TROUBLESHOOTING.md`。
 
@@ -186,11 +186,11 @@ handler 内禁止 Swift 分配/String/锁/os.Logger。实现：安装期预开 f
 
 - 启动耗时未取改造前基线；新增启动工作为微秒级 syscall + 一次目录扫描，实测 engine.start 60–92ms（Debug 构建）。
 - 崩溃时最多丢 32 行日志（批量窗口），所以报告里的 `logTail` 末尾可能缺最后几十行——信号路径无法 flush，这是硬约束。
-- 导出 UI 的 `NSSavePanel` 交互分支需人工点验；headless 分支（`KAGIPEEK_EXPORT_DIAGNOSTICS`）与打包内容已实测。
+- 导出 UI 的 `NSSavePanel` 交互分支需人工点验；headless 分支（`KANAME_EXPORT_DIAGNOSTICS`）与打包内容已实测。
 - FileLogStore 的 IO 半层未进 SPM 测试目标（依赖 App 层类型），滚动/裁剪目前由纯策略单测覆盖。
 - 崩溃报告不含符号化栈（信号路径）；符号化依赖系统 `/Library/Logs/DiagnosticReports`。
 - 未接入 MetricKit / 挂起 watchdog（明确列为非目标）。
-- `KAGIPEEK_PREVIEW` 会改写 `settings.json`（既有行为，验证时已备份恢复）。
+- `KANAME_PREVIEW` 会改写 `settings.json`（既有行为，验证时已备份恢复）。
 
 ---
 
@@ -199,7 +199,7 @@ handler 内禁止 Swift 分配/String/锁/os.Logger。实现：安装期预开 f
 - **Archi（架构师）**：`docs/observability-architecture.md` — 三路线取舍、模块划分、崩溃捕获设计、脱敏清单、性能预算
 - **Cody（代码审查师）**：可观测性就绪度审查 — 15 个静默分支、3 处隐私直写缺陷（剪贴板文本 / 按键明文 / 窗口标题）、44 处调用点分布、signal handler 与主线程 tap 约束
 - **Tessa（测试专家）**：测试策略 — 纯逻辑/IO 分层、48 个用例设计、时间注入方案、手动验证清单
-- **实测记录**：`~/Library/Application Support/KagiPeek/logs/`（真实运行日志）、`crash/kagipeek-crash-20261023-172414-SIGSEGV.json`（补全后的报告）、`/tmp/kagipeek-diag.zip`（导出包）、`/tmp/kagipeek-diagtab.png`（设置页截图）
+- **实测记录**：`~/Library/Application Support/Kaname/logs/`（真实运行日志）、`crash/kaname-crash-20261023-172414-SIGSEGV.json`（补全后的报告）、`/tmp/kaname-diag.zip`（导出包）、`/tmp/kaname-diagtab.png`（设置页截图）
 
 ---
 

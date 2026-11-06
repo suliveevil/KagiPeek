@@ -15,8 +15,8 @@ as of **2026-11-06**（Asia/Shanghai）。
 - 分支：`main` 已包含本轮全部改动，`fix/tool-section-folding` 合并后删除。本地还剩开发分支
   `feature/panel-sections`、旧历史备份 `backup/pre-squash-20261104-192838`（branch 与 tag
   同指向 `de32cb6`）。16 个 pre-squash 时期的迭代分支已逐个核对并删除（见上一版记录），
-  提交历史仍保留在备份 ref 上。远端 `Voltline/KagiPeek` 仍作为只读参照，`origin` 指向
-  suliveevil/KagiPeek。
+  提交历史仍保留在备份 ref 上。远端 `Voltline/Kaname` 仍作为只读参照，`origin` 指向
+  suliveevil/Kaname。
 - `swift test` 844 → 849，0 failures（新增 `showConfigToolsInPanel` 的迁移/编码 4 项与
   工具行门控 1 项）。2026-11-06 01:24 在 `bf8260a` 上复跑仍 849/0；01:26 执行
   `scripts/install.sh` 构建并安装，`/Applications/Kaname.app` 现在是 `bf8260a`。
@@ -194,7 +194,7 @@ as of **2026-11-06**（Asia/Shanghai）。
 | `security find-identity ... kaname-signing.keychain-db` | 仅 `E40CFAA44DE724347FA66BB0BF84E2D58953C17E "Kaname Local"` |
 | `codesign -d -r- /Applications/Kaname.app` | `identifier "com.suliveevil.kaname" and certificate root = H"e40cfaa4…c17e"` |
 | `codesign -dvvv /Applications/Kaname.app` | `Authority=Kaname Local`；`Identifier=com.suliveevil.kaname`；`flags=0x10000(runtime)` |
-| `scripts/install.sh`（`KANAME_SKIP_BUILD=1`，2026-11-06 09:29） | `Kaname Local` 签名；旧 `KagiPeek.app` 备份到新目录后移除 |
+| `scripts/install.sh`（`KANAME_SKIP_BUILD=1`，2026-11-06 09:29） | `Kaname Local` 签名；旧 `Kaname.app` 备份到新目录后移除 |
 | `KanameCommit` / 版本串 | `00cc7bf` / `2.2.0 (220)` |
 | `pgrep -lf Kaname.app/Contents/MacOS` | `74955 /Applications/Kaname.app/Contents/MacOS/Kaname`（单实例） |
 | 迁移标记 | `.migrated-from-kagi-peek` = `{"backupsComplete":true,"criticalComplete":true}` |
@@ -205,7 +205,7 @@ as of **2026-11-06**（Asia/Shanghai）。
 
 签名说明：改名同时换了 bundle id 与证书，designated requirement 已变为
 `identifier "com.suliveevil.kaname" and certificate root = H"e40cfaa4…c17e"`。因此这次覆盖安装
-**必须重新授权辅助功能**；旧证书 `KagiPeek Local` 与旧钥匙串保留，作为回滚。
+**必须重新授权辅助功能**；旧证书 `Kaname Local` 与旧钥匙串保留，作为回滚。
 
 **ad-hoc 只作验证**：`scripts/build_swiftc.sh` 在没有稳定身份时会 ad-hoc 签名，这种包只能
 在临时目录做 `codesign --verify --deep --strict`；`scripts/install.sh` 会直接拒绝安装 ad-hoc
@@ -213,7 +213,7 @@ as of **2026-11-06**（Asia/Shanghai）。
 
 ## 已安装构建
 
-- 路径：`/Applications/Kaname.app`（`/Applications` 下已无 `KagiPeek.app`）
+- 路径：`/Applications/Kaname.app`（`/Applications` 下已无 `Kaname.app`）
 - 版本串原文：`v2.2.0 (00cc7bf)`
 - `CFBundleIdentifier`：`com.suliveevil.kaname`
 - `CFBundleName` / `CFBundleExecutable`：`Kaname` / `Kaname`
@@ -223,9 +223,9 @@ as of **2026-11-06**（Asia/Shanghai）。
   designated requirement 根哈希 `e40cfaa4…c17e`，私钥只在 `kaname-signing.keychain-db`
 - 运行中 PID：`74955`（`pgrep -lf Kaname.app/Contents/MacOS`，单实例）
 - 旧包备份：`~/Library/Application Support/Kaname/backups/Kaname-2026-11-06-092955-unknown-local.app`
-  （提交戳未知，因为旧包的键名是 `KagiPeekCommit`）
+  （提交戳未知，因为旧包的键名是 `KanameCommit`）
 - 数据目录：`~/Library/Application Support/Kaname/` 181 MB；旧目录
-  `~/Library/Application Support/KagiPeek/` 167 MB，保持原样未删
+  `~/Library/Application Support/Kaname/` 167 MB，保持原样未删
 - 迁移结果：`settings.json`、`usage.json`、`conflicts-cache.json`、`menu-cache/`、`logs/`、
   `crash/`、`signing/` 已复制；日志文件名由 `kaname-*.log` 取代；
   `backups/` 178 MB，异步复制完成并写入标记

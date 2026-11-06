@@ -57,7 +57,7 @@ if [ ! -f "$NOTES" ]; then
             git log --no-merges --pretty='- %s' -n 20
         fi
         echo
-        echo "Full record: https://github.com/suliveevil/KagiPeek/blob/main/docs/RELEASES.md"
+        echo "Full record: https://github.com/suliveevil/Kaname/blob/main/docs/RELEASES.md"
     } > "$NOTES"
     echo "==> No hand-written notes for $TAG; generated them from the commits"
 fi
@@ -69,16 +69,16 @@ else
 fi
 
 # Repositories cloned over HTTPS need a credential helper; fall back to SSH.
-git push origin "$TAG" 2>/dev/null || git push git@github.com:suliveevil/KagiPeek.git "$TAG"
+git push origin "$TAG" 2>/dev/null || git push git@github.com:suliveevil/Kaname.git "$TAG"
 
-ARGS=(release create "$TAG" "$DMG" --repo suliveevil/KagiPeek --title "Kaname $VERSION" --notes-file "$NOTES")
+ARGS=(release create "$TAG" "$DMG" --repo suliveevil/Kaname --title "Kaname $VERSION" --notes-file "$NOTES")
 if [ "${1:-}" = "--prerelease" ]; then
     ARGS+=(--prerelease)
 fi
 
-# `gh` picks a repo from the git remotes and can land on the Voltline/KagiPeek remote when
+# `gh` picks a repo from the git remotes and can land on the Voltline/Kaname remote when
 # one exists; releases belong to the Kaname repository, so the script pins it. The .sha256
 # sidecar is what README tells users to verify against, and `release create` uploads only
 # the DMG.
 gh "${ARGS[@]}"
-gh release upload "$TAG" "$DMG.sha256" --repo suliveevil/KagiPeek
+gh release upload "$TAG" "$DMG.sha256" --repo suliveevil/Kaname

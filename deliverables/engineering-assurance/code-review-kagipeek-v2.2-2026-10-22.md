@@ -1,4 +1,4 @@
-# KagiPeek v2.2 工程审查与修复记录
+# Kaname v2.2 工程审查与修复记录
 
 **日期**：2026-10-22
 **审查对象**：`feat/v2.2` — `4549451`（功能提交）、`59ac99c`/`f4b2347`（测试修复）
@@ -41,7 +41,7 @@
 | 18 | 🟡 | 死键/死分支：`searchCopied`、`browserExportDone`、二选一的搜索提示 | ✅ 已修 | 随 #4 一并删除；L10n 现 188 键 = 188 条，无缺失/孤儿/占位符不一致 |
 | 19 | 🟢 | `eventSourceUserData` 每次新建（不可测） | ⚪ 不适用 | 代码中不存在该实现；未改动 |
 | 20 | 🟢 | `MenuScanner.press` 无调用者 | ✅ 已标注 | 注释改为"预留：AX 原语，当前执行走回放"，并说明理由 |
-| 21 | 🟢 | README "Triggers" 标签名、DMG 版本号 2.1.0 | ✅ 已修 | 统一 `Trigger`；`KagiPeek-2.2.0.dmg` |
+| 21 | 🟢 | README "Triggers" 标签名、DMG 版本号 2.1.0 | ✅ 已修 | 统一 `Trigger`；`Kaname-2.2.0.dmg` |
 | 22 | 🟢 | 2 条 `NSEvent: Sendable` 告警 + `activateIgnoringOtherApps` 弃用 | ✅ 已修 | `var handled` 模式改三个窗口控制器；全部改 `NSApp.activate()`；构建零告警 |
 | 23 | 🟠 | `SurfacePanelController` 写死 `modifiers: [.control]`，吞掉 ⌃⌥P/⌃⌘P | ✅ 已修 | 传 `ModifierSet.from(flags:)` 真实修饰键；与浏览器窗口策略一致 |
 | 24 | 🟡 | IME 守卫两份不等价，Quiz 零守卫 | ✅ 已修 | `UI/Design/TextComposition.isComposing(in:)` 唯一实现，三个 surface 共用 |
@@ -60,9 +60,9 @@
 
 ## ✅ 本轮额外修掉的问题（审查未列出，改动中发现）
 
-- **浏览器窗口"刷新"按钮必然刷错对象**：窗口为 key 时它调用前台 App 的重载，于是刷成 KagiPeek 自己。改为 `refreshBrowserCatalog()`，优先重扫正在浏览的 App。
+- **浏览器窗口"刷新"按钮必然刷错对象**：窗口为 key 时它调用前台 App 的重载，于是刷成 Kaname 自己。改为 `refreshBrowserCatalog()`，优先重扫正在浏览的 App。
 - **`settings != oldValue` 短路**：设置写入不再因为视图重复赋值同样内容而落盘。
-- **`build_release.sh` 版本号来源**：改为读构建产物的 `CFBundleShortVersionString` 并与 `MARKETING_VERSION` 交叉校验；空值或不等直接失败（避免 `KagiPeek-.dmg` 与 `v` 标签）。
+- **`build_release.sh` 版本号来源**：改为读构建产物的 `CFBundleShortVersionString` 并与 `MARKETING_VERSION` 交叉校验；空值或不等直接失败（避免 `Kaname-.dmg` 与 `v` 标签）。
 - **DMG 自身签名/公证/装订**：之前只公证 `.app`，现在 `.dmg` 也签名、可公证并 `staple validate`，同时产出 `.sha256`。
 - **`xcodebuild` 不可用时的构建通路**：新增 `scripts/build_swiftc.sh`（显式加载 SwiftUI 宏插件），`install.sh` 在 `xcodebuild` 失败时自动回退。
 
@@ -85,9 +85,9 @@
 |------|------|
 | `swift test --disable-sandbox` | **102 tests, 0 failures** |
 | `xcodebuild -configuration Debug` | BUILD SUCCEEDED，零 error / 零 warning（`SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` 已进 CI） |
-| `xcodebuild -configuration Release`（`build_release.sh`） | BUILD SUCCEEDED，签名 "KagiPeek Local"，`satisfies its Designated Requirement` |
-| 安装 | 原子替换 `/Applications/KagiPeek.app`，版本 2.2.0，`codesign --verify --strict` 通过，保留 `KagiPeek.previous.app` |
-| 自检 | `KAGIPEEK_SELFTEST=1`：`frontmost = WorkBuddy`（不是 KagiPeek）、`catalogSize = 23`、`schemaVersion = 3`、`hasAccessibility = true` |
+| `xcodebuild -configuration Release`（`build_release.sh`） | BUILD SUCCEEDED，签名 "Kaname Local"，`satisfies its Designated Requirement` |
+| 安装 | 原子替换 `/Applications/Kaname.app`，版本 2.2.0，`codesign --verify --strict` 通过，保留 `Kaname.previous.app` |
+| 自检 | `KANAME_SELFTEST=1`：`frontmost = WorkBuddy`（不是 Kaname）、`catalogSize = 23`、`schemaVersion = 3`、`hasAccessibility = true` |
 | L10n | 188 keys = 188 entries，无缺失/孤儿，占位符一致 |
 | 截图 | 6 张重拍（面板 1176×550、窄面板 300×620、搜索、设置、浏览器、权限引导） |
 

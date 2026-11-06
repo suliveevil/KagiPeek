@@ -149,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let data = try engine.diagnosticsReport()
             let url = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("kagipeek-selftest.json")
+                .appendingPathComponent("kaname-selftest.json")
             try data.write(to: url, options: [.atomic])
             Diag.info(.ui, "selftest written to \(url.path)")
         } catch {

@@ -43,19 +43,19 @@ Accessibility must be granted again. The previous identity is left untouched as 
 
 | Item | Path |
 | --- | --- |
-| Old keychain | `~/Library/Keychains/kagipeek-signing.keychain-db` |
-| Old passphrase | `~/Library/Application Support/KagiPeek/signing/keychain-pass` |
+| Old keychain | `~/Library/Keychains/kaname-signing.keychain-db` |
+| Old passphrase | `~/Library/Application Support/Kaname/signing/keychain-pass` |
 
 `scripts/setup_signing.sh` appends the new keychain to the user search list instead of replacing
 it, so the old keychain stays usable. To sign with it temporarily:
 
 ```sh
-codesign --force --sign "KagiPeek Local" \
-  --keychain "$HOME/Library/Keychains/kagipeek-signing.keychain-db" /tmp/some-binary-copy
+codesign --force --sign "Kaname Local" \
+  --keychain "$HOME/Library/Keychains/kaname-signing.keychain-db" /tmp/some-binary-copy
 ```
 
 Delete the old keychain and certificate only after the Kaname install has run normally for a
-while. Removing it while old backups (signed `KagiPeek Local`) are still kept would make those
+while. Removing it while old backups (signed `Kaname Local`) are still kept would make those
 backups unverifiable; keep both until the old backups have aged out.
 
 ### New machine / restore
@@ -159,9 +159,9 @@ open /Applications/Kaname.app
 ```
 
 A rollback to the pre-rename app is a separate move: quit `com.suliveevil.kaname`, copy the
-`KagiPeek-*.app` backup from `~/Library/Application Support/Kaname/backups/` (or the old
-`~/Library/Application Support/KagiPeek/backups/`) to `/Applications/KagiPeek.app`, then launch
-by `com.voltline.kagipeek`. Remove `/Applications/Kaname.app` first so two event taps cannot run
+`Kaname-*.app` backup from `~/Library/Application Support/Kaname/backups/` (or the old
+`~/Library/Application Support/Kaname/backups/`) to `/Applications/Kaname.app`, then launch
+by `com.suliveevil.kaname`. Remove `/Applications/Kaname.app` first so two event taps cannot run
 at once.
 
 The last command must print the commit embedded in the backup's name; compare the two before

@@ -19,16 +19,16 @@
 #   brew install --cask kaname
 #
 # The DMG URL and file name must match scripts/build_release.sh exactly.
-# The GitHub repository is still named KagiPeek; only the product is Kaname.
+# The GitHub repository is still named Kaname; only the product is Kaname.
 cask "kaname" do
   version ""
   sha256 ""
 
-  url "https://github.com/suliveevil/KagiPeek/releases/download/v#{version}/Kaname-#{version}.dmg",
-      verified: "github.com/suliveevil/KagiPeek/"
+  url "https://github.com/suliveevil/Kaname/releases/download/v#{version}/Kaname-#{version}.dmg",
+      verified: "github.com/suliveevil/Kaname/"
   name "Kaname"
   desc "Context-aware keyboard shortcut hints and search for the active macOS app"
-  homepage "https://github.com/suliveevil/KagiPeek"
+  homepage "https://github.com/suliveevil/Kaname"
 
   livecheck do
     url :url
@@ -39,17 +39,17 @@ cask "kaname" do
 
   app "Kaname"
 
-  # New domain plus the two historical KagiPeek domains, so uninstalling cleans up
+  # New domain plus the two historical Kaname domains, so uninstalling cleans up
   # both a fresh install and one that was migrated from the old name.
   zap trash: [
     "~/Library/Application Support/Kaname",
-    "~/Library/Application Support/KagiPeek",
+    "~/Library/Application Support/Kaname",
     "~/Library/Caches/com.suliveevil.kaname",
     "~/Library/Preferences/com.suliveevil.kaname.plist",
     "~/Library/Saved Application State/com.suliveevil.kaname.savedState",
-    "~/Library/Caches/com.voltline.kagipeek",
-    "~/Library/Preferences/com.voltline.kagipeek.plist",
-    "~/Library/Preferences/com.Voltline.KagiPeek.plist",
-    "~/Library/Saved Application State/com.voltline.kagipeek.savedState",
+    "~/Library/Caches/com.suliveevil.kaname",
+    "~/Library/Preferences/com.suliveevil.kaname.plist",
+    "~/Library/Preferences/com.suliveevil.kaname.plist",
+    "~/Library/Saved Application State/com.suliveevil.kaname.savedState",
   ]
 end

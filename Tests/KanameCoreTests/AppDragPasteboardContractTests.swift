@@ -19,7 +19,7 @@ final class AppDragPasteboardContractTests: XCTestCase {
     }
 
     private func makePasteboard() -> NSPasteboard {
-        NSPasteboard(name: NSPasteboard.Name("com.voltline.kagipeek.tests.\(UUID().uuidString)"))
+        NSPasteboard(name: NSPasteboard.Name("com.suliveevil.kaname.tests.\(UUID().uuidString)"))
     }
 
     func testTheURLWriterCarriesTheFileURLAndTheLegacyPathArray() {

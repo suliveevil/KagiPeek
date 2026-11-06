@@ -13,7 +13,6 @@ import os
 /// a race in which an older copy could overwrite a newer one.
 @MainActor
 final class SettingsStore: ObservableObject {
-    static let legacyBundleIdentifier = "com.Voltline.KagiPeek"
 
     @Published var settings: AppSettingsSnapshot {
         didSet {
@@ -67,7 +66,7 @@ final class SettingsStore: ObservableObject {
             // steps as an old file: `triggerMode` must not survive into the v5 payload.
             settings = SettingsMigrator.migrate(SettingsPayload(schemaVersion: 1, settings: decoded))
         } else {
-            settings = Self.migrateLegacy(defaults: defaults).normalized()
+            settings = AppSettingsSnapshot()
         }
 
         isLoading = false
@@ -183,25 +182,5 @@ final class SettingsStore: ObservableObject {
             launchAtLoginMessage = error.localizedDescription
             Diag.error(.ui, "login item change failed: \(error.localizedDescription)")
         }
-    }
-
-    // MARK: - Migration
-
-    private static func migrateLegacy(defaults: UserDefaults) -> AppSettingsSnapshot {
-        let legacy = UserDefaults(suiteName: legacyBundleIdentifier) ?? defaults
-        var settings = AppSettingsSnapshot()
-
-        let delay = legacy.double(forKey: "settings.overlayHoldDelaySeconds")
-        if delay > 0 { settings.holdDelay = delay }
-
-        if let style = legacy.string(forKey: "settings.keyDisplayStyle") {
-            settings.keyStyle = style == "words" ? .words : .symbols
-        }
-        let columns = legacy.integer(forKey: "settings.overlayColumnCount")
-        if columns > 0 { settings.columnCount = columns }
-        let maxItems = legacy.integer(forKey: "settings.maxDisplayCount")
-        if maxItems > 0 { settings.maxItemsPerPage = maxItems }
-        settings.launchAtLogin = legacy.bool(forKey: "settings.launchAtLoginEnabled")
-        return settings
     }
 }

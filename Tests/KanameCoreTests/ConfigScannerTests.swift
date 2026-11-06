@@ -281,7 +281,7 @@ final class ConfigScannerTests: XCTestCase {
 
     func testScanReportsEmptyWhenNothingIsInstalled() {
         let home = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("kagipeek-no-tools-\(UUID().uuidString)")
+            .appendingPathComponent("kaname-no-tools-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
 

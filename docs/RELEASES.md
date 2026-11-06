@@ -90,13 +90,13 @@ along the way, and what to do about it when upgrading.
 
 ## Install
 
-Requirements: macOS 14.0 Sonoma or later. The bundle identifier is `com.voltline.kagipeek`.
+Requirements: macOS 14.0 Sonoma or later. The bundle identifier is `com.suliveevil.kaname`.
 
 Download the DMG from the release assets, or build from source:
 
 ```sh
-git clone https://github.com/suliveevil/KagiPeek.git
-cd KagiPeek
+git clone https://github.com/suliveevil/Kaname.git
+cd Kaname
 ./scripts/install.sh
 ```
 
@@ -114,9 +114,9 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
   changes neither keeps its grant.
 - **Settings and statistics move to Application Support.** The first launch reads the JSON files if
   present, otherwise migrates the previous UserDefaults payloads, including the older
-  `com.Voltline.KagiPeek` domain; nothing needs to be re-entered. The old defaults are left in
-  place and can be deleted with `defaults delete com.voltline.kagipeek` and
-  `defaults delete com.Voltline.KagiPeek`.
+  `com.suliveevil.kaname` domain; nothing needs to be re-entered. The old defaults are left in
+  place and can be deleted with `defaults delete com.suliveevil.kaname` and
+  `defaults delete com.suliveevil.kaname`.
 - **The default placement is "cover the front window".** Switch back to "beside the window" in
   Settings → Appearance if you prefer the old layout.
 - **The panel no longer narrows while you hold modifiers unless you summoned it that way**, and it
@@ -125,4 +125,4 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
 - A third hotkey (⌃⌥⌘S) switches between panel and search.
 - Settings, per-app statistics and the data folder carry over unchanged.
 
-**Full changelog:** https://github.com/suliveevil/KagiPeek/blob/main/CHANGELOG.md
+**Full changelog:** https://github.com/suliveevil/Kaname/blob/main/CHANGELOG.md

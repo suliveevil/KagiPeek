@@ -43,7 +43,7 @@ macOS 把授权记录绑在 App 的 **designated requirement** 上，而不只�
 App 让它重新请求；仍不生效时退出 App，执行
 `tccutil reset Accessibility com.suliveevil.kaname`（会清掉该 App 的所有辅助功能授权，
 需要重新勾选），然后重新打开 App。不要删除 `~/Library/Application Support/Kaname`，那会
-丢失设置与统计。改名前的旧记录可用 `tccutil reset Accessibility com.voltline.kagipeek`
+丢失设置与统计。改名前的旧记录可用 `tccutil reset Accessibility com.suliveevil.kaname`
 清理。
 
 保持授权稳定的做法：固定 bundle id（`com.suliveevil.kaname`）、固定签名证书（`Kaname

@@ -4,7 +4,7 @@
     The bundle's Info.plist for the swiftc build path.
 
     It lives in the repository because the fallback build used to read the template from
-    /Applications/KagiPeek.app — a previously *installed* copy. That made the build depend on
+    /Applications/Kaname.app — a previously *installed* copy. That made the build depend on
     its own output: delete the app and nothing can be built, which is exactly what happened on
     2026-11-02. The values mirror the project settings (MARKETING_VERSION 2.2.0,
     CURRENT_PROJECT_VERSION 220, LSUIElement, minimum macOS 14.0); keep them in step when the

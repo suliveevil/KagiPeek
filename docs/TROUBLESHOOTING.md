@@ -1,7 +1,7 @@
 # Troubleshooting
 
 Start here when something does not work. Every section names the log category to look at;
-`log show --last 10m --predicate 'subsystem == "com.voltline.kagipeek"'` prints all of them,
+`log show --last 10m --predicate 'subsystem == "com.suliveevil.kaname"'` prints all of them,
 and **Settings → Diagnostics → Export diagnostics archive…** writes a zip you can attach to a bug
 report.
 
@@ -108,7 +108,7 @@ first. Log category: `input` (nothing is logged while composing, by design).
 The accessibility grant is tied to the code signature. Ad-hoc signed builds get a new signature
 on every build, so macOS treats each one as a new app. Run `./scripts/setup_signing.sh` once to
 create the stable `Kaname Local` identity; after that the designated requirement
-(`identifier com.voltline.kagipeek and certificate root = …`) does not change when the code
+(`identifier com.suliveevil.kaname and certificate root = …`) does not change when the code
 does. The grant then survives rebuilds **on the same machine and keychain**.
 
 ## Nothing builds, or `swift test` fails immediately
@@ -127,7 +127,7 @@ swift test --disable-sandbox           # unit tests
 ## The settings reverted after a restart
 
 A write failed. Before v2.2.0 that was silent; now `log show --predicate 'subsystem ==
-"com.voltline.kagipeek" AND category == "storage"'` says `could not write settings.json: …`.
+"com.suliveevil.kaname" AND category == "storage"'` says `could not write settings.json: …`.
 The usual causes are a read-only or full volume, or a permission change on
 `~/Library/Application Support/Kaname`. A file that cannot be decoded is kept as
 `settings.corrupt-<timestamp>.json`, so nothing is lost — you can inspect or restore it.
@@ -155,7 +155,7 @@ hidden items* off, a newly seen item starts in the collapsed section behind the 
 Drag Kaname out of that section once and the layout remembers it.
 
 **Watch for a stale identity.** These tools key items by `bundle id:item title`. Kaname's
-bundle id changed case once (`com.Voltline.KagiPeek` → `com.voltline.kagipeek`), so a manager
+bundle id changed case once (`com.suliveevil.kaname` → `com.suliveevil.kaname`), so a manager
 can hold two records for the same app and treat the current one as new. Deleting the old
 record is enough; the stale one is the entry that is no longer produced by the running app.
 

@@ -1260,7 +1260,7 @@ struct SettingsView: View {
 
             Section {
                 LabeledContent(localization.text(.aboutRepository)) {
-                    Link("suliveevil/KagiPeek", destination: URL(string: "https://github.com/suliveevil/KagiPeek")!)
+                    Link("suliveevil/Kaname", destination: URL(string: "https://github.com/suliveevil/Kaname")!)
                 }
                 LabeledContent(localization.text(.aboutLicense)) {
                     Text("GNU GPL v2.0").foregroundStyle(.secondary)

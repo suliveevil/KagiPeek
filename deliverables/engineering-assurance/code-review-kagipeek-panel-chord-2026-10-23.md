@@ -1,4 +1,4 @@
-# KagiPeek 面板速查行：三列布局 / Emacs 式点选修饰键 / 收窄即透传
+# Kaname 面板速查行：三列布局 / Emacs 式点选修饰键 / 收窄即透传
 
 **日期**：2026-10-23
 **分支**：`feat/v2.2`
@@ -147,10 +147,10 @@ PR3 的代码由 Cody 在两次 429 限流前写完，测试全绿、Release 构
 | --- | --- |
 | `swift test --disable-sandbox` | **175 tests, 0 failures**（本轮开始是 148） |
 | `scripts/build_swiftc.sh Release` | 零 error / 零 warning（`grep -c` 计数为 0） |
-| 安装 | 签名 "KagiPeek Local"，`codesign --verify --strict` 通过，原子替换 `/Applications/KagiPeek.app`，保留 `.previous.app` |
+| 安装 | 签名 "Kaname Local"，`codesign --verify --strict` 通过，原子替换 `/Applications/Kaname.app`，保留 `.previous.app` |
 | 截图 | 五张：`overlay`（三列对齐）、`overlay-held`（⌘ 按住收窄 + 点亮）、`overlay-chips`、`overlay-latch`（⌥⌘ 点选收窄 + 芯片蓝底）、`overlay-narrow`（300pt 单列，菜单路径列消失、chevron 落在尾部槽） |
 | 芯片三态数值 | held：⌘ 平均亮度 94.9 vs 其余 82.5；ticked：⌥/⌘ 为 accent 蓝底药丸，⌃/⇧ 暗灰 |
-| 设置还原 | 预览会改写 `settings.json`，已从 `/tmp/kagipeek-settings-backup3.json` 还原 |
+| 设置还原 | 预览会改写 `settings.json`，已从 `/tmp/kaname-settings-backup3.json` 还原 |
 
 **真机行为（点击芯片 → 按 C → 注入 ⌥⌘C）未能在此环境端到端验证**：事件 tap 需要 Accessibility 驱动的真实输入，且预览模式只搭建状态、不模拟按键。该路径由 `ChordCompositionTests` 覆盖合成与吞键判定，注入走的是与点击行完全相同的 `ShortcutInjector.post` 通路（已在此前版本验证）。
 

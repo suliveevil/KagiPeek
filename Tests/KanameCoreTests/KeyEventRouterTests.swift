@@ -330,7 +330,7 @@ final class KeyEventRouterTests: XCTestCase {
         )
     }
 
-    /// A ticked ⌥ with a bare C *is* composed: the tap swallowed the key, so KagiPeek owes
+    /// A ticked ⌥ with a bare C *is* composed: the tap swallowed the key, so Kaname owes
     /// the app the assembled chord.
     func testComposedChordReplays() {
         var pending = PendingModifiers()

@@ -12,7 +12,7 @@
 # Never leave a second `.app` in /Applications: LaunchServices registers every copy under
 # the same bundle id, and an ad-hoc copy gets its own TCC identity, which is how stale
 # names end up in System Settings → Input Monitoring. The previous name's bundle
-# (`/Applications/KagiPeek.app`, `com.voltline.kagipeek`) is stopped, backed up and removed
+# (`/Applications/Kaname.app`, `com.suliveevil.kaname`) is stopped, backed up and removed
 # for the same reason.
 #
 # Only a build with a stable signature (`Kaname Local` or a Developer ID) may be
@@ -37,9 +37,6 @@ if [ "$DEST" = "/.app" ] || [ "$DEST" = "/Applications/.app" ]; then
     echo "error: refusing to install to '$DEST'" >&2
     exit 1
 fi
-
-LEGACY_DEST="/Applications/KagiPeek.app"
-LEGACY_BUNDLE_ID="com.voltline.kagipeek"
 
 DERIVED="$ROOT/build/DerivedData"
 APP="$DERIVED/Build/Products/Release/Kaname.app"
@@ -72,10 +69,8 @@ fi
 
 echo "==> Stopping running instances"
 # Quit by bundle id first: `pkill -f` matches any process whose command line contains the
-# path, including a build copy or another user's instance. Both the current and the
-# previous bundle id are stopped so an old copy cannot keep its event tap alive.
+# path, including a build copy or another user's instance.
 osascript -e "tell application id \"com.suliveevil.kaname\" to quit" >/dev/null 2>&1 || true
-osascript -e "tell application id \"$LEGACY_BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
 for _ in $(seq 1 40); do
     pgrep -f "$DEST/Contents/MacOS/Kaname" >/dev/null 2>&1 || break
     sleep 0.25
@@ -84,17 +79,6 @@ if pgrep -f "$DEST/Contents/MacOS/Kaname" >/dev/null 2>&1; then
     echo "    still running; terminating"
     pkill -f "$DEST/Contents/MacOS/Kaname" 2>/dev/null || true
     sleep 0.5
-fi
-if [ "$LEGACY_DEST" != "$DEST" ] && pgrep -f "$LEGACY_DEST/Contents/MacOS/KagiPeek" >/dev/null 2>&1; then
-    echo "    old KagiPeek still running; terminating"
-    pkill -f "$LEGACY_DEST/Contents/MacOS/KagiPeek" 2>/dev/null || true
-    sleep 0.5
-fi
-
-LEGACY_BACKUP=""
-if [ -d "$LEGACY_DEST" ] && [ "$LEGACY_DEST" != "$DEST" ]; then
-    echo "==> Backing up the old KagiPeek build"
-    LEGACY_BACKUP="$("$ROOT/scripts/backup_app.sh" "$LEGACY_DEST")"
 fi
 
 echo "==> Staging $STAGE"
@@ -138,11 +122,6 @@ if ! $SUDO mv "$STAGE" "$DEST"; then
     exit 1
 fi
 
-if [ -d "$LEGACY_DEST" ] && [ "$LEGACY_DEST" != "$DEST" ]; then
-    echo "==> Removing the old KagiPeek.app (backed up first)"
-    $SUDO rm -rf "$LEGACY_DEST"
-fi
-
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 if [ -x "$LSREGISTER" ]; then
     "$LSREGISTER" -f "$DEST" >/dev/null 2>&1 || true
@@ -166,9 +145,6 @@ do not arrive.
 
 ${BACKUP:+The replaced build is kept at:
   $BACKUP
-
-}${LEGACY_BACKUP:+The old KagiPeek build is kept at:
-  $LEGACY_BACKUP
 
 }
 Backups: ~/Library/Application Support/Kaname/backups (five most recent).

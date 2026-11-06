@@ -52,7 +52,6 @@ identity_kind() {
     case "$details" in
         *"Authority=Developer ID Application"*) echo "devid" ;;
         *"Authority=Kaname Local"*)             echo "local" ;;
-        *"Authority=KagiPeek Local"*)           echo "local" ;;
         *)                                      echo "adhoc" ;;
     esac
 }

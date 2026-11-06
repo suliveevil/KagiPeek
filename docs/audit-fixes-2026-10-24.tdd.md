@@ -32,8 +32,8 @@ subagent reports and speculative runtime hypotheses were not used as scope.
 | Disabled rows are not actionable; scan outcomes are total | `EnginePolicyTests` | GREEN 2 tests |
 | Full suite | `swift test --disable-sandbox` | **431 tests, 0 failures** |
 | Full Xcode-beta source build | `scripts/build_swiftc.sh Debug` | **BUILD_EXIT=0**, signed app produced |
-| Coverage | `llvm-cov` over `KagiPeekCore` | **82.73% lines**, above the 70% CI floor |
-| Launch smoke | `KAGIPEEK_PREVIEW=overlay` on built app | **PREVIEW_ALIVE**, then terminated |
+| Coverage | `llvm-cov` over `KanameCore` | **82.73% lines**, above the 70% CI floor |
+| Launch smoke | `KANAME_PREVIEW=overlay` on built app | **PREVIEW_ALIVE**, then terminated |
 
 ## What was implemented
 

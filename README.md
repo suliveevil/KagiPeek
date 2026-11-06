@@ -1,7 +1,7 @@
 # Kaname
 
-[![CI](https://github.com/suliveevil/KagiPeek/actions/workflows/ci.yml/badge.svg)](https://github.com/suliveevil/KagiPeek/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/suliveevil/KagiPeek?display_name=tag)](https://github.com/suliveevil/KagiPeek/releases/latest)
+[![CI](https://github.com/suliveevil/Kaname/actions/workflows/ci.yml/badge.svg)](https://github.com/suliveevil/Kaname/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/suliveevil/Kaname?display_name=tag)](https://github.com/suliveevil/Kaname/releases/latest)
 
 **Press and hold a modifier. See what the app you are in can do next.**
 
@@ -86,7 +86,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 
 ### Download a release
 
-1. Download the latest DMG from [Releases](https://github.com/suliveevil/KagiPeek/releases/latest) and verify it against the published `.sha256` file (`shasum -a 256 Kaname-*.dmg`).
+1. Download the latest DMG from [Releases](https://github.com/suliveevil/Kaname/releases/latest) and verify it against the published `.sha256` file (`shasum -a 256 Kaname-*.dmg`).
 2. Open the DMG and drag **Kaname** into **Applications** — launch it from there, not from inside the DMG.
 3. Launch Kaname and grant Accessibility as described below. Add Input Monitoring only if the panel does not appear.
 
@@ -96,12 +96,6 @@ Notarized builds open normally. A build that is not notarized is blocked on firs
 - **Terminal:** `xattr -dr com.apple.quarantine /Applications/Kaname.app`
 
 > **Upgrading or replacing an existing copy?** macOS ties privacy grants to the app's code signature. If you replace Kaname with a build signed differently — a local or ad-hoc rebuild, or an install over a release signed by another identity — the old Accessibility grant is no longer valid: open **System Settings → Privacy & Security → Accessibility**, remove the stale Kaname entry if present, and enable the new app again. Without this step no panel will appear. A normal signed update keeps the bundle identifier and its grant.
-
-### Upgrading from KagiPeek
-
-Kaname has a new bundle identifier and a new signing identity, so it is not an in-place update. On first launch it copies settings, usage statistics, the menu cache, logs, crash reports and signing material from `~/Library/Application Support/KagiPeek/` to `~/Library/Application Support/Kaname/`. Entries are copied one at a time and an existing destination file is never overwritten; the old folder is left untouched. The `backups/` folder (164 MB) is copied in the background and retried on the next launch if it was interrupted. A marker file, `.migrated-from-kagi-peek`, records what has completed.
-
-Because the bundle identifier and certificate changed, macOS treats Kaname as a new app: remove the stale **KagiPeek** row in **Accessibility** and **Input Monitoring**, then add and enable **Kaname**. Re-add the login item too. After the Kaname install is verified, delete `/Applications/KagiPeek.app` so two event taps and two TCC rows cannot coexist.
 
 ### Homebrew
 
@@ -115,8 +109,8 @@ brew install --cask kaname
 ### Build from source
 
 ```bash
-git clone https://github.com/suliveevil/KagiPeek.git
-cd KagiPeek
+git clone https://github.com/suliveevil/Kaname.git
+cd Kaname
 open Kaname.xcodeproj
 ```
 
@@ -384,7 +378,7 @@ GPL-2.0. See [LICENSE](LICENSE).
 
 ## Credits
 
-Kaname is built on the ideas and code of [KagiPeek](https://github.com/Voltline/KagiPeek), refactored into an independent project and maintained by [suliveevil](https://github.com/suliveevil). The shortcut engine was rewritten, then made actionable, and the panel became persistent; the interaction model is inspired by [vim-which-key](https://github.com/folke/which-key.nvim) and [emacs which-key](https://github.com/justbur/emacs-which-key).
+Kaname is built on the ideas and code of [Kaname](https://github.com/Voltline/KagiPeek), refactored into an independent project and maintained by [suliveevil](https://github.com/suliveevil). The shortcut engine was rewritten, then made actionable, and the panel became persistent; the interaction model is inspired by [vim-which-key](https://github.com/folke/which-key.nvim) and [emacs which-key](https://github.com/justbur/emacs-which-key).
 
 The conflict-checking work — naming the type of a clash, the event-stack layer model, third-party config scanning, the combo lookup and the live keypress test — takes its ideas from [HotkeyClash](https://github.com/Wunderlandmedia/HotkeyClash) by Wunderlandmedia, also GPL-2.0. The layer ranking and the head/tail event-tap technique are theirs; the code here is written for Kaname's own models.
 
@@ -451,7 +445,7 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 
 #### 下载 DMG
 
-1. 从 [Releases](https://github.com/suliveevil/KagiPeek/releases/latest) 下载最新 DMG，并用发布的 `.sha256` 文件校验（`shasum -a 256 Kaname-*.dmg`）。
+1. 从 [Releases](https://github.com/suliveevil/Kaname/releases/latest) 下载最新 DMG，并用发布的 `.sha256` 文件校验（`shasum -a 256 Kaname-*.dmg`）。
 2. 打开 DMG，把 **Kaname** 拖进 **Applications**——从 Applications 里启动，不要在 DMG 里直接运行。
 3. 启动并先授予辅助功能；如果面板不弹出，再添加输入监控。
 
@@ -461,12 +455,6 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 - **用终端：** `xattr -dr com.apple.quarantine /Applications/Kaname.app`
 
 > **覆盖安装或替换旧版本？** macOS 把隐私授权绑定到 App 的代码签名。如果用签名不同的构建替换 Kaname（本地或 ad-hoc 重新构建，或覆盖签名身份不同的版本），旧的辅助功能授权会失效：请打开**系统设置 → 隐私与安全性 → 辅助功能**，移除残留的 Kaname 条目（如果有），再重新勾选新的 App。不做这一步，面板不会出现。使用同一签名身份的正常升级 Bundle ID 不变，授权会保留。
-
-#### 从 KagiPeek 升级
-
-Kaname 换了 Bundle ID，也换了签名身份，因此它不是原地升级。首次启动时，它会把设置、使用统计、菜单缓存、日志、崩溃报告与签名材料从 `~/Library/Application Support/KagiPeek/` 复制到 `~/Library/Application Support/Kaname/`。逐项复制，目标已存在则不覆盖，旧目录保持原样。`backups/`（164 MB）在后台异步复制，失败会在下次启动重试；标记文件 `.migrated-from-kagi-peek` 记录已完成的部分。
-
-因为 Bundle ID 与证书都变了，macOS 会把 Kaname 当成新 App：先在**辅助功能**和**输入监控**里移除残留的 **KagiPeek** 条目，再添加并勾选 **Kaname**；登录项也要重新添加。确认 Kaname 安装无误后，删除 `/Applications/KagiPeek.app`，避免两个事件 tap 和两条 TCC 记录同时存在。
 
 #### Homebrew
 
@@ -480,8 +468,8 @@ brew install --cask kaname
 #### 从源码构建
 
 ```bash
-git clone https://github.com/suliveevil/KagiPeek.git
-cd KagiPeek
+git clone https://github.com/suliveevil/Kaname.git
+cd Kaname
 open Kaname.xcodeproj
 ```
 
@@ -726,7 +714,7 @@ GPL-2.0，见 [LICENSE](LICENSE)。
 
 ## 致谢
 
-Kaname 基于 [KagiPeek](https://github.com/Voltline/KagiPeek) 的思路与代码重构而来，由 [suliveevil](https://github.com/suliveevil) 维护。快捷键引擎被重写、随后变得可操作，面板也变为持久面板；交互方式受 [vim-which-key](https://github.com/folke/which-key.nvim) 与 [emacs which-key](https://github.com/justbur/emacs-which-key) 启发。
+Kaname 基于 [Kaname](https://github.com/Voltline/KagiPeek) 的思路与代码重构而来，由 [suliveevil](https://github.com/suliveevil) 维护。快捷键引擎被重写、随后变得可操作，面板也变为持久面板；交互方式受 [vim-which-key](https://github.com/folke/which-key.nvim) 与 [emacs which-key](https://github.com/justbur/emacs-which-key) 启发。
 
 冲突检查——按类型而非严重度分类、事件栈分层模型、第三方配置文件扫描、组合键查询与实时按键测试——思路来自 [HotkeyClash](https://github.com/Wunderlandmedia/HotkeyClash)（Wunderlandmedia，同样 GPL-2.0）。分层模型与首/尾双事件 tap 的技巧来自该项目，代码是按 Kaname 自己的模型重写的。
 

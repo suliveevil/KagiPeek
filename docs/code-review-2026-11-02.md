@@ -1,4 +1,4 @@
-# KagiPeek 代码审查报告
+# Kaname 代码审查报告
 
 审查日期：2026-11-02　基线：`bd8b926`（main）　规模：201 个 Swift 文件 / 20,525 行
 
@@ -58,7 +58,7 @@
 
 #### P0-1　依赖方向倒置：Core 依赖 UI，且成环　✅ 已修
 
-- 位置：`KagiPeek/Core/Engine/ShortcutEngine.swift:5`（`import SwiftUI`）、`:47-51`（`lazy var surface/hud/permissionsWindow/permissionGuide/settingsWindow`）、`:1102-1103`（`Theme.padding` / `Theme.rowHeight`）、`:2530`（`SettingsTab`）、`:2622`（`SettingsView`）
+- 位置：`Kaname/Core/Engine/ShortcutEngine.swift:5`（`import SwiftUI`）、`:47-51`（`lazy var surface/hud/permissionsWindow/permissionGuide/settingsWindow`）、`:1102-1103`（`Theme.padding` / `Theme.rowHeight`）、`:2530`（`SettingsTab`）、`:2622`（`SettingsView`）
 - 症状：
   - 引擎构造 UI 控制器，控制器构造时又拿到 `engine: self` → **双向依赖**。任何一方都替换不掉。
   - 业务计算（`panelCapacity`）读 UI 主题常量（`Theme.rowHeight`），布局改动会改到分页逻辑。
@@ -109,7 +109,7 @@
 
 #### P0-3　事件投递队列无界：主线程 wedge 后一次性回放　✅ 已修
 
-- 位置：`KagiPeek/Core/Input/KeyboardMonitor.swift:609-616`（`emit` 内 `DispatchQueue.main.async { handler?(event) }`）
+- 位置：`Kaname/Core/Input/KeyboardMonitor.swift:609-616`（`emit` 内 `DispatchQueue.main.async { handler?(event) }`）
 - 症状：这是把输入链路移出主线程（`dbafe89`）的正确代价，但代价没有被约束。主线程卡 30 秒、期间用户敲了 300 个键 → 恢复瞬间这 300 个事件按序涌入引擎，面板会疯狂开关、和弦状态被一串过期事件污染。
 - 依据：Pragmatic Programmer「没有无界的队列」;R2 *Comment as deodorant*（注释解释了为什么异步，但没解决没有上界）。
 - 建议：
@@ -188,7 +188,7 @@
 
 - **P3-17 测试只覆盖纯逻辑**：`Package.swift` 的 testTarget 只含 `Core/Pure`。引擎/输入层没有任何自动化测试（本次只能靠类型检查与一次性探针）。建议随 P0-1 解耦后，为 `PanelNarrowing`、`PanelMetrics`、事件邮箱补测。
 - **P3-18 并发迁移未起步**：`SWIFT_VERSION = 5.0`，无 `SWIFT_STRICT_CONCURRENCY`。建议在 P0-2 第一步就开 `targeted`，让问题以警告形式暴露，而不是等 Swift 6。
-- **P3-19 构建依赖已安装产物**：`scripts/build_swiftc.sh` 的 `Info.plist` 模板取自 `/Applications/KagiPeek.app`，App 被删除后即使有 Xcode 也构建不了。建议模板进仓库（或用 `GENERATE_INFOPLIST_FILE`）。
+- **P3-19 构建依赖已安装产物**：`scripts/build_swiftc.sh` 的 `Info.plist` 模板取自 `/Applications/Kaname.app`，App 被删除后即使有 Xcode 也构建不了。建议模板进仓库（或用 `GENERATE_INFOPLIST_FILE`）。
 
 ---
 
@@ -241,14 +241,14 @@ P0-2 第一步：`SWIFT_STRICT_CONCURRENCY = targeted` 同时开在 Xcode target
 4. **事件邮箱不丢关键状态**：主线程卡顿恢复后，面板状态应等于"最后一个事件"而非"回放整串"；丢弃计数可在诊断里看到。
 5. **无障碍**：VoiceOver 走一遍面板行（应有"标题 + 快捷键 + 是否可用"）、设置页每个控件。
 6. **Swift 6**：`SWIFT_STRICT_CONCURRENCY=complete` 下 0 error（✅ 达成，2026-11-02）；`assumeIsolated` **不归零**——剩下 24 处为 SDK 签名所强制，验收标准改为"每处都能指出保证来自哪一行 SDK 契约"（详见 P0-2）。
-7. **构建产物**：`install.sh` 后 `codesign --verify --strict` 通过、`KagiPeekCommit` 与 HEAD 一致、辅助功能授权未被重置（稳定签名）。
+7. **构建产物**：`install.sh` 后 `codesign --verify --strict` 通过、`KanameCommit` 与 HEAD 一致、辅助功能授权未被重置（稳定签名）。
 8. **回归基线**：`KeySwallowRulesTests`(11) + `TapDiagnosticsTests`(4) + `TapHealthTests` + `InputWatchdogTests` + `ComposedSwallowTests` 全绿；`install.sh` 能构建。
 
 ---
 
 ## 5. 本次无法完成的部分（如实记录）
 
-- **~~无法构建与安装~~（已解除）**：本机 Xcode 只剩 692 KB 占位下载，`/Applications/KagiPeek.app` 也已不存在；Command Line Tools 缺 `libSwiftUIMacros.dylib`，任何含 `@State` 的文件都无法展开。因此批次 3 的全部内容、以及批次 1 中涉及 UI 的改动，本次**只出方案不动手**。
+- **~~无法构建与安装~~（已解除）**：本机 Xcode 只剩 692 KB 占位下载，`/Applications/Kaname.app` 也已不存在；Command Line Tools 缺 `libSwiftUIMacros.dylib`，任何含 `@State` 的文件都无法展开。因此批次 3 的全部内容、以及批次 1 中涉及 UI 的改动，本次**只出方案不动手**。
   - **后续：Xcode 已恢复（`/Applications/Xcode.app`），上面三条限制全部消失。** 批次 3/4 已动手完成并装到 `/Applications`。
   - 遗留的环境坑只有一条：本机 `sandbox-exec` 被拒，导致 xcodebuild 的 `swift-plugin-server` 展开 `@State` 宏时随机报 "malformed response"。`scripts/install.sh` 因此有 `build_swiftc.sh` 回退路径（用 `-load-plugin-library` 直接加载宏插件），重试或走回退即可，不是代码问题。
 - 已验证的：`Core/Pure + Core/Input + Core/AX + Core/Services + Core/Storage` 类型检查 0 错误；全项目 `-parse` 0 错误；两个新纯类型的 27 条断言全部通过（XCTest 不可用，用一次性可执行探针执行）。

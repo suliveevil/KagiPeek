@@ -1,6 +1,6 @@
-# KagiPeek 代码复审报告（第二轮）
+# Kaname 代码复审报告（第二轮）
 
-复审日期：2026-11-02　基线：`83a1b03`　规模：`KagiPeek/` 129 文件 / 21,431 行 + `Tests/` 43 文件 / 6,028 行
+复审日期：2026-11-02　基线：`83a1b03`　规模：`Kaname/` 129 文件 / 21,431 行 + `Tests/` 43 文件 / 6,028 行
 对照：2026-11-02 第一轮（`docs/code-review-2026-11-02.md`，基线 `bd8b926`，126 文件 / 20,542 行）
 
 参考原则同第一轮：《重构》第 2 版（R2）、《Clean Code》、《Clean Architecture》（依赖规则）、
@@ -79,7 +79,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
   本来就必须用的系统服务；`NSImage`/`CGRect`/`NSColor`/`NSScreen` 属数据类型，复审已判定豁免。
 - 验收：Core 独立 `-typecheck` 0 诊断；Debug/Release 均 0 error 0 warning；
   **专门跑了 `settings` 预览**（正是这条路径），窗口正常创建并出图
-  （`settings-0.json` = 680×600 / "KagiPeek Settings"，与代码请求的尺寸一致——若保活失效，
+  （`settings-0.json` = 680×600 / "Kaname Settings"，与代码请求的尺寸一致——若保活失效，
   窗口会在布局前就被释放）；`panel` 预览 `app=57 system=79 page=1/6 rows=24` 与基线逐字相同。
 
 ### N2（P1）　✅ 已修（`f0a74b8`）　`Core/Pure` 里有一个带锁的全局可变缓存，而且锁与 `nonisolated(unsafe)` 互相矛盾
@@ -225,8 +225,8 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
      —— 自检失败看起来和自检通过一模一样。改成单个 `do/catch`：
      构建与写盘都在里面，退出与 flush 变成**无条件**的（原来失败分支会跳过 flush）。
 
-- **验证**：`KAGIPEEK_SELFTEST=1` 正是改动的那条路径，跑通了端到端——
-  日志 `selftest written to …/kagipeek-selftest.json`，产出的 JSON 有效、28 个顶层键、
+- **验证**：`KANAME_SELFTEST=1` 正是改动的那条路径，跑通了端到端——
+  日志 `selftest written to …/kaname-selftest.json`，产出的 JSON 有效、28 个顶层键、
   **含 `settings` 段、无 `settingsError`**（正常路径）。
   settings 预览截图与改动前**逐字节相同**（这个场景是确定的，见 N6 更正）。
   539 测试全绿、Core 独立 typecheck 0 诊断、`build_swiftc.sh` 0 error 0 warning。
@@ -299,7 +299,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
     扫描仍报 `menus=true, state=ok`（Safari 182 项），说明 `children(of:)` 的改写没打断菜单遍历。
   - 截图字节级相同：**settings 与 search 两张成立**（见下条更正）。
 - **⚠️ 更正：本条原写"三张截图与改动前逐字节相同"，其中 panel 那张不算证据。**
-  后来才发现**面板截图本身不确定**——用**改动前**那份构建（`KagiPeek.previous.app`）连跑两次，
+  后来才发现**面板截图本身不确定**——用**改动前**那份构建（`Kaname.previous.app`）连跑两次，
   两次 MD5 也不同（41668162 / fd44be26，243112 / 242092 字节）。原因是截图在
   `activatePanel()` 之后 1.2s 拍（`PreviewScenarios.swift:246`），而面板有入场动画，
   抓到哪一帧取决于当时机器在忙什么。日志里的 `panel sequence` 却是三次完全一致的。
@@ -335,7 +335,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 
 ### N9（P3）　✅ 已修（`8a4909e`）　最大的测试文件是个杂物抽屉
 
-- 位置：`Tests/KagiPeekCoreTests/KagiPeekCoreTests.swift`，**1,105 行 / 109 个测试**
+- 位置：`Tests/KanameCoreTests/KanameCoreTests.swift`，**1,105 行 / 109 个测试**
 - 症状：它是按 *target* 命名的，不是按类型命名的。拆开时才发现比原先描述的更具体——
   它不是"一个类测了十几个类型"，而是**塞了 29 个 `XCTestCase` 类**（`KeyChordTests`、
   `KeyFormatterTests`、`DescriptionCleanerTests`……`PanelHighlighterTests`）。
@@ -414,7 +414,7 @@ P0-4、P1-6、P3-17 做了一部分；P2-13、P3-19 已做完但文档没标。
 ## 4. 建议的下一批（按风险递增，每批可独立回滚）
 
 **批次 A（零风险，有测试网）**　✅ **已完成**：`9334117` + `8a4909e` + `e410fe5`
-N3 拆 `KeyEventRouter.route`（Pure + 23 个测试兜底）→ N9 拆 `KagiPeekCoreTests`（纯文件搬运）
+N3 拆 `KeyEventRouter.route`（Pure + 23 个测试兜底）→ N9 拆 `KanameCoreTests`（纯文件搬运）
 → 顺带把测试构建的 16 处既有警告清零。（详见 N3 / N9 条目的"实际做法"）
 
 **批次 B（零行为变化，编译期收益）**　✅ **已完成**
@@ -565,7 +565,7 @@ python3 scripts/code-metrics.py /tmp/tree-A                    # 任意历史提
   清不掉旧文件就该说出来，而不是让 `ditto` 跑进一个没准备好的目标。
 - **验证（三条路径全用真实文件系统故障，不是桩）**：`chmod 000` 日志目录 →
   `logFilesError = "folder could not be listed: …"`；`chmod 000` 单个文件 →
-  `logFilesError = "kagipeek-2026-11-02.log: …"`；正常 → 2 个文件、两个 error 字段都缺省。
+  `logFilesError = "kaname-2026-11-02.log: …"`；正常 → 2 个文件、两个 error 字段都缺省。
 - **一个顺带发现，它决定了理由该写在哪**：目录不可读那次运行**在日志里一行都没留下**
   （`FileLogStore` 写的是同一个目录）。**正是这个故障模式会连日志一起带走**，
   所以理由必须进 JSON 报告，不能只进日志。这不是双保险，是唯一还活着的通道。

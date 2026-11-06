@@ -196,7 +196,7 @@ It should not: the run key runs the menu item. If a menu item copies, you either
 
 ## Why did nothing happen when I pressed the run key?
 
-Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, Kaname presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.voltline.kagipeek"'` shows whether the chord was posted and to which bundle identifier.
+Two common causes. A **disabled menu item** is ignored: the app reports it as unavailable, so there is nothing to run. Or the target app never received the menu item — from the panel, Kaname presses the menu item itself (no focus change, nothing to wait for), so a menu item that macOS will not let another process press falls back to replaying the chord; from the palette, the scoped app is activated first and then the menu item is triggered, so an app that is slow to come forward, or one that handles that shortcut in a custom view with no menu item, may not react. **Settings → Diagnostics → Export diagnostics archive…** plus `log show --last 5m --predicate 'subsystem == "com.suliveevil.kaname"'` shows whether the chord was posted and to which bundle identifier.
 
 ## Why does the panel disappear in some apps or fields?
 
@@ -218,19 +218,13 @@ Both are written atomically. If a file cannot be decoded, Kaname renames it to `
 - **Reset all settings:** **Restore defaults** in **Settings → Statistics**, or quit Kaname and delete `settings.json`.
 - **Remove everything:** quit Kaname and move the whole `~/Library/Application Support/Kaname` folder to the Trash.
 
-The first v2.1.0 launch migrates the old UserDefaults data (including the 1.x `com.Voltline.KagiPeek` domain) exactly once. The old defaults are left untouched afterwards; you can remove them with `defaults delete com.voltline.kagipeek` and `defaults delete com.Voltline.KagiPeek`.
+The first v2.1.0 launch migrates the old UserDefaults data (including the 1.x `com.suliveevil.kaname` domain) exactly once. The old defaults are left untouched afterwards; you can remove them with `defaults delete com.suliveevil.kaname` and `defaults delete com.suliveevil.kaname`.
 
 ## Will I lose my settings and statistics if I reinstall or update?
 
 Normally no. Because the data lives in Application Support rather than the app's preference domain, uninstalling Kaname (moving the app to the Trash), replacing it with a differently signed build, or updating it does not remove `settings.json` / `usage.json`. The data is lost only if you delete the folder manually, reset it, or use a "clean uninstall" tool that removes Application Support data.
 
 The flip side: an old preferences-only cleanup command (`defaults delete`) no longer clears your statistics. Remove the folder instead.
-
-## Will my settings move over from KagiPeek?
-
-Yes, on the first launch. Kaname copies `settings.json`, `usage.json`, the menu cache, logs, crash reports and the signing material from `~/Library/Application Support/KagiPeek/` into `~/Library/Application Support/Kaname/`, skipping anything that already exists and never modifying the old folder. `backups/` is copied in the background, and an interrupted copy is retried on the next launch. The old folder stays in place until you delete it yourself.
-
-Permissions do **not** move: the bundle identifier and signing certificate changed, so macOS sees a new app. Remove the old KagiPeek rows in Accessibility and Input Monitoring, enable Kaname, and add the login item again.
 
 ## How do I switch between the panel and search?
 
@@ -246,7 +240,7 @@ The two surfaces are **mutually exclusive**: opening one closes the other, so yo
 
 It depends on the signature:
 
-- The **v1.1 → v1.2 upgrade always required re-granting Accessibility**, because the bundle identifier changed from `com.Voltline.KagiPeek` to `com.voltline.kagipeek`. Remove the stale entry if it remains and enable the new app.
+- The **v1.1 → v1.2 upgrade always required re-granting Accessibility**, because the bundle identifier changed from `com.suliveevil.kaname` to `com.suliveevil.kaname`. Remove the stale entry if it remains and enable the new app.
 - The **v1.2 → v2.0 and v2.0.0 → v2.1.0 upgrades do not change the bundle identifier**, so a signed update keeps its Accessibility grant. The v1.1 → v1.2 exception above still applies if you skipped a release.
 - A **Developer ID-signed, notarized release** keeps its code identity, so later updates normally keep the grants.
 - An **ad-hoc signed build** (the default for local builds) changes identity when rebuilt. macOS may treat it as a different app: remove the old Kaname entry from Accessibility (and from Input Monitoring if you granted it), add the new build, and relaunch.
@@ -344,10 +338,10 @@ No. There is no background polling. **Settings → About** has a **Check for upd
 
 ```bash
 rm -rf ~/Library/Application\ Support/Kaname
-defaults delete com.voltline.kagipeek        # only for a v2.0-era install
-defaults delete com.Voltline.KagiPeek        # only for a 1.x-era install
-tccutil reset Accessibility com.voltline.kagipeek
-tccutil reset ListenEvent com.voltline.kagipeek
+defaults delete com.suliveevil.kaname        # only for a v2.0-era install
+defaults delete com.suliveevil.kaname        # only for a 1.x-era install
+tccutil reset Accessibility com.suliveevil.kaname
+tccutil reset ListenEvent com.suliveevil.kaname
 ```
 
 The `tccutil` commands are optional; they clear the leftover privacy entries. `ListenEvent` only matters if you granted Input Monitoring. The `defaults` commands are only needed for data written by older versions; v2.1.0 keeps everything in the Application Support folder.
@@ -362,7 +356,7 @@ A cheat sheet documents what the app supports; Kaname reports what the app curre
 
 ## Something else is wrong
 
-Open an issue at [github.com/suliveevil/KagiPeek/issues](https://github.com/suliveevil/KagiPeek/issues) with:
+Open an issue at [github.com/suliveevil/Kaname/issues](https://github.com/suliveevil/Kaname/issues) with:
 
 - macOS version and Kaname version
 - the app you were in when it happened
