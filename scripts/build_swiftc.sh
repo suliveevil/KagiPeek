@@ -130,7 +130,7 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # The About page shows this commit; it has to be in the plist before signing.
 "$ROOT/scripts/stamp_commit.sh" "$APP"
 
-# The self-signed `KagiPeek Local` key lives in its own keychain. Unlocking it with the
+# The self-signed `Kaname Local` key lives in its own keychain. Unlocking it with the
 # passphrase file keeps `codesign` non-interactive: the login keychain's key ACL and
 # partition list are managed by macOS, so signing from there asks for authorization over
 # and over. The passphrase is read, never printed, and never stored in the repository.
@@ -147,11 +147,11 @@ IDENTITY=""
 SIGN_KEYCHAIN=""
 if [ -f "$SIGN_KEYCHAIN_FILE" ] && [ -r "$SIGN_PASS_FILE" ]; then
     security unlock-keychain -p "$(<"$SIGN_PASS_FILE")" "$SIGN_KEYCHAIN_FILE" >/dev/null 2>&1 || true
-    IDENTITY="$(security find-identity -v -p codesigning "$SIGN_KEYCHAIN_FILE" 2>/dev/null | sed -n 's/.*"\(KagiPeek Local\)"/\1/p' | head -1)"
+    IDENTITY="$(security find-identity -v -p codesigning "$SIGN_KEYCHAIN_FILE" 2>/dev/null | sed -n 's/.*"\(Kaname Local\)"/\1/p' | head -1)"
     [ -n "$IDENTITY" ] && SIGN_KEYCHAIN="$SIGN_KEYCHAIN_FILE"
 fi
 if [ -z "$IDENTITY" ]; then
-    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(KagiPeek Local\)"/\1/p' | head -1)"
+    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Kaname Local\)"/\1/p' | head -1)"
 fi
 
 if [ -n "$IDENTITY" ]; then

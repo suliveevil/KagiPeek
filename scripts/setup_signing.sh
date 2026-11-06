@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IDENTITY="${KANAME_SIGNING_NAME:-KagiPeek Local}"
+IDENTITY="${KANAME_SIGNING_NAME:-Kaname Local}"
 SIGN_DIR="$HOME/Library/Application Support/Kaname/signing"
 KEYCHAIN="$HOME/Library/Keychains/kaname-signing.keychain-db"
 PASS_FILE="$SIGN_DIR/keychain-pass"
@@ -47,7 +47,23 @@ openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes -keyout "$WORK/key.
 security import "$WORK/cert.pem" -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A >/dev/null
 security import "$WORK/key.pem"  -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A >/dev/null
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PASS" "$KEYCHAIN" >/dev/null
-security list-keychains -d user -s "$HOME/Library/Keychains/login.keychain-db" "$KEYCHAIN"
+# Keep the previous keychain in the user search list: it is the rollback copy and must stay
+# usable until the new identity has proven itself.
+CURRENT_KEYCHAINS=()
+while IFS= read -r kc; do
+    kc="${kc#\"}"
+    kc="${kc%\"}"
+    kc="${kc#"${kc%%[![:space:]]*}"}"
+    kc="${kc%"${kc##*[![:space:]]}"}"
+    [ -n "$kc" ] && CURRENT_KEYCHAINS+=("$kc")
+done < <(security list-keychains -d user)
+LISTED=0
+for kc in "${CURRENT_KEYCHAINS[@]}"; do
+    [ "$kc" = "$KEYCHAIN" ] && LISTED=1
+done
+if [ "$LISTED" = "0" ]; then
+    security list-keychains -d user -s "${CURRENT_KEYCHAINS[@]}" "$KEYCHAIN" >/dev/null
+fi
 
 if ! security add-trusted-cert -r trustRoot -k "$KEYCHAIN" "$WORK/cert.pem" >/dev/null 2>&1; then
     echo "warning: could not mark the certificate as trusted automatically."

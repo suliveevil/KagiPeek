@@ -83,12 +83,12 @@ if [ -z "$IDENTITY" ]; then
 fi
 if [ -z "$IDENTITY" ]; then
     # Stable self-signed identity created by scripts/setup_signing.sh.
-    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(KagiPeek Local\)"/\1/p' | head -1)"
+    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Kaname Local\)"/\1/p' | head -1)"
 fi
 
 if [ -n "$IDENTITY" ]; then
     echo "==> Signing with: $IDENTITY"
-    if [ "$IDENTITY" = "KagiPeek Local" ]; then
+    if [ "$IDENTITY" = "Kaname Local" ]; then
         echo "    (stable local identity: Accessibility grants survive rebuilds)"
         # A local self-signed build must not depend on Apple's timestamp service: offline
         # builds would otherwise fail at the last step.
