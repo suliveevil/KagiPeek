@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "B255B0112F750D1500844533"
-               BuildableName = "KagiPeek.app"
+               BuildableName = "Kaname.app"
                BlueprintName = "KagiPeek"
                ReferencedContainer = "container:KagiPeek.xcodeproj">
             </BuildableReference>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B255B0112F750D1500844533"
-            BuildableName = "KagiPeek.app"
+            BuildableName = "Kaname.app"
             BlueprintName = "KagiPeek"
             ReferencedContainer = "container:KagiPeek.xcodeproj">
          </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "B255B0112F750D1500844533"
-            BuildableName = "KagiPeek.app"
+            BuildableName = "Kaname.app"
             BlueprintName = "KagiPeek"
             ReferencedContainer = "container:KagiPeek.xcodeproj">
          </BuildableReference>

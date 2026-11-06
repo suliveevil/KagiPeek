@@ -16,19 +16,19 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh-Hans</string>
 	<key>CFBundleDisplayName</key>
-	<string>KagiPeek</string>
+	<string>Kaname</string>
 	<key>CFBundleExecutable</key>
-	<string>KagiPeek</string>
+	<string>Kaname</string>
 	<key>CFBundleIconFile</key>
 	<string>Kaname</string>
 	<key>CFBundleIconName</key>
 	<string>Kaname</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.voltline.kagipeek</string>
+	<string>com.suliveevil.kaname</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>KagiPeek</string>
+	<string>Kaname</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

@@ -31,7 +31,7 @@ if [ ! -x "$TC/swiftc" ]; then
 fi
 
 OUT="${KAGIPEEK_OUT:-$ROOT/build/manual}"
-APP="$OUT/KagiPeek.app"
+APP="$OUT/Kaname.app"
 
 # The template comes from the repository first. It used to come only from
 # /Applications/KagiPeek.app — a previously installed copy — which made the build depend on its
@@ -39,7 +39,7 @@ APP="$OUT/KagiPeek.app"
 # copy stays as a last resort for anyone who has one and no checkout-level template.
 TEMPLATE="${KAGIPEEK_PLIST_SOURCE:-}"
 if [ -z "$TEMPLATE" ]; then
-    for candidate in "$ROOT/scripts/Info.plist" "/Applications/KagiPeek.app/Contents/Info.plist"; do
+    for candidate in "$ROOT/scripts/Info.plist" "/Applications/Kaname.app/Contents/Info.plist"; do
         if [ -f "$candidate" ]; then
             TEMPLATE="$candidate"
             break
@@ -60,7 +60,7 @@ echo "==> Compiling ($CONFIG, arm64, Swift 6)"
 # out below). Both build paths compile the same language and report the same diagnostics —
 # the project is warning-free at `complete`, so a new warning here is a new warning there.
 # shellcheck disable=SC2086
-"$TC/swiftc" $OPT -o "$APP/Contents/MacOS/KagiPeek" \
+"$TC/swiftc" $OPT -o "$APP/Contents/MacOS/Kaname" \
     -sdk "$SDK" -target arm64-apple-macos14.0 -swift-version 6 \
     -default-isolation MainActor \
     -Xfrontend -strict-concurrency=complete \
