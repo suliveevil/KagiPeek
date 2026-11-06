@@ -24,11 +24,11 @@ cask "kaname" do
   version ""
   sha256 ""
 
-  url "https://github.com/suliveevil/Kaname/releases/download/v#{version}/Kaname-#{version}.dmg",
-      verified: "github.com/suliveevil/Kaname/"
+  url "https://github.com/suliveevil/kaname/releases/download/v#{version}/Kaname-#{version}.dmg",
+      verified: "github.com/suliveevil/kaname/"
   name "Kaname"
   desc "Context-aware keyboard shortcut hints and search for the active macOS app"
-  homepage "https://github.com/suliveevil/Kaname"
+  homepage "https://github.com/suliveevil/kaname"
 
   livecheck do
     url :url

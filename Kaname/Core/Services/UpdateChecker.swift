@@ -16,7 +16,7 @@ final class UpdateChecker: ObservableObject {
 
     private var task: URLSessionDataTask?
     private let session: URLSession
-    private let repository = "suliveevil/Kaname"
+    private let repository = "suliveevil/kaname"
 
     init(session: URLSession = .shared) {
         self.session = session

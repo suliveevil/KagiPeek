@@ -356,7 +356,7 @@ A cheat sheet documents what the app supports; Kaname reports what the app curre
 
 ## Something else is wrong
 
-Open an issue at [github.com/suliveevil/Kaname/issues](https://github.com/suliveevil/Kaname/issues) with:
+Open an issue at [github.com/suliveevil/kaname/issues](https://github.com/suliveevil/kaname/issues) with:
 
 - macOS version and Kaname version
 - the app you were in when it happened

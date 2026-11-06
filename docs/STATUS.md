@@ -15,8 +15,8 @@ as of **2026-11-06**（Asia/Shanghai）。
 - 分支：`main` 已包含本轮全部改动，`fix/tool-section-folding` 合并后删除。本地还剩开发分支
   `feature/panel-sections`、旧历史备份 `backup/pre-squash-20261104-192838`（branch 与 tag
   同指向 `de32cb6`）。16 个 pre-squash 时期的迭代分支已逐个核对并删除（见上一版记录），
-  提交历史仍保留在备份 ref 上。远端 `Voltline/Kaname` 仍作为只读参照，`origin` 指向
-  suliveevil/Kaname。
+  提交历史仍保留在备份 ref 上。远端 `Voltline/KagiPeek` 仍作为只读参照，`origin` 指向
+  suliveevil/kaname。
 - `swift test` 844 → 849，0 failures（新增 `showConfigToolsInPanel` 的迁移/编码 4 项与
   工具行门控 1 项）。2026-11-06 01:24 在 `bf8260a` 上复跑仍 849/0；01:26 执行
   `scripts/install.sh` 构建并安装，`/Applications/Kaname.app` 现在是 `bf8260a`。

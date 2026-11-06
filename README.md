@@ -1,7 +1,7 @@
 # Kaname
 
-[![CI](https://github.com/suliveevil/Kaname/actions/workflows/ci.yml/badge.svg)](https://github.com/suliveevil/Kaname/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/suliveevil/Kaname?display_name=tag)](https://github.com/suliveevil/Kaname/releases/latest)
+[![CI](https://github.com/suliveevil/kaname/actions/workflows/ci.yml/badge.svg)](https://github.com/suliveevil/kaname/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/suliveevil/kaname?display_name=tag)](https://github.com/suliveevil/kaname/releases/latest)
 
 **Press and hold a modifier. See what the app you are in can do next.**
 
@@ -86,7 +86,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 
 ### Download a release
 
-1. Download the latest DMG from [Releases](https://github.com/suliveevil/Kaname/releases/latest) and verify it against the published `.sha256` file (`shasum -a 256 Kaname-*.dmg`).
+1. Download the latest DMG from [Releases](https://github.com/suliveevil/kaname/releases/latest) and verify it against the published `.sha256` file (`shasum -a 256 Kaname-*.dmg`).
 2. Open the DMG and drag **Kaname** into **Applications** — launch it from there, not from inside the DMG.
 3. Launch Kaname and grant Accessibility as described below. Add Input Monitoring only if the panel does not appear.
 
@@ -109,7 +109,7 @@ brew install --cask kaname
 ### Build from source
 
 ```bash
-git clone https://github.com/suliveevil/Kaname.git
+git clone https://github.com/suliveevil/kaname.git
 cd Kaname
 open Kaname.xcodeproj
 ```
@@ -444,7 +444,7 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 
 #### 下载 DMG
 
-1. 从 [Releases](https://github.com/suliveevil/Kaname/releases/latest) 下载最新 DMG，并用发布的 `.sha256` 文件校验（`shasum -a 256 Kaname-*.dmg`）。
+1. 从 [Releases](https://github.com/suliveevil/kaname/releases/latest) 下载最新 DMG，并用发布的 `.sha256` 文件校验（`shasum -a 256 Kaname-*.dmg`）。
 2. 打开 DMG，把 **Kaname** 拖进 **Applications**——从 Applications 里启动，不要在 DMG 里直接运行。
 3. 启动并先授予辅助功能；如果面板不弹出，再添加输入监控。
 
@@ -467,7 +467,7 @@ brew install --cask kaname
 #### 从源码构建
 
 ```bash
-git clone https://github.com/suliveevil/Kaname.git
+git clone https://github.com/suliveevil/kaname.git
 cd Kaname
 open Kaname.xcodeproj
 ```

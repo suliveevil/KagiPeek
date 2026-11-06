@@ -713,7 +713,7 @@ The permissions tab's icon is a real drag source (`NSItemProvider` / file URL): 
 The About tab of **Settings** offers a manual release check, and it is the only network code in the app.
 
 - `UpdateChecker` is a main-actor `ObservableObject` with states `idle`, `checking`, `upToDate`, `available(tag, url)`, and `failed`.
-- `check(currentVersion:)` sends one GET to `https://api.github.com/repos/suliveevil/Kaname/releases/latest` with `Accept: application/vnd.github+json`, a `Kaname-update-check` user agent, and a 12 s timeout.
+- `check(currentVersion:)` sends one GET to `https://api.github.com/repos/suliveevil/kaname/releases/latest` with `Accept: application/vnd.github+json`, a `Kaname-update-check` user agent, and a 12 s timeout.
 - The response must contain `tag_name` and `html_url`. `SemanticVersion` strips a leading `v` and any pre-release/build suffix, then compares `major.minor.patch` against the running `CFBundleShortVersionString`.
 - A newer tag → `.available`, and the row becomes a link that opens the release page in the default browser. Equal or older → "You're up to date". Any network, HTTP, or parse failure → a short failure message.
 - **No polling, no automatic download, no installation.** Nothing runs until the button is pressed, and the request carries no user, app, or shortcut data.

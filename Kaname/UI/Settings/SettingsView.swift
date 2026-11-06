@@ -1300,7 +1300,7 @@ struct SettingsView: View {
 
             Section {
                 LabeledContent(localization.text(.aboutRepository)) {
-                    Link("suliveevil/Kaname", destination: URL(string: "https://github.com/suliveevil/Kaname")!)
+                    Link("suliveevil/kaname", destination: URL(string: "https://github.com/suliveevil/kaname")!)
                 }
                 LabeledContent(localization.text(.aboutLicense)) {
                     Text("GNU GPL v2.0").foregroundStyle(.secondary)

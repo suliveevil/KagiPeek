@@ -95,7 +95,7 @@ Requirements: macOS 14.0 Sonoma or later. The bundle identifier is `com.suliveev
 Download the DMG from the release assets, or build from source:
 
 ```sh
-git clone https://github.com/suliveevil/Kaname.git
+git clone https://github.com/suliveevil/kaname.git
 cd Kaname
 ./scripts/install.sh
 ```
@@ -125,4 +125,4 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
 - A third hotkey (⌃⌥⌘S) switches between panel and search.
 - Settings, per-app statistics and the data folder carry over unchanged.
 
-**Full changelog:** https://github.com/suliveevil/Kaname/blob/main/CHANGELOG.md
+**Full changelog:** https://github.com/suliveevil/kaname/blob/main/CHANGELOG.md
