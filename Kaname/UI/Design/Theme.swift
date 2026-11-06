@@ -92,6 +92,10 @@ struct PanelPalette {
     let restrictedText: Color
     let secondaryText: Color
     let tertiaryText: Color
+    /// A disabled row's text. Kept above 4.5:1 and paired with an explicit unavailable
+    /// marker in the row: dimming the whole row to 48 % opacity dropped it to ~2:1 and
+    /// left colour as the only signal.
+    let disabledText: Color
     let rule: Color
     let selection: Color
     let hover: Color
@@ -126,6 +130,7 @@ extension PanelTheme {
             // auxiliary text. 0.45 measures ~4.5:1 and still reads as clearly quieter than
             // secondaryText at 0.62.
             tertiaryText: .white.opacity(0.45),
+            disabledText: .white.opacity(0.55),
             rule: .white.opacity(0.10),
             selection: .white.opacity(0.12),
             hover: .white.opacity(0.06),
@@ -147,6 +152,7 @@ extension PanelTheme {
             // 0.34 measured below 3:1 on the 98 % paper surface. 0.55 measures ~4.7:1 and
             // keeps the same relationship to secondaryText at 0.58.
             tertiaryText: Color.black.opacity(0.55),
+            disabledText: Color.black.opacity(0.60),
             rule: Color.black.opacity(0.12),
             selection: Color.accentColor.opacity(0.14),
             hover: Color.black.opacity(0.05),

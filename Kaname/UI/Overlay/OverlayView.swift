@@ -1060,13 +1060,13 @@ private struct OverlayPanelContentView: View {
         // the user can see that the shortcut exists, and that Kaname will not run it.
         if row.isRestricted { return palette.restrictedText }
         if row.isCompleted { return palette.text }
-        if !row.isEnabled { return palette.tertiaryText }
+        if !row.isEnabled { return palette.disabledText }
         return row.isHighlighted ? palette.text : palette.text.opacity(0.88)
     }
 
     private func keySegmentColor(_ row: PanelRow, _ segment: KeyFormatter.Segment) -> Color {
         if case .label = segment.kind { return palette.secondaryText }
-        if !row.isEnabled { return palette.tertiaryText }
+        if !row.isEnabled { return palette.disabledText }
         if isEmphasized(segment) { return palette.keyHighlight }
         if row.isCompleted { return palette.text }
         return palette.key
@@ -1370,6 +1370,7 @@ private struct SearchResultList: View {
                         item: item,
                         title: titleFor(item),
                         isUnnamed: item.title == DescriptionCleaner.placeholder,
+                        isEnabled: item.isEnabled,
                         query: query,
                         style: style,
                         keyPosition: keyPosition,
@@ -1378,7 +1379,6 @@ private struct SearchResultList: View {
                         onActivate: { if item.isEnabled { onTap(index) } }
                     )
                     .id(item.id)
-                    .opacity(item.isEnabled ? 1 : 0.48)
                     .onHover { inside in
                         if inside { onHover(index) }
                     }
@@ -1418,6 +1418,9 @@ private struct SearchResultRow: View {
     let title: String
     /// The title here *is* the chord, so the shortcut column would print it twice.
     let isUnnamed: Bool
+    /// A menu item the app currently greys out. Its text uses `palette.disabledText` and
+    /// the row carries an explicit marker instead of dimming everything.
+    let isEnabled: Bool
     let query: String
     let style: KeyFormatter.Style
     let keyPosition: KeyPosition
@@ -1489,18 +1492,34 @@ private struct SearchResultRow: View {
     /// "Copy Style" into a location when three apps have a command by that name.
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 1) {
-            highlightedTitle
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(restriction.isRestricted ? palette.restrictedText : palette.text)
+            HStack(spacing: 4) {
+                highlightedTitle
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(titleColor)
+                if !isEnabled {
+                    // A disabled item is still listed on purpose, so it needs a visible
+                    // reason rather than a dimmed row nobody can read.
+                    Image(systemName: "minus.circle")
+                        .font(.system(size: TypeScale.micro))
+                        .foregroundStyle(palette.disabledText)
+                        .help(localization.text(.overlayUnavailableBadge))
+                        .accessibilityHidden(true)
+                }
+            }
             if let subgroup = item.subgroup {
                 Text(subgroup)
                     .font(.system(size: TypeScale.caption))
-                    .foregroundStyle(palette.tertiaryText)
+                    .foregroundStyle(isEnabled ? palette.tertiaryText : palette.disabledText)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
         }
+    }
+
+    private var titleColor: Color {
+        if restriction.isRestricted { return palette.restrictedText }
+        return isEnabled ? palette.text : palette.disabledText
     }
 
     @ViewBuilder
@@ -1514,12 +1533,16 @@ private struct SearchResultRow: View {
             Text(item.chord.isEmpty ? "—" : KeyFormatter.render(item.chord, style: style))
                 .font(.system(size: TypeScale.callout, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(item.chord.isEmpty
-                                 ? palette.tertiaryText
-                                 : (isSelected ? palette.text : palette.key))
+                .foregroundStyle(shortcutColor)
                 .lineLimit(1)
                 .frame(width: keyColumn, alignment: keyPosition == .left ? .leading : .trailing)
         }
+    }
+
+    private var shortcutColor: Color {
+        if !isEnabled { return palette.disabledText }
+        if item.chord.isEmpty { return palette.tertiaryText }
+        return isSelected ? palette.text : palette.key
     }
 
     /// The row title with the query's characters emphasised.
