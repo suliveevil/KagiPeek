@@ -45,7 +45,7 @@ if [ ! -f "$NOTES" ]; then
     NOTES="$(mktemp -t kaname-release-notes)"
     trap 'rm -f "$NOTES"' EXIT
     {
-        echo "Kaname "
+        echo "Kaname ${VERSION}"
         echo
         if [ -n "$PREVIOUS" ]; then
             echo "## Changes since ${PREVIOUS}"
@@ -82,3 +82,58 @@ fi
 # the DMG.
 gh "${ARGS[@]}"
 gh release upload "$TAG" "$DMG.sha256" --repo suliveevil/kaname
+
+# --- Homebrew cask ------------------------------------------------------------
+# The cask points at the release asset, so the tap commit must come *after* both
+# uploads: pushing it first makes every `brew install` a 404 until the asset lands.
+# The rendered cask goes to build/kaname.rb; Distribution/kaname.rb stays a template
+# so a tag never depends on a file that has to be edited after the tag is made.
+if [ ! -f "$DMG.sha256" ]; then
+    echo "error: $DMG.sha256 is missing; cannot render the cask" >&2
+    exit 1
+fi
+SHA256="$(awk '{print $1}' "$DMG.sha256")"
+case "$SHA256" in
+    *[!0-9a-fA-F]*|"") echo "error: $DMG.sha256 does not contain a hex digest" >&2; exit 1 ;;
+esac
+if [ "${#SHA256}" -ne 64 ]; then
+    echo "error: digest in $DMG.sha256 is ${#SHA256} characters, expected 64" >&2
+    exit 1
+fi
+
+CASK_SRC="$ROOT/Distribution/kaname.rb"
+CASK_OUT="$ROOT/build/kaname.rb"
+if [ ! -f "$CASK_SRC" ]; then
+    echo "error: cask template not found: $CASK_SRC" >&2
+    exit 1
+fi
+mkdir -p "$ROOT/build"
+sed -e "s|__VERSION__|$VERSION|g" -e "s|__SHA256__|$SHA256|g" "$CASK_SRC" > "$CASK_OUT"
+if grep -q '__VERSION__\|__SHA256__' "$CASK_OUT"; then
+    echo "error: rendering $CASK_OUT left a placeholder in place" >&2
+    exit 1
+fi
+echo "==> Rendered cask: $CASK_OUT (version $VERSION, sha256 $SHA256)"
+
+if [ -n "${KANAME_TAP_DIR:-}" ]; then
+    TAP="$(cd "$KANAME_TAP_DIR" && pwd)"
+    if [ ! -d "$TAP/.git" ]; then
+        echo "error: KANAME_TAP_DIR is not a git checkout: $TAP" >&2
+        exit 1
+    fi
+    mkdir -p "$TAP/Casks"
+    cp "$CASK_OUT" "$TAP/Casks/kaname.rb"
+    git -C "$TAP" add Casks/kaname.rb
+    if git -C "$TAP" diff --cached --quiet; then
+        echo "==> Tap already has kaname $VERSION; nothing to commit"
+    else
+        git -C "$TAP" commit -m "kaname $VERSION"
+        git -C "$TAP" push
+        echo "==> Tap updated: $TAP"
+    fi
+else
+    echo "    KANAME_TAP_DIR is not set; no tap was pushed."
+    echo "    After the release asset is live, copy build/kaname.rb to"
+    echo "    <tap>/Casks/kaname.rb, commit and push it. Verify with:"
+    echo "    brew audit --cask --strict suliveevil/tap/kaname"
+fi

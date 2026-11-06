@@ -49,6 +49,36 @@ App 让它重新请求；仍不生效时退出 App，执行
 保持授权稳定的做法：固定 bundle id（`com.suliveevil.kaname`）、固定签名证书（`Kaname
 Local`）、不要每次构建都改 `CFBundleVersion` 以外的身份字段。
 
+### 2.1 别人的 Mac：没有 `Kaname Local` 证书时会发生什么
+
+| 检查 | 结果 | 原因 |
+| --- | --- | --- |
+| `codesign --verify --strict` | 通常通过 | 只校验签名完整性与代码未被篡改；自签叶证书随 CMS 签名一起嵌在 App 里 |
+| `codesign -dv` | `Authority=Kaname Local`、`TeamIdentifier=not set` | 自签证书没有 Team ID |
+| `spctl --assess` | 拒绝 | 没有 Developer ID，也没有公证票据 |
+| 首次启动 | 被 Gatekeeper 拦下 | 下载产物带 `com.apple.quarantine`，且评估不通过 |
+| TCC 授权 | 仍按 designated requirement 匹配 | 需求串是 `identifier "com.suliveevil.kaname" and certificate root = H"…"`，根哈希来自签名本身，不要求用户把证书导入钥匙串 |
+
+用户实际看到的是「无法验证开发者」/「Apple 无法验证是否包含恶意软件」，随后：
+
+- **系统设置 → 隐私与安全性 → 仍要打开**；或
+- `brew install --cask --no-quarantine kaname`，或
+- `xattr -dr com.apple.quarantine /Applications/Kaname.app`。
+
+`--no-quarantine` 只对当次安装有效，副作用是跳过这个包的首次 Gatekeeper 检查；后续
+`brew upgrade` 不带该参数会重新隔离。
+
+**不要引导用户导入 `Kaname Local` 根证书并设为信任。** 这不会让 Gatekeeper 放行（缺的是
+Apple 公证，不是本地信任设置），却把一个自签 CA 放进了用户的信任链，是明确的安全反模式。
+自签只适合本机与 beta；对外分发应改用 Developer ID + 公证。
+
+**授权失效的条件。** TCC 绑定的是签名身份，因此以下任一变化都会让「系统设置里勾着、App
+仍说没权限」：重新生成证书（`scripts/setup_signing.sh` 换了 CN/密钥）、证书到期（当前
+3650 天）、bundle id 改变、某次发布改用 Developer ID 或 ad-hoc。恢复步骤：先移除系统设置里
+残留的 Kaname 条目，再启动 App；仍无效则
+`tccutil reset Accessibility com.suliveevil.kaname` 后重新授权。保持 bundle id 与证书不变
+的 brew 升级不会触发这一步。
+
 ## 3. entitlements 与运行环境
 
 - **没有 entitlements 文件**：仓库里不存在 `*.entitlements`，构建脚本也没有

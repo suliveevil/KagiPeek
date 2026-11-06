@@ -90,9 +90,18 @@ along the way, and what to do about it when upgrading.
 
 ## Install
 
-Requirements: macOS 14.0 Sonoma or later. The bundle identifier is `com.suliveevil.kaname`.
+Requirements: macOS 14.0 Sonoma or later. The bundle identifier is `com.suliveevil.kaname`. The
+published DMG is a thin **arm64** binary; Intel Macs are rejected by the cask instead of installing
+and then failing at launch.
 
-Download the DMG from the release assets, or build from source:
+Install from the tap:
+
+```sh
+brew tap suliveevil/tap
+brew install --cask kaname
+```
+
+or download the DMG from the release assets. Building from source:
 
 ```sh
 git clone https://github.com/suliveevil/kaname.git
@@ -101,7 +110,11 @@ cd Kaname
 ```
 
 > Builds from a machine without a Developer ID certificate are **not notarized**, so Gatekeeper
-> warns on first launch. After downloading: `xattr -dr com.apple.quarantine /Applications/Kaname.app`.
+> warns on first launch. Homebrew quarantines cask downloads by default. Either approve the app once
+> in System Settings → Privacy & Security → **Open Anyway**, install with
+> `brew install --cask --no-quarantine kaname`, or remove the attribute with
+> `xattr -dr com.apple.quarantine /Applications/Kaname.app`. The `--no-quarantine` flag applies to
+> that install only; a later `brew upgrade` without it quarantines the new copy again.
 
 Either way, the app needs **Accessibility** on first launch (System Settings → Privacy &
 Security → Accessibility). Input Monitoring is only needed if key events do not arrive.
@@ -112,6 +125,17 @@ Security → Accessibility). Input Monitoring is only needed if key events do no
   signed by a different identity, or an ad-hoc local rebuild, is a new app to macOS: remove the
   stale Kaname entry under Privacy & Security and enable the new one. A signed update that
   changes neither keeps its grant.
+- **Homebrew upgrades replace the app in place.** Quit Kaname first (`brew upgrade --cask kaname`
+  while it is running leaves the old process holding a deleted binary and event tap). The
+  Accessibility grant survives only when the bundle identifier and signing identity stay the same.
+  `--no-quarantine` is not remembered: without it, the next upgrade is quarantined and blocked on
+  first launch again.
+- **Uninstall removes the app, not its data.** `brew uninstall --cask kaname` leaves
+  `~/Library/Application Support/Kaname` (settings, statistics, logs, local backups), the
+  preferences plist, caches and saved state. `brew uninstall --cask --zap kaname` deletes all of
+  them, including the backups. Neither form clears the Accessibility grant; use
+  `tccutil reset Accessibility com.suliveevil.kaname`, and remove a leftover login item in
+  System Settings → General → Login Items.
 - **Settings and statistics move to Application Support.** The first launch reads the JSON files if
   present, otherwise migrates the previous UserDefaults payloads, including the older
   `com.suliveevil.kaname` domain; nothing needs to be re-entered. The old defaults are left in

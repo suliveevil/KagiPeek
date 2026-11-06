@@ -1,28 +1,20 @@
 # Homebrew cask template for Kaname.
 #
-# This file is a template, not a working cask: version and sha256 are empty
-# on purpose. Fill them in when a release is published, then copy the file
-# into a Homebrew tap.
+# This file is a TEMPLATE, not an installable cask: __VERSION__ and __SHA256__ are
+# placeholders on purpose, and a cask with them still in place must never be pushed
+# to a tap. `scripts/publish_release.sh` renders them from the DMG it just uploaded
+# and writes the result to build/kaname.rb; only that rendered file goes into
+# Casks/kaname.rb of the tap repository.
 #
-# Publishing checklist:
-#   1. Create (or reuse) a tap repository, e.g. suliveevil/homebrew-tap.
-#   2. Copy this file to Casks/kaname.rb in that repository.
-#   3. Set version to the release version (for example "1.2.0") and sha256
-#      to the digest of build/Kaname-<version>.dmg produced by
-#      scripts/build_release.sh:
-#        shasum -a 256 build/Kaname-1.2.0.dmg
-#   4. Run `brew audit --cask kaname` and `brew install --cask kaname`
-#      from a machine with the tap added.
-#
-# Users then install with:
+# The tap repository is suliveevil/homebrew-tap (public), so users install with:
 #   brew tap suliveevil/tap
 #   brew install --cask kaname
 #
-# The DMG URL and file name must match scripts/build_release.sh exactly.
-# The GitHub repository is still named Kaname; only the product is Kaname.
+# The DMG URL and asset name must match scripts/build_release.sh exactly.
 cask "kaname" do
-  version ""
-  sha256 ""
+  # Placeholders: replaced by scripts/publish_release.sh after `gh release upload`.
+  version "__VERSION__"
+  sha256 "__SHA256__"
 
   url "https://github.com/suliveevil/kaname/releases/download/v#{version}/Kaname-#{version}.dmg",
       verified: "github.com/suliveevil/kaname/"
@@ -35,20 +27,37 @@ cask "kaname" do
     strategy :github_latest
   end
 
+  # 14.0, matching LSMinimumSystemVersion in scripts/Info.plist.
   depends_on macos: ">= :sonoma"
+
+  # The current release artifact is arm64-only (scripts/build_swiftc.sh builds a thin
+  # arm64 binary), so Intel Macs must be rejected at install time instead of failing
+  # with "bad CPU type" after a successful install. Remove this line once
+  # scripts/build_release.sh publishes a universal DMG.
+  depends_on arch: :arm64
 
   app "Kaname"
 
-  # New domain plus the two historical Kaname domains, so uninstalling cleans up
-  # both a fresh install and one that was migrated from the old name.
+  # Kaname is an LSUIElement menu bar app: replacing the bundle while the old process
+  # still runs leaves it holding a deleted binary and the event tap. `login_item` is
+  # best effort (the app registers through SMAppService, while Homebrew uses the
+  # legacy AppleScript login-item API); a leftover entry is removed in System
+  # Settings → General → Login Items.
+  uninstall quit: "com.suliveevil.kaname",
+            login_item: "Kaname"
+
+  caveats <<~EOS
+    Kaname is signed with a local certificate and is not notarized by Apple, so
+    macOS blocks its first launch. Either approve it once in
+    System Settings → Privacy & Security ("Open Anyway"), or install with:
+      brew install --cask --no-quarantine kaname
+    The latter skips Gatekeeper's first-launch check for this package only, and
+    `brew upgrade` without the flag will quarantine it again.
+  EOS
+
   zap trash: [
     "~/Library/Application Support/Kaname",
-    "~/Library/Application Support/Kaname",
     "~/Library/Caches/com.suliveevil.kaname",
-    "~/Library/Preferences/com.suliveevil.kaname.plist",
-    "~/Library/Saved Application State/com.suliveevil.kaname.savedState",
-    "~/Library/Caches/com.suliveevil.kaname",
-    "~/Library/Preferences/com.suliveevil.kaname.plist",
     "~/Library/Preferences/com.suliveevil.kaname.plist",
     "~/Library/Saved Application State/com.suliveevil.kaname.savedState",
   ]

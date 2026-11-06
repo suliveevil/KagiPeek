@@ -81,6 +81,7 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 ### Requirements
 
 - macOS 14.0 Sonoma or later.
+- Apple Silicon (arm64) for the current release. The DMG contains a thin arm64 binary; the cask rejects Intel Macs instead of letting them install and then fail at launch. Rosetta translates x86_64 to arm64, never the reverse.
 - Accessibility permission (required). Input Monitoring is an optional fallback if key events are not delivered on your system. Both are explained on first launch.
 - The app is a menu bar agent: no Dock icon, and no window when it launches — the menu bar icon is the way in (Settings → General → **Show a Dock icon as well** adds one back).
 
@@ -99,12 +100,16 @@ Notarized builds open normally. A build that is not notarized is blocked on firs
 
 ### Homebrew
 
-Homebrew support is provided as a cask template in [`Distribution/kaname.rb`](Distribution/kaname.rb). The cask is **not published to a tap yet**; until it is, use the DMG or build from source. Once the tap exists:
-
 ```bash
 brew tap suliveevil/tap
 brew install --cask kaname
 ```
+
+The cask lives in the public `suliveevil/homebrew-tap` repository and points at the DMG attached to the matching GitHub release. [`Distribution/kaname.rb`](Distribution/kaname.rb) is the template that `scripts/publish_release.sh` renders after the release upload; it is not installable until the DMG and its `.sha256` exist.
+
+- **Not notarized.** Homebrew quarantines downloads by default, so the first launch is blocked by Gatekeeper. Either approve Kaname once under **System Settings → Privacy & Security → Open Anyway**, or install with `brew install --cask --no-quarantine kaname`. The flag skips the first-launch check for this one install only; a later `brew upgrade` without it quarantines the app again.
+- **Upgrade:** `brew upgrade --cask kaname`. Quit Kaname first — it is a menu bar agent, and a running copy keeps the old binary and event tap alive.
+- **Uninstall:** `brew uninstall --cask kaname` removes the app. `brew uninstall --cask --zap kaname` also deletes `~/Library/Application Support/Kaname` (settings, statistics, logs and local backups), the preferences plist, caches and saved state. Neither form removes the Accessibility grant — reset it with `tccutil reset Accessibility com.suliveevil.kaname` — and a login item may have to be removed in **System Settings → General → Login Items**.
 
 ### Build from source
 
@@ -439,6 +444,7 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 #### 系统要求
 
 - macOS 14.0 Sonoma 或更高版本。
+- 当前发布包只支持 Apple Silicon（arm64）。DMG 里是 arm64 thin 二进制，cask 会在安装阶段直接拒绝 Intel Mac，而不是装完再启动失败；Rosetta 只做 x86_64 → arm64，不能反向运行。
 - 辅助功能权限（必需）。输入监控是可选的兜底项，仅在系统收不到按键事件时才需要。两项都会在首次启动时说明。
 - 这是菜单栏 App，没有 Dock 图标，启动时不打开任何窗口——入口就是菜单栏图标（**设置 → 通用 → 同时在 Dock 显示图标** 可以把图标加回来）。
 
@@ -457,12 +463,16 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 
 #### Homebrew
 
-Homebrew 安装使用 cask 模板 [`Distribution/kaname.rb`](Distribution/kaname.rb)。该 cask **尚未发布到 tap**；发布前请使用 DMG 或从源码构建。发布后可以：
-
 ```bash
 brew tap suliveevil/tap
 brew install --cask kaname
 ```
+
+cask 位于公开仓库 `suliveevil/homebrew-tap`，指向对应 GitHub Release 上附带的 DMG。[`Distribution/kaname.rb`](Distribution/kaname.rb) 是模板，由 `scripts/publish_release.sh` 在发布上传成功后渲染；在 DMG 与 `.sha256` 存在之前，它不是可安装文件。
+
+- **未公证。** Homebrew 默认会给下载产物打 quarantine，首次启动会被 Gatekeeper 拦下。要么在**系统设置 → 隐私与安全性**里点**仍要打开**，要么用 `brew install --cask --no-quarantine kaname` 安装。这个 flag 只跳过这一次安装的首次检查；之后不带它执行 `brew upgrade`，新版本会重新被 quarantine。
+- **升级：** `brew upgrade --cask kaname`。先退出 Kaname——它是菜单栏常驻 App，旧进程会继续持有旧二进制与事件 tap。
+- **卸载：** `brew uninstall --cask kaname` 只删 App；`brew uninstall --cask --zap kaname` 还会删除 `~/Library/Application Support/Kaname`（设置、统计、日志与本地备份）、偏好 plist、缓存与窗口状态。两种方式都不会清掉辅助功能授权——需要 `tccutil reset Accessibility com.suliveevil.kaname`；登录项可能还要去**系统设置 → 通用 → 登录项**手动删除。
 
 #### 从源码构建
 

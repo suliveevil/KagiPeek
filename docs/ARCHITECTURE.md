@@ -156,9 +156,9 @@ scripts/build_release.sh           # build → sign → notarize (optional) → 
 scripts/build_swiftc.sh            # fallback build for hosts where xcodebuild cannot run
 scripts/install.sh                 # atomic install, refuses ad-hoc; backups go to Application Support
 scripts/backup_app.sh              # dated, commit-tagged pre-install backups; keeps the newest 5
-scripts/publish_release.sh         # upload the DMG as a GitHub release
+scripts/publish_release.sh         # upload the DMG, render the cask, optionally push the tap
 scripts/setup_signing.sh           # create the stable "Kaname Local" identity
-Distribution/kaname.rb           # Homebrew cask template
+Distribution/kaname.rb             # Homebrew cask template (placeholders; rendered by publish_release.sh)
 ```
 
 `Kaname/Core/Pure` is compiled twice: as part of the app target and as the `KanameCore` library in `Package.swift`. That is what lets `swift test` exercise the engine without launching an AppKit app or granting permissions.
@@ -866,7 +866,16 @@ GitHub Actions runs the job on a matrix of `macos-15` and `macos-26`, so a toolc
 
 `scripts/install.sh` builds, stages the bundle next to the destination, verifies the signature, swaps it in with `mv`, and copies the replaced bundle to `~/Library/Application Support/Kaname/backups/` through `scripts/backup_app.sh`. Backups are named `Kaname-<YYYY-MM-DD-HHMMSS>-<shortcommit>-<local|adhoc|devid>.app` and the five most recent are kept; a failure mid-swap restores the newest backup. Nothing but `Kaname.app` is ever placed in `/Applications`: a second copy of the same bundle id is picked up by LaunchServices, and an ad-hoc copy becomes a separate TCC identity. The installer refuses an ad-hoc build outright — a stable `Kaname Local` or Developer ID signature is required — because an ad-hoc cdhash changes on every compile, so macOS treats each rebuild as a new app and permissions are asked again. Ad-hoc output from `scripts/build_swiftc.sh` is for `codesign --verify` in a temporary directory only. It quits the app by bundle identifier first (an AppleScript `quit`), waits up to ten seconds, and only then terminates what is left with `pkill -f` against the destination's own executable path — the path matters, because an unfiltered `pkill -f` used to match build copies and other users' instances too. `scripts/build_swiftc.sh` is the fallback build for hosts where the Xcode build system cannot run at all, because it wraps every compile in `sandbox-exec` and nested sandboxing can be denied.
 
-`Distribution/kaname.rb` is a Homebrew cask template. It must be copied into a `homebrew-tap` repository before `brew install --cask kaname` works.
+`Distribution/kaname.rb` is a Homebrew cask **template**: `version` and `sha256` are placeholders
+(`__VERSION__`, `__SHA256__`) and the file must not be installed as-is. After a release, the script
+renders it from the digest in `build/Kaname-<version>.dmg.sha256`:
+
+- `scripts/publish_release.sh` writes `build/kaname.rb`, then, when `KANAME_TAP_DIR` points at a
+  git checkout of `suliveevil/homebrew-tap`, copies it to `Casks/kaname.rb`, commits and pushes.
+- The tap must be updated **after** `gh release create` and the `.sha256` upload succeed; the cask
+  URL points at the release asset, so a tap commit that lands first is a 404 for every user.
+- Without `KANAME_TAP_DIR` the script only renders the file and prints the manual steps. It refuses
+  to continue if the sidecar digest is missing, malformed, or a placeholder survives rendering.
 
 The app is not distributed through the Mac App Store. The sandbox is disabled because reading another app's menu bar and observing global key events are not possible inside the App Sandbox.
 
