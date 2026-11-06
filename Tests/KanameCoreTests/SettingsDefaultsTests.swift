@@ -4,7 +4,7 @@ import XCTest
 final class SettingsDefaultsTests: XCTestCase {
     func testSmartIsDefault() {
         let settings = AppSettingsSnapshot()
-        XCTAssertEqual(settings.sortMode, .smart)
+        XCTAssertEqual(settings.usageSortField, .shortcut)
         XCTAssertEqual(settings.runRowKey, .runRowDefault)
         XCTAssertEqual(settings.copyRowKey, .copyRowDefault)
         XCTAssertTrue(settings.modifierTriggerEnabled)
@@ -18,7 +18,7 @@ final class SettingsDefaultsTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
         XCTAssertEqual(decoded.triggerMode, .holdModifiers)
         XCTAssertEqual(decoded.holdDelay, 0.4)
-        XCTAssertEqual(decoded.sortMode, .smart)
+        XCTAssertEqual(decoded.usageSortField, .shortcut)
         XCTAssertEqual(decoded.runRowKey, .runRowDefault)
     }
 
@@ -213,5 +213,21 @@ final class SettingsDefaultsTests: XCTestCase {
             from: try JSONEncoder().encode(settings)
         )
         XCTAssertTrue(decoded.showConfigToolsInPanel)
+    }
+
+    func testUsageSortFieldRoundTrips() throws {
+        var settings = AppSettingsSnapshot()
+        settings.usageSortField = .description
+        let decoded = try JSONDecoder().decode(
+            AppSettingsSnapshot.self,
+            from: try JSONEncoder().encode(settings)
+        )
+        XCTAssertEqual(decoded.usageSortField, .description)
+    }
+
+    func testUnknownUsageSortFieldFallsBackToShortcut() throws {
+        let json = #"{"usageSortField":"frequency"}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppSettingsSnapshot.self, from: json)
+        XCTAssertEqual(decoded.usageSortField, .shortcut)
     }
 }

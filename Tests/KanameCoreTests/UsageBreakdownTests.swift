@@ -53,6 +53,21 @@ final class UsageBreakdownTests: XCTestCase {
         XCTAssertEqual(entries.map(\.title), ["Copy"])
     }
 
+    /// 全量 join 一行一个 usage key：两个 App 都有 ⌘C 时是两条不同的命令，不合并。
+    func testAllOwnersAreJoinedAsSeparateRows() {
+        let mine = item("Copy", chord: copy, bundle: "com.example.Editor")
+        let other = item("Copy", chord: copy, bundle: "com.example.Other")
+        let entries = UsageBreakdown.entries(
+            records: [
+                mine.usageKey: UsageRecord(count: 1, lastUsed: Date()),
+                other.usageKey: UsageRecord(count: 4, lastUsed: Date())
+            ],
+            known: [mine, other]
+        )
+        XCTAssertEqual(entries.count, 2)
+        XCTAssertEqual(Set(entries.map(\.usageKey)), [mine.usageKey, other.usageKey])
+    }
+
     func testSortedByPressesDescending() {
         let a = item("Copy", chord: copy, bundle: "com.example.Editor")
         let b = item("Paste", chord: .combo([.command], KeyToken("v")), bundle: "com.example.Editor")

@@ -68,7 +68,7 @@ The Permissions tab shows a Kaname app icon that is a real drag source. Drag it 
 No. There is no keystroke log and no text capture. Shortcut processing is local; the only network request is the manual update check described below.
 
 - The global key tap is used to compute modifier/key state and to detect the recorded hotkeys. Events pass through to the front app untouched, except Kaname's own panel, search, and switch hotkeys and the panel's navigation keys, which are consumed; a shortcut that completes a menu item is **not** consumed. No event is logged, replayed, or written to disk.
-- Usage statistics store a **count and a last-used timestamp per `bundleID|chord`**, not a stream of key presses. They live in `usage.json` in Application Support, are grouped by app in Settings, and can be reset.
+- Usage statistics store a **count and a last-used timestamp per `bundleID|chord`**, not a stream of key presses. They live in `usage.json` in Application Support, are shown as one row per app and shortcut in Settings, and can be reset.
 - Menu scans are cached in memory per app for 20 seconds. Switching apps forces a rescan, app launch/quit clears the cache, and changing the language or catalog setting refreshes it. They are not uploaded or archived.
 - Search queries are not recorded.
 - **The update check is the only network request.** It runs only when you press **Check for updates**, fetches the public GitHub release document, and sends nothing about you, your apps, or your shortcuts.
@@ -281,15 +281,13 @@ macOS system shortcuts are read-only here as well: Kaname reports collisions wit
 
 ## How do I see the trigger hint again?
 
-The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and writes `KanameTriggerTipShown` to `UserDefaults` so it never repeats. To replay it, open **Settings → Trigger** and press **Show the trigger tip again**; the button calls the same HUD and does not clear the flag or affect either trigger switch.
+The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and writes `KanameTriggerTipShown` to `UserDefaults` so it never repeats. The Trigger page has no replay button any more; either trigger switch and its setting are still there.
 
-## What is Smart order?
+## How is the statistics page ordered?
 
-The default order of the statistics page: presses weighted by an exponential decay (roughly a 60-day scale), so a shortcut used ten times last week outranks one used ten times last year, and a stale favourite fades instead of dominating forever. Ties fall back to the raw press count.
+**Sort by** has three choices: **Shortcut** (the default, the panel's keyboard order), **App**, and **Command description**. The choice is saved with the other settings. The page is one flat list — one row per shortcut, with the owning app and the command as a note under it — so the same chord used by two apps is two rows, and there are no per-app folds.
 
-**It does not order the panel.** The panel follows its own **Panel order** setting under **Settings → Appearance**: **By modifier** (the default — ⌘ → ⌥ → ⌃ → ⇧, then the key) or **By menu group** (each top-level menu contiguous, with the same shortcut order inside a menu), because it is a reference card and "most used" would move a menu item every time you run one. The search palette is always in match order for the same reason.
-
-All four orders live in **Settings → Statistics → Sort order**: smart order, most used first, key order, and alphabetical. They apply to both lists on that page — the per-app list and the menu items inside an app.
+**It does not order the panel.** The panel follows its own **Panel order** setting under **Settings → Appearance**: **By modifier** (the default — ⌘ → ⌥ → ⌃ → ⇧, then the key) or **By menu group** (each top-level menu contiguous, with the same shortcut order inside a menu), because it is a reference card and the statistics order would move a menu item every time you change it. The search palette is always in match order for the same reason.
 
 ## Can I hide disabled menu items?
 

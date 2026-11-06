@@ -211,7 +211,7 @@ nonisolated enum DiagnosticsExporter {
             "columnCount": String(settings.columnCount),
             "maxItemsPerPage": String(settings.maxItemsPerPage),
             "language": settings.language.rawValue,
-            "sortMode": settings.sortMode.rawValue,
+            "usageSortField": settings.usageSortField.rawValue,
             "showAppleMenu": String(settings.showAppleMenu),
             "scanConfigFiles": String(settings.scanConfigFiles),
             "includeBuiltInCatalog": String(settings.includeBuiltInCatalog)

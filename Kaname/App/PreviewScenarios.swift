@@ -84,7 +84,7 @@ extension ShortcutEngine {
         settingsStore.settings.panelTheme = .dark
         settingsStore.settings.keyPosition = .right
         settingsStore.settings.showDisabledItems = false
-        settingsStore.settings.sortMode = .smart
+        settingsStore.settings.usageSortField = .shortcut
     }
 
     /// The built-in catalog plus the one row kind this build added: menu commands with no

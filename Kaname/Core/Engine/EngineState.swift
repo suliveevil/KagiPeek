@@ -141,8 +141,8 @@ final class EngineState {
     /// holds. The key names what it was built from, so a rescan cannot be answered from it.
     var panelFilterCorpus: SearchCorpus?
     var panelFilterCorpusKey: String?
-    /// Per-app usage breakdowns, invalidated by a usage-signature change.
-    var usageBreakdownCache: [String: (signature: String, entries: [UsageEntry])] = [:]
+    /// Every owner's breakdown joined at once, for the flat Statistics list.
+    var usageBreakdownAllCache: (signature: String, entries: [UsageEntry])?
     /// Which scanned items are ignored right now (deduplicated by id), so both the panel
     /// and the conflicts page agree about what to hide.
     var conflictIDs: Set<String> = []

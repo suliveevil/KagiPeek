@@ -30,6 +30,25 @@ nonisolated enum UsageBreakdown {
         records: [String: UsageRecord],
         known: [BindingItem]
     ) -> [UsageEntry] {
+        joined(records: records, known: known, owner: bundleID)
+    }
+
+    /// Every owner at once, for the flat Statistics list.
+    ///
+    /// `known` must contain the bindings of every owner that appears in `records`; an
+    /// unknown key still gets a row, with its chord recovered from the key and no title.
+    static func entries(
+        records: [String: UsageRecord],
+        known: [BindingItem]
+    ) -> [UsageEntry] {
+        joined(records: records, known: known, owner: nil)
+    }
+
+    private static func joined(
+        records: [String: UsageRecord],
+        known: [BindingItem],
+        owner: String?
+    ) -> [UsageEntry] {
         var byKey: [String: BindingItem] = [:]
         for item in known {
             byKey[item.usageKey] = item
@@ -37,7 +56,7 @@ nonisolated enum UsageBreakdown {
 
         var entries: [UsageEntry] = []
         for (key, record) in records {
-            guard UsageStatistics.bundleID(fromUsageKey: key) == bundleID else { continue }
+            if let owner, UsageStatistics.bundleID(fromUsageKey: key) != owner { continue }
             let item = byKey[key]
             let chordKey = key.split(separator: "|", maxSplits: 1).dropFirst().first.map(String.init) ?? ""
             entries.append(

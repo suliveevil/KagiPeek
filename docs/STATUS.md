@@ -20,14 +20,25 @@ as of **2026-11-06**（Asia/Shanghai）。
 - `swift test` 844 → 849，0 failures（新增 `showConfigToolsInPanel` 的迁移/编码 4 项与
   工具行门控 1 项）。2026-11-06 01:24 在 `bf8260a` 上复跑仍 849/0；01:26 执行
   `scripts/install.sh` 构建并安装，`/Applications/Kaname.app` 现在是 `bf8260a`。
-- 设置 schema：8 → 9。`showConfigToolsInPanel` 默认 `false`；schema ≤ 8 的文件迁移时显式补
-  `false`，`scanConfigFiles` 保持文件里的原值。
+- 设置 schema：9 → 10（`agent/settings-four-pages`，未提交）。v10 新增 `usageSortField`
+  （默认 `shortcut`），删除 `sortMode`；旧文件无新键取默认，旧键按 `decodeIfPresent` 忽略
+  并在下次保存时丢弃。v9 的 `showConfigToolsInPanel`（默认 `false`）与 `scanConfigFiles`
+  原值不变。
 - 远端同步：`origin/main` 停在 `8549e42`；本地 `main` 未推送（用户未要求 push）。
 - **squash / push 未执行**：本轮只把 `fix/tool-section-folding` fast-forward 进本地 `main`，
   未建新 tag、未 reset、未强推，也没有 push。旧历史保留在本地
   `backup/pre-squash-20261104-192838`（branch 与 tag）。
 
 ## 本轮完成
+
+- **设置四页重构**（`agent/settings-four-pages`，未提交）：通用页的「菜单不可用时使用内置
+  快捷键」「扫描时包含 Apple 菜单」并入「忽略的菜单项」卡片；执行提示改称「执行后显示
+  快捷键已触发提示」。触发页两个开关移到卡片标题左侧、删除「启用」行与「重新查看触发提示」。
+  外观页两个数字改为可输入（6–60 / 8–80，回车或失焦提交，越界保留旧值并提示 3 秒），收藏
+  两项单独成卡。统计页改为一行一个 `usageKey` 的扁平列表，快捷键置前、App 与功能描述作
+  备注，可按快捷键 / App / 功能描述排序。新增 `UsageSorting`、`NumericSettingInput`、
+  `UsageBreakdown.entries(records:known:)` 与 `EngineState.usageBreakdownAllCache`；删除
+  `Ranker`、`UsageOrdering`、`RankMode`、`summariesByApp()` 及其测试。
 
 - **配置工具区：逐工具折叠 + 默认隐藏**（`c696f0c`、`321cf2a`）：折叠状态由单个
   `toolSectionExpanded: Bool` 改为 `expandedTools: Set<ConfigTool>`，`PanelGroup.tool` 把

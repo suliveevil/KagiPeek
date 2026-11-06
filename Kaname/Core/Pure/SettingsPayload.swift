@@ -41,6 +41,8 @@ nonisolated enum SettingsMigrator {
     /// set containing an unknown member keeps the known members instead of failing the file.
     /// v9 adds `showConfigToolsInPanel`: that one does have a step, because "absent" would
     /// decode to `false` anyway but the decision belongs on the record (see below).
+    /// v10 adds `usageSortField`: no step, a v9 file has no key and the default (shortcut
+    /// order) applies; an unknown value from a newer build also falls back to it.
     static func migrate(_ payload: SettingsPayload) -> AppSettingsSnapshot {
         var settings = payload.settings
         // v3 stored the old default pair (↩ runs, ⌘↩ copies). Only that exact pair moves:

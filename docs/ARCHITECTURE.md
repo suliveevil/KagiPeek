@@ -35,8 +35,8 @@ Kaname/
 │   │   ├── BindingItem.swift      # one shortcut/action binding
 │   │   ├── PrefixResolver.swift   # prefix → child bindings, chord traversal
 │   │   ├── ChordComposition.swift # one pure decision: build a stroke, classify it, swallow?
-│   │   ├── Ranker.swift           # the four sort modes' shared maths (decayed usefulness)
-│   │   ├── UsageOrdering.swift    # sort order applied to search results and statistics
+│   │   ├── UsageSorting.swift     # shortcut / app / description order for the statistics list
+│   │   ├── NumericSettingInput.swift # typed whole numbers: full-width folding, range check
 │   │   ├── KeyFormatter.swift     # ⌘⇧C formatting, glyphs, localization
 │   │   ├── KeyMapper.swift        # virtual key codes ↔ characters
 │   │   ├── NavigationKey.swift    # arrows, ⌃F/⌃B/⌃N/⌃P
@@ -189,7 +189,7 @@ a file is missing here.
                               │            │
                  ┌────────────▼──┐   ┌─────▼─────────────────┐
                  │ PrefixResolver│   │ SearchCorpus          │
-                 │ Ranker        │   │ tokenizer + pinyin    │
+                 │ PanelOrdering │   │ tokenizer + pinyin    │
                  └────────┬──────┘   └─────┬─────────────────┘
                           │                │
                  ┌────────▼──────┐  ┌──────▼────────────┐
@@ -210,7 +210,7 @@ a file is missing here.
                  └──────────────────────────────────────┘
 
   JsonFileStore ◄── SettingsStore ──► every component
-                ◄── UsageStore    ──► Ranker (per-app statistics)
+                ◄── UsageStore    ──► UsageSorting (statistics list)
   PanelPlacement ──► OverlayPanelController geometry
   SystemHotkeyReader (Carbon) ──► ConflictDetector ◄── scan entries
   AppDirectory (running apps) ──► search scope / conflict scan
@@ -381,24 +381,21 @@ The conflict list only shows clashes, so a combo one thing owns alone used to co
 
 Three different questions, three different orders, and mixing them up was a real bug once:
 
-- **The panel is in its chosen order** (`PanelSortOrder`). The default, **By modifier**, is the reference-card order (`PanelOrdering`): fewer strokes first, then the modifier set by significance (⌘, ⌥, ⌃, ⇧), then the key, with a function key sorting as the word it is named after (`f`, `f1`, `f2`, … `g`) and a menu item with no shortcut after every chord. **By menu group** keeps every top-level menu contiguous in menu-bar order (the first component of `axPath`), and inside a menu the same shortcut order applies. Items with no Accessibility path follow the ranked menus, and an empty group is last. `sortMode` does not touch either order.
+- **The panel is in its chosen order** (`PanelSortOrder`). The default, **By modifier**, is the reference-card order (`PanelOrdering`): fewer strokes first, then the modifier set by significance (⌘, ⌥, ⌃, ⇧), then the key, with a function key sorting as the word it is named after (`f`, `f1`, `f2`, … `g`) and a menu item with no shortcut after every chord. **By menu group** keeps every top-level menu contiguous in menu-bar order (the first component of `axPath`), and inside a menu the same shortcut order applies. Items with no Accessibility path follow the ranked menus, and an empty group is last. `usageSortField` does not touch either order.
 - **The search palette is in match order** — `SearchCorpus` scores, described under *Search panel*. Selecting a sort order there would mean discarding the ranking that answers the query.
-- **The statistics page is in the chosen order** (`RankMode` + `UsageOrdering`), for both the per-app list and the rows inside an app. `sortMode` used to be read by the panel (through the old `Ranker.rank`) and by nothing on the statistics page that displayed the picker; both were wrong, and the page now honours the setting it shows.
+- **The statistics page is one flat list in `usageSortField` order** (`UsageSorting`), one row per `usageKey`: the shortcut leads, the owning app and the command description are the row's note, and the same chord used by two apps is drawn as two rows. Frequency no longer orders anything; the three fields are the whole choice.
 
-`Ranker` itself keeps only the shared maths: `decayedUsefulness` weights a press count by an exponential decay with a roughly 60-day scale, so recent use counts most and old use fades gradually. It is what `smart` means, in the statistics list and nowhere else.
-
-| Mode | Meaning for a statistics list |
+| Sort by | How the rows are ordered |
 | --- | --- |
-| Smart order (default) | Decayed usefulness first, then raw press count. |
-| Most used first | Press count, then menu item name. |
-| Key order | `PanelOrdering`, so the page and the panel agree on what "along the keyboard" means; apps fall back to name order. |
-| Alphabetical | Localized menu item name. |
+| Shortcut (default) | `PanelOrdering.compare`, so the page and the panel agree on what "along the keyboard" means; a row with no chord sorts after every chord. |
+| App | Localized app name, then the shortcut within that app. |
+| Command | Localized menu item title; a row with no known title sorts last. |
 
 Disabled menu items keep their place in the order — the comparator looks at the chord, not at `AXEnabled` — they are only drawn greyed out, and hidden entirely when **Show unavailable menu items** is off.
 
 While modifiers are held, the menu items that can be reached from them keep the same order among themselves, which is what makes the narrowed list re-sort as more modifiers go down. Favourites float above everything when **Pin favourites to top** is on. The Shift hint layer (`ShiftHintLayer.labels(for:)`) is rebuilt from the displayed sequence on every rebuild, so `0`–`9` / `a`–`z` follow whatever order is on screen instead of staying bound to a menu item. The menu path travels with the menu item as a small note between the title and the chord instead of a section heading, which is why ordering can no longer cut the ⌘ block in half.
 
-`UsageStore` records a count and a last-used timestamp keyed by `bundleID|chord`, so the same shortcut in two apps is tracked separately and a localized title change does not lose history. System and built-in entries use `*|chord` and are reported as **System / built-in** / **系统 / 内置**. `UsageStatistics.summariesByApp()` rolls the records up into `AppUsageSummary` values (bundle id, press count, distinct shortcut count, last used); `UsageOrdering.apps` orders them by the chosen mode (it falls back to the app name where a mode needs a chord), which is what the **Statistics** tab renders. Frequency is exponentially decayed (a roughly 60-day scale), so recently used shortcuts rise and stale ones fade instead of dominating forever. The model keeps a running `totalPresses` and caps records at 800, pruning the least recently used entries. It never stores raw key events, typed text, or window contents. Resetting statistics clears the records; settings are unaffected. Persistence is described under [Persistence](#persistence).
+`UsageStore` records a count and a last-used timestamp keyed by `bundleID|chord`, so the same shortcut in two apps is tracked separately and a localized title change does not lose history. System and built-in entries use `*|chord` and are reported as **System / built-in** / **系统 / 内置**; config-tool entries use the tool's raw value. `UsageBreakdown.entries(records:known:)` joins every record with the catalog entry it names and does **not** merge owners, so two apps that share a chord are two rows; `UsageSorting.entries(_:by:appName:)` orders that list by shortcut, app, or command. The model keeps a running `totalPresses` and caps records at 800, pruning the least recently used entries. It never stores raw key events, typed text, or window contents. Resetting statistics clears the records; settings are unaffected. Persistence is described under [Persistence](#persistence).
 
 ## Trigger pipeline
 
@@ -439,7 +436,7 @@ Additional rules:
 - **Releasing modifiers does not dismiss the panel.** There is no idle timer and no auto-hide task; the panel is dismissed by Esc, the panel/switch hotkey, or a completed shortcut. Switching the frontmost app or the active Space dismisses it as well, because its contents belong to the app it was opened over.
 - Secure input is checked before showing anything; if it is active, the panel is hidden and the trigger is ignored.
 - **Panel and search are mutually exclusive.** `showSearch()` dismisses the panel, and `activatePanel()` (via the panel hotkey) is not allowed to stack on top of search; the switch hotkey encodes the rule: search visible → panel, panel visible → search, neither → panel.
-- **The trigger is taught once.** `AppDelegate` reads `KanameTriggerTipShown` from `UserDefaults` after the engine starts; if it is unset, one HUD says **Hold ⌘ or double-tap it to open the panel** and the key is written. **Settings → Trigger** keeps a **Show the trigger tip again** button that calls the same HUD.
+- **The trigger is taught once.** `AppDelegate` reads `KanameTriggerTipShown` from `UserDefaults` after the engine starts; if it is unset, one HUD says **Hold ⌘ or double-tap it to open the panel** and the key is written. There is no longer a button in **Settings → Trigger** to replay it.
 - **Panel order is announced, not labelled.** Changing `panelOrder` while the panel is visible shows its name in one HUD line (`showHUD`); the panel itself carries no permanent mode label, so the change is a one-off notification. Editing the setting in Settings while the panel is hidden stays silent.
 
 ### Engine state and key routing (development, after v2.2.0)
@@ -557,7 +554,7 @@ A heading is part of the height arithmetic, not decoration: `OverlayMetrics.grou
 
 **The order is by modifier significance: ⌘, then ⌥, then ⌃, then ⇧.** A stroke compares its modifier set from the most significant down, a set that runs out first comes first, and only then the key: `⌘X`, `⌥⌘X`, `⌃⌘X`, `⇧⌘X`, `⌥X`, `⌃⌥X`, `⇧⌥X`, `⌃X`, `⇧⌃X`, `⇧X`. ⌘ leads because it is the modifier people actually press; the canonical print order (⌃⌥⇧⌘) is how a chord is *drawn*, not how it should be found. Chords with no modifier at all (`F5`, `⌫`) lead the list. (Counting modifiers first — the rule of two revisions ago — put every two-modifier shortcut after every one-modifier shortcut, which split `⌃⌥C` away from `⌃C`.)
 
-Keys compare as words: `f`, `f1`, `f2` … `f12`, then `g`, because a function key is named after a letter and that is where a reader looks for it; digits, punctuation and the named keys (Return, Tab, arrows) follow. `UsageOrdering.keyOrder` sorts the Statistics tab with this same comparator, so one shortcut cannot sit in two different places in two views.
+Keys compare as words: `f`, `f1`, `f2` … `f12`, then `g`, because a function key is named after a letter and that is where a reader looks for it; digits, punctuation and the named keys (Return, Tab, arrows) follow. The Statistics tab's default **Sort by: Shortcut** reuses `PanelOrdering.compare`, so one shortcut cannot sit in two different places in two views.
 
 ```
 empty prefix (hotkey summon)   ⌘ pressed while open       chord prefix ⌘K
@@ -695,18 +692,18 @@ no file I/O, which is why it is unit tested without AppKit.
 
 | Tab | Contents |
 | --- | --- |
-| General | Interface language, launch at login, executed HUD, built-in catalog, *Include the Apple menu*, *Show Dock icon*, **Menu item actions** (the two recorded action keys), **excluded apps** (a selectable list filled from an `NSOpenPanel`, not a text field of bundle identifiers), ignored menu items (one disclosure group per scope) |
-| Trigger | Two independent switches: **Modifier gesture** (hold still / press twice, one trigger key, and the hold delay; the double-tap window follows the system double-click speed) and **Global hotkeys** (the three recordable hotkeys: panel, search, switch). Both can be on, either one alone, or both off — both off is the pause state |
-| Appearance | Key style, panel theme (System / Light / Dark), key position, columns, rows per page, description length, disabled items, favourite pinning and filtering, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected |
-| Statistics | Sort order, per-app statistics (press count and shortcut count per app, one collapsible section per app, *Show data folder*, *Reset statistics*), *Restore defaults* |
+| General | Interface language, launch at login, executed HUD, *Show Dock icon*, **Menu item actions** (the two recorded action keys), **excluded apps** (a selectable list filled from an `NSOpenPanel`, not a text field of bundle identifiers), ignored menu items (one disclosure group per scope) and, in the same card, the built-in catalog and *Include the Apple menu* switches |
+| Trigger | Two independent switches, each at the left of its card header: **Modifier gesture** (hold still / press twice, one trigger key, and the hold delay; the double-tap window follows the system double-click speed) and **Global hotkeys** (the three recordable hotkeys: panel, search, switch). Both can be on, either one alone, or both off — both off is the pause state |
+| Appearance | Key style, panel theme (System / Light / Dark), key position, columns, rows per page and description length (typed; Return or leaving the field commits, an out-of-range entry keeps the previous value), disabled items, **panel placement** (cover / fixed size / fill screen / beside), fixed width and height when *Fixed size* is selected, and a **Favorites** card for pinning and filtering |
+| Statistics | **Sort by** (shortcut, app, or command), one flat list of shortcuts with the owning app and the command as a note (*Show data folder*, *Reset statistics*), *Restore defaults* |
 | Conflicts | Config file sources (what was read, counts, rescan), type filter, related-app filter, scan timestamp, manual rescan, paged findings with **Test this combo** |
 | Permissions | Accessibility and Input Monitoring status, **Request Access** (system prompt + opening the matching System Settings pane), and a draggable Kaname icon |
 | Diagnostics | Logging on/off, verbose logging, log folder, **Export diagnostics archive…** (.zip), live status (Accessibility, Input Monitoring, listening, catalog count), **Export diagnostics report…** (.json) |
 | About | Icon, version with commit (`v2.2.0 (836e3c3)`), system version, manual update check, data folder (open button), repository and license |
 
-The statistics tab is fed by `UsageStore.summariesByApp()`: one row per bundle identifier with the total presses and the number of distinct shortcuts, plus **System / built-in** for `*`, ordered by `UsageOrdering.apps` and expanded per app through `usageEntries(for:)` (which puts `sortMode` in its cache signature so changing the picker cannot serve the previous list). **Show data folder** opens `~/Library/Application Support/Kaname` in Finder.
+The statistics tab is fed by `ShortcutEngine.usageEntries()`: every `usageKey` joined with the catalog entry it names (unmerged across owners), cached in `EngineState.usageBreakdownAllCache` against a signature of press count, scan time, language, and the two binding counts. The view then orders that list with `UsageSorting` — the engine has no AppKit dependency and does not need the app display names — and draws one row per shortcut: the chord leads, the app icon and name plus the command follow as a 12 pt note. **Show data folder** opens `~/Library/Application Support/Kaname` in Finder.
 
-The Settings window is a single utility window with `[.titled, .closable, .resizable]` — no `.miniaturizable`, because a minimised copy used to sit in the Dock while the menu-bar item had to hunt for it; close and the existing menu restore path remain the ways out. When the window is visible, **Open the permission guide** attaches it as a sheet (`beginSheet`), so the guide cannot end up behind Settings or in another Space; on first launch, before Settings has ever been opened, the guide still stands alone. The **Trigger** tab keeps a **Show the trigger tip again** button that replays the one-time HUD.
+The Settings window is a single utility window with `[.titled, .closable, .resizable]` — no `.miniaturizable`, because a minimised copy used to sit in the Dock while the menu-bar item had to hunt for it; close and the existing menu restore path remain the ways out. When the window is visible, **Open the permission guide** attaches it as a sheet (`beginSheet`), so the guide cannot end up behind Settings or in another Space; on first launch, before Settings has ever been opened, the guide still stands alone.
 
 The conflicts tab reads `ConflictCache` at launch and only scans when you press **Rescan** (or when nothing has been cached yet): the scan walks every running app's menus, and doing that on each visit is the "it hangs when I open the page" complaint. Findings are rendered in pages of 40 because a `Form` builds every row it is handed.
 
@@ -783,7 +780,7 @@ Settings and statistics live in `~/Library/Application Support/Kaname/` as plain
 - **Only two of these files hold user data.** Everything else is derived or diagnostic: `conflicts-cache.json` and `menu-cache/` are reproducible by scanning again, and `logs/` + `crash/` exist to explain a bug — `ActionRecorder` keeps the last 30 action *names* (never menu text, typed characters or queries), logging can be switched off under **Settings → Diagnostics**, and deleting the folder costs a rescan and a history, nothing else. Search queries and raw key events stay in memory either way.
 - **The menu cache is derived data.** Unlike settings and statistics, every entry can be reproduced by scanning the app again, so an unreadable entry is dropped instead of preserved next to it, and a failed write costs a rescan and nothing more. It is local-only and never leaves the machine.
 
-`AppSettingsModel` owns defaults, ranges, and validation in pure Swift, so settings can be tested without AppKit. v2.0.0 made `sortMode` default to `.smart`. v2.1.0 added `panelPlacement` (default `.coverWindow`), `fixedPanelWidth` (720, clamped 320–4000), `fixedPanelHeight` (620, clamped 240–3000), and `switchHotkey` (⌃⌥⌘S), and **removed `autoHideDelay`**. v2.2.0 added the two recorded action keys (`runRowKey`, `copyRowKey`), `excludedBundleIDs`, `ignoredCommands`, `showAppleMenu`, `showDockIcon` and the diagnostics switches, and removed `allowPanelExecute` and `allowSearchExecute`, which had stopped controlling anything, plus `keepBrowserOpenAfterRun` and the `contextFirst` sort mode, which lost their subjects when the browser window and the redundant mode went. **Panel order** (`panelOrder`) was added after that: a v5 file has no key, so `decodeIfPresent` gives the default **By modifier** without a rewrite. The settings schema is now version 8: v6 added `panelOrder`, v7 removed `doubleTapWindow` (the window follows the system double-click speed, so an old value is ignored and dropped on the next save), and v8 added `pagingPairs` (a v7 file gets the default `;` / `'` pair, and unknown members of the set are dropped rather than resetting the file).
+`AppSettingsModel` owns defaults, ranges, and validation in pure Swift, so settings can be tested without AppKit. v2.0.0 gave the statistics page `sortMode` (removed in v10). v2.1.0 added `panelPlacement` (default `.coverWindow`), `fixedPanelWidth` (720, clamped 320–4000), `fixedPanelHeight` (620, clamped 240–3000), and `switchHotkey` (⌃⌥⌘S), and **removed `autoHideDelay`**. v2.2.0 added the two recorded action keys (`runRowKey`, `copyRowKey`), `excludedBundleIDs`, `ignoredCommands`, `showAppleMenu`, `showDockIcon` and the diagnostics switches, and removed `allowPanelExecute` and `allowSearchExecute`, which had stopped controlling anything, plus `keepBrowserOpenAfterRun` and the `contextFirst` sort mode, which lost their subjects when the browser window and the redundant mode went. **Panel order** (`panelOrder`) was added after that: a v5 file has no key, so `decodeIfPresent` gives the default **By modifier** without a rewrite. The settings schema is now version 10: v6 added `panelOrder`, v7 removed `doubleTapWindow` (the window follows the system double-click speed, so an old value is ignored and dropped on the next save), v8 added `pagingPairs` (a v7 file gets the default `;` / `'` pair, and unknown members of the set are dropped rather than resetting the file), v9 added `showConfigToolsInPanel` (an earlier file is pinned to the new default `false`, because the old unconditional cards were never a choice), and v10 added `usageSortField` while removing `sortMode` (an old file has no key, so the default **Shortcut** order applies, and the removed key drops on the next save).
 
 **Removing a key needs no migration step.** `AppSettingsSnapshot` only implements `init(from:)`, and every field there is `decodeIfPresent` with the default as fallback, so an older payload decodes, the unknown key is ignored by `CodingKeys`, and the next save drops it. `SettingsPayload`/`SettingsMigrator` exist so that the *version* is read and not only written: `isOutdated(_:)` reports that a file came from an older build, and a future incompatible change has one place to add its step. The invariant that keeps "no migration step" honest — decode an old payload, re-encode without the removed key — has a unit test. `usage.json` carries its own version now: sharing the settings constant meant a settings migration would silently claim the statistics file had changed too.
 
@@ -798,7 +795,7 @@ UsageStatistics
     UsageRecord: { count: Int, lastUsed: Date }
 ```
 
-The 800-record cap is enforced with a least-recently-used prune after every recorded press. `summariesByApp()` aggregates the same records into `AppUsageSummary` (bundle id, presses, distinct shortcuts, last used) for **Settings → Statistics**. A decode failure falls back to empty statistics rather than crashing. Resetting clears `totalPresses` and all records.
+The 800-record cap is enforced with a least-recently-used prune after every recorded press. **Settings → Statistics** joins each record with its catalog entry through `UsageBreakdown.entries(records:known:)` and orders the result with `UsageSorting`; there is no per-app rollup any more. A decode failure falls back to empty statistics rather than crashing. Resetting clears `totalPresses` and all records.
 
 ## Testing and CI
 
@@ -807,7 +804,7 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - chord parsing and normalization
 - key mapping and special keys
 - prefix matching and chord traversal
-- the four sort modes, translated into both a usage list and a per-app list (`UsageOrdering`)
+- the statistics order (`UsageSorting`): shortcut order puts a chordless row last, app order groups by app, command order puts a row with no known title last, and a shared chord across two apps stays two rows
 - key formatting and breadcrumbs
 - description cleanup and truncation
 - conflict detection (including duplicate suppression)
@@ -815,14 +812,14 @@ The 800-record cap is enforced with a least-recently-used prune after every reco
 - localization completeness (both languages, matching format placeholders)
 - built-in catalog integrity (size, unique chords, both titles)
 - usage statistics (recording, 800-entry LRU cap, encode/decode, reset)
-- decayed usefulness (`Ranker`): a recent press outranks an old one at equal count, and a count of zero scores zero
+- typed number fields (`NumericSettingInput`): trim, full-width digits, range bounds, and rejection of anything that is not a whole number in range
 - `SemanticVersion` parsing (`v` prefix, pre-release suffix) and comparison
 - `MarkdownExporter` grouped table rendering, including the unavailable marker
 - system-hotkey conflicts against app bindings, with external entries
 - tokenized search: terms in any order, `+` as a separator, modifier aliases, all terms required
 - pinyin full/initial forms and Latin word initials
 - `HotkeyMatcher`: exact modifier match, Hyper superset allowed at three or more modifiers, strict matching below three, wrong key code rejected
-- per-app usage grouping and `bundleID` parsing from `bundleID|chord`
+- `bundleID` parsing from `bundleID|chord`, and the all-owner join that keeps two apps' rows separate
 - `PanelPlacement` encode/decode and the settings defaults (cover window, switch hotkey)
 - decoding of older payloads, including one that still carries `allowPanelExecute`/`allowSearchExecute`, and re-encoding dropping those keys
 - `RowKeyRouter`: run wins over copy on a shared chord, unbound keys are not routed, an extra modifier is not a action key

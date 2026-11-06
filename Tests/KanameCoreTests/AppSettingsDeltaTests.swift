@@ -49,7 +49,7 @@ final class AppSettingsDeltaTests: XCTestCase {
         ("showDisabledItems", { $0.showDisabledItems = false }),
         ("includeBuiltInCatalog", { $0.includeBuiltInCatalog = false }),
         ("showAppleMenu", { $0.showAppleMenu = true }),
-        ("sortMode", { $0.sortMode = .alphabetical }),
+        ("usageSortField", { $0.usageSortField = .description }),
         ("language", { $0.language = .chinese }),
         ("excludedBundleIDs", { $0.excludedBundleIDs = ["com.example.blocked"] }),
         ("launchAtLogin", { $0.launchAtLogin = true }),

@@ -167,13 +167,18 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var columnCount: Int = 2
     var maxItemsPerPage: Int = 24
     var maxDescriptionLength: Int = 30
+
+    /// The ranges the two typed fields accept. `normalized()` clamps to the same values,
+    /// so a hand-edited settings file and a typed value cannot disagree.
+    static let maxItemsPerPageRange: ClosedRange<Int> = 6...60
+    static let maxDescriptionLengthRange: ClosedRange<Int> = 8...80
     var showDisabledItems: Bool = true
     var includeBuiltInCatalog: Bool = true
     /// Scan the Apple menu too. Off by default: its items belong to the system, not to the
     /// app in front, and would pad every list with commands the app does not own.
     var showAppleMenu: Bool = false
 
-    var sortMode: RankMode = .smart
+    var usageSortField: UsageSortField = .shortcut
     var language: AppLanguage = .system
     var excludedBundleIDs: [String] = []
     var launchAtLogin: Bool = false
@@ -228,8 +233,9 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     /// members of the set are dropped rather than resetting the whole file. Version 9 adds
     /// `showConfigToolsInPanel`; earlier builds drew the tool cards unconditionally, but that
     /// was never a choice the user made, so the migration pins an old file to the new default
-    /// (`false`) instead of leaving the cards on.
-    static let currentSchemaVersion = 9
+    /// (`false`) instead of leaving the cards on. Version 10 adds `usageSortField`; an old
+    /// file has no key, so the default (shortcut order) applies without a rewrite.
+    static let currentSchemaVersion = 10
 
     init() {}
 
@@ -237,7 +243,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         case triggerMode, modifierTriggerEnabled, hotkeyTriggerEnabled, triggerGesture, triggerKey
         case holdDelay, panelHotkey, searchHotkey, switchHotkey
         case showExecutedHUD, keyStyle, columnCount, maxItemsPerPage, maxDescriptionLength
-        case showDisabledItems, includeBuiltInCatalog, sortMode, language
+        case showDisabledItems, includeBuiltInCatalog, usageSortField, language
         case showAppleMenu
         case panelPlacement, fixedPanelWidth, fixedPanelHeight
         case excludedBundleIDs, launchAtLogin
@@ -292,7 +298,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         panelPlacement = try decode(.panelPlacement, fallback.panelPlacement)
         fixedPanelWidth = try decode(.fixedPanelWidth, fallback.fixedPanelWidth)
         fixedPanelHeight = try decode(.fixedPanelHeight, fallback.fixedPanelHeight)
-        sortMode = try decode(.sortMode, fallback.sortMode)
+        usageSortField = try decode(.usageSortField, fallback.usageSortField)
         language = try decode(.language, fallback.language)
         excludedBundleIDs = try decode(.excludedBundleIDs, fallback.excludedBundleIDs)
         launchAtLogin = try decode(.launchAtLogin, fallback.launchAtLogin)
@@ -346,7 +352,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         try container.encode(maxDescriptionLength, forKey: .maxDescriptionLength)
         try container.encode(showDisabledItems, forKey: .showDisabledItems)
         try container.encode(includeBuiltInCatalog, forKey: .includeBuiltInCatalog)
-        try container.encode(sortMode, forKey: .sortMode)
+        try container.encode(usageSortField, forKey: .usageSortField)
         try container.encode(language, forKey: .language)
         try container.encode(showAppleMenu, forKey: .showAppleMenu)
         try container.encode(panelPlacement, forKey: .panelPlacement)
@@ -382,8 +388,8 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         static let fixedPanelWidth: ClosedRange<Double> = 320...4000
         static let fixedPanelHeight: ClosedRange<Double> = 240...3000
         static let columnCount: ClosedRange<Int> = 1...3
-        static let maxItemsPerPage: ClosedRange<Int> = 6...60
-        static let maxDescriptionLength: ClosedRange<Int> = 8...80
+        static let maxItemsPerPage: ClosedRange<Int> = AppSettingsSnapshot.maxItemsPerPageRange
+        static let maxDescriptionLength: ClosedRange<Int> = AppSettingsSnapshot.maxDescriptionLengthRange
     }
 
     private func clamp<T: Comparable>(_ value: T, to range: ClosedRange<T>) -> T {
@@ -429,7 +435,7 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
         "keyStyle", "columnCount", "maxItemsPerPage", "maxDescriptionLength",
         "showDisabledItems", "includeBuiltInCatalog", "showAppleMenu",
         // Ordering, filtering and language
-        "sortMode", "language", "excludedBundleIDs", "launchAtLogin", "ignoredCommands",
+        "usageSortField", "language", "excludedBundleIDs", "launchAtLogin", "ignoredCommands",
         "panelTheme", "keyPosition", "panelOrder", "pinFavoritesToTop", "favoritesCanBeFiltered",
         // Keys
         "runRowKey", "copyRowKey", "pagingPairs",

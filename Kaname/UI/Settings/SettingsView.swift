@@ -38,8 +38,6 @@ struct SettingsView: View {
     /// Which ignored-command groups are open. The global group starts open; app groups open
     /// when a rule is added to them.
     @State private var expandedScopes: Set<String> = ["*"]
-    /// Which app groups in the statistics list are open. The busiest one opens on appear.
-    @State private var expandedUsageApps: Set<String> = []
     /// How many findings the Conflicts page draws. Raised by the "show more" button.
     @State private var findingPageSize = SettingsView.findingPageStep
     @State private var confirmResetUsage = false
@@ -133,11 +131,6 @@ struct SettingsView: View {
                 }
 
                 Toggle(localization.text(.rankingHUD), isOn: $store.settings.showExecutedHUD)
-                Toggle(localization.text(.rankingIncludeBuiltIn), isOn: $store.settings.includeBuiltInCatalog)
-                Toggle(localization.text(.generalShowAppleMenu), isOn: $store.settings.showAppleMenu)
-                Text(localization.text(.generalShowAppleMenuHint))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
 
                 Toggle(localization.text(.generalShowDockIcon), isOn: $store.settings.showDockIcon)
                 Text(localization.text(.generalShowDockIconHint))
@@ -197,6 +190,16 @@ struct SettingsView: View {
                     Spacer()
                 }
                 Text(localization.text(.generalIgnoredCommandsHint))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                // Both switches decide what the scan is allowed to see, so they belong
+                // beside the ignore list rather than in the behaviour card.
+                Divider()
+
+                Toggle(localization.text(.rankingIncludeBuiltIn), isOn: $store.settings.includeBuiltInCatalog)
+                Toggle(localization.text(.generalShowAppleMenu), isOn: $store.settings.showAppleMenu)
+                Text(localization.text(.generalShowAppleMenuHint))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -387,11 +390,9 @@ struct SettingsView: View {
     private var triggerTab: some View {
         Form {
             // Two independent paths, one card each: the gesture and the three hotkeys. Either
-            // one can be live, both can, and both off is the pause state.
-            Section(localization.text(.triggerModifierGesture)) {
-                Toggle(localization.text(.triggerEnable),
-                       isOn: $store.settings.modifierTriggerEnabled)
-
+            // one can be live, both can, and both off is the pause state. The switch that
+            // turns a card on sits in its header, immediately left of the title.
+            Section {
                 HStack(spacing: 8) {
                     Picker(localization.text(.triggerGesture), selection: $store.settings.triggerGesture) {
                         ForEach(TriggerGesture.allCases, id: \.self) { gesture in
@@ -422,31 +423,127 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(!settings.modifierTriggerEnabled || settings.triggerGesture != .hold)
+            } header: {
+                triggerSectionHeader(title: .triggerModifierGesture,
+                                     isOn: $store.settings.modifierTriggerEnabled)
             }
 
-            Section(localization.text(.triggerGlobalHotkey)) {
-                Toggle(localization.text(.triggerEnable),
-                       isOn: $store.settings.hotkeyTriggerEnabled)
-
+            Section {
                 Group {
                     hotkeyRow(title: localization.text(.triggerPanelHotkey), target: .panel, spec: settings.panelHotkey)
                     hotkeyRow(title: localization.text(.triggerSearchHotkey), target: .search, spec: settings.searchHotkey)
                     hotkeyRow(title: localization.text(.triggerSwitchHotkey), target: .switcher, spec: settings.switchHotkey)
                 }
                 .disabled(!settings.hotkeyTriggerEnabled)
-            }
-
-            Section {
-                Button(localization.text(.settingsShowTriggerTip)) {
-                    engine.showHUD(
-                        chord: "⌘",
-                        title: localization.text(.triggerTip),
-                        kind: .info
-                    )
-                }
+            } header: {
+                triggerSectionHeader(title: .triggerGlobalHotkey,
+                                     isOn: $store.settings.hotkeyTriggerEnabled)
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// A section header with its on/off switch immediately left of the title.
+    ///
+    /// The switch is the header's only accessibility element: the visible title is hidden
+    /// from VoiceOver and folded into the switch's label, so a card is announced as
+    /// "Enable Modifier triggers, switch, on" and then read once, not twice.
+    private func triggerSectionHeader(
+        title: L10nKey,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .fixedSize()
+                .accessibilityLabel(
+                    localization.format(.triggerEnableAccessibility,
+                                        localization.text(title))
+                )
+
+            Text(localization.text(title))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A whole number typed into a fixed-width field.
+    ///
+    /// Return and losing focus both commit. A value that is not a bare integer inside the
+    /// range is not clamped into range: the field restores the value that was already in
+    /// effect and says so for three seconds, so a typo cannot silently become a setting.
+    private struct NumericSettingRow: View {
+        let title: L10nKey
+        @Binding var value: Int
+        let range: ClosedRange<Int>
+
+        @EnvironmentObject private var localization: Localization
+        @State private var draft = ""
+        @State private var showsInvalid = false
+        @State private var dismissInvalid: Task<Void, Never>?
+        @FocusState private var focused: Bool
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent(localization.text(title)) {
+                    TextField("", text: $draft)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 56)
+                        .focused($focused)
+                        .onSubmit(commit)
+                        .onChange(of: focused) { _, isFocused in
+                            if !isFocused { commit() }
+                        }
+                        .onChange(of: draft) { _, newDraft in
+                            // Editing again retracts the warning; restoring the previous
+                            // value in `commit` must not retract it, hence the comparison.
+                            if showsInvalid, newDraft != String(value) {
+                                clearInvalid()
+                            }
+                        }
+                        .accessibilityLabel(localization.text(title))
+                }
+
+                if showsInvalid {
+                    Text(localization.format(.appearanceNumberInvalidFormat,
+                                             range.lowerBound, range.upperBound, value))
+                        .font(.footnote)
+                        .foregroundStyle(Theme.warning)
+                }
+            }
+            .onAppear { draft = String(value) }
+            .onChange(of: value) { _, newValue in
+                if !focused { draft = String(newValue) }
+            }
+        }
+
+        private func commit() {
+            if let parsed = NumericSettingInput.value(from: draft, in: range) {
+                value = parsed
+                draft = String(parsed)
+                clearInvalid()
+            } else {
+                draft = String(value)
+                showsInvalid = true
+                dismissInvalid?.cancel()
+                dismissInvalid = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(3))
+                    guard !Task.isCancelled else { return }
+                    showsInvalid = false
+                }
+            }
+        }
+
+        private func clearInvalid() {
+            showsInvalid = false
+            dismissInvalid?.cancel()
+            dismissInvalid = nil
+        }
     }
 
     /// A checkbox over the set: enabling one pair leaves the others alone, and unchecking the
@@ -535,21 +632,15 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
 
-            LabeledContent(localization.text(.appearanceMaxItems)) {
-                Stepper(value: $store.settings.maxItemsPerPage, in: 6...60, step: 2) {
-                    Text("\(settings.maxItemsPerPage)").monospacedDigit()
-                }
-            }
+            NumericSettingRow(title: .appearanceMaxItems,
+                              value: $store.settings.maxItemsPerPage,
+                              range: AppSettingsSnapshot.maxItemsPerPageRange)
 
-            LabeledContent(localization.text(.appearanceMaxDescription)) {
-                Stepper(value: $store.settings.maxDescriptionLength, in: 8...80, step: 2) {
-                    Text("\(settings.maxDescriptionLength)").monospacedDigit()
-                }
-            }
+            NumericSettingRow(title: .appearanceMaxDescription,
+                              value: $store.settings.maxDescriptionLength,
+                              range: AppSettingsSnapshot.maxDescriptionLengthRange)
 
             Toggle(localization.text(.appearanceShowDisabled), isOn: $store.settings.showDisabledItems)
-            Toggle(localization.text(.favoritesPinTop), isOn: $store.settings.pinFavoritesToTop)
-            Toggle(localization.text(.favoritesFilterable), isOn: $store.settings.favoritesCanBeFiltered)
 
             Picker(localization.text(.appearancePlacement), selection: $store.settings.panelPlacement) {
                 ForEach(PanelPlacement.allCases, id: \.self) { placement in
@@ -569,50 +660,55 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            // Favourites are a preference about the panel's list, not about its layout, so
+            // they get their own card instead of trailing the last layout row.
+            Section(localization.text(.appearanceFavoritesSection)) {
+                Toggle(localization.text(.favoritesPinTop), isOn: $store.settings.pinFavoritesToTop)
+                Toggle(localization.text(.favoritesFilterable), isOn: $store.settings.favoritesCanBeFiltered)
+            }
         }
         .formStyle(.grouped)
     }
 
     // MARK: - Statistics
 
-    /// What used to be the "Ranking" tab. Sort order stays here — it is what decides the
-    /// numbers the section below reports — while the conflict list moved to its own tab: it
-    /// answers a different question ("who else claims this key?") and made this page long
-    /// enough that the statistics were never seen.
+    /// One flat list, one line per usage key, ordered by the field the picker names.
+    ///
+    /// Rows are not grouped by app any more: the shortcut comes first, and the app and the
+    /// command are the note underneath it, because "which key was that" is the question this
+    /// page exists to answer. The conflicts tab answers a different question and has its own
+    /// page.
     private var statisticsTab: some View {
         Form {
-            Picker(localization.text(.rankingMode), selection: $store.settings.sortMode) {
-                ForEach(RankMode.allCases, id: \.self) { mode in
-                    Text(localization.text(mode.titleKey)).tag(mode)
+            Section {
+                LabeledContent(localization.text(.statsSortField)) {
+                    Picker("", selection: $store.settings.usageSortField) {
+                        ForEach(UsageSortField.allCases, id: \.self) { field in
+                            Text(localization.text(field.titleKey)).tag(field)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
-            Text(localization.text(.rankingModeHint))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
 
             Section(localization.text(.statsSection)) {
                 Text(localization.format(.rankingUsageSummary, usageStore.trackedCount, usageStore.totalPresses))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                let summaries = UsageOrdering.apps(
-                    usageStore.summariesByApp(),
-                    mode: settings.sortMode,
-                    name: { appDisplayName(for: $0) }
+                let entries = UsageSorting.entries(
+                    engine.usageEntries(),
+                    by: settings.usageSortField,
+                    appName: { appDisplayName(for: $0) }
                 )
-                if summaries.isEmpty {
+                if entries.isEmpty {
                     Text(localization.text(.statsNoData))
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(summaries) { summary in
-                        usageGroup(summary)
-                    }
-                    .onAppear {
-                        // Open the busiest app: the numbers are the point, and a page of
-                        // collapsed rows shows none of them.
-                        if expandedUsageApps.isEmpty, let first = summaries.first {
-                            expandedUsageApps.insert(first.id)
-                        }
+                    ForEach(entries) { entry in
+                        usageRow(entry)
                     }
                 }
 
@@ -657,50 +753,13 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    /// One app, folded: the header carries the totals, the body is shortcut → command → count.
-    private func usageGroup(_ summary: AppUsageSummary) -> some View {
-        DisclosureGroup(isExpanded: usageExpansion(for: summary.id)) {
-            let entries = engine.usageEntries(for: summary.bundleID)
-            if entries.isEmpty {
-                Text(localization.text(.statsNoData))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(entries) { entry in
-                    usageRow(entry)
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                if let icon = appIcon(for: summary.bundleID) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 15, height: 15)
-                }
-                Text(appDisplayName(for: summary.bundleID))
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                // Two bare numbers in a row ("81 13 shortcuts") left the reader to guess
-                // which was which, and every one-shortcut app was labelled "1 shortcuts".
-                Text(summary.presses == 1
-                     ? localization.text(.statsPressesOne)
-                     : localization.format(.statsPressesFormat, summary.presses))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Text(summary.shortcutCount == 1
-                     ? localization.text(.statsShortcutsOne)
-                     : localization.format(.statsShortcuts, summary.shortcutCount))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
+    /// Shortcut first, then the command and the app it belongs to as a note, then the count.
+    ///
     /// A row whose title is missing is still worth showing: the count is true, and the
     /// shortcut is recovered from the usage key. Saying "not scanned" is more useful than
     /// hiding a command the user clearly pressed.
     private func usageRow(_ entry: UsageEntry) -> some View {
+        let owner = UsageStatistics.bundleID(fromUsageKey: entry.usageKey)
         let renderedChord = entry.chord.map { KeyFormatter.render($0, style: settings.keyStyle) }
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(renderedChord ?? "—")
@@ -711,24 +770,31 @@ struct SettingsView: View {
                 // VoiceOver would read the glyph itself, so the label says the same thing
                 // in words. "Not set" is the app's existing word for an unassigned key.
                 .accessibilityLabel(renderedChord ?? localization.text(.triggerUnset))
-            Text(entry.title ?? localization.text(.statsUnknownCommand))
-                .font(.caption)
-                .foregroundStyle(entry.title == nil ? .secondary : .primary)
-                .lineLimit(1)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title ?? localization.text(.statsUnknownCommand))
+                    .font(.caption)
+                    .foregroundStyle(entry.title == nil ? .secondary : .primary)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    if let icon = appIcon(for: owner) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 12, height: 12)
+                    }
+                    Text(appDisplayName(for: owner))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
             Spacer(minLength: 0)
             Text("\(entry.presses)")
                 .font(.caption)
                 .monospacedDigit()
         }
-    }
-
-    private func usageExpansion(for id: String) -> Binding<Bool> {
-        Binding(
-            get: { expandedUsageApps.contains(id) },
-            set: { expanded in
-                if expanded { expandedUsageApps.insert(id) } else { expandedUsageApps.remove(id) }
-            }
-        )
+        .padding(.vertical, 1)
     }
 
     // MARK: - Conflicts

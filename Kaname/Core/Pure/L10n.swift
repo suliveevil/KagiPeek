@@ -40,7 +40,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case appearanceTheme, themeSystem, themeLight, themeDark
     case appearanceKeyPosition, keyPositionLeft, keyPositionRight
     case appearancePanelOrder, panelOrderByModifier, panelOrderByMenuGroup
-    case favoritesPinTop, favoritesFilterable
+    case favoritesPinTop, favoritesFilterable, appearanceFavoritesSection
     case generalIgnoredCommands, generalIgnoredCommandsHint
     case ignoredAddCommand, ignoredSheetTitle, ignoredScopeGlobal, ignoredScopeApp
     case ignoredAppPicker, ignoredCommandTitle, ignoredCommandPlaceholder, ignoredSuggestionsHint
@@ -64,19 +64,19 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case triggerKeyLeftCommand, triggerKeyRightCommand, triggerKeyRightOption
     case triggerHoldDelay, triggerPanelHotkey, triggerSearchHotkey
     case triggerSwitchHotkey, triggerRecording, triggerRecordingHint, triggerStopRecording
-    case triggerEnable, triggerUnset, triggerClear
+    case triggerEnableAccessibility, triggerUnset, triggerClear
 
     // Appearance
     case appearanceTitle, appearanceKeyStyle, appearanceStyleSymbols, appearanceStyleWords
     case appearanceColumns, appearanceMaxItems, appearanceMaxDescription, appearanceShowDisabled
     case appearanceLanguage, appearancePlacement, appearanceFixedWidth, appearanceFixedHeight
+    case appearanceNumberInvalidFormat
     case placementCoverWindow, placementFixedSize, placementFillScreen, placementBesideWindow
     case languageSystem, languageEnglish, languageChinese
 
     // Ranking
-    case rankingMode, rankingModeHint
     case statisticsTitle
-    case sortSmart, sortFrequencyDesc, sortKeyOrder, sortAlphabetical
+    case statsSortField, statsSortShortcut, statsSortApp, statsSortDescription
     case rankingUsageSummary, rankingReset, rankingHUD, rankingIncludeBuiltIn
     case rankingDefaults
 
@@ -89,8 +89,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case menuEdit, menuCut, menuCopy, menuPaste, menuSelectAll, menuSearchShortcuts
 
     // Statistics
-    case statsSection, statsGenericApp, statsNoData, statsOpenDataFolder, statsShortcuts
-    case statsShortcutsOne, statsPressesFormat, statsPressesOne
+    case statsSection, statsGenericApp, statsNoData, statsOpenDataFolder
     case statsUnknownCommand
 
     // Main window
@@ -106,7 +105,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     // Overlay
     case overlayNoCandidates, overlayScanning, overlayPageFormat, overlayUnavailableBadge
     case panelDisabledReason
-    case triggerTip, settingsShowTriggerTip
+    case triggerTip
     case overlayBuiltInBadge, overlayRunning
     case scanPermissionDenied, scanFallbackHint
     case overlayConflictHint, overlayConflictOpen, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelRunFailed, injectTargetUnavailable, panelIdleHint
@@ -305,6 +304,7 @@ nonisolated enum L10n {
         .panelOrderByMenuGroup: ("By menu group", "按菜单栏分组"),
         .favoritesPinTop: ("Pin favourites to top", "收藏置顶"),
         .favoritesFilterable: ("Let filters hide favorites", "允许搜索和过滤隐藏收藏"),
+        .appearanceFavoritesSection: ("Favorites", "收藏"),
         .appearanceTheme: ("Panel theme", "面板主题"),
         .themeSystem: ("System", "跟随系统"),
         .themeLight: ("Light", "浅色"),
@@ -451,7 +451,7 @@ nonisolated enum L10n {
         .triggerRecording: ("Record", "录制"),
         .triggerRecordingHint: ("Press a new key combination…", "请按下新的组合键…"),
         .triggerStopRecording: ("Stop", "停止"),
-        .triggerEnable: ("Enable", "启用"),
+        .triggerEnableAccessibility: ("Enable %@", "启用%@"),
         .triggerUnset: ("Not set", "未设置"),
         .triggerClear: ("Delete", "删除"),
 
@@ -470,27 +470,29 @@ nonisolated enum L10n {
         .placementBesideWindow: ("Beside the front window", "前台窗口旁边"),
         .appearanceFixedWidth: ("Fixed width", "固定宽度"),
         .appearanceFixedHeight: ("Fixed height", "固定高度"),
+        .appearanceNumberInvalidFormat: (
+            "Enter a whole number from %d to %d. Kept %d.",
+            "请输入 %d–%d 之间的整数，已保留 %d。"
+        ),
         .appearanceLanguage: ("Language", "语言"),
         .languageSystem: ("System", "跟随系统"),
         .languageEnglish: ("English", "English"),
         .languageChinese: ("Chinese", "中文"),
 
         .statisticsTitle: ("Statistics", "统计"),
-        .rankingMode: ("Sort order", "排序方式"),
-        .rankingModeHint: (
-            "Decides the order of both lists on this page. The panel order is set on the Appearance page; the search palette orders by match.",
-            "决定本页两个列表的顺序。面板顺序在外观页设置，搜索面板按匹配度排序。"
-        ),
-        .sortSmart: ("Smart order", "智能排序"),
-        .sortFrequencyDesc: ("Most used first", "高频优先"),
-        .sortKeyOrder: ("Key order", "按键顺序"),
-        .sortAlphabetical: ("Alphabetical", "字母顺序"),
+        .statsSortField: ("Sort by", "排序依据"),
+        .statsSortShortcut: ("Shortcut", "快捷键"),
+        .statsSortApp: ("App", "App"),
+        .statsSortDescription: ("Command", "功能描述"),
         .rankingUsageSummary: (
             "%d shortcuts tracked, %d presses in total",
             "已学习 %d 个快捷键，累计 %d 次触发"
         ),
         .rankingReset: ("Reset statistics", "重置统计"),
-        .rankingHUD: ("Show a confirmation HUD", "执行后显示确认提示"),
+        .rankingHUD: (
+            "Show a “shortcut triggered” confirmation",
+            "执行后显示快捷键已触发提示"
+        ),
         .rankingIncludeBuiltIn: (
             "Use built-in catalog when menus are unavailable",
             "菜单不可用时使用内置快捷键目录"
@@ -512,10 +514,6 @@ nonisolated enum L10n {
         .statsGenericApp: ("System / built-in", "系统 / 内置"),
         .statsNoData: ("No usage recorded yet", "还没有统计数据"),
         .statsOpenDataFolder: ("Show data folder", "显示数据目录"),
-        .statsShortcuts: ("%d shortcuts", "%d 个快捷键"),
-        .statsShortcutsOne: ("1 shortcut", "1 个快捷键"),
-        .statsPressesFormat: ("%d presses", "%d 次"),
-        .statsPressesOne: ("1 press", "1 次"),
         .statsUnknownCommand: ("Not scanned yet", "尚未扫描到"),
         .generalExcludedAppsHint: (
             "Apps in this list never show the panel. Add one with the + button (Finder opens), select a row and click − to remove it.",
@@ -564,10 +562,6 @@ nonisolated enum L10n {
         .triggerTip: (
             "Hold ⌘ or double-tap it to open the panel",
             "按住 ⌘ 或连按两次 ⌘ 打开面板"
-        ),
-        .settingsShowTriggerTip: (
-            "Show the trigger tip again",
-            "重新查看触发提示"
         ),
         .overlayConflictHint: (
             "Some shortcuts are bound more than once",

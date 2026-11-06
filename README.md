@@ -61,8 +61,8 @@ The shortcut engine was rewritten around live menu scanning. It then became acti
 | **Combo lookup** | Type a combination into search — `cmd shift 4`, `⌘⇧4`, `opt cmd t` — and Kaname answers who owns it, or that it is free, instead of returning an empty list that reads as "not scanned". |
 | **Live shortcut test** | **Test this combo** on any conflict row watches one real keypress: two listen-only event taps detect whether another app swallowed the key, and above that layer the verdict falls back to what came to the front. Each result is tagged **confirmed / informative / inconclusive**, so a guess is never presented as a fact. While it listens, every panel behaviour is suspended, so Kaname can never be the thing that ate the key. |
 | **Disabled items** | Menu items that the app reports as disabled (`AXEnabled == false`) are greyed out, end with a `lock.slash`, and can optionally be hidden. Their context menu opens with **This menu item is unavailable right now** instead of pretending an action can run; clicking one shows the same sentence in a HUD at most once per menu item per three seconds. |
-| **Ranking** | Sort order decides the statistics page — both the per-app list and the menu items inside an app. **Smart order** is the default (decayed usage frequency, so recently used shortcuts rise and stale ones fade), then Most used first, Key order, and Alphabetical. The panel follows its own **Panel order** setting (by modifier by default, or by menu group), and the palette always follows match order; neither follows this setting. |
-| **Usage statistics** | Counts and last-used times per binding, **grouped by app** (system and built-in menu items appear as *System / built-in*), each app a collapsible row. Stored in `~/Library/Application Support/Kaname/usage.json`, capped at 800 entries, resettable. No raw key events or text. |
+| **Usage sorting** | The statistics page is one flat list with the shortcut first; the owning app and the command description are the row's note, so the same chord used by two apps is two rows. **Sort by** offers **Shortcut** (the default, in the panel's keyboard order), **App**, or **Command**, and the choice persists. The panel follows its own **Panel order** setting, and the palette always follows match order; neither follows this setting. |
+| **Usage statistics** | Counts and last-used times per `app|shortcut`, with system and built-in menu items shown as *System / built-in*. Stored in `~/Library/Application Support/Kaname/usage.json`, capped at 800 entries, resettable. No raw key events or text. |
 | **Search** | A global search palette (default ⌃⌥⌘F), also reachable by pressing `/` in the panel. Results arrive in cards by menu, with a banner when the query spells out a combination. Space-separated terms in any order, `+` as a separator, modifier aliases (com/cmd/cm/⌘, op/alt/⌥, …), full pinyin and pinyin initials for Chinese titles, and word initials for English titles; all terms must match. Return closes the palette and **triggers** the selected menu item in the app you scoped to — pressing the menu item when there is one, replaying the chord otherwise. The palette has no copy action; the panel does. |
 | **Multi-app scope** | The palette's app menu lists the frontmost app and every running regular app, and its header shows the scoped app's icon and name, so the list always says whose shortcuts these are. Choosing another app re-scans and re-ranks for it, and running a menu item activates that app first. The panel still follows the real frontmost app. |
 | **Export Markdown** | The palette's export button saves the current matches (or the scoped app's whole sheet when the field is empty) through a save panel: grouped by menu, `Shortcut` / `Action` columns, unavailable items marked. |
@@ -139,7 +139,7 @@ The release script signs with a Developer ID Application identity when one is av
 
 1. Launch Kaname. Nothing opens on screen — the app appears in the menu bar. If Accessibility is missing, the menu bar menu carries a **Permission guide** item instead. **Settings → Permissions** lists both grants and their current status.
 2. Open **Settings → Permissions** and click **Request** next to Accessibility. Kaname opens the matching **System Settings → Privacy & Security → Accessibility** pane; enable Kaname there. Accessibility does not raise a system prompt of its own: a prompt would register the app without enabling it, so the app is added by dragging the Kaname icon from the Permissions tab into the list, or with **+**.
-3. Try holding ⌘. The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and never repeats; **Settings → Trigger → Show the trigger tip again** replays it. If the panel appears, nothing else is needed.
+3. Try holding ⌘. The first launch shows one HUD — **Hold ⌘ or double-tap it to open the panel** — and never repeats. If the panel appears, nothing else is needed.
 4. If no panel appears, quit Kaname, click **Request** next to **Input Monitoring** (it raises the system prompt and opens that pane too), enable Kaname, and reopen the app. This is the fallback for systems that do not deliver key events with Accessibility alone.
 5. Check **Settings → Permissions** to confirm the current state.
 
@@ -156,7 +156,7 @@ The full walkthrough, including reset commands and signature-related re-granting
 | Panel hotkey | ⌃⌥⌘K by default | One of the three global hotkeys. The panel stays open until Esc or the hotkey again. Switching the frontmost app (or the desktop) closes the panel; summon it again to see the new app's shortcuts. |
 | Search | ⌃⌥⌘F by default | Opens the search panel independently. The hotkey is configurable. |
 | Switch panel/search | ⌃⌥⌘S by default | Search visible → panel; panel visible → search; neither → panel. Only one is ever on screen. Recordable in Settings. |
-| Two independent switches | Settings → Trigger | The modifier gesture and the three hotkeys each have their own checkbox. They can both be live, only one can, or both can be off — both off means no trigger fires, while the menu bar and settings keep working. |
+| Two independent switches | Settings → Trigger | The modifier gesture and the three hotkeys each have their own switch at the left of the card header. They can both be live, only one can, or both can be off — both off means no trigger fires, while the menu bar and settings keep working. |
 
 ### The panel
 
@@ -202,10 +202,10 @@ Settings has eight tabs:
 
 | Tab | What it covers |
 | --- | --- |
-| General | Interface language, launch at login, executed HUD, built-in catalog, **Include the Apple menu in scans**, **Show a Dock icon as well**, **menu item actions** (the two recorded action keys), **excluded apps** (added from a file picker, removed from the list), and **ignored menu items** (one collapsible group per scope: global rules, then one per app). |
-| Trigger | Two independent switches: **Modifier gesture** (hold still / press twice, the trigger key, and the matching delay), **Global hotkeys** (the panel, search, and switch hotkeys), and **Show the trigger tip again** to replay the one-time HUD. Both can be live, only one can, or both can be off — both off is the pause state. |
-| Appearance | Key style, panel theme, key position, **panel order** (by modifier, or by menu group), columns, **max menu items per group**, description length, disabled items, favourites pinning, whether filters may hide favourites, and **panel placement** (cover the front window, fixed size with width and height, fill the screen, or beside the front window). |
-| Statistics | Sort order and **statistics by app** (presses and shortcut counts, one collapsible section per app), **Show data folder**, **Reset statistics**, and **Restore all settings…**. |
+| General | Interface language, launch at login, executed HUD, **Show a Dock icon as well**, **menu item actions** (the two recorded action keys), **excluded apps** (added from a file picker, removed from the list), and **ignored menu items** (one collapsible group per scope: global rules, then one per app, plus the built-in catalog and **Include the Apple menu in scans** switches). |
+| Trigger | Two independent switches, each at the left of its card header: **Modifier gesture** (hold still / press twice, the trigger key, and the matching delay) and **Global hotkeys** (the panel, search, and switch hotkeys). Both can be live, only one can, or both can be off — both off is the pause state. |
+| Appearance | Key style, panel theme, key position, **panel order** (by modifier, or by menu group), columns, **max menu items per group** and description length (typed; Return or leaving the field commits, an out-of-range entry keeps the previous value), disabled items, **panel placement** (cover the front window, fixed size with width and height, fill the screen, or beside the front window), and a **Favorites** card for pinning and filter behaviour. |
+| Statistics | **Sort by** (shortcut, app, or command description), one flat list of shortcuts with the owning app and description as a note, **Show data folder**, **Reset statistics**, and **Restore all settings…**. |
 | Conflicts | Third-party **config file sources** first (which files were read, how many bindings each contributed, a rescan), then the conflict list with a **type** filter, a **related app** filter, the scan timestamp, a manual rescan, and a **Test this combo** action on each row. |
 | Permissions | Accessibility and Input Monitoring status, **Request** (opens the matching System Settings pane; Input Monitoring also raises the system prompt), and the draggable Kaname icon. |
 | Diagnostics | Logging on/off, verbose logging, the log folder, **Export diagnostics archive…**, and **Export diagnostics report…**. |
@@ -229,8 +229,8 @@ The search palette is the surface you get from the search hotkey or by pressing 
 | Panel placement | Cover the front window / Fixed size / Fill the screen / Beside the front window | Cover the front window |
 | Fixed panel width | 320–4000 pt | 720 |
 | Fixed panel height | 240–3000 pt | 620 |
-| Show a confirmation HUD | On / Off | On |
-| Sort order | Smart order / Most used first / Key order / Alphabetical | Smart order |
+| Show a “shortcut triggered” confirmation | On / Off | On |
+| Sort by (statistics) | Shortcut / App / Command description | Shortcut |
 | Built-in catalog when menus are unavailable | On / Off | On |
 | Include the Apple menu in scans | On / Off | Off |
 | Show a Dock icon as well | On / Off | Off |
@@ -252,7 +252,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 | Scan config files (Conflicts tab) | On / Off | On |
 | Diagnostics logging | On / Off | On |
 | Verbose diagnostics | On / Off | Off |
-| Usage statistics | Per-app counts and shortcut totals, 800-entry cap | Stored in Application Support |
+| Usage statistics | Per-shortcut counts with the owning app and command, 800-entry cap | Stored in Application Support |
 
 ## Privacy
 
@@ -262,7 +262,7 @@ The search palette is the surface you get from the search hotkey or by pressing 
 - **Two files hold user data; the rest is derived.** Settings and statistics are `settings.json` and `usage.json` in `~/Library/Application Support/Kaname/`, written atomically. A file that cannot be decoded is renamed `*.corrupt-<timestamp>.json` and kept rather than silently discarded. Next to them sit `conflicts-cache.json` (the last cross-app conflict scan, so opening the page does not rescan every app), `menu-cache/` (menu scans, valid for 10 minutes) and `logs/` + `crash/` (the diagnostic log, the last 30 action names, the crash reports) — all reproducible, all safe to delete, and the log can be switched off in **Settings → Diagnostics**.
 - **Keys are observed, not recorded.** The global key tap computes the current modifier/key state and detects the recorded hotkeys and the panel's own navigation keys. It passes events through to the front app except those keys, which it consumes so the app does not also receive them. Kaname never stores a stream of key presses or typed text.
 - **One chord is injected, and only when pressing cannot be used.** When you press the run key, click a row, or press Return in the search palette, Kaname triggers that menu item by pressing it through Accessibility; the row's chord is posted once (`CGEvent`, HID event tap) only when there is no menu item to press or the press is refused. It does not replay what you type, it does not inject anything while you are just browsing the panel, and the copy key never injects at all. This is the one place where the app synthesises input, and it exists so a menu item can be run without reaching for the menu.
-- **Statistics are minimal.** Kaname stores a use count and last-used timestamp per `bundleID|chord`, grouped by app, capped at 800 entries and resettable in Settings. No raw key events or queries are stored.
+- **Statistics are minimal.** Kaname stores a use count and last-used timestamp per `bundleID|chord` (one row per app and shortcut), capped at 800 entries and resettable in Settings. No raw key events or queries are stored.
 - **Secure input wins.** When macOS reports secure input (password fields, login windows), the panel hides.
 - **Config files are opened read-only, and only for the scan.** When third-party scanning is on, Kaname reads `karabiner.json`, `skhdrc`, Keyboard Maestro's macro library, BetterTouchTool's data store, `init.lua` and Alfred workflow `info.plist` under your home directory to find their shortcuts. It opens them read-only (BetterTouchTool's database with SQLite's read-only flag), never writes, never uploads, and keeps only chord, title and owning tool in memory — no file is copied out and nothing from those files is written to disk. Turning the setting off forgets everything found and opens no such file again. |
 - **No telemetry or upload.** No shortcut, app, or usage data is ever sent; the update check only reads a public release document.
@@ -280,7 +280,7 @@ Kaname borrows the interaction model, not the implementation.
 | Invocation | Modifier gesture (hold or double-tap), three global hotkeys, or the panel/search switch hotkey | Leader key | Prefix key timeout |
 | Navigation | Persistent panel, complete shortcuts, progressive highlight, chord breadcrumb, ⌫ back, Esc close | Prefix menus | Prefix menus |
 | Display | Floating panel: over the focused window, beside it, or filling the screen | Popup window | Minibuffer or child frame |
-| Ranking | Key or menu-group order in the panel; Smart order / Most used / Key order / Alphabetical for the statistics page | Configured order | Configured order |
+| Ranking | Key or menu-group order in the panel; Shortcut / App / Command order for the statistics page | Configured order | Configured order |
 | Configuration | Settings UI, no config file | Lua tables | Emacs variables |
 | Platform | macOS 14+ | Neovim | Emacs |
 
@@ -426,8 +426,8 @@ Kaname 是一个 macOS 菜单栏工具。它通过辅助功能（Accessibility�
 | **组合键查询** | 在搜索里直接输入组合键（`cmd shift 4`、`⌘⇧4`、`opt cmd t`），Kaname 回答它被谁占用、或者它是空的，而不是返回空列表让人以为没扫描。 |
 | **实时按键测试** | 冲突列表里每一行都可以“测试这个组合键”：按一次，看它到底被谁拿走——两个只读监听点判断是否有其他 App 吞掉了这个键，更高层则回退到“谁被激活”。每条结论标注**已确认 / 有信息量 / 无法判断**，绝不把猜测当成事实。 |
 | **不可用项** | 菜单项当前不可用（`AXEnabled == false`）时灰显，行尾带 `lock.slash`，也可设置为隐藏。右键菜单顶部先写**该菜单项当前不可用**，不再假装能执行；点击这行会在轻提示里给出同一句解释，同一菜单项 3 秒内只提示一次，连点也不会叠出多条。 |
-| **排序** | 排序方式决定统计页——按 App 的列表和 App 内部的菜单项都是。默认**智能排序**（使用频率随时间衰减，常用条目靠前、陈旧条目自然下沉），还可选高频优先、按键顺序、字母顺序。面板另有自己的**面板排序**（默认按修饰键，也可按菜单栏分组），搜索面板始终按匹配度，两者都不受这个设置影响。 |
-| **使用统计** | 记录每条绑定的使用次数与最近使用时间，并**按 App 分组**（系统与内置条目显示为“系统 / 内置”），每个 App 一行可折叠。保存在 `~/Library/Application Support/Kaname/usage.json`，上限 800 条，可重置；不记录原始按键内容。 |
+| **排序** | 统计页只有一张扁平列表，快捷键置前，App 与功能描述作为备注，于是同一个组合键被两个 App 使用时是两行。顶部**排序依据**可选**快捷键**（默认，沿用面板的键盘顺序）、**App**、**功能描述**，选择会持久化。面板另有自己的**面板排序**（默认按修饰键，也可按菜单栏分组），搜索面板始终按匹配度，两者都不受这个设置影响。 |
+| **使用统计** | 记录每条绑定的使用次数与最近使用时间，按 `App|快捷键` 分开算（系统与内置条目显示为“系统 / 内置”），跨 App 不合并。保存在 `~/Library/Application Support/Kaname/usage.json`，上限 800 条，可重置；不记录原始按键内容。 |
 | **搜索** | 全局搜索面板（默认 ⌃⌥⌘F），也可以在面板里按 `/` 进入。结果按菜单分卡片，查询本身写成一个组合键时上方会给出结论横幅。空格分词、顺序无关，`+` 也可作分隔符；支持修饰键别名（com/cmd/cm/⌘、op/alt/⌥……）、中文全拼与拼音首字母、英文单词首字母，所有词项必须同时命中。Return 关闭面板并在你选定的那个 App 里**执行**选中项：有菜单项就按菜单项，否则回放该组合键。搜索面板没有复制功能；面板有。 |
 | **多 App 范围** | 搜索面板顶部的 App 菜单列出前台 App 与所有正在运行的常规 App，标题处显示当前范围 App 的图标与名字，列表永远说清“这是谁家的快捷键”。换一个 App 会重新扫描并重新排序，执行时会先把那个 App 激活。浮层面板仍跟随真实前台 App。 |
 | **导出 Markdown** | 搜索面板的导出按钮通过存储面板把当前结果（输入框为空时是所选 App 的整张表）写成 Markdown：按菜单分组，表格列为 Shortcut / Action，不可用项标注 unavailable。 |
@@ -504,7 +504,7 @@ open Kaname.xcodeproj
 
 1. 启动 Kaname。屏幕上不会出现任何窗口，App 出现在菜单栏。缺少辅助功能时，菜单里会多出一项**权限向导**。**设置 → 权限** 中列出两项授权及当前状态。
 2. 打开 **设置 → 权限**，点击辅助功能旁的**请求授权**：Kaname 会直接打开“隐私与安全性 → 辅助功能”，在那里勾选 Kaname。辅助功能不会弹系统授权提示——弹提示只会把 App 注册进列表却不勾选，所以入口是把权限页里的 Kaname 图标直接拖进列表，或用 **+** 添加 `/Applications/Kaname.app`。
-3. 试着按住 ⌘。首次启动会出现一次轻提示——**按住 ⌘ 或连按两次打开面板**，之后不再重复；**设置 → 触发 → 再次显示触发提示** 可以重看。面板出现就不需要再授权。
+3. 试着按住 ⌘。首次启动会出现一次轻提示——**按住 ⌘ 或连按两次打开面板**，之后不再重复；触发页不再提供重看按钮。面板出现就不需要再授权。
 4. 如果面板不出现，退出 Kaname，点击输入监控旁的**请求授权**（会弹出系统提示并直接打开对应页面），打开 Kaname 后再重新启动 App。这是系统无法仅靠辅助功能传递按键事件时的兜底。
 5. 回到 **设置 → 权限** 查看当前授权状态。
 
@@ -562,10 +562,10 @@ Kaname 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打开
 
 | 标签页 | 内容 |
 | --- | --- |
-| 通用 | 界面语言、开机自启动、执行后显示确认提示、内置目录、**扫描时包含 Apple 菜单**、**同时在 Dock 显示图标**、**菜单项操作**（可录制的执行键与复制键）、**排除的 App**（用文件选择器添加、在列表里删除）、**忽略的菜单项**（按范围折叠：先是全局规则，再是一个 App 一组）。 |
-| 触发 | 「修饰键手势」与「全局快捷键」两个独立开关；手势在按住停顿 / 连按两次、触发键与对应延迟之间设置，快捷键是面板、搜索、切换三条可录制热键；**再次显示触发提示**重看首次启动的那条提示。两套都关就是暂停。 |
-| 外观 | 按键显示、面板主题、按键位置、**面板排序**（按修饰键，或按菜单栏分组）、列数、**每个分组最多显示**、描述长度、不可用项、收藏置顶、收藏可被搜索/过滤隐藏，以及**面板位置**（覆盖前台窗口、固定长宽并设置宽高、铺满屏幕、前台窗口旁边）。 |
-| 统计 | 排序方式与**按 App 统计**（次数与快捷键数，每个 App 一节可折叠）、**显示数据目录**、**重置统计**、**恢复全部设置…**。 |
+| 通用 | 界面语言、开机自启动、执行后显示快捷键已触发提示、**同时在 Dock 显示图标**、**菜单项操作**（可录制的执行键与复制键）、**排除的 App**（用文件选择器添加、在列表里删除）、**忽略的菜单项**（按范围折叠：先是全局规则，再是一个 App 一组；同一张卡里还有内置目录与**扫描时包含 Apple 菜单**）。 |
+| 触发 | 「修饰键手势」与「快捷键触发」两张大卡，启用开关都在卡片标题左侧、紧挨标题，不再有单独的「启用」行；手势卡在按住停顿 / 连按两次、触发键与对应延迟之间设置，快捷键卡是面板、搜索、切换三条可录制热键。两套都关就是暂停。 |
+| 外观 | 按键显示、面板主题、按键位置、**面板排序**（按修饰键，或按菜单栏分组）、列数、**每个分组最多显示**与**描述文字最大长度**（输入后回车或离开输入框提交，越界保留原值）、不可用项、**面板位置**（覆盖前台窗口、固定长宽并设置宽高、铺满屏幕、前台窗口旁边），以及单独的**收藏**卡片（收藏置顶、收藏可被搜索/过滤隐藏）。 |
+| 统计 | **排序依据**（快捷键 / App / 功能描述）、一张扁平列表（快捷键置前，App 与功能描述作备注）、**显示数据目录**、**重置统计**、**恢复全部设置…**。 |
 | 冲突 | 先列第三方**配置文件来源**（读了哪些文件、各贡献多少条、重扫按钮），再是冲突列表：**类型**筛选、**相关 App** 筛选、扫描时间、手动重扫，以及每行的**测试这个组合键**。 |
 | 权限 | 辅助功能与输入监控状态、**请求授权**（直接打开对应系统设置页；输入监控还会弹系统提示），以及可拖拽的 Kaname 图标。 |
 | 诊断 | 日志开关、详细日志、日志目录、**导出诊断包（.zip）…** 与**导出诊断报告（JSON）…**。 |
@@ -589,8 +589,8 @@ Kaname 是 `LSUIElement` 菜单栏 App，没有 Dock 图标，启动时不打开
 | 面板位置 | 覆盖前台窗口 / 固定长宽 / 铺满屏幕 / 前台窗口旁边 | 覆盖前台窗口 |
 | 固定面板宽度 | 320–4000 pt | 720 |
 | 固定面板高度 | 240–3000 pt | 620 |
-| 执行后显示确认提示 | 开 / 关 | 开 |
-| 排序方式 | 智能排序 / 高频优先 / 按键顺序 / 字母顺序 | 智能排序 |
+| 执行后显示快捷键已触发提示 | 开 / 关 | 开 |
+| 排序依据（统计） | 快捷键 / App / 功能描述 | 快捷键 |
 | 菜单不可用时使用内置快捷键目录 | 开 / 关 | 开 |
 | 扫描时包含 Apple 菜单 | 开 / 关 | 关 |
 | 同时在 Dock 显示图标 | 开 / 关 | 关 |
@@ -640,7 +640,7 @@ Kaname 借鉴的是交互方式，不是实现。
 | 触发 | 两套独立开关：修饰键手势 / 全局快捷键 | Leader 键 | 前缀键超时 |
 | 导航 | 持久面板、which-key 收窄、chord 面包屑、⌫ 返回、Esc 关闭 | 前缀菜单 | 前缀菜单 |
 | 显示 | 覆盖前台窗口、贴在其旁边或铺满屏幕的浮层 | 弹窗 | minibuffer 或 child frame |
-| 排序 | 面板按按键顺序或菜单栏分组、搜索按匹配度；统计页可选智能排序 / 高频优先 / 按键 / 字母 | 配置顺序 | 配置顺序 |
+| 排序 | 面板按按键顺序或菜单栏分组、搜索按匹配度；统计页可选快捷键 / App / 功能描述 | 配置顺序 | 配置顺序 |
 | 配置 | 设置界面，无配置文件 | Lua 表 | Emacs 变量 |
 | 平台 | macOS 14+ | Neovim | Emacs |
 

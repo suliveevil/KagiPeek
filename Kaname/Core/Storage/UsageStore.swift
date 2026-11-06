@@ -81,10 +81,6 @@ final class UsageStore: ObservableObject {
         schedulePersist()
     }
 
-    func summariesByApp() -> [AppUsageSummary] {
-        statistics.summariesByApp()
-    }
-
     var dataFolderURL: URL {
         DataDirectory.url
     }

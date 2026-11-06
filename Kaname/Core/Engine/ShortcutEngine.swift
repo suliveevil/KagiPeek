@@ -6,7 +6,7 @@ import os
 
 /// Orchestrates input, catalog, ranking and presentation.
 ///
-/// Deliberately thin: pure decisions live in `PrefixResolver` / `Ranker`, AX access in
+/// Deliberately thin: pure decisions live in `PrefixResolver` / `PanelOrdering`, AX access in
 /// `MenuScanner`, persistence in the stores and drawing in SwiftUI.
 @MainActor
 final class ShortcutEngine: ObservableObject {
@@ -411,8 +411,7 @@ final class ShortcutEngine: ObservableObject {
         if previous.excludedBundleIDs != newValue.excludedBundleIDs {
             catalogCoordinator.evaluateExclusion()
         }
-        if previous.sortMode != newValue.sortMode
-            || previous.showDisabledItems != newValue.showDisabledItems
+        if previous.showDisabledItems != newValue.showDisabledItems
             || previous.panelOrder != newValue.panelOrder
             || previous.ignoredCommands != newValue.ignoredCommands {
             state.orderedHitsCache = nil
@@ -1417,30 +1416,30 @@ final class ShortcutEngine: ObservableObject {
 
     // MARK: - Statistics
 
-    /// The per-app list the statistics tab expands: shortcut, command, presses.
+    /// One flat list for the Statistics tab, one line per usage key, every owner included.
     ///
     /// Usage records keep only an owner and a key, so the titles have to be joined from
-    /// whatever the app knows — the live catalog, the built-in list,
-    /// the config scanners, and the disk cache for apps that are not in front.
-    func usageEntries(for bundleID: String) -> [UsageEntry] {
+    /// whatever the app knows — the live catalog, the built-in list, the config scanners,
+    /// and the disk cache for apps that are not in front. That join is done for all owners
+    /// at once; the sort is left to the caller, which has the display names.
+    func usageEntries() -> [UsageEntry] {
         let signature = [
             String(usageStore.totalPresses),
             String(state.catalog.scannedAt.timeIntervalSince1970),
             state.settings.language.rawValue,
-            // The order is part of the answer now: without the mode here, changing the
-            // picker would keep serving the previous list from the cache.
-            state.settings.sortMode.rawValue
+            String(state.systemBindings.count),
+            String(externalBindings.count)
         ].joined(separator: "|")
-        if let cached = state.usageBreakdownCache[bundleID], cached.signature == signature {
+        if let cached = state.usageBreakdownAllCache, cached.signature == signature {
             return cached.entries
         }
-        let joined = UsageBreakdown.entries(
-            for: bundleID,
-            records: usageStore.records,
-            known: knownBindings(for: bundleID)
-        )
-        let entries = UsageOrdering.entries(joined, mode: state.settings.sortMode)
-        state.usageBreakdownCache[bundleID] = (signature, entries)
+        let owners = Set(usageStore.records.keys.map(UsageStatistics.bundleID(fromUsageKey:)))
+        var known: [BindingItem] = []
+        for owner in owners {
+            known += knownBindings(for: owner)
+        }
+        let entries = UsageBreakdown.entries(records: usageStore.records, known: known)
+        state.usageBreakdownAllCache = (signature, entries)
         return entries
     }
 
