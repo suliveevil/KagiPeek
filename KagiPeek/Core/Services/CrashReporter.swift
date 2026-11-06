@@ -297,7 +297,7 @@ nonisolated enum CrashReporter {
     /// cleanly must leave no `*.partial` behind, because a zero-byte file named like crash
     /// evidence is indistinguishable from a crash that failed to write.
     private static func prepareSignalFragment() {
-        let name = "kagipeek-crash-\(timestampString(Date()))-signal.partial"
+        let name = "kaname-crash-\(timestampString(Date()))-signal.partial"
         let url = crashDirectory.appendingPathComponent(name)
         let path = Array(url.path.utf8)
         let pathPointer = UnsafeMutablePointer<CChar>.allocate(capacity: path.count + 1)
@@ -340,7 +340,7 @@ nonisolated enum CrashReporter {
     // MARK: - Report files
 
     private static func write(_ report: CrashReport, kind: String) {
-        let name = "kagipeek-crash-\(timestampString(Date()))-\(kind).json"
+        let name = "kaname-crash-\(timestampString(Date()))-\(kind).json"
         let url = crashDirectory.appendingPathComponent(name)
         do {
             try FileManager.default.createDirectory(at: crashDirectory, withIntermediateDirectories: true)
@@ -485,7 +485,7 @@ nonisolated enum CrashReporter {
                 logTailError: tail.error
             )
             let target = crashDirectory.appendingPathComponent(
-                "kagipeek-crash-\(timestampString(occurredAt))-\(CrashLogFormatter.signalName(info.signalNumber)).json"
+                "kaname-crash-\(timestampString(occurredAt))-\(CrashLogFormatter.signalName(info.signalNumber)).json"
             )
             do {
                 try CrashLogFormatter.render(report).write(to: target, atomically: true, encoding: .utf8)

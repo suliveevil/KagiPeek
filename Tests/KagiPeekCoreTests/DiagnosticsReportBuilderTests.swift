@@ -109,13 +109,13 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
     /// 三者都是「报告看起来正常但内容有洞」的来源。
     func testPartialFailuresAreWrittenIntoTheReport() throws {
         let payload = try object(from: input(
-            crashRecoveryErrors: ["kagipeek-crash-1-signal.partial could not be read and was kept: permission denied"],
+            crashRecoveryErrors: ["kaname-crash-1-signal.partial could not be read and was kept: permission denied"],
             actionMirrorError: "the recent-action mirror could not be written: disk full",
             logLinesDropped: 7
         ))
         XCTAssertEqual(
             payload["crashRecoveryErrors"] as? [String],
-            ["kagipeek-crash-1-signal.partial could not be read and was kept: permission denied"]
+            ["kaname-crash-1-signal.partial could not be read and was kept: permission denied"]
         )
         XCTAssertEqual(payload["actionMirrorError"] as? String, "the recent-action mirror could not be written: disk full")
         XCTAssertEqual(payload["logLinesDropped"] as? Int, 7)

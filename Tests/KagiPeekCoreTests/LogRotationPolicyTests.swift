@@ -21,7 +21,7 @@ final class LogRotationPolicyTests: XCTestCase {
     func testFileNameEncodesTheDay() {
         XCTAssertEqual(
             LogRotationPolicy.fileName(for: date(2026, 10, 23), timeZone: utc),
-            "kagipeek-2026-10-23.log"
+            "kaname-2026-10-23.log"
         )
     }
 
@@ -48,7 +48,7 @@ final class LogRotationPolicyTests: XCTestCase {
 
     func testForeignFileNamesAreNotLogFiles() {
         XCTAssertNil(LogRotationPolicy.date(fromFileName: "last-actions.json", timeZone: utc))
-        XCTAssertNil(LogRotationPolicy.date(fromFileName: "kagipeek-2026-10-23.txt", timeZone: utc))
+        XCTAssertNil(LogRotationPolicy.date(fromFileName: "kaname-2026-10-23.txt", timeZone: utc))
         XCTAssertNil(LogRotationPolicy.date(fromFileName: "crash-2026-10-23.log", timeZone: utc))
     }
 
@@ -57,7 +57,7 @@ final class LogRotationPolicyTests: XCTestCase {
     func testSameDayKeepsTheCurrentFile() {
         let now = date(2026, 10, 23, hour: 23, minute: 59)
         XCTAssertFalse(LogRotationPolicy.shouldRollover(
-            currentFileName: "kagipeek-2026-10-23.log",
+            currentFileName: "kaname-2026-10-23.log",
             now: now,
             timeZone: utc
         ))
@@ -66,11 +66,11 @@ final class LogRotationPolicyTests: XCTestCase {
     func testMidnightRollsToANewFile() {
         let now = date(2026, 10, 24, hour: 0, minute: 0)
         XCTAssertTrue(LogRotationPolicy.shouldRollover(
-            currentFileName: "kagipeek-2026-10-23.log",
+            currentFileName: "kaname-2026-10-23.log",
             now: now,
             timeZone: utc
         ))
-        XCTAssertEqual(LogRotationPolicy.fileName(for: now, timeZone: utc), "kagipeek-2026-10-24.log")
+        XCTAssertEqual(LogRotationPolicy.fileName(for: now, timeZone: utc), "kaname-2026-10-24.log")
     }
 
     // MARK: - 保留天数
@@ -78,26 +78,26 @@ final class LogRotationPolicyTests: XCTestCase {
     func testFilesOlderThanRetentionArePruned() {
         let now = date(2026, 10, 23)
         let entries = [
-            LogFileEntry(name: "kagipeek-2026-10-15.log", date: date(2026, 10, 15), size: 10),
-            LogFileEntry(name: "kagipeek-2026-10-17.log", date: date(2026, 10, 17), size: 10)
+            LogFileEntry(name: "kaname-2026-10-15.log", date: date(2026, 10, 15), size: 10),
+            LogFileEntry(name: "kaname-2026-10-17.log", date: date(2026, 10, 17), size: 10)
         ]
         let pruned = LogRotationPolicy.filesToPrune(
             entries: entries, retentionDays: 7, timeZone: utc, now: now
         )
         // 8 天前过期；6 天前留下：边界两侧各一例。
-        XCTAssertEqual(pruned.map(\.name), ["kagipeek-2026-10-15.log"])
+        XCTAssertEqual(pruned.map(\.name), ["kaname-2026-10-15.log"])
     }
 
     func testTodaysFileIsNeverPruned() {
         let now = date(2026, 10, 23)
-        let entries = [LogFileEntry(name: "kagipeek-2026-10-23.log", date: now, size: 10)]
+        let entries = [LogFileEntry(name: "kaname-2026-10-23.log", date: now, size: 10)]
         XCTAssertTrue(LogRotationPolicy.filesToPrune(entries: entries, timeZone: utc, now: now).isEmpty)
     }
 
     func testFutureDatedFileSurvivesRetentionButCountsTowardSize() {
         let now = date(2026, 10, 23)
         let future = LogFileEntry(
-            name: "kagipeek-2026-11-01.log",
+            name: "kaname-2026-11-01.log",
             date: date(2026, 11, 1),
             size: 900
         )
@@ -107,7 +107,7 @@ final class LogRotationPolicyTests: XCTestCase {
         let capped = LogRotationPolicy.filesToPrune(
             entries: [future], totalLimit: 100, timeZone: utc, now: now
         )
-        XCTAssertEqual(capped.map(\.name), ["kagipeek-2026-11-01.log"])
+        XCTAssertEqual(capped.map(\.name), ["kaname-2026-11-01.log"])
     }
 
     // MARK: - 总大小上限
@@ -115,22 +115,22 @@ final class LogRotationPolicyTests: XCTestCase {
     func testOverTotalLimitPrunesOldestFirst() {
         let now = date(2026, 10, 23)
         let entries = [
-            LogFileEntry(name: "kagipeek-2026-10-22.log", date: date(2026, 10, 22), size: 400),
-            LogFileEntry(name: "kagipeek-2026-10-21.log", date: date(2026, 10, 21), size: 400),
-            LogFileEntry(name: "kagipeek-2026-10-23.log", date: now, size: 400)
+            LogFileEntry(name: "kaname-2026-10-22.log", date: date(2026, 10, 22), size: 400),
+            LogFileEntry(name: "kaname-2026-10-21.log", date: date(2026, 10, 21), size: 400),
+            LogFileEntry(name: "kaname-2026-10-23.log", date: now, size: 400)
         ]
         let pruned = LogRotationPolicy.filesToPrune(
             entries: entries, totalLimit: 900, retentionDays: 7, timeZone: utc, now: now
         )
         // 总量 1200 > 900：删最旧的一份刚好回到上限。
-        XCTAssertEqual(pruned.map(\.name), ["kagipeek-2026-10-21.log"])
+        XCTAssertEqual(pruned.map(\.name), ["kaname-2026-10-21.log"])
     }
 
     func testExactlyAtTheLimitPrunesNothing() {
         let now = date(2026, 10, 23)
         let entries = [
-            LogFileEntry(name: "kagipeek-2026-10-22.log", date: date(2026, 10, 22), size: 500),
-            LogFileEntry(name: "kagipeek-2026-10-23.log", date: now, size: 500)
+            LogFileEntry(name: "kaname-2026-10-22.log", date: date(2026, 10, 22), size: 500),
+            LogFileEntry(name: "kaname-2026-10-23.log", date: now, size: 500)
         ]
         XCTAssertTrue(LogRotationPolicy.filesToPrune(
             entries: entries, totalLimit: 1000, timeZone: utc, now: now
@@ -140,16 +140,16 @@ final class LogRotationPolicyTests: XCTestCase {
     func testExpiredAndOversizedAreBothReported() {
         let now = date(2026, 10, 23)
         let entries = [
-            LogFileEntry(name: "kagipeek-2026-10-10.log", date: date(2026, 10, 10), size: 10),
-            LogFileEntry(name: "kagipeek-2026-10-22.log", date: date(2026, 10, 22), size: 900),
-            LogFileEntry(name: "kagipeek-2026-10-23.log", date: now, size: 300)
+            LogFileEntry(name: "kaname-2026-10-10.log", date: date(2026, 10, 10), size: 10),
+            LogFileEntry(name: "kaname-2026-10-22.log", date: date(2026, 10, 22), size: 900),
+            LogFileEntry(name: "kaname-2026-10-23.log", date: now, size: 300)
         ]
         let pruned = LogRotationPolicy.filesToPrune(
             entries: entries, totalLimit: 500, retentionDays: 7, timeZone: utc, now: now
         )
         XCTAssertEqual(Set(pruned.map(\.name)), [
-            "kagipeek-2026-10-10.log",
-            "kagipeek-2026-10-22.log"
+            "kaname-2026-10-10.log",
+            "kaname-2026-10-22.log"
         ])
     }
 }

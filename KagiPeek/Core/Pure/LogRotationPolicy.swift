@@ -2,7 +2,7 @@ import Foundation
 
 /// One log file on disk, as the rotation policy sees it.
 nonisolated struct LogFileEntry: Equatable, Sendable {
-    /// File name including extension: `kagipeek-2026-10-23.log`.
+    /// File name including extension: `kaname-2026-10-23.log`.
     var name: String
     /// The day the file belongs to (parsed from the name).
     var date: Date
@@ -20,7 +20,7 @@ nonisolated struct LogFileEntry: Equatable, Sendable {
 /// is no formatter to cache and no lock to hold. That is how it should stay — this enum is
 /// called from the file log's own queue, and purity is the only thing making that safe.
 nonisolated enum LogRotationPolicy {
-    static let filePrefix = "kagipeek-"
+    static let filePrefix = "kaname-"
     static let fileExtension = "log"
 
     /// Default retention: files older than this many days are pruned.
@@ -72,7 +72,7 @@ nonisolated enum LogRotationPolicy {
         return readBack.year == year && readBack.month == month && readBack.day == day ? date : nil
     }
 
-    /// `kagipeek-YYYY-MM-DD.log` for the day containing `date`.
+    /// `kaname-YYYY-MM-DD.log` for the day containing `date`.
     static func fileName(for date: Date, timeZone: TimeZone = .current) -> String {
         "\(filePrefix)\(dayStamp(for: date, timeZone: timeZone)).\(fileExtension)"
     }
