@@ -8,23 +8,40 @@ as of **2026-11-06**（Asia/Shanghai）。
 
 ## 当前代码状态
 
-- 代码 HEAD：`bf79a82`（`fix(cask)`：`app "Kaname.app"` 与清理 Homebrew 7 已移除的参数），
-  已推送。其下 `87ebff4` 是 2.3.0 发布准备（改名、设置四页重构、设计评审修复、构建脚本加固）；
-  `/Applications/Kaname.app` 由 `87ebff4` 构建，`KanameCommit` 与之一致。
+- 代码 HEAD：`b53c252`（`feat(trigger)`：面板打开时向 Karabiner 写 `kaname_panel`，让
+  绑定在触发键上的规则让路），版本 **2.3.1 (build 231)**，本地已打 tag `v2.3.1`。其下
+  `63b3bbb`（`docs(status)`）记录 2.3.0 的 Homebrew 安装，`bf79a82`（`fix(cask)`）与
+  `87ebff4`（2.3.0 发布准备：改名、设置四页重构、设计评审修复、构建脚本加固）。
+  `/Applications/Kaname.app` 于 2026-11-06 22:57 由 `63b3bbb-dirty` 构建安装，**功能已是
+  新版，但 `KanameCommit` 是 `63b3bbb-dirty`、版本号仍是 2.3.0 (230)**；要让它显示 2.3.1
+  得再跑一次 `./scripts/install.sh`。
 - 标签：本地与远端都有 annotated tag `v2.3.0`（tag 对象 `014d4531`，指向 `87ebff4`）。
   改名前的 `v1.0.0` / `v1.1.0` / `v1.2.0` / `v2.0.0` / `v2.2.0` 已删除，只剩 `v2.1.0` 与
   `v2.3.0`；删除前已确认为 `main` 可达，未向远端补推历史 tag。
 - 分支：`main` 已推送（`origin/main` = `bf79a82`）。本轮短命分支 `chore/cask-render`、
   `chore/homebrew-tap`、`fix/cask-app-stanza` 合并后删除。本地仍有开发分支
   `feature/panel-sections` 与旧历史备份 `backup/pre-squash-20261104-192838`。
-- `swift test` 最后一次记录是 `bf8260a` 上的 849/0；2.3.0 的提交上未重跑，发布构建走
-  `scripts/build_release.sh`（外部终端）。
-- 设置 schema：9 → 10（本轮四批改动已随 2.3.0 提交）。v10 新增 `usageSortField`
-  （默认 `shortcut`），删除 `sortMode`；旧文件无新键取默认，旧键按 `decodeIfPresent` 忽略
-  并在下次保存时丢弃。v9 的 `showConfigToolsInPanel`（默认 `false`）与 `scanConfigFiles`
-  原值不变。
+- `swift test --disable-sandbox` 最后一次记录是 `b53c252` 的 850/0（含新增的
+  `KarabinerPanelSignalTests` 五条）；`scripts/build_release.sh`（`KANAME_SKIP_DMG=1`，外部
+  终端）在同一份代码上 `BUILD SUCCEEDED`，产物 plist 为 `2.3.1` / `231`。
+- 设置 schema：11。v11 新增 `karabinerPanelSignalEnabled`（默认 `true`，无迁移步骤）；
+  v10 的 `usageSortField`（默认 `shortcut`，删除 `sortMode`）、v9 的
+  `showConfigToolsInPanel`（默认 `false`）与 `scanConfigFiles` 原值不变。
 
 ## 本轮完成
+
+- **Karabiner 面板信号（方案 3，`b53c252`，tag `v2.3.1`）**：面板显示期间写 Karabiner 变量
+  `kaname_panel=1`，关闭写 0，启动/退出也写 0（崩溃不会留下抑制用户规则的 1）。
+  `Core/Pure/KarabinerPanelSignal` 只管变量名、payload 与「面板可见且开关开启」的决策；
+  `Core/Services/KarabinerBridge` 是传输层：私有串行队列、合并去抖、`lastWritten` 去重、
+  `Process` 调 `karabiner_cli --set-variables`（stdout/stderr 都进 `nullDevice`）、失败只记
+  一条 `[settings]` 警告、`clearAndWait()` 在退出路径阻塞写 0。`ShortcutEngine` 在
+  `start()` / `activatePanel()` / `dismissPanel()` / `stop()` / 开关变化时调
+  `signalKarabiner()`。设置页新增「触发 → 面板打开时通知 Karabiner」开关与未安装提示，L10n 三条
+  中英文案。用户侧还需给自己的规则加
+  `conditions: [{"type": "variable_unless", "name": "kaname_panel", "value": 1}]`——用
+  `variable_unless` 而不是 `variable_if`，后者只在面板打开时**生效**，方向正好相反。
+  方案 1（录制式触发键）与方案 2（冲突检测覆盖裸修饰键规则）已由用户明确否决，不实施。
 
 - **设置重构（四批改动；分支名与提交信息里的“四页”指四批，不是四个页面）**：通用页的「菜单不可用时使用内置
   快捷键」「扫描时包含 Apple 菜单」并入「忽略的菜单项」卡片；执行提示改称「执行后显示
