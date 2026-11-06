@@ -20,7 +20,7 @@ as of **2026-11-06**（Asia/Shanghai）。
 - `swift test` 844 → 849，0 failures（新增 `showConfigToolsInPanel` 的迁移/编码 4 项与
   工具行门控 1 项）。2026-11-06 01:24 在 `bf8260a` 上复跑仍 849/0；01:26 执行
   `scripts/install.sh` 构建并安装，`/Applications/Kaname.app` 现在是 `bf8260a`。
-- 设置 schema：9 → 10（`agent/settings-four-pages`，未提交）。v10 新增 `usageSortField`
+- 设置 schema：9 → 10（`agent/settings-four-pages` 分支的四批改动，未提交）。v10 新增 `usageSortField`
   （默认 `shortcut`），删除 `sortMode`；旧文件无新键取默认，旧键按 `decodeIfPresent` 忽略
   并在下次保存时丢弃。v9 的 `showConfigToolsInPanel`（默认 `false`）与 `scanConfigFiles`
   原值不变。
@@ -31,7 +31,7 @@ as of **2026-11-06**（Asia/Shanghai）。
 
 ## 本轮完成
 
-- **设置四页重构**（`agent/settings-four-pages`，未提交）：通用页的「菜单不可用时使用内置
+- **设置重构（四批改动；分支名与提交信息里的“四页”指四批，不是四个页面）**：通用页的「菜单不可用时使用内置
   快捷键」「扫描时包含 Apple 菜单」并入「忽略的菜单项」卡片；执行提示改称「执行后显示
   快捷键已触发提示」。触发页两个开关移到卡片标题左侧、删除「启用」行与「重新查看触发提示」。
   外观页两个数字改为可输入（6–60 / 8–80，回车或失焦提交，越界保留旧值并提示 3 秒），收藏
