@@ -32,6 +32,16 @@ final class SettingsWindowController {
             applyTitle(initialTab)
         }
         guard let window else { return }
+        // A window belongs to the Space it was ordered into, and a menu bar extra is never
+        // the active app: "the Space the app is in" is only ever the Space it last had a
+        // window on, which is a full-screen app's often enough. Ordering it front from
+        // there switched the user to that Space, so Settings opened over the full-screen
+        // app instead of the desktop the gear was clicked on. `.moveToActiveSpace` re-parents
+        // the window on order-front, and that only applies while the window is off screen —
+        // one left visible on another Space is taken down first.
+        if window.isVisible, !window.isOnActiveSpace {
+            window.orderOut(nil)
+        }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -71,6 +81,11 @@ final class SettingsWindowController {
         )
         window.title = engine.localization.text(initialTab.titleKey)
         window.isReleasedWhenClosed = false
+        // Settings is a window the user opens from the menu bar of whichever Space they are
+        // looking at, so it has to follow that Space rather than stay where it was born.
+        // `.fullScreenAuxiliary` covers the same click made from a full-screen app's menu
+        // bar, where the active Space belongs to another process.
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.contentView = NSHostingView(rootView: makeRoot(initialTab: initialTab))
         // Settings is a single utility window: HIG asks for the zoom control to be dimmed
         // rather than offering a maximised settings window nobody asked for.
