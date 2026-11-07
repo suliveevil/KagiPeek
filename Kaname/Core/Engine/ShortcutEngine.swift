@@ -325,12 +325,15 @@ final class ShortcutEngine: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] note in
+            // `Notification` is not Sendable, so Swift 6 region isolation refuses to let
+            // the main-actor closure capture it. Read the one scalar we need here, in the
+            // notification centre's own delivery context, and pass only that value in.
+            let resignedPID = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                as? NSRunningApplication)?.processIdentifier
             MainActor.assumeIsolated {
                 // Returning from the search palette activates Kaname briefly, then hands
                 // focus back before `activatePanel()` opens the panel. That resignation is
                 // ours, not the user's, and must not close what was just opened.
-                let resignedPID = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
-                    as? NSRunningApplication)?.processIdentifier
                 guard resignedPID != ProcessInfo.processInfo.processIdentifier else { return }
                 // Decide on the next run loop from the live menu-bar owner. A notification
                 // that arrives after the hand-off finished then sees the app the new panel
