@@ -55,7 +55,14 @@ final class SurfacePanelController: PanelPresenting {
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
+        // A native fullscreen Space belongs to another process: `.canJoinAllSpaces` /
+        // `.fullScreenAuxiliary` below only grant Space membership, while the WindowServer
+        // orders that Space's windows above anything at `.floating`. Keep this level static
+        // and aligned with `HUDPanelController` — macOS has no public "is this Space
+        // fullscreen" query, and Space-change notifications are an invalidation signal only
+        // (see `spaceChangeObserver` below), never a state input. `.statusBar` (25) is still
+        // far below `popUpMenuWindow` (101), so `PopupGate.menuPresent()` stays meaningful.
+        panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]
         panel.isOpaque = false
         panel.backgroundColor = .clear

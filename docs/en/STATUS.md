@@ -459,3 +459,30 @@ in passing:
   `NSWindow`.
 - HIG report §"suggested but leave alone for now" 1–8 (already folded into the next steps above,
   not changed on their own).
+
+## 2026-11-07: window level for native fullscreen Spaces (static)
+
+- `SurfacePanelController.swift` now sets `panel.level = .statusBar` (25) instead of
+  `.floating` (3), matching `HUDPanelController`. A native fullscreen app owns a separate
+  Space whose windows the WindowServer orders above anything at `.floating`;
+  `.canJoinAllSpaces` / `.fullScreenAuxiliary` only grant Space membership, and
+  `orderFrontRegardless()` cannot cross a level difference. The panel was already being
+  presented — it was simply underneath, which read as "the trigger did nothing".
+- **The level stays static; do not make it dynamic.** macOS exposes no public "is this Space
+  fullscreen" query, and one switch fires several `activeSpaceDidChangeNotification`s
+  (`SpaceRescanGate` already debounces them). Changing `level` at runtime forces a
+  WindowServer reorder that races `dismissEverything()` / `invalidateAnchorGeometry()`,
+  adding a second cross-Space state machine to the same window.
+- Convention: **a Space change is an invalidation signal only** (dismiss the panel, clear the
+  anchor geometry snapshot, debounce a rescan), never a state input.
+  `SurfacePanelController.spaceChangeObserver` and `ShortcutEngine`'s Space handling are unchanged.
+- Left alone: `PopupGate` (`.statusBar` 25 is far below `popUpMenuWindow` 101, so it neither
+  covers system pop-up menus nor self-matches), `HUDPanelController`,
+  `PermissionGuidePanelController` (anchored inside a System Settings window, still
+  `.floating`), `SpaceRescanGate`, and `OverlayPlacement`.
+- No visible cost on ordinary Spaces: `visibleFrame` already excludes the menu bar and Dock,
+  and `topInset` / `fillScreenFrame` / `clampedTop` avoid the safe area. The panel is a
+  short-lived, `.nonactivatingPanel` overlay card the user invokes explicitly.
+- Verification: `swift test --disable-sandbox` green, 867 tests. Visual confirmation inside a
+  real fullscreen app is left to the integrator after reinstalling per AGENTS.md step ④
+  (this branch commits source and docs only; no build, no install).
