@@ -118,6 +118,8 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case triggerTip
     case overlayBuiltInBadge, overlayRunning
     case scanPermissionDenied, scanFallbackHint
+    case overlayStandInBadge
+    case panelRunMenuBarHidden
     case overlayConflictHint, overlayConflictOpen, overlayHint, panelCopied, panelCopyFailed, panelNothingToCopy, panelRunFailed, injectTargetUnavailable, panelIdleHint
     case searchScopeLoading, searchBuiltInNotice, conflictScanFailed, conflictScanPartialFormat
     case rankingResetConfirmTitle, rankingResetConfirmMessage
@@ -589,6 +591,11 @@ nonisolated enum L10n {
         .scanFallbackHint: (
             "Built-in catalog · Accessibility off",
             "内置目录 · 辅助功能未开启"
+        ),
+        .overlayStandInBadge: ("last scan", "上次扫描"),
+        .panelRunMenuBarHidden: (
+            "Menu bar hidden: this item has no shortcut to replay",
+            "菜单栏当前隐藏，这一项没有可回放的快捷键"
         ),
         .overlayBuiltInBadge: ("built-in", "内置"),
         .overlayRunning: ("Running…", "正在运行…"),

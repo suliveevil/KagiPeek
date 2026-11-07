@@ -46,11 +46,14 @@ nonisolated enum MenuScanner {
 
         guard let menuBar = AXValueReader.element(kAXMenuBarAttribute, of: application) else {
             // "The app has no menu bar" and "the menu bar could not be read" look the same in
-            // an empty panel; only one of them is a system limitation worth reporting.
+            // an empty panel; only one of them is a system limitation worth reporting. A
+            // hidden menu bar — full screen, the auto-hide setting, Mission Control — is the
+            // common case and is recoverable (`MenuScanCache.loadStandIn`), so it is named
+            // apart.
             Diag.warning(.scan, "menu-bar attribute missing (pid=\(pid), bundle=\(bundleID ?? "?"))")
             return ScannedMenu(
                 items: [], elements: [:], hasMenuBar: false,
-                duration: Date().timeIntervalSince(started), state: .noMenus
+                duration: Date().timeIntervalSince(started), state: .menuBarUnavailable
             )
         }
 

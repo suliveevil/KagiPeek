@@ -62,4 +62,39 @@ final class MenuCachePolicyTests: XCTestCase {
             now: now
         ))
     }
+
+    /// 菜单栏读不到时，十分钟前的扫描已经"过期"，却正是要拿来顶替的那份：年龄上限放宽到
+    /// `standInMaxAge`；设置指纹和未来时间戳这两条不放宽，因为换过设置的行是错的行。
+    func testStandInOutlivesTheNormalCapButKeepsTheFingerprintRule() {
+        XCTAssertTrue(MenuCachePolicy.mayStandIn(
+            scannedAt: now.addingTimeInterval(-MenuCachePolicy.entryMaxAge - 3600),
+            entryFingerprint: fingerprint,
+            fingerprint: fingerprint,
+            now: now
+        ))
+        XCTAssertTrue(MenuCachePolicy.mayStandIn(
+            scannedAt: now.addingTimeInterval(-(MenuCachePolicy.standInMaxAge - 1)),
+            entryFingerprint: fingerprint,
+            fingerprint: fingerprint,
+            now: now
+        ))
+        XCTAssertFalse(MenuCachePolicy.mayStandIn(
+            scannedAt: now.addingTimeInterval(-MenuCachePolicy.standInMaxAge),
+            entryFingerprint: fingerprint,
+            fingerprint: fingerprint,
+            now: now
+        ))
+        XCTAssertFalse(MenuCachePolicy.mayStandIn(
+            scannedAt: now,
+            entryFingerprint: MenuCachePolicy.fingerprint(showAppleMenu: true),
+            fingerprint: fingerprint,
+            now: now
+        ))
+        XCTAssertFalse(MenuCachePolicy.mayStandIn(
+            scannedAt: now.addingTimeInterval(60),
+            entryFingerprint: fingerprint,
+            fingerprint: fingerprint,
+            now: now
+        ))
+    }
 }

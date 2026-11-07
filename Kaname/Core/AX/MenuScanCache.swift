@@ -60,6 +60,29 @@ nonisolated struct MenuScanCache {
         return .success(entry)
     }
 
+    /// The last scan written for this app, whatever the age cap says, when a hidden menu bar
+    /// has to be stood in for.
+    ///
+    /// Unlike `cachedItems`, which serves the statistics, the rows this returns are meant to
+    /// be run — and they still have to be written under the current settings, because rows
+    /// shaped by other settings are the wrong rows rather than merely old ones. The age bound
+    /// is `MenuCachePolicy.standInMaxAge`.
+    static func loadStandIn(identity: String, fingerprint: String, now: Date = Date()) -> Entry? {
+        guard MenuCachePolicy.isControlCurrent(
+            read(Control.self, at: controlURL)?.settingsFingerprint,
+            fingerprint: fingerprint
+        ) else { return nil }
+        guard let entry = read(Entry.self, at: entryURL(identity: identity)),
+              MenuCachePolicy.mayStandIn(
+                  scannedAt: entry.scannedAt,
+                  entryFingerprint: entry.settingsFingerprint,
+                  fingerprint: fingerprint,
+                  now: now
+              )
+        else { return nil }
+        return entry
+    }
+
     /// Items of a cached scan, whatever its age.
     ///
     /// Only for display: the statistics need a title and a shortcut for apps that are not in

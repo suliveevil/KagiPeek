@@ -323,6 +323,24 @@ nonisolated final class CatalogLoader: @unchecked Sendable {
             // Only a real scan of a real menu bar is worth persisting: the built-in fallback
             // depends on the language and is cheap to rebuild.
             MenuScanCache.save(identity: request.identity, fingerprint: fingerprint, items: scanned.items)
+        } else if scanned.state == .menuBarUnavailable,
+                  let standIn = MenuScanCache.loadStandIn(
+                      identity: request.identity,
+                      fingerprint: fingerprint
+                  ) {
+            // The bar is hidden (a full-screen app, the auto-hide setting, Mission Control) or
+            // the app did not answer. Its commands still exist; the last scan stands in for a
+            // tree that cannot be read, so the panel keeps the app's own rows instead of
+            // dropping to the built-in catalog for the whole session. These rows carry no
+            // elements — a press walks its path, fails while the bar is hidden, and the chord
+            // replay is what runs the command.
+            snapshot.items = standIn.items
+            snapshot.usedBuiltInCatalog = false
+            Diag.warning(.scan, """
+                menu bar unreadable: standing in a scan from \
+                \(Int(Date().timeIntervalSince(standIn.scannedAt)))s ago for \(request.identity) \
+                (\(standIn.items.count) rows)
+                """)
         } else if request.includeBuiltIn {
             snapshot.items = builtInItems(for: request)
             snapshot.usedBuiltInCatalog = true

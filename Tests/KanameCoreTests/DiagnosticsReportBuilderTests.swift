@@ -81,6 +81,10 @@ final class DiagnosticsReportBuilderTests: XCTestCase {
         XCTAssertEqual(try object(from: input(scanState: .ok))["scanState"] as? String, "ok")
         XCTAssertEqual(try object(from: input(scanState: .noMenus))["scanState"] as? String, "noMenus")
         XCTAssertEqual(
+            try object(from: input(scanState: .menuBarUnavailable))["scanState"] as? String,
+            "menuBarUnavailable"
+        )
+        XCTAssertEqual(
             try object(from: input(scanState: .permissionDenied))["scanState"] as? String,
             "permissionDenied"
         )

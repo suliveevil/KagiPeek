@@ -46,6 +46,7 @@ are always written.
 | Shortcuts dead after a password field | `[perm] secure input` | The OS hides key events while secure input is on — not a Kaname bug |
 | "It worked yesterday" | `[perm] accessibility` | The grant was revoked, usually by reinstalling under a new signature |
 | Panel is empty / "built-in" | `[scan]` | `state=noMenus`, `state=permissionDenied`, `menu-bar attribute missing`, `truncated at maxItems` |
+| Panel shows "last scan" | `[scan] menu bar unreadable` | `menu-bar attribute missing` plus `standing in a scan from <n>s ago` — the bar is hidden (full screen, auto-hide, Mission Control) or the app timed out, so the previous scan of that app is shown; rows with a shortcut still run by replaying it |
 | Panel is slow every time | `[scan] cache-miss` | Why the disk cache did not answer: `control`, `fingerprint`, `entryFingerprint`, `expired`, `decode` |
 | A menu item does nothing | `[inject]` | `ax-press failed err=<AXError>` plus whether a chord replay was available |
 | Run key does nothing | `[run]` | `no row selected`, or the menu item that was executed and where it went |

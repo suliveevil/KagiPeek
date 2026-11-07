@@ -398,6 +398,15 @@ private struct OverlayHeaderView: View {
                         .font(.system(size: TypeScale.caption))
                         .foregroundStyle(palette.tertiaryText)
                         .lineLimit(1)
+                } else if state.scanState == .menuBarUnavailable {
+                    // These rows are the app's own, but from the last scan of a menu bar
+                    // the system is not showing right now: they are accurate only as far
+                    // as the menu has not changed since. Say so rather than let a stand-in
+                    // pass for a fresh read.
+                    Text(localization.text(.overlayStandInBadge))
+                        .font(.system(size: TypeScale.caption))
+                        .foregroundStyle(palette.tertiaryText)
+                        .lineLimit(1)
                 }
             }
         }

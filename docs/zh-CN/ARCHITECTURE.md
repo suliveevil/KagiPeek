@@ -278,8 +278,14 @@ AXMenuBar
   `NSWorkspace.menuBarOwningApplication`，退回 `frontmostApplication`（Menu-Bar-Search 的 `menuBarOwningApplication`）。
   Kaname 自己仍然永远不是来源——否则激活它自己的窗口就会用兜底目录替换真 App 的快捷键。
 - **扫描会说明为什么它是空的。** `MenuScanner` 在遍历前检查 `AXIsProcessTrusted()`，每个结果都带一个 `ScanState`：
-  `.ok`、`.noMenus`（App 什么都没暴露）、或 `.permissionDenied`（根本读不到——Menu-Bar-Search 的 `initState`）。
+  `.ok`、`.noMenus`（App 什么都没暴露）、`.menuBarUnavailable`（`kAXMenuBarAttribute` 根本不在——系统没在显示菜单栏：
+  全屏 App、"自动隐藏并显示菜单栏"、调度中心——或者 App 在消息超时内没有应答）、或 `.permissionDenied`（根本读不到——Menu-Bar-Search 的 `initState`）。
   空列表与"根本没读成"对用户看起来是一样的，所以面板的空状态与"内置"徽标会说明是哪一种，而不是两者都读成"没有匹配的快捷键"。
+  菜单栏隐藏是可恢复的：`CatalogLoader` 用该 App 上一份在同设置下写入的扫描顶替（`MenuScanCache.loadStandIn`，
+  年龄上限 `MenuCachePolicy.standInMaxAge`，十二小时），而不是落到内置目录——命令还在，整个全屏会话都掉到内置列表
+  等于把该 App 自己的行从面板里删掉。顶替出来的行没有 AX 元素，所以按压会跳过它无法完成的走位（`RowRunner.resolveElement`
+  对该状态直接返回 nil）并回放记录的组合键；没有组合键的行会说"菜单栏当前隐藏"而不是"无法运行该菜单项"
+  （`RunFailureNotice`），副标题上带一个"上次扫描"徽标。
 - **缓存，两层。** 内存里按 App 标识为键、保留 20 秒。磁盘上每个 App 一个 JSON 条目（`menu-cache/menus-<identity>.json`），
   外加一个控制文件，记录这些条目是在哪些设置下写入的（Menu-Bar-Search 的缓存）。切换 App 正是磁盘缓存存在的理由：
   它交还用户上次为那个 App 看到的菜单项，而不是再走一遍菜单栏。规则写在 `MenuCachePolicy` 里：

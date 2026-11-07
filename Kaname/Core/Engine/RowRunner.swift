@@ -66,6 +66,9 @@ final class RowRunner {
             return element
         }
         if let element = state.catalog.elements[rowID] { return element }
+        // The walk starts at the app's menu bar. When that attribute is not there at all,
+        // every step of it can only fail — after the messaging timeout. Answer now instead.
+        guard snapshotState(forRowID: rowID) != .menuBarUnavailable else { return nil }
         guard let request = cachedRowRequest(forRowID: rowID),
               let resolved = await catalogLoader.resolveElement(
                   atAxPath: request.axPath,
@@ -96,6 +99,19 @@ final class RowRunner {
             return request
         }
         return cachedRowRequest(forRowID: rowID, in: state.catalog, isScoped: false)
+    }
+
+    /// Why the snapshot that owns this row produced it.
+    ///
+    /// Scoped search rows live in their own snapshot; everything else comes from the front
+    /// app's. Mirrors `cachedRowRequest`'s choice, so a notice describes the list the row
+    /// actually came from.
+    private func snapshotState(forRowID rowID: String) -> ScanState {
+        if state.search.scopeAppID != nil,
+           state.searchScopeCatalog.items.contains(where: { $0.id == rowID }) {
+            return state.searchScopeCatalog.state
+        }
+        return state.catalog.state
     }
 
     private func cachedRowRequest(
@@ -239,7 +255,7 @@ final class RowRunner {
                     """)
             }
             presenters.notices.showNotice(
-                text: localization.text(.panelRunFailed),
+                text: localization.text(RunFailureNotice.key(scanState: snapshotState(forRowID: rowID))),
                 kind: .failure
             )
             return

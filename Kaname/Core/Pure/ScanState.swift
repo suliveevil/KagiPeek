@@ -14,6 +14,11 @@ nonisolated enum ScanState: Equatable, Sendable {
     case ok
     /// The app exposes no menu bar, or one without any command.
     case noMenus
+    /// The app's menu bar could not be read at all: the system is not showing it (a
+    /// full-screen app, "Automatically hide and show the menu bar", Mission Control) or the
+    /// app did not answer within the messaging timeout. The commands still exist; they are
+    /// just not exposed as an Accessibility tree right now.
+    case menuBarUnavailable
     /// Accessibility is not trusted: nothing could be read at all, not even to find out
     /// whether the app has menus.
     case permissionDenied
@@ -24,6 +29,7 @@ nonisolated enum ScanState: Equatable, Sendable {
         switch self {
         case .ok: return "ok"
         case .noMenus: return "noMenus"
+        case .menuBarUnavailable: return "menuBarUnavailable"
         case .permissionDenied: return "permissionDenied"
         }
     }

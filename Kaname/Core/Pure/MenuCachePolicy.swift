@@ -53,4 +53,31 @@ nonisolated enum MenuCachePolicy {
         let age = now.timeIntervalSince(scannedAt)
         return age >= 0 && age < entryMaxAge
     }
+
+    /// How old a scan may be when it stands in for a menu bar that cannot be read right now.
+    ///
+    /// The cap above assumes the app is running with its menus on screen, so a change is picked
+    /// up within ten minutes. A hidden menu bar breaks that assumption: the app stays with no
+    /// readable tree for as long as the user keeps it full screen, and dropping to the built-in
+    /// catalog for that whole session removes the app's own commands from the panel. Twelve
+    /// hours covers one working day and still bounds the drift: a row that stands in is run
+    /// from its recorded chord when its element cannot be walked, and an item that changed in
+    /// the meantime costs a wrong chord — rare, but the reason the window is not unbounded.
+    static let standInMaxAge: TimeInterval = 12 * 3600
+
+    /// Whether a scan of this age may stand in for an unreadable menu bar.
+    ///
+    /// Same settings fingerprint rule as `isEntryUsable`: rows shaped under other settings
+    /// are the wrong rows, not merely old ones. A future timestamp stays unusable for the
+    /// same reason it does there.
+    static func mayStandIn(
+        scannedAt: Date,
+        entryFingerprint: String,
+        fingerprint: String,
+        now: Date = Date()
+    ) -> Bool {
+        guard entryFingerprint == fingerprint else { return false }
+        let age = now.timeIntervalSince(scannedAt)
+        return age >= 0 && age < standInMaxAge
+    }
 }

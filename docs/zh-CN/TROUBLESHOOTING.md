@@ -43,6 +43,7 @@ KANAME_EXPORT_DIAGNOSTICS=/tmp/kaname.zip /Applications/Kaname.app/Contents/MacO
 | 经过密码框后快捷键全失效 | `[perm] secure input` | 安全输入开启时系统会隐藏按键事件——这不是 Kaname 的 bug |
 | "昨天还好好的" | `[perm] accessibility` | 授权被撤销了，通常是换了签名重装导致 |
 | 面板是空的 / 显示"内置" | `[scan]` | `state=noMenus`、`state=permissionDenied`、`menu-bar attribute missing`、`truncated at maxItems` |
+| 面板显示"上次扫描" | `[scan] menu bar unreadable` | `menu-bar attribute missing` 加上 `standing in a scan from <n>s ago`——菜单栏被隐藏（全屏、自动隐藏、调度中心）或该 App 读超时，面板用的是它上一份扫描；带组合键的行仍可回放执行 |
 | 面板每次都很慢 | `[scan] cache-miss` | 落盘缓存为什么没命中：`control`、`fingerprint`、`entryFingerprint`、`expired`、`decode` |
 | 某个菜单项点了没反应 | `[inject]` | `ax-press failed err=<AXError>`，以及当时是否还有组合键可回放 |
 | 执行键没反应 | `[run]` | `no row selected`，或被执行的那个菜单项以及它的去向 |
