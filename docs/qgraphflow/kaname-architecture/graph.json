@@ -1,0 +1,1338 @@
+{
+  "meta": {
+    "title": "Kaname 代码架构（工程分层）",
+    "diagramType": "architecture",
+    "architectureView": "engineering",
+    "viewId": "kaname-engineering-overview",
+    "sourceRef": "main @ b53c252（v2.3.1）工作树源码",
+    "locale": "zh-CN",
+    "scope": "L3 模块级总览：App / UI / Core 各目录一级，共 15 个节点；EngineState 与七个引擎协作者聚合进引擎节点，Core/Ports 体现在引擎→界面的边上；覆盖全部源码模块、四个外部系统与本地数据目录。",
+    "notes": [
+      "依赖方向朝内：UI→Engine→Pure；引擎经 Core/Ports 协议回叫界面，抽象在内层，不成环。",
+      "Core/Pure 只许 Foundation，是唯一进 SwiftPM 与 XCTest 的模块；AppKit 层没有测试目标。",
+      "默认只观察：完成的快捷键不吞；唯一的注入例外是执行菜单项（AXPress 优先，CGEvent 回放兜底）。",
+      "UI 线程绝不等 AX：菜单扫描在后台队列，MenuTrigger.press 以 @concurrent 带 250ms 超时。",
+      "检查更新是唯一联网代码且手动触发；六个工具配置只读扫描，Karabiner 变量经 CLI 单向写。",
+      "EngineState、七个协作者与 UI 子模块聚合为节点 facts；行级细节见 docs/zh-CN/ARCHITECTURE.md。"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "frontmost",
+      "label": "前台 App",
+      "kind": "external",
+      "subtitle": "菜单栏属主，快捷键的真正执行者",
+      "facts": [
+        "Kaname 只读它的菜单栏，从不重映射",
+        "完成的快捷键原样放行送达"
+      ],
+      "overviewText": [
+        "面板内容属于前台 App 的菜单栏；它失焦或切换 Space 时面板关闭。"
+      ],
+      "badges": [],
+      "position": {
+        "x": 64,
+        "y": 1222
+      },
+      "size": {
+        "width": 338.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "macos",
+      "label": "macOS 系统 API",
+      "kind": "framework",
+      "module": "platform",
+      "subtitle": "AX · CGEventTap · Carbon · NSWorkspace",
+      "facts": [
+        "辅助功能（AX）读菜单、AXPress 执行菜单项",
+        "CGEventTap 观察全局按键；Carbon 读系统热键",
+        "缺权限时降级到内置目录，从不失败"
+      ],
+      "overviewText": [
+        "所有系统能力都经 Core/AX 与 Core/Input 两个适配层进入，UI 与引擎不直接碰 AX。"
+      ],
+      "badges": [],
+      "position": {
+        "x": 416.5,
+        "y": 1222
+      },
+      "size": {
+        "width": 338.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "tools",
+      "label": "第三方快捷键工具",
+      "kind": "external",
+      "subtitle": "Karabiner · skhd · KM · BTT · Hammerspoon · Alfred",
+      "facts": [
+        "六个工具的配置文件被只读解析，喂给冲突检测",
+        "Karabiner 另经 CLI 接收 kaname_panel 变量"
+      ],
+      "overviewText": [
+        "配置行可搜索、复制、收藏但永不执行；扫描默认开，可在设置→冲突关闭。"
+      ],
+      "badges": [],
+      "position": {
+        "x": 769,
+        "y": 1222
+      },
+      "size": {
+        "width": 338.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "github",
+      "label": "GitHub Releases",
+      "kind": "external",
+      "subtitle": "api.github.com，唯一联网对端",
+      "facts": [
+        "只在设置→关于按按钮时请求一次",
+        "只比较版本，不下载不安装"
+      ],
+      "overviewText": [
+        "没有轮询与后台流量；请求不携带用户数据。"
+      ],
+      "badges": [],
+      "position": {
+        "x": 1121.5,
+        "y": 1222
+      },
+      "size": {
+        "width": 338.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "app",
+      "label": "App 组合根",
+      "kind": "service",
+      "module": "app",
+      "subtitle": "AppDelegate / Main：装配与生命周期",
+      "facts": [
+        "纯 AppKit 入口，LSUIElement，启动无窗口",
+        "组装引擎、两个存储与全部 UI 控制器并经端口注入",
+        "单实例、登录项、退出前 flush 与 Karabiner 清零"
+      ],
+      "overviewText": [
+        "唯一的装配点：具体控制器在这里创建，引擎只认识协议。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/App/AppDelegate.swift",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "symbol": "AppDelegate",
+        "kind": "source"
+      },
+      "position": {
+        "x": 64,
+        "y": 118
+      },
+      "size": {
+        "width": 1396,
+        "height": 96
+      }
+    },
+    {
+      "id": "ui-panel",
+      "label": "提示面板 + 搜索面板",
+      "kind": "component",
+      "module": "ui",
+      "subtitle": "Surface / Overlay：一个非激活 NSPanel",
+      "facts": [
+        "两个界面互斥，击键继续到达前台 App",
+        "OverlayView 按状态切四块，选区移动不重建列表",
+        "键盘优先：有序筛选词元、分页环、两个可录制动作键"
+      ],
+      "overviewText": [
+        "产品主界面：覆盖前台窗口的快捷键参考卡，/ 键往返搜索面板。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/UI/Surface/SurfacePanelController.swift",
+        "lineStart": 22,
+        "lineEnd": 22,
+        "symbol": "SurfacePanelController",
+        "kind": "source"
+      },
+      "position": {
+        "x": 64,
+        "y": 340
+      },
+      "size": {
+        "width": 456,
+        "height": 154
+      }
+    },
+    {
+      "id": "ui-settings",
+      "label": "设置窗口",
+      "kind": "component",
+      "module": "ui",
+      "subtitle": "SettingsView：七个标签页",
+      "facts": [
+        "通用 / 触发 / 外观 / 统计 / 冲突 / 权限 / 关于",
+        "冲突页手动重扫，发现项按 40 条分页",
+        "权限页图标可拖拽进系统设置列表"
+      ],
+      "overviewText": [
+        "单一工具窗口，无最小化；权限引导在窗口可见时以 sheet 依附。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/UI/Settings/SettingsView.swift",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "symbol": "SettingsView",
+        "kind": "source"
+      },
+      "position": {
+        "x": 534,
+        "y": 340
+      },
+      "size": {
+        "width": 456,
+        "height": 154
+      }
+    },
+    {
+      "id": "ui-shell",
+      "label": "菜单栏 · 权限引导 · HUD",
+      "kind": "component",
+      "module": "ui",
+      "subtitle": "MenuBar / Permissions / HUD",
+      "facts": [
+        "自持 NSStatusItem 与菜单",
+        "首次运行权限引导，锚定系统设置窗口",
+        "0.75 秒「已执行」提示，可关闭"
+      ],
+      "overviewText": [
+        "常驻外壳：没有 Dock 图标，菜单栏是唯一常驻入口。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/UI/MenuBar/StatusItemController.swift",
+        "lineStart": 18,
+        "lineEnd": 18,
+        "symbol": "StatusItemController",
+        "kind": "source"
+      },
+      "position": {
+        "x": 1004,
+        "y": 340
+      },
+      "size": {
+        "width": 456,
+        "height": 154
+      }
+    },
+    {
+      "id": "engine",
+      "label": "ShortcutEngine 引擎",
+      "kind": "business",
+      "module": "engine",
+      "subtitle": "输入路由 + 三相状态机 + 协作者 wiring",
+      "facts": [
+        "idle / armed / active 三相；KeyEventRouter 做纯路由",
+        "EngineState 是 @MainActor @Observable 状态容器",
+        "七个协作者：PanelSession、SearchSession、CatalogCoordinator、RowRunner、BindingEditor、LiveTestCoordinator、DiagnosticsReporter",
+        "经 Core/Ports 协议展示 UI 与 HUD，依赖方向朝内"
+      ],
+      "overviewText": [
+        "协调器而非上帝对象：行为委派协作者，决策下沉 Pure，状态集中在 EngineState。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 12,
+        "lineEnd": 12,
+        "symbol": "ShortcutEngine",
+        "kind": "source"
+      },
+      "position": {
+        "x": 64,
+        "y": 620
+      },
+      "size": {
+        "width": 691,
+        "height": 128
+      }
+    },
+    {
+      "id": "pure",
+      "label": "Core/Pure · KanameCore",
+      "kind": "business",
+      "module": "pure",
+      "subtitle": "纯逻辑核心：只许 Foundation",
+      "facts": [
+        "同一份源码编译两次：App target 与 SwiftPM 库",
+        "85+ 纯类型：组合键解析、搜索语料、排序、冲突、面板几何、录制策略",
+        "XCTest 867 项全绿（2026-11-07）；CI 70% 行覆盖硬闸门"
+      ],
+      "overviewText": [
+        "所有能脱离 AppKit 表达的决策都住在这里，也是唯一测得到的层。"
+      ],
+      "badges": [
+        {
+          "label": "867 项测试",
+          "role": "status",
+          "evidence": "document",
+          "source": {
+            "file": "docs/zh-CN/STATUS.md",
+            "lineStart": 384,
+            "lineEnd": 384
+          }
+        }
+      ],
+      "source": {
+        "file": "Package.swift",
+        "lineStart": 12,
+        "lineEnd": 14,
+        "symbol": "KanameCore",
+        "kind": "config"
+      },
+      "position": {
+        "x": 769,
+        "y": 620
+      },
+      "size": {
+        "width": 691,
+        "height": 128
+      }
+    },
+    {
+      "id": "ax",
+      "label": "Core/AX",
+      "kind": "component",
+      "module": "platform",
+      "subtitle": "菜单扫描 · 权限 · 窗口几何",
+      "facts": [
+        "MenuScanner 后台串行扫描，每个 AX 调用 0.35s 超时",
+        "两层缓存：内存 20s + 磁盘 10min，指纹失效",
+        "PermissionCenter 跟踪辅助功能与输入监控",
+        "CatalogLoader 并发二，世代守卫只发布最新结果"
+      ],
+      "overviewText": [
+        "把「读另一个 App 的菜单栏」隔离在这一层；卡死的 App 拖不住主线程。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/Core/AX/MenuScanner.swift",
+        "lineStart": 32,
+        "lineEnd": 32,
+        "symbol": "MenuScanner",
+        "kind": "source"
+      },
+      "position": {
+        "x": 64,
+        "y": 874
+      },
+      "size": {
+        "width": 326.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "input",
+      "label": "Core/Input",
+      "kind": "component",
+      "module": "platform",
+      "subtitle": "事件 tap · 吞键 · 注入 · 实测",
+      "facts": [
+        "KeyboardMonitor 跑在带自己 run loop 的专用线程",
+        "吞键读引擎发布的 ComposedSwallow 快照，与引擎同一条纯规则",
+        "事件经 32 格 InputMailbox 有界批交给主 actor",
+        "ShortcutInjector 只在执行时回放；ShortcutTester 双 tap 实测冲突"
+      ],
+      "overviewText": [
+        "主线程卡死既拖不住 tap 也冻不住键盘；它从不记录按键。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/Core/Input/KeyboardMonitor.swift",
+        "lineStart": 43,
+        "lineEnd": 43,
+        "symbol": "KeyboardMonitor",
+        "kind": "source"
+      },
+      "position": {
+        "x": 420.5,
+        "y": 874
+      },
+      "size": {
+        "width": 326.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "storage",
+      "label": "Core/Storage",
+      "kind": "component",
+      "module": "storage",
+      "subtitle": "settings / usage 的 JSON 存储",
+      "facts": [
+        "防抖单写者，原子替换",
+        "损坏文件保留为 .corrupt 副本而非覆盖",
+        "schema v11；decodeIfPresent 默认值即迁移"
+      ],
+      "overviewText": [
+        "只有设置与统计是用户数据；放 Application Support 而非 UserDefaults，重装不丢。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/Core/Storage/SettingsStore.swift",
+        "lineStart": 15,
+        "lineEnd": 15,
+        "symbol": "SettingsStore",
+        "kind": "source"
+      },
+      "position": {
+        "x": 1133.5,
+        "y": 874
+      },
+      "size": {
+        "width": 326.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "services",
+      "label": "Core/Services",
+      "kind": "component",
+      "module": "services",
+      "subtitle": "诊断 · 崩溃报告 · 更新检查 · Karabiner 桥",
+      "facts": [
+        "Diag 是唯一日志门面，FileLogStore 每日轮转",
+        "CrashReporter 信号级崩溃报告 + 干净退出哨兵",
+        "UpdateChecker 是 App 里唯一联网代码",
+        "KarabinerBridge 合并去抖写变量，退出同步清零"
+      ],
+      "overviewText": [
+        "支撑服务：都可降级，失败只损失诊断信息或一次重扫。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/Core/Services/Diag.swift",
+        "lineStart": 22,
+        "lineEnd": 22,
+        "symbol": "Diag",
+        "kind": "source"
+      },
+      "position": {
+        "x": 777,
+        "y": 874
+      },
+      "size": {
+        "width": 326.5,
+        "height": 206
+      }
+    },
+    {
+      "id": "datastore",
+      "label": "Application Support",
+      "kind": "database",
+      "module": "storage",
+      "subtitle": "~/Library/Application Support/Kaname/",
+      "facts": [
+        "settings.json / usage.json 是仅有的用户数据",
+        "menu-cache/、conflicts-cache.json、logs/、crash/ 都是派生数据，可删重建"
+      ],
+      "overviewText": [
+        "全部本地，永不上传；删掉文件夹只损失一次重扫与一段历史。"
+      ],
+      "badges": [],
+      "source": {
+        "file": "Kaname/Core/Storage/DataDirectory.swift",
+        "lineStart": 15,
+        "lineEnd": 15,
+        "symbol": "DataDirectory",
+        "kind": "source"
+      },
+      "position": {
+        "x": 64,
+        "y": 1554
+      },
+      "size": {
+        "width": 1396,
+        "height": 96
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e01-app-engine",
+      "source": "app",
+      "target": "engine",
+      "kind": "call",
+      "label": "创建·启动",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/App/AppDelegate.swift",
+        "lineStart": 12,
+        "lineEnd": 12,
+        "symbol": "ShortcutEngine"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 0,
+            "y": 182.8
+          },
+          {
+            "x": 0,
+            "y": 640
+          }
+        ],
+        "labelAt": {
+          "x": 0,
+          "y": 411.4
+        }
+      }
+    },
+    {
+      "id": "e02-app-panel",
+      "source": "app",
+      "target": "ui-panel",
+      "kind": "call",
+      "label": "装配面板",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/App/AppDelegate.swift",
+        "lineStart": 15,
+        "lineEnd": 15,
+        "symbol": "SurfacePanelController"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 52,
+            "y": 194
+          },
+          {
+            "x": 52,
+            "y": 360
+          }
+        ],
+        "labelAt": {
+          "x": 52,
+          "y": 264.99
+        }
+      }
+    },
+    {
+      "id": "e03-app-shell",
+      "source": "app",
+      "target": "ui-shell",
+      "kind": "call",
+      "label": "装配菜单栏",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/App/AppDelegate.swift",
+        "lineStart": 129,
+        "lineEnd": 129,
+        "symbol": "StatusItemController"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 1232,
+            "y": 226
+          },
+          {
+            "x": 1232,
+            "y": 328
+          }
+        ],
+        "labelAt": {
+          "x": 1232,
+          "y": 277
+        }
+      }
+    },
+    {
+      "id": "e04-panel-engine",
+      "source": "ui-panel",
+      "target": "engine",
+      "kind": "call",
+      "label": "点击与按键动作",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/UI/Overlay/OverlayView.swift",
+        "lineStart": 929,
+        "lineEnd": 929,
+        "symbol": "activate"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 284,
+            "y": 506
+          },
+          {
+            "x": 284,
+            "y": 608
+          }
+        ],
+        "labelAt": {
+          "x": 284,
+          "y": 544.99
+        }
+      }
+    },
+    {
+      "id": "e05-settings-engine",
+      "source": "ui-settings",
+      "target": "engine",
+      "kind": "call",
+      "label": "录制与设置",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/UI/Settings/SettingsView.swift",
+        "lineStart": 638,
+        "lineEnd": 638,
+        "symbol": "beginRecording"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 554,
+            "y": 506
+          },
+          {
+            "x": 554,
+            "y": 608
+          }
+        ],
+        "labelAt": {
+          "x": 554,
+          "y": 557
+        }
+      }
+    },
+    {
+      "id": "e06-engine-panel",
+      "source": "engine",
+      "target": "ui-panel",
+      "kind": "call",
+      "label": "展示（经 Ports 协议）",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 1530,
+        "lineEnd": 1530,
+        "symbol": "presentPanel"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 389.5,
+            "y": 608
+          },
+          {
+            "x": 389.5,
+            "y": 506
+          }
+        ],
+        "labelAt": {
+          "x": 389.5,
+          "y": 581
+        }
+      }
+    },
+    {
+      "id": "e07-engine-pure",
+      "source": "engine",
+      "target": "pure",
+      "kind": "call",
+      "label": "路由·排序·搜索",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 1127,
+        "lineEnd": 1127,
+        "symbol": "KeyEventRouter"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 735,
+            "y": 608
+          },
+          {
+            "x": 1752.5,
+            "y": 608
+          },
+          {
+            "x": 1309.8,
+            "y": 608
+          }
+        ],
+        "labelAt": {
+          "x": 1531.15,
+          "y": 608
+        }
+      }
+    },
+    {
+      "id": "e08-engine-ax",
+      "source": "engine",
+      "target": "ax",
+      "kind": "call",
+      "label": "加载目录",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/CatalogCoordinator.swift",
+        "lineStart": 84,
+        "lineEnd": 84,
+        "symbol": "load"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 52,
+            "y": 728
+          },
+          {
+            "x": 52,
+            "y": 894
+          }
+        ],
+        "labelAt": {
+          "x": 52,
+          "y": 798.99
+        }
+      }
+    },
+    {
+      "id": "e09-engine-input",
+      "source": "engine",
+      "target": "input",
+      "kind": "call",
+      "label": "启动 tap",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 654,
+        "lineEnd": 654,
+        "symbol": "start"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 583.75,
+            "y": 760
+          },
+          {
+            "x": 583.75,
+            "y": 862
+          }
+        ],
+        "labelAt": {
+          "x": 583.75,
+          "y": 811
+        }
+      }
+    },
+    {
+      "id": "e10-input-engine",
+      "source": "input",
+      "target": "engine",
+      "kind": "data",
+      "label": "按键事件批",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 641,
+        "lineEnd": 641,
+        "symbol": "onEvent"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 440.5,
+            "y": 862
+          },
+          {
+            "x": 440.5,
+            "y": 760
+          }
+        ],
+        "labelAt": {
+          "x": 440.5,
+          "y": 811
+        }
+      }
+    },
+    {
+      "id": "e11-engine-storage",
+      "source": "engine",
+      "target": "storage",
+      "kind": "data",
+      "label": "设置·用量",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 1277,
+        "lineEnd": 1277,
+        "symbol": "record"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 735,
+            "y": 774
+          },
+          {
+            "x": 1153.5,
+            "y": 774
+          }
+        ],
+        "labelAt": {
+          "x": 1153.5,
+          "y": 824
+        }
+      }
+    },
+    {
+      "id": "e12-engine-services",
+      "source": "engine",
+      "target": "services",
+      "kind": "call",
+      "label": "日志·Karabiner 信号",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Engine/ShortcutEngine.swift",
+        "lineStart": 393,
+        "lineEnd": 393,
+        "symbol": "signalKarabiner"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 604.8,
+            "y": 782
+          },
+          {
+            "x": 797,
+            "y": 782
+          }
+        ],
+        "labelAt": {
+          "x": 797,
+          "y": 828
+        }
+      }
+    },
+    {
+      "id": "e13-ax-macos",
+      "source": "ax",
+      "target": "macos",
+      "kind": "call",
+      "label": "AX 遍历·按压",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/AX/MenuScanner.swift",
+        "lineStart": 44,
+        "lineEnd": 44,
+        "symbol": "AXUIElementCreateApplication"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 313.2,
+            "y": 1092
+          },
+          {
+            "x": 313.2,
+            "y": 1210
+          },
+          {
+            "x": 436.5,
+            "y": 1210
+          }
+        ],
+        "labelAt": {
+          "x": 313.2,
+          "y": 1114.99
+        }
+      }
+    },
+    {
+      "id": "e14-ax-frontmost",
+      "source": "ax",
+      "target": "frontmost",
+      "kind": "data",
+      "label": "只读菜单栏",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/AX/MenuScanner.swift",
+        "lineStart": 36,
+        "lineEnd": 36,
+        "symbol": "scan"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 215.25,
+            "y": 1092
+          },
+          {
+            "x": 215.25,
+            "y": 1210
+          }
+        ],
+        "labelAt": {
+          "x": 215.25,
+          "y": 1151
+        }
+      }
+    },
+    {
+      "id": "e15-input-macos",
+      "source": "input",
+      "target": "macos",
+      "kind": "call",
+      "label": "创建事件 tap",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Input/KeyboardMonitor.swift",
+        "lineStart": 249,
+        "lineEnd": 249,
+        "symbol": "tapCreate"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 591.75,
+            "y": 1092
+          },
+          {
+            "x": 591.75,
+            "y": 1210
+          }
+        ],
+        "labelAt": {
+          "x": 591.75,
+          "y": 1151
+        }
+      }
+    },
+    {
+      "id": "e16-macos-input",
+      "source": "macos",
+      "target": "input",
+      "kind": "data",
+      "label": "全局按键流",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Input/KeyboardMonitor.swift",
+        "lineStart": 717,
+        "lineEnd": 717,
+        "symbol": "post"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 496.2,
+            "y": 1210
+          },
+          {
+            "x": 497.8,
+            "y": 1210
+          },
+          {
+            "x": 497.8,
+            "y": 1092
+          }
+        ],
+        "labelAt": {
+          "x": 497.8,
+          "y": 1114.99
+        }
+      }
+    },
+    {
+      "id": "e17-input-frontmost",
+      "source": "input",
+      "target": "frontmost",
+      "kind": "call",
+      "label": "回放组合键",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Input/ShortcutInjector.swift",
+        "lineStart": 226,
+        "lineEnd": 226,
+        "symbol": "post"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 440.5,
+            "y": 1092
+          },
+          {
+            "x": 382.5,
+            "y": 1092
+          },
+          {
+            "x": 382.5,
+            "y": 1210
+          }
+        ],
+        "labelAt": {
+          "x": 382.5,
+          "y": 1157
+        }
+      }
+    },
+    {
+      "id": "e18-pure-tools",
+      "source": "pure",
+      "target": "tools",
+      "kind": "data",
+      "label": "只读解析配置",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Pure/ConfigFileScanner.swift",
+        "lineStart": 55,
+        "lineEnd": 55,
+        "symbol": "scan"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 1611,
+            "y": 692
+          },
+          {
+            "x": 1611,
+            "y": 1440
+          },
+          {
+            "x": 1087.5,
+            "y": 1440
+          }
+        ],
+        "labelAt": {
+          "x": 1611,
+          "y": 1066
+        }
+      }
+    },
+    {
+      "id": "e19-services-tools",
+      "source": "services",
+      "target": "tools",
+      "kind": "call",
+      "label": "CLI 写变量",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Services/KarabinerBridge.swift",
+        "lineStart": 141,
+        "lineEnd": 141,
+        "symbol": "run"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 944.25,
+            "y": 1092
+          },
+          {
+            "x": 944.25,
+            "y": 1210
+          }
+        ],
+        "labelAt": {
+          "x": 944.25,
+          "y": 1151
+        }
+      }
+    },
+    {
+      "id": "e20-services-github",
+      "source": "services",
+      "target": "github",
+      "kind": "request",
+      "label": "手动检查更新",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Services/UpdateChecker.swift",
+        "lineStart": 29,
+        "lineEnd": 29,
+        "symbol": "URL"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 1083.5,
+            "y": 1092
+          },
+          {
+            "x": 1141.5,
+            "y": 1092
+          },
+          {
+            "x": 1141.5,
+            "y": 1210
+          }
+        ],
+        "labelAt": {
+          "x": 1141.5,
+          "y": 1157
+        }
+      }
+    },
+    {
+      "id": "e21-storage-data",
+      "source": "storage",
+      "target": "datastore",
+      "kind": "data",
+      "label": "原子写 JSON",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Storage/DataDirectory.swift",
+        "lineStart": 92,
+        "lineEnd": 92,
+        "symbol": "write"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 1472,
+            "y": 1060
+          },
+          {
+            "x": 1472,
+            "y": 1576
+          }
+        ],
+        "labelAt": {
+          "x": 1472,
+          "y": 1200.99
+        }
+      }
+    },
+    {
+      "id": "e22-ax-data",
+      "source": "ax",
+      "target": "datastore",
+      "kind": "data",
+      "label": "菜单缓存",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/AX/MenuScanCache.swift",
+        "lineStart": 204,
+        "lineEnd": 204,
+        "symbol": "write"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 52,
+            "y": 1060
+          },
+          {
+            "x": 52,
+            "y": 1576
+          }
+        ],
+        "labelAt": {
+          "x": 52,
+          "y": 1449.01
+        }
+      }
+    },
+    {
+      "id": "e23-services-data",
+      "source": "services",
+      "target": "datastore",
+      "kind": "data",
+      "label": "日志·崩溃报告",
+      "evidence": "source",
+      "site": {
+        "file": "Kaname/Core/Services/FileLogStore.swift",
+        "lineStart": 130,
+        "lineEnd": 130,
+        "symbol": "flush"
+      },
+      "route": {
+        "via": [
+          {
+            "x": 765,
+            "y": 1060
+          },
+          {
+            "x": 762,
+            "y": 1060
+          },
+          {
+            "x": 762,
+            "y": 1542
+          }
+        ],
+        "labelAt": {
+          "x": 762,
+          "y": 1200.99
+        }
+      }
+    }
+  ],
+  "layout": {
+    "overviewConnections": "all",
+    "sections": [
+      {
+        "id": "s-app",
+        "title": "入口（组合根）",
+        "mode": "stack",
+        "tone": "subtle",
+        "items": [
+          {
+            "nodeId": "app"
+          }
+        ],
+        "position": {
+          "x": 42,
+          "y": 42
+        },
+        "size": {
+          "width": 1440,
+          "height": 194
+        }
+      },
+      {
+        "id": "s-ui",
+        "title": "界面层 UI/（AppKit + SwiftUI）",
+        "mode": "grid",
+        "columns": 3,
+        "tone": "blue",
+        "items": [
+          {
+            "nodeId": "ui-panel"
+          },
+          {
+            "nodeId": "ui-settings"
+          },
+          {
+            "nodeId": "ui-shell"
+          }
+        ],
+        "position": {
+          "x": 42,
+          "y": 264
+        },
+        "size": {
+          "width": 1440,
+          "height": 252
+        }
+      },
+      {
+        "id": "s-core",
+        "title": "引擎与纯逻辑核心",
+        "mode": "grid",
+        "columns": 2,
+        "tone": "green",
+        "items": [
+          {
+            "nodeId": "engine"
+          },
+          {
+            "nodeId": "pure"
+          }
+        ],
+        "position": {
+          "x": 42,
+          "y": 544
+        },
+        "size": {
+          "width": 1440,
+          "height": 226
+        }
+      },
+      {
+        "id": "s-platform",
+        "title": "平台适配与支撑 Core/",
+        "mode": "grid",
+        "columns": 4,
+        "tone": "lavender",
+        "items": [
+          {
+            "nodeId": "ax"
+          },
+          {
+            "nodeId": "input"
+          },
+          {
+            "nodeId": "services"
+          },
+          {
+            "nodeId": "storage"
+          }
+        ],
+        "position": {
+          "x": 42,
+          "y": 798
+        },
+        "size": {
+          "width": 1440,
+          "height": 304
+        }
+      },
+      {
+        "id": "s-external",
+        "title": "外部世界",
+        "mode": "row",
+        "tone": "plain",
+        "items": [
+          {
+            "nodeId": "frontmost"
+          },
+          {
+            "nodeId": "macos"
+          },
+          {
+            "nodeId": "tools"
+          },
+          {
+            "nodeId": "github"
+          }
+        ],
+        "position": {
+          "x": 42,
+          "y": 1146
+        },
+        "size": {
+          "width": 1440,
+          "height": 304
+        }
+      },
+      {
+        "id": "s-data",
+        "title": "本地数据",
+        "mode": "stack",
+        "tone": "subtle",
+        "items": [
+          {
+            "nodeId": "datastore"
+          }
+        ],
+        "position": {
+          "x": 42,
+          "y": 1478
+        },
+        "size": {
+          "width": 1440,
+          "height": 194
+        }
+      }
+    ],
+    "version": "templates-v4-clearance-compact-elkjs-0.11.0",
+    "direction": "down",
+    "strategy": "architecture-overview-v2"
+  }
+}
