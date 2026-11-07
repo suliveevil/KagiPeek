@@ -65,6 +65,25 @@ nonisolated enum CrashReporter {
         recoveryState.withLock { $0.status }
     }
 
+    /// Whether *this* process wrote `logs/session.active`.
+    ///
+    /// Existence is shared state — the file is one path for every instance — while ownership
+    /// is per process. Without this flag the clean-exit path could only ask "is there a file?",
+    /// which a duplicate launch answers wrongly: it found the running instance's sentinel,
+    /// deleted it on its own way out, and left the live process with no evidence that a later
+    /// crash was not a clean exit. Same lock idiom as `RecoveryState` above.
+    private final class SentinelOwnership: @unchecked Sendable {
+        private let lock = NSLock()
+        var isOwned = false
+
+        func withLock<T>(_ body: (SentinelOwnership) -> T) -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return body(self)
+        }
+    }
+    private static let sentinelOwnership = SentinelOwnership()
+
     private static func publish(_ status: CrashRecoveryStatus) {
         recoveryState.withLock { $0.status = status }
     }
@@ -136,7 +155,7 @@ nonisolated enum CrashReporter {
     // MARK: - Session lifecycle
 
     /// Called right after `install()`. Reports what the previous session left behind, then
-    /// arms this session's sentinel and fragment path.
+    /// arms this session's sentinel and fragment path — unless another instance still owns it.
     ///
     /// Order matters twice over:
     /// * the sweep for last session's fragments must run *before* today's fragment exists,
@@ -147,27 +166,43 @@ nonisolated enum CrashReporter {
     static func beginSession() {
         startedAt = Date()
         completePartialReports()
-        reportPreviousSessionIfNeeded()
-        writeSentinel()
+        claimSentinel()
         prepareSignalFragment()
         pruneCrashReports()
         // Says out loud whether the next crash will leave anything behind — the one piece of
-        // diagnostics state that is otherwise invisible.
+        // diagnostics state that is otherwise invisible — and whether this process is the one
+        // whose crash the file describes.
         Diag.info(.crash, """
             crash reporter armed signals=\(reportedSignals.count) \
-            fragment=\(partialPathPointer != nil ? "armed" : "unavailable")
+            fragment=\(partialPathPointer != nil ? "armed" : "unavailable") \
+            sentinel=\(sentinelOwnership.withLock { $0.isOwned } ? "owned" : "left to another instance")
             """)
     }
 
-    /// Called before any flush on a clean termination: deleting the sentinel is idempotent
-    /// and cannot fail in a way that matters, so it goes first.
+    /// Called before any flush on a clean termination, so a delete that fails is still
+    /// recorded before the log buffer goes to disk.
+    ///
+    /// Only the owner deletes it. A duplicate launch reaches this same path — the
+    /// single-instance guard rejects it and calls `terminate` — and deleting a file it never
+    /// wrote is what used to erase a running process's crash detection.
     static func markCleanExit() {
         let sentinelExists = FileManager.default.fileExists(atPath: sentinelURL.path)
-        if SentinelState.terminateDecision(sentinelExists: sentinelExists) == .remove {
-            try? FileManager.default.removeItem(at: sentinelURL)
+        let owned = sentinelOwnership.withLock { $0.isOwned }
+        switch SentinelState.terminateDecision(sentinelExists: sentinelExists, ownedByThisProcess: owned) {
+        case .remove:
+            removeSentinel(reason: "on a clean exit")
+            sentinelOwnership.withLock { $0.isOwned = false }
+        case .leaveAlone:
+            Diag.info(.exit, "sentinel left in place: it belongs to another, still-running instance")
+        case .clean, .write, .reportUnexpectedExit, .ownedByLiveProcess:
+            break
         }
-        cleanupPartial()
-        actions.clear()
+        if owned {
+            // Both of these reach files a duplicate launch must not touch: the fragment path is
+            // named after this process, and the action mirror is shared with the live instance.
+            cleanupPartial()
+            actions.clear()
+        }
         let uptime = Int(Date().timeIntervalSince(startedAt))
         Diag.info(.exit, "clean exit uptime=\(uptime)s")
         logs.flushNow()
@@ -175,14 +210,22 @@ nonisolated enum CrashReporter {
 
     // MARK: - Launch-side reporting
 
+    /// This process's pid, in the type `SentinelState` speaks.
+    private static var currentPID: Int32 { ProcessInfo.processInfo.processIdentifier }
+
+    /// Writes this session's sentinel and records that it belongs to us.
     private static func writeSentinel() {
-        let content = "pid=\(ProcessInfo.processInfo.processIdentifier) started=\(ISO8601DateFormatter().string(from: Date()))\n"
+        let content = "pid=\(currentPID) started=\(ISO8601DateFormatter().string(from: Date()))\n"
         do {
             try FileManager.default.createDirectory(
                 at: sentinelURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
             try content.write(to: sentinelURL, atomically: true, encoding: .utf8)
+            // Only a write that reached disk makes this process the owner. A failed write
+            // leaves the flag false, which is what keeps the clean exit from deleting a file
+            // some other instance may still be relying on.
+            sentinelOwnership.withLock { $0.isOwned = true }
         } catch {
             // Without the sentinel the next launch cannot tell a crash from a clean quit, so
             // this is not housekeeping: it is the whole detection mechanism. A line in the log
@@ -191,21 +234,41 @@ nonisolated enum CrashReporter {
         }
     }
 
-    /// Turns the previous session's sentinel into an honest log line. A crash and a force
-    /// quit both leave the sentinel; only one of them leaves a report, and the log says which.
-    private static func reportPreviousSessionIfNeeded() {
+    /// Turns the previous session's sentinel into an honest log line, then claims the file for
+    /// this session — unless another instance still owns it.
+    ///
+    /// A crash and a force quit both leave the sentinel; only one of them leaves a report, and
+    /// the log says which. The third case is the one this used to get wrong: the file can
+    /// belong to a process that is still running, and then there is nothing to report and
+    /// nothing to delete.
+    private static func claimSentinel() {
         let sentinelExists = FileManager.default.fileExists(atPath: sentinelURL.path)
+        guard sentinelExists else {
+            writeSentinel()
+            return
+        }
+
+        let content = (try? String(contentsOf: sentinelURL, encoding: .utf8)) ?? ""
+        let owner = SentinelState.ownerPID(in: content)
         let attributes = try? FileManager.default.attributesOfItem(atPath: sentinelURL.path)
         let sentinelDate = attributes?[.modificationDate] as? Date
-        let report = sentinelExists ? latestCrashReport(after: sentinelDate) : nil
+        let report = latestCrashReport(after: sentinelDate)
 
         switch SentinelState.launchDecision(
-            sentinelExists: sentinelExists,
+            sentinelExists: true,
+            ownerPID: owner,
+            ownerIsLive: owner.map(isProcessAlive) ?? false,
+            currentPID: currentPID,
             crashPartialExists: report != nil
         ) {
-        case .clean:
-            return
-        case .write, .remove:
+        case .ownedByLiveProcess(let pid):
+            // Nothing to report and nothing to claim: the file describes a session that is
+            // still going. Leaving it alone also keeps its modification date, which is the
+            // lower bound a later report is matched against.
+            Diag.info(.crash, """
+                sentinel left in place: pid=\(pid) is still running, so no session ended \
+                unexpectedly and this launch must not delete its evidence
+                """)
             return
         case .reportUnexpectedExit(let partial):
             if partial, let report {
@@ -213,8 +276,45 @@ nonisolated enum CrashReporter {
             } else {
                 Diag.warning(.exit, "previous session ended unexpectedly (no crash report: killed, force quit or power loss)")
             }
+            removeSentinel(reason: "after reporting the previous session's unexpected exit")
+        case .clean, .write, .remove, .leaveAlone:
+            // Not launch verdicts: `.clean` is unreachable once the file exists, and the rest
+            // are commands for the terminate side.
+            break
         }
-        try? FileManager.default.removeItem(at: sentinelURL)
+        writeSentinel()
+    }
+
+    /// Deletes the sentinel, and says so when the delete fails.
+    ///
+    /// `try?` was wrong here in a way that only shows up a launch later: a delete that fails
+    /// leaves the file behind, and a file left behind is exactly how the next launch
+    /// fabricates an "ended unexpectedly" report. The write side has always warned about its
+    /// own failure; this side swallowed it, in the same file.
+    private static func removeSentinel(reason: String) {
+        do {
+            try FileManager.default.removeItem(at: sentinelURL)
+        } catch CocoaError.fileNoSuchFile {
+            // The idempotent case: nothing to delete, nothing to report.
+        } catch {
+            Diag.warning(.crash, """
+                could not delete the sentinel \(reason): \(error.localizedDescription) — \
+                the next launch will report an unexpected exit that did not happen
+                """)
+        }
+    }
+
+    /// Whether a process with this pid exists.
+    ///
+    /// `kill(pid, 0)` rather than `NSRunningApplication`: this whole type is `nonisolated`
+    /// because its entry points are reachable from any thread, and asserting main-actor
+    /// isolation just to ask AppKit would contradict that. The trade-off is that a recycled
+    /// pid reads as alive, which costs one deferred report at most — the sentinel is left in
+    /// place, so a later launch still sees it.
+    private static func isProcessAlive(_ pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        if kill(pid, 0) == 0 { return true }
+        return errno == EPERM  // alive, but owned by someone else
     }
 
     private static func latestCrashReport(after date: Date?) -> String? {

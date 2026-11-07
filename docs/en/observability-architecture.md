@@ -235,10 +235,19 @@ day's log) → write the complete `.json` report → delete the `.partial` → l
 
 - At launch `CrashReporter.beginSession()` writes `logs/session.active`, containing pid and start
   time.
+- **The sentinel has an owner.** The file is one global path, but "who wrote it" is per process. If
+  the pid inside is still alive (`kill(pid, 0)` succeeds and is not our own), this launch is the
+  duplicate: nothing is reported, nothing is overwritten, nothing is deleted — one
+  `I [crash] sentinel left in place: pid=… is still running` line instead. The clean exit likewise
+  removes only the file this process wrote (`SentinelOwnership`); otherwise a double-launched copy
+  would delete a running instance's evidence on its way out. A sentinel with no pid (an older file)
+  falls back to the plain "does the file exist" verdict.
 - `applicationWillTerminate` runs a single exit sequence (`AppDelegate.performShutdown`), ordered by
   what cannot be recovered:
-  1. **Delete the sentinel first** — deleting is idempotent and cannot fail, so it takes precedence
-     over anything that might block; the same step also deletes this session's `.partial` and the
+  1. **Delete the sentinel first** — deleting is the only step that waits on nothing, so it takes
+     precedence over anything that might block; a failed delete logs
+     `W [crash] could not delete the sentinel …`, because a sentinel left behind *is* the next
+     launch's false crash report. The same step also deletes this session's `.partial` and the
      on-disk `last-actions.json`, because a clean exit should not leave the next launch anything
      that looks like a crash;
   2. **Flush both stores** (settings, usage) — the last edit inside a debounce window is the only
@@ -255,12 +264,13 @@ day's log) → write the complete `.json` report → delete the `.partial` → l
   1. `completePartialReports()`: complete last time's `-signal.partial` into a full report (see
      3.2). It must run before this launch's fragment paths are prepared, or an empty file gets
      deleted as a corrupt fragment;
-  2. `reportPreviousSessionIfNeeded()`: the sentinel is still there → the previous run did not exit
-     cleanly. With a crash report inside the time window the line is
+  2. `claimSentinel()`: the sentinel is still there → ask who it belongs to. A live pid means one
+     info line and the file stays exactly as it is (the duplicate-launch path); otherwise the
+     previous run did not exit cleanly. With a crash report inside the time window the line is
      `W [exit] previous session ended unexpectedly (crash report: …)`, without one it is
-     `(no crash report: killed, force quit or power loss)`. The leftover sentinel is then **deleted
-     outright**, not archived or renamed;
-  3. `writeSentinel()`: write this run's sentinel;
+     `(no crash report: killed, force quit or power loss)`. The leftover sentinel is then deleted
+     outright (not archived or renamed) and this run's sentinel is written;
+  3. once that write lands, `SentinelOwnership` marks this process as the owner;
   4. `prepareSignalFragment()`: encode this run's signal fragment paths and context.
 - Boundary: selftest mode (`KANAME_SELFTEST`) also goes through a normal `NSApp.terminate`, so the
   sentinel is cleaned up as usual.
@@ -382,8 +392,9 @@ different positions are deliberate:
 | `KANAME_SELFTEST` | **before the single-instance guard** | Logs `I [start] selftest mode`, runs `engine.start()` as usual, after 3 seconds writes `engine.diagnosticsReport()` to `NSTemporaryDirectory()/kaname-selftest.json`, then `stop()` + flushes both stores + `NSApp.terminate(nil)`. It sits before the guard because what you usually want to ask is the copy **already installed and running**: "what do you see?" |
 | `KANAME_EXPORT_DIAGNOSTICS=<path>` | **after the single-instance guard** | Calls `DiagnosticsExporter.export(to:settings:)` to write the zip to the given path, then `NSApp.terminate(nil)`; on failure the reason goes to stderr |
 
-Both go through a normal `NSApp.terminate`, so the sentinel is cleaned up as usual and no fake
-"unexpected exit" lands in the log. The outcome is logged as
+Both go through a normal `NSApp.terminate`, so no fake "unexpected exit" lands in the log. The
+sentinel is handled by ownership: when an instance is already running the diagnostic process
+neither claims nor deletes it (`sentinel left in place`), leaving the live instance's file intact. The outcome is logged as
 `I [ui] selftest written to <path>` or `E [ui] selftest failed: <reason>`.
 
 ---

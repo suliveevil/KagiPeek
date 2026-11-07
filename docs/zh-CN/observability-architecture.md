@@ -190,16 +190,21 @@ raise(sig);
 ### 3.3 意外退出哨兵
 
 - 启动时 `CrashReporter.beginSession()` 写 `logs/session.active`，内容：pid、启动时间。
+- **哨兵有归属**：文件是全局唯一路径，但"谁写的"是每进程的事。启动时读到 pid 仍存活（`kill(pid, 0)` 成功，且不等于自己），就判定为第二个实例——不报"上次异常退出"、不覆盖、不删除，只记一条
+  `I [crash] sentinel left in place: pid=… is still running`。退出时也只删自己写过的那个（`SentinelOwnership`），
+  否则双击启动的副本会替正在运行的实例把证据删掉。哨兵里没写 pid（旧文件）时回到只看"文件在不在"的旧判定。
 - `applicationWillTerminate` 只有一条退出序列（`AppDelegate.performShutdown`），按「丢了就找不回来」排序：
-  1. **先删哨兵**——删除幂等且不可失败，优先于任何可能阻塞的步骤；同一步还会删掉本次会话的 `.partial` 和磁盘上的 `last-actions.json`，正常退出不该给下次启动留下"像是崩过"的痕迹；
+  1. **先删哨兵**——删除是全链上唯一不依赖外部进程的动作，优先于任何可能阻塞的步骤；删失败会记一条
+     `W [crash] could not delete the sentinel …`（残留一个哨兵就是下次启动的假崩溃报告）。同一步还会删掉本次会话的
+     `.partial` 和磁盘上的 `last-actions.json`，正常退出不该给下次启动留下"像是崩过"的痕迹；
   2. **两个 store 先 flush**（settings、usage）——去抖窗口里最后一次编辑是这条链上唯一无法恢复的损失，所以它排在任何会等外部进程的步骤之前；
   3. 菜单栏项下线、引擎 `stop()`；把 Karabiner 变量复位是引擎的最后一个动作；
   4. 预览会话最后恢复真实设置并自行落盘（提前恢复只是把值交给一个已在关闭的引擎）。
   这条链上每一步的等待都有上界：`FileLogStore.flushNow` 500ms、`UsageStore.flush` 500ms、每次 `karabiner_cli` 800ms（超时即 `terminate` 并记一条警告）——退出不会挂在任何外部进程上。
 - 下次启动的顺序是固定的，四步不能换位：
   1. `completePartialReports()`：把上次的 `-signal.partial` 补全成完整报告（见 3.2）。必须排在本次的片段路径准备好之前，否则会把一个空文件当成损坏的片段删掉；
-  2. `reportPreviousSessionIfNeeded()`：哨兵还在 → 上次不是正常退出。带时间窗内崩溃报告的一条是 `W [exit] previous session ended unexpectedly (crash report: …)`，没有的则是 `(no crash report: killed, force quit or power loss)`。然后**直接删除**残留哨兵，不归档、不改名；
-  3. `writeSentinel()`：写本次的哨兵；
+  2. `claimSentinel()`：哨兵还在 → 看它属于谁。pid 仍存活则只记一条 info 并**原样保留**（第二个实例走这条）；否则判定上次不是正常退出——带时间窗内崩溃报告的一条是 `W [exit] previous session ended unexpectedly (crash report: …)`，没有的则是 `(no crash report: killed, force quit or power loss)`——然后删掉残留哨兵（不归档、不改名）并写下本次的；
+  3. 哨兵落盘后 `SentinelOwnership` 置位，本次进程才算 owner；
   4. `prepareSignalFragment()`：编码本次的信号片段路径与上下文。
 - 边界：selftest 模式（`KANAME_SELFTEST`）也走正常 `NSApp.terminate`，哨兵自然清理。
 - 挂起/watchdog：明确不做（accessory 应用无 iOS 式 watchdog 语义），列为非目标。
@@ -285,7 +290,7 @@ Kaname-diagnostics/
 | `KANAME_SELFTEST` | **单实例守卫之前** | 记 `I [start] selftest mode`，照常 `engine.start()`，3 秒后把 `engine.diagnosticsReport()` 写到 `NSTemporaryDirectory()/kaname-selftest.json`，再 `stop()` + flush 两个 store + `NSApp.terminate(nil)`。放在守卫之前，是因为要问的往往是**已经装着、正在运行**的那份拷贝"你看见了什么" |
 | `KANAME_EXPORT_DIAGNOSTICS=<path>` | **单实例守卫之后** | 调 `DiagnosticsExporter.export(to:settings:)` 写 zip 到给定路径，然后 `NSApp.terminate(nil)`；失败把原因写到 stderr |
 
-两者都走正常的 `NSApp.terminate`，所以哨兵照常清理、不会在日志里留下假的"意外退出"。
+两者都走正常的 `NSApp.terminate`，所以不会在日志里留下假的"意外退出"。哨兵按归属处理：若已有实例在跑，诊断进程不认领也不删除（`sentinel left in place`），正在运行的实例的哨兵原样保留。
 写入结果记 `I [ui] selftest written to <path>` 或 `E [ui] selftest failed: <reason>`。
 
 ---
