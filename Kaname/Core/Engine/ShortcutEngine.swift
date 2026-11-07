@@ -1439,11 +1439,13 @@ final class ShortcutEngine: ObservableObject {
     /// has been released and pressed again; a hotkey or menu action passes `false`. In
     /// both cases the rows keep their full chord — a ⌘ that is held is lit up in the row,
     /// not removed from it.
-    func activatePanel(waitingForTriggerRelease: Bool = false) {
+    func activatePanel(waitingForTriggerRelease: Bool = false, ignoringOwnMenu: Bool = false) {
         guard !state.isFrontAppExcluded else { return }
         // A popup owns the interaction: opening the panel would both cover it and take
-        // focus away from what the user is in the middle of choosing.
-        guard !PopupGate.present(pid: frontmostProcessIdentifier) else { return }
+        // focus away from what the user is in the middle of choosing. The one exception is
+        // Kaname's own status menu, which is still on screen while the item that asked for
+        // this panel is being dispatched — the user finished choosing there.
+        guard !PopupGate.present(pid: frontmostProcessIdentifier, ignoringOwnMenu: ignoringOwnMenu) else { return }
         state.search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
         state.phase = .active
@@ -1866,7 +1868,7 @@ final class ShortcutEngine: ObservableObject {
 
     // MARK: - Commands from the UI
 
-    func togglePinnedPanel(waitingForTriggerRelease: Bool = false) {
+    func togglePinnedPanel(waitingForTriggerRelease: Bool = false, ignoringOwnMenu: Bool = false) {
         // The menu bar item and the global hotkey do not pass through `handle(_:)`, so the
         // same stale-owner check has to live here too. When it fires, this press opens the
         // panel for the app now in front instead of closing one from the old Space.
@@ -1875,7 +1877,7 @@ final class ShortcutEngine: ObservableObject {
             dismissPanel()
             return
         }
-        activatePanel(waitingForTriggerRelease: waitingForTriggerRelease)
+        activatePanel(waitingForTriggerRelease: waitingForTriggerRelease, ignoringOwnMenu: ignoringOwnMenu)
     }
 
     /// One shortcut that swaps between the panel and the search palette.

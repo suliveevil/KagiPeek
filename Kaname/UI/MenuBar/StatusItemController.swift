@@ -202,7 +202,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func openSearch() { engine.showSearch() }
-    @objc private func togglePanel() { engine.togglePinnedPanel() }
+    /// Opens the panel from this app's own menu.
+    ///
+    /// The action is dispatched while the status menu carrying it is still the popup on
+    /// screen, and `activatePanel` refuses to open over a popup — a guard written for another
+    /// app's menu, which must not be covered mid-selection. `ignoringOwnMenu` says this popup
+    /// is Kaname's, so the request goes through; the menu closes on its own as the action
+    /// returns.
+    @objc private func togglePanel() { engine.togglePinnedPanel(ignoringOwnMenu: true) }
     @objc private func openPermissions() { engine.showPermissionsWindow() }
     @objc private func openSettings() { engine.showSettings() }
     @objc private func quit() { NSApp.terminate(nil) }

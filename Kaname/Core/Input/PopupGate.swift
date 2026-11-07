@@ -20,20 +20,31 @@ import CoreGraphics
 /// so it is read out of the frontmost app's AX windows instead.
 nonisolated enum PopupGate {
     /// A popup menu is on screen.
-    static func menuPresent() -> Bool {
+    ///
+    /// `excludingOwner` drops menus owned by that process. Kaname's own status menu is still
+    /// on screen while the item the user picked is being dispatched, and it is the one popup
+    /// that must not stop the app: the user asked for the panel by choosing an item from it.
+    static func menuPresent(excludingOwner ownPID: pid_t? = nil) -> Bool {
         guard let windows = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly],
             kCGNullWindowID
         ) as? [[String: Any]] else { return false }
         let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
         return windows.contains { window in
-            (window[kCGWindowLayer as String] as? Int) == menuLevel
+            guard (window[kCGWindowLayer as String] as? Int) == menuLevel else { return false }
+            guard let ownPID else { return true }
+            return (window[kCGWindowOwnerPID as String] as? Int) != Int(ownPID)
         }
     }
 
     /// A popup menu, sheet, or dialog is on screen.
-    static func present(pid: pid_t?) -> Bool {
-        if menuPresent() { return true }
+    ///
+    /// `ignoringOwnMenu` applies the same exception as `menuPresent(excludingOwner:)`: a
+    /// sheet or dialog keeps its vote, because those belong to the app in front and the
+    /// panel would still cover what the user is deciding in them.
+    static func present(pid: pid_t?, ignoringOwnMenu: Bool = false) -> Bool {
+        let ownPID: pid_t? = ignoringOwnMenu ? ProcessInfo.processInfo.processIdentifier : nil
+        if menuPresent(excludingOwner: ownPID) { return true }
         guard let pid, pid > 0 else { return false }
         return dialogPresent(pid: pid)
     }
