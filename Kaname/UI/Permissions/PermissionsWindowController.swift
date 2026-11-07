@@ -39,6 +39,13 @@ final class PermissionsWindowController {
         }
         guard let window else { return }
         window.title = engine.localization.text(.permissionsTitle)
+        // Same rule as Settings: the window belongs to the Space it was last ordered into,
+        // and this app is never active, so ordering it front from the menu bar used to take
+        // the user to whatever Space the window had last lived in. `.moveToActiveSpace` only
+        // re-parents an off-screen window, so one left visible elsewhere is taken down first.
+        if window.isVisible, !window.isOnActiveSpace {
+            window.orderOut(nil)
+        }
         // Activation belongs to the user's explicit open (or to the first-launch guide).
         // Permission-state polling no longer funnels through here, and the window keeps the
         // frame it already has instead of being re-centred under the pointer.
@@ -73,6 +80,10 @@ final class PermissionsWindowController {
         )
         panel.title = engine.localization.text(.permissionsTitle)
         panel.isReleasedWhenClosed = false
+        // The guide is also opened from the menu bar of whichever Space the user is looking
+        // at; `.fullScreenAuxiliary` covers a click made from a full-screen app's menu bar.
+        // As a sheet it follows its parent's Space instead and this behaviour stays dormant.
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.contentView = NSHostingView(rootView: root)
         panel.center()
         window = panel
