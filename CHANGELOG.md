@@ -4,6 +4,8 @@ All notable changes to this project are documented here, in the order the work h
 
 ## [Unreleased]
 
+## Kaname 2.3.3 (2026-11-07)
+
 ### Added
 
 - **The ⇧ chip in the title bar names both of its paths.** Clicking the chip ticks ⇧ into the modifier filter; pressing ⇧ on the keyboard flips the hint layer and never adds a filter token, because capital letters arrive with ⇧ down and `ShortcutEngine` keeps it out of the token list. One tooltip on the whole chip row could only describe the case the four keys agree on, so the tooltip moved from the row onto each chip and ⇧ got its own sentence — *click to add ⇧ to the filter; press ⇧ on the keyboard to open the hint layer* — carried both as `help` and as the accessibility hint, since VoiceOver never hovers. ⌃ ⌥ ⌘ keep the previous text.

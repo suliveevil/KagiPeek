@@ -269,7 +269,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.3.2;
+				MARKETING_VERSION = 2.3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.suliveevil.kaname;
 				PRODUCT_NAME = Kaname;
 				REGISTER_APP_GROUPS = YES;
@@ -306,7 +306,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.3.2;
+				MARKETING_VERSION = 2.3.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.suliveevil.kaname;
 				PRODUCT_NAME = Kaname;
 				REGISTER_APP_GROUPS = YES;
