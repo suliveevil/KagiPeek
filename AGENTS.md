@@ -66,6 +66,8 @@ git branch -d agent/<topic>             # 用 -d 复核可达性，不用 -D
 git worktree prune
 ```
 
+**合入 `main` 后立即清理 worktree 与 branch，不留到下一次。** ③ 与 ② 在同一轮里做完；残留的 worktree 会占住分支名，`git worktree list` 也不再反映真实在跑的任务。
+
 ④ 仅当合并含代码改动：`./scripts/install.sh`，沙箱外前台跑。纯文档、纯配置改动**不重装**。
 安装和 `push` 只由集成者一人执行，因为 `install.sh` 会写 `/Applications`、轮转备份、读签名钥匙串，
 多个 agent 同时跑会互相覆盖同一台机器上的同一个 app。分支删错从 `git reflog` 或 `backup/*` 分支找回；
