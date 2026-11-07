@@ -167,19 +167,21 @@ Because `⌘K` is the first stroke of a **multi-stroke shortcut** (a chord), suc
 - Press **⌫** to take back the last thing you added: a filter letter if it came last, otherwise that modifier; once the filter is empty the key goes back one level. It is handled only with no other modifier held, so ⌘⌫ remains an ordinary shortcut. **Esc** closes the panel.
 - Press the key that completes a shortcut to finish: the panel highlights the menu item for about 0.4 s, closes, and the shortcut runs in the front app. A key with no match leaves the panel open — it no longer closes on a miss.
 
-Otherwise the panel stays open because it is persistent by design. Releasing the modifiers does not dismiss it, nor does it clear the filter.
+Otherwise the panel stays open because it is persistent by design — as long as the app behind it keeps focus. Releasing the modifiers does not dismiss it, nor does it clear the filter.
 
 If a chord is not visible, the app may not expose it as a menu key equivalent, or the scan may have missed that menu.
 
-## Why doesn't the panel close by itself?
+## When does the panel close by itself?
 
-Because v2.1.0 made the panel **persistent**. The auto-hide delay and its setting were removed: there is no idle timer, no "browse" versus "pinned" mode, and no way to configure a timeout. The panel stays on screen until one of these happens:
+v2.1.0 made the panel **persistent**: the auto-hide delay and its setting were removed, and there is still no idle timer, no "browse" versus "pinned" mode, and no configurable timeout. You can read it at your own pace. What changed is that persistence is scoped to **the app it was opened over**:
 
+- the panel closes as soon as that app **loses focus** — switching desktops, moving to a full-screen app, Mission Control, or activating another app;
+- switching the frontmost app or the active Space also closes it, and refreshes the menu scan once;
 - you press a **complete shortcut** — the panel highlights it for about 0.4 s and closes;
 - you press **Esc**;
 - you press the **panel hotkey** (or the **switch panel/search** hotkey) again.
 
-Releasing the modifiers you were holding does not close it either, and it does not clear the filter. This is deliberate: the panel is now a reference surface you can read at your own pace, and it is dismissed by a clear action instead of a timer.
+Releasing the modifiers you were holding does not close it, and does not clear the filter. If a focus notification was missed and a stale panel survives on another Space, the next trigger press closes it and opens a fresh one in the same gesture — you never have to press twice. There is still no timer: focus, not elapsed time, ends a panel session.
 
 ## Why does Esc close the panel, and why can't I just click away?
 

@@ -941,6 +941,10 @@ private struct OverlayPanelContentView: View {
     /// row, and that is only true if this column does not grow and shrink with its text.
     private func titleColumn(_ row: PanelRow, width: Double, selected: Bool) -> some View {
         HStack(spacing: 4) {
+            // The execution status leads the command name, whichever side the chord is on.
+            // It sits inside this fixed-width column rather than in a new one, so the note,
+            // gutter and chord keep their x positions on every row.
+            executionStatusDot(row)
             if state.panel.runningRowID == row.id {
                 ProgressView()
                     .progressViewStyle(.circular)
@@ -984,6 +988,11 @@ private struct OverlayPanelContentView: View {
         var values: [String] = []
         if !row.isEnabled { values.append(localization.text(.overlayUnavailableBadge)) }
         if row.isRestricted { values.append(localization.text(.panelRestrictedReason)) }
+        // The dot is a colour, which VoiceOver cannot read. Its verdict goes here so the
+        // leading marker and the trailing conflict badge stay independent aurally too.
+        if let verdict = row.executionVerdict {
+            values.append(localization.text(executionStatusKey(verdict.status)))
+        }
         return values.joined(separator: ", ")
     }
 
@@ -1004,15 +1013,71 @@ private struct OverlayPanelContentView: View {
             .frame(width: width, alignment: hugsChord ? .trailing : .leading)
     }
 
-    /// Why the audit says this row cannot be triggered. The reason travels with the row as
-    /// an enum; only the view turns it into words, so the pure layer stays language-free.
-    private func auditReasonKey(_ reason: PanelTriggerAudit.Reason) -> L10nKey {
-        switch reason {
+    /// The leading dot answers "can this row be executed at all", which is a different
+    /// question from the trailing conflict badge. Both execution paths are named on hover,
+    /// so a yellow dot says *why* the chord is blocked without claiming the row is dead.
+    /// The pure layer only produces enum cases; the words live here.
+    private func executionStatusHelp(_ verdict: PanelTriggerAudit.Verdict) -> String {
+        var parts = [localization.text(executionStatusKey(verdict.status))]
+        if let blocker = verdict.shortcutBlocker {
+            parts.append(localization.text(shortcutBlockerKey(blocker)))
+        }
+        if let blocker = verdict.activationBlocker {
+            parts.append(localization.text(activationBlockerKey(blocker)))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func executionStatusKey(_ status: PanelTriggerAudit.Status) -> L10nKey {
+        switch status {
+        case .executable: return .auditStatusExecutable
+        case .shortcutBlocked: return .auditStatusShortcutBlocked
+        case .unreachable: return .auditStatusUnreachable
+        }
+    }
+
+    private func shortcutBlockerKey(_ blocker: PanelTriggerAudit.ShortcutBlocker) -> L10nKey {
+        switch blocker {
+        case .noChord: return .auditReasonNoChord
         case .claimedByFilter: return .auditReasonClaimedByFilter
         case .capturedByPanelKey: return .auditReasonCapturedByPanelKey
         case .unresolvedByRouter: return .auditReasonUnresolvedByRouter
         case .unmappableKey: return .auditReasonUnmappableKey
         }
+    }
+
+    private func activationBlockerKey(_ blocker: PanelTriggerAudit.ActivationBlocker) -> L10nKey {
+        switch blocker {
+        case .disabledItem: return .auditReasonDisabledItem
+        case .refusedByPolicy: return .auditReasonRefusedByPolicy
+        case .noExecutionTarget: return .auditReasonNoExecutionTarget
+        }
+    }
+
+    private func executionStatusColor(_ status: PanelTriggerAudit.Status) -> Color {
+        switch status {
+        case .executable: return Theme.statusReady
+        case .shortcutBlocked: return Theme.statusDegraded
+        case .unreachable: return Theme.statusBlocked
+        }
+    }
+
+    /// A small dot before the command name. Its slot is reserved on every row — even when
+    /// the self-check is switched off — so the title never shifts when a verdict appears.
+    @ViewBuilder
+    private func executionStatusDot(_ row: PanelRow) -> some View {
+        Group {
+            if let verdict = row.executionVerdict {
+                Circle()
+                    .fill(executionStatusColor(verdict.status))
+                    .help(executionStatusHelp(verdict))
+                    .accessibilityLabel(Text(executionStatusHelp(verdict)))
+            } else {
+                Circle().fill(Color.clear)
+            }
+        }
+        .frame(width: Theme.statusDotSize, height: Theme.statusDotSize)
+        .accessibilityHidden(row.executionVerdict == nil)
     }
 
     /// The row's trailing slot: conflict badge, sub-level chevron and favourite star, always
@@ -1022,32 +1087,21 @@ private struct OverlayPanelContentView: View {
     /// about 17pt to the left on exactly the rows where the user was being warned about
     /// something. Both markers are now always there and simply go transparent.
     ///
+    /// Execution status deliberately does not live here: it has its own leading dot, so a
+    /// healthy row with a shortcut collision still shows the ⚠︎, and a row whose chord is
+    /// blocked shows yellow without borrowing the conflict's warning colour.
+    ///
     /// The chevron lives here rather than beside the menu path so that it survives the narrow
     /// panel, where the menu path column is dropped: a row with a level below it must stay
     /// recognisable whichever columns are showing.
     private func gutter(_ row: PanelRow) -> some View {
         HStack(spacing: RowLayout.gutterSpacing) {
-            // One warning slot, two meanings. An unreachable row is the more serious of
-            // the two — the shortcut in front of the user does nothing — so it takes the
-            // slot, in the same colour the panel uses for actions it will not run. Neither
-            // marker may change the gutter width: a warning must not reflow the row it
-            // warns about.
-            Group {
-                if let reason = row.unreachableReason {
-                    Image(systemName: "bolt.slash.fill")
-                        .font(.system(size: TypeScale.micro))
-                        .foregroundStyle(palette.restrictedText)
-                        .help(localization.text(auditReasonKey(reason)))
-                        .accessibilityLabel(Text(localization.text(auditReasonKey(reason))))
-                } else {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: TypeScale.micro))
-                        .foregroundStyle(Theme.warning.opacity(0.85))
-                }
-            }
-            .frame(width: 12)
-            .opacity(row.unreachableReason != nil || row.hasConflict ? 1 : 0)
-            .accessibilityHidden(row.unreachableReason == nil && !row.hasConflict)
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: TypeScale.micro))
+                .foregroundStyle(Theme.warning.opacity(0.85))
+                .frame(width: 12)
+                .opacity(row.hasConflict ? 1 : 0)
+                .accessibilityHidden(!row.hasConflict)
             Image(systemName: "chevron.right")
                 .font(.system(size: TypeScale.micro, weight: .bold))
                 .foregroundStyle(palette.tertiaryText)

@@ -163,9 +163,11 @@ nonisolated struct AppSettingsSnapshot: Codable, Equatable, Sendable {
     var fixedPanelWidth: Double = 720
     var fixedPanelHeight: Double = 620
     var showExecutedHUD: Bool = true
-    /// Audit every shortcut the panel can list and warn on rows a key press cannot reach.
-    /// On by default: a visible row that silently does nothing is exactly the bug this
-    /// catches. Turning it off removes both the warnings and the audit's per-rebuild cost.
+    /// Show each panel row's execution status as a leading dot. Both paths are judged —
+    /// pressing the chord and activating the row — so a command with no shortcut is not
+    /// called unreachable. On by default: a visible row that silently does nothing is the
+    /// bug this catches. Turning it off removes the dots and the audit's per-rebuild cost.
+    /// The stored key keeps its original name so existing settings files need no migration.
     var autoAuditUnreachableShortcuts: Bool = true
     var keyStyle: KeyFormatter.Style = .symbols
     var columnCount: Int = 2

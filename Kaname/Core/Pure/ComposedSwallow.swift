@@ -57,10 +57,12 @@ nonisolated enum ComposedSwallow {
         guard state.panelIsActive else { return false }
         // While the hint layer is up a bare glyph is a row address, not text. It reaches
         // here before the composition rules because the address must not be offered to
-        // chord composition either. The same resolver the key handler uses answers this,
-        // so a press is swallowed exactly when a row will run for it — no swallowed key
-        // that vanishes, and no row key that also types into the front app.
+        // chord composition either. The key handler only addresses rows at the top level
+        // (`prefix.isEmpty`), and the panel only draws labels there, so the swallow decision
+        // shares that boundary: swallowing a glyph that no row answers is a keypress that
+        // vanishes without a trace.
         if state.shiftHintsActive,
+           state.prefix.isEmpty,
            event.modifiers.isEmpty,
            ShiftHintLayer.index(for: event, pageRowCount: state.hintRowCount) != nil { return true }
         guard let key = event.key else { return false }

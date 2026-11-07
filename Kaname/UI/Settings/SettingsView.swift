@@ -148,6 +148,9 @@ struct SettingsView: View {
 
                 Toggle(localization.text(.rankingHUD), isOn: $store.settings.showExecutedHUD)
 
+                // Three-state status dots at the head of each panel row — green, amber,
+                // red. Off leaves the slot reserved but empty, so toggling never reflows
+                // the list. The row-end conflict badge is unrelated and always stays on.
                 Toggle(
                     localization.text(.settingsAutoAuditUnreachable),
                     isOn: $store.settings.autoAuditUnreachableShortcuts

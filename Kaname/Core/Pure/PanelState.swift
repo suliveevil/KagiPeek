@@ -36,10 +36,11 @@ nonisolated struct PanelRow: Identifiable {
     /// Whether the item has a chord at all. A row without one cannot copy a shortcut and
     /// falls back to its menu path.
     var hasChord: Bool = true
-    /// Why the reachability audit decided this row cannot be triggered right now, or nil
-    /// when its last key does reach the front app. A visible row that silently does nothing
-    /// is worse than no row, so the view warns in the gutter.
-    var unreachableReason: PanelTriggerAudit.Reason? = nil
+    /// The row's execution-status verdict, behind the leading status dot. Two paths were
+    /// judged independently — pressing the chord and activating the row — so "the shortcut
+    /// is blocked" is a yellow dot, not a red one: the click still runs the command. Nil
+    /// means the self-check is switched off, and the dot's slot stays reserved but empty.
+    var executionVerdict: PanelTriggerAudit.Verdict? = nil
 
     /// The chord as plain text — the segmented form joined back together, so the two can
     /// never drift.

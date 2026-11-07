@@ -169,6 +169,19 @@ final class ComposedSwallowTests: XCTestCase {
         XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("z"))))
     }
 
+    /// Labels only exist at the top level. One level down (`prefix` non-empty) the key
+    /// handler addresses no row for a glyph, so the tap must not swallow it either —
+    /// otherwise the press vanishes without running anything.
+    func testHintGlyphWithAChordPrefixIsNotSwallowed() {
+        var state = ComposedSwallowState()
+        state.panelIsActive = true
+        state.shiftHintsActive = true
+        state.hintRowCount = 36
+        state.prefix = .combo([.command], KeyToken("k"))
+
+        XCTAssertFalse(ComposedSwallow.decide(state, event: event(key: KeyToken("a"))))
+    }
+
     /// A press still carrying a modifier is not a hint address: Shift was tapped to raise
     /// the layer, not held into the addressing keystroke.
     func testModifiedGlyphIsNotABareHintAddress() {

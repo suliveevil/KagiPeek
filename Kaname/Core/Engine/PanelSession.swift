@@ -230,7 +230,7 @@ final class PanelSession {
             systemTitle: systemTitle,
             appTitle: sectionTitle,
             hintLabels: hintLabels(for: page.entries),
-            unreachable: audit
+            audit: audit
         )
         if isPreviewing() {
             let counts = PanelSections.counts(in: allEntries)
@@ -266,13 +266,15 @@ final class PanelSession {
         return ShiftHintLayer.labels(for: page.map(\.hit.id))
     }
 
-    /// Which shortcuts the panel lists cannot actually be triggered with the keys as they
-    /// are routed right now. Off when the setting is off; cached for every other rebuild.
+    /// Which rows the panel lists can actually be executed, by chord *or* by activating the
+    /// row. Off when the setting is off; cached for every other rebuild.
     ///
     /// The audit reads `state.chordItems` — the very list the key router consults — rather
     /// than assembling its own catalog. If those two ever drift apart again, the audit
     /// reports the rows the router cannot reach instead of quietly agreeing with a list the
-    /// engine does not use.
+    /// engine does not use. The second half of the answer comes from the live Accessibility
+    /// snapshot: a command with no shortcut is still executable when its menu item can be
+    /// pressed, and the audit has to know that before calling it unreachable.
     private func triggerAudit() -> PanelTriggerAudit.Result {
         guard state.settings.autoAuditUnreachableShortcuts else { return PanelTriggerAudit.Result() }
         let items = state.chordItems
@@ -290,7 +292,14 @@ final class PanelSession {
             String(state.panel.triggerNarrowPending),
             String(state.panel.latchedModifiers.rawValue),
             state.prefix.cacheKey,
-            hotkeys
+            hotkeys,
+            // The activation half reads the AX snapshot and the trust state, so a scan that
+            // gained elements, a re-walk that memoised one, or a permission change must
+            // recompute the verdicts rather than reuse a stale answer.
+            String(state.catalog.elements.count),
+            String(state.searchScopeCatalog.elements.count),
+            String(state.hasAccessibility),
+            String(state.catalog.appPID != nil)
         ].joined(separator: "|")
         if let cached = triggerAuditCache, cached.key == key { return cached.result }
 
@@ -303,7 +312,11 @@ final class PanelSession {
                 prefix: state.prefix,
                 pending: state.pending,
                 triggerPending: state.panel.triggerNarrowPending,
-                routingItems: state.chordItems
+                routingItems: state.chordItems,
+                pressableRowIDs: Set(state.catalog.elements.keys)
+                    .union(state.searchScopeCatalog.elements.keys),
+                hasAccessibility: state.hasAccessibility,
+                canResolveMenuPath: state.catalog.appPID != nil
             )
         )
         triggerAuditCache = (key, result)
@@ -317,7 +330,7 @@ final class PanelSession {
         systemTitle: String,
         appTitle: String,
         hintLabels: [String: String],
-        unreachable: PanelTriggerAudit.Result
+        audit: PanelTriggerAudit.Result
     ) -> [PanelRowBuilder.Spec] {
         entries.map { entry in
             let hit = entry.hit
@@ -349,7 +362,7 @@ final class PanelSession {
                 // for Sleep/Restart/…; the policy is evaluated on every row so both are red.
                 restriction: RestrictedActionPolicy.restriction(for: hit.item).action,
                 hasChord: !hit.item.chord.isEmpty,
-                unreachableReason: unreachable.reason(forRowID: hit.id)
+                executionVerdict: audit.verdict(forRowID: hit.id)
             )
         }
     }

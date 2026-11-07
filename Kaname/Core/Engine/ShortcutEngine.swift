@@ -161,8 +161,18 @@ final class ShortcutEngine: ObservableObject {
     private static let modifierTapWindow: TimeInterval = 0.35
     private var activationObserver: NSObjectProtocol?
     private var spaceObserver: NSObjectProtocol?
-    /// 切 Space 后同一前台 App 的重扫合并窗口。
-    private var spaceRescanGate = SpaceRescanGate(interval: 0.75)
+    /// An app losing focus is the one signal the other two workspace observers cannot see:
+    /// a keyboard/trackpad desktop switch or a full-screen transition need not change the
+    /// frontmost app's identity, and the Space notification is not always delivered.
+    private var deactivationObserver: NSObjectProtocol?
+    /// The app whose menu bar the visible panel was read from. Nil outside a panel session.
+    /// The same answer drives both the focus-loss close and the trigger-key self-heal, so a
+    /// panel left over on another Space can never be mistaken for a fresh one.
+    private var panelOwnerPID: pid_t?
+    /// One focus-change episode closes the surfaces once and rescans once, even when macOS
+    /// delivers deactivate, activate and Space notifications for a single switch.
+    private var focusRescanGate = FocusRescanGate()
+    private var focusRescanWork: DispatchWorkItem?
     /// `true` while one of the panel's context menus is tracking.
     ///
     /// SwiftUI's `contextMenu` is a real `NSMenu`, and while it tracks it owns the keyboard:
@@ -239,6 +249,9 @@ final class ShortcutEngine: ObservableObject {
         if let spaceObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver)
         }
+        if let deactivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(deactivationObserver)
+        }
         if let menuBeginObserver {
             NotificationCenter.default.removeObserver(menuBeginObserver)
         }
@@ -284,14 +297,15 @@ final class ShortcutEngine: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.dismissEverything()
+                // A Space change closes both surfaces even when the frontmost app is
+                // unchanged: the rows were read on the Space the user just left. The shared
+                // exit means a switch that also sends activate/deactivate only dismisses once.
+                self?.dismissOnFocusChange(includingSearch: true, checkOwner: false)
                 guard let self else { return }
                 // 切 Space 会让菜单栏短暂消失，而前台 App 不一定变；只重扫当前这个 App，
-                // 并让它在拿到空列表时保留旧目录（见 `CatalogPublishPolicy`）。
-                let pid = self.frontmostProcessIdentifier
-                guard self.spaceRescanGate.shouldScan(pid: pid, at: Date()) else { return }
-                Diag.info(.scan, "space changed → forced rescan \(self.state.appName)")
-                self.reloadCatalog(force: true, preserveOnEmpty: true)
+                // 并让它在拿到空列表时保留旧目录（见 `CatalogPublishPolicy`）。重扫交给统一
+                // 的合并闸门，一次切换只走一次 AX 目录。
+                self.requestFocusRescan(force: true, preserveOnEmpty: true)
             }
         }
 
@@ -301,6 +315,32 @@ final class ShortcutEngine: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshPermissions() }
+        }
+
+        // The focus-loss signal. `didActivate` only fires when another app takes over, and
+        // `activeSpaceDidChange` is not guaranteed for a full-screen transition; an app
+        // resigning frontmost status is the one event all of those have in common.
+        deactivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didDeactivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                // Returning from the search palette activates Kaname briefly, then hands
+                // focus back before `activatePanel()` opens the panel. That resignation is
+                // ours, not the user's, and must not close what was just opened.
+                let resignedPID = (note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication)?.processIdentifier
+                guard resignedPID != ProcessInfo.processInfo.processIdentifier else { return }
+                // Decide on the next run loop from the live menu-bar owner. A notification
+                // that arrives after the hand-off finished then sees the app the new panel
+                // was opened over, and the owner check keeps it open.
+                DispatchQueue.main.async { [weak self] in
+                    MainActor.assumeIsolated {
+                        _ = self?.dismissOnFocusChange(includingSearch: false, checkOwner: true)
+                    }
+                }
+            }
         }
 
         menuBeginObserver = NotificationCenter.default.addObserver(
@@ -365,6 +405,9 @@ final class ShortcutEngine: ObservableObject {
         state.injectionTask = nil
         monitorRetry?.cancel()
         monitorRetry = nil
+        // A debounced focus rescan must not start after the engine has stopped listening.
+        focusRescanWork?.cancel()
+        focusRescanWork = nil
         monitor.stop()
         appContext.stop()
         appDirectory.stop()
@@ -694,7 +737,9 @@ final class ShortcutEngine: ObservableObject {
         lastExternalFrontmost = NSRunningApplication(processIdentifier: app.pid)
         Diag.debug(.scan, "frontmost changed: \(app.bundleID ?? "?") pid=\(app.pid)")
         Diag.action("app.activate", target: app.bundleID)
-        dismissPanel()
+        // The shared focus exit: if the deactivation or Space notification already closed
+        // the panel, this guard makes the activation a no-op instead of a second dismiss.
+        dismissOnFocusChange(includingSearch: false, checkOwner: false)
         catalogCoordinator.clearForIdentityChange()
         state.appName = app.name
         state.appIcon = app.icon
@@ -703,9 +748,83 @@ final class ShortcutEngine: ObservableObject {
         // changed, so the in-memory snapshot misses anyway; the disk cache then gets its
         // chance to hand back the rows the user last saw for this app instead of a walk of
         // the whole menu bar. An explicit refresh (a settings
-        // change, a permission grant) stays forced and always rescans.
-        reloadCatalog(force: false)
+        // change, a permission grant) stays forced and always rescans. The request goes
+        // through the focus gate so a Space notification in the same switch cannot start a
+        // second scan; if one does arrive, the forced parameters win.
+        requestFocusRescan(force: false, preserveOnEmpty: false)
         if state.search.isVisible { refreshSearch() }
+    }
+
+    // MARK: - Focus changes
+
+    /// The one exit for every "the user left the app" signal.
+    ///
+    /// `checkOwner` is the new condition: a deactivation closes the hint panel only when the
+    /// app it was opened over is no longer in front. The two pre-existing signals keep their
+    /// own reach — an app switch closes only the panel, a Space change closes both surfaces.
+    ///
+    /// Every caller shares the visibility guard, so a switch that delivers three
+    /// notifications closes once. It goes through `dismissPanel()` / `dismissEverything()`
+    /// rather than hiding the window: those reset the phase, the tap's captured keys and the
+    /// Karabiner signal, which is exactly what lets the next trigger press open a panel.
+    @discardableResult
+    private func dismissOnFocusChange(includingSearch: Bool, checkOwner: Bool) -> Bool {
+        guard !isPreviewing else { return false }
+        guard state.panel.isVisible || (includingSearch && state.search.isVisible) else { return false }
+        if checkOwner {
+            // The search palette is deliberately untouched here: its field owns the keyboard,
+            // and focus moving to Kaname while it is up is not a desktop switch.
+            guard state.panel.isVisible else { return false }
+            guard FocusDismissPolicy.shouldDismiss(focusContext()) else { return false }
+        }
+        Diag.info(.ui, "focus change → dismiss surfaces (search=\(includingSearch))")
+        if includingSearch { dismissEverything() } else { dismissPanel() }
+        return true
+    }
+
+    /// The live answer the focus rule reads. `menuBarOwningApplication` wins for the same
+    /// reason it does in `AppContextService`: it names the menu bar whose shortcuts the panel
+    /// is showing, not whichever app happens to be frontmost mid-transition.
+    private func focusContext() -> FocusDismissPolicy.Context {
+        let app = NSWorkspace.shared.menuBarOwningApplication ?? NSWorkspace.shared.frontmostApplication
+        let pid = app?.processIdentifier
+        return FocusDismissPolicy.Context(
+            panelVisible: state.panel.isVisible,
+            ownerPID: panelOwnerPID,
+            currentPID: pid,
+            currentIsSelf: pid == ProcessInfo.processInfo.processIdentifier,
+            isPreviewing: isPreviewing
+        )
+    }
+
+    /// If a panel survived on another Space, close it *before* this press is routed.
+    /// `togglePinnedPanel` would otherwise take its "close" branch and the user would need a
+    /// second press to get a panel; with the stale session gone, this same press opens one.
+    /// This is the safety net for a switch whose notifications never arrived at all.
+    @discardableResult
+    private func healStalePanelOwner() -> Bool {
+        guard state.panel.isVisible, state.phase == .active else { return false }
+        return dismissOnFocusChange(includingSearch: false, checkOwner: true)
+    }
+
+    /// One AX walk per focus-change episode. Signals inside the window merge their
+    /// parameters; a short debounce gives a trailing Space notification the chance to
+    /// upgrade a plain app-switch scan into a forced, empty-tolerant one before it runs.
+    private func requestFocusRescan(force: Bool, preserveOnEmpty: Bool) {
+        guard focusRescanGate.absorb(
+            FocusRescanGate.Request(force: force, preserveOnEmpty: preserveOnEmpty),
+            pid: frontmostProcessIdentifier,
+            at: Date()
+        ) != nil else { return }
+        focusRescanWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let run = self.focusRescanGate.take() else { return }
+            self.focusRescanWork = nil
+            Diag.info(.scan, "focus change → rescan force=\(run.force) preserveOnEmpty=\(run.preserveOnEmpty)")
+            self.reloadCatalog(force: run.force, preserveOnEmpty: run.preserveOnEmpty)
+        }
+        focusRescanWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
 
     // MARK: - Input
@@ -722,6 +841,12 @@ final class ShortcutEngine: ObservableObject {
         // did here — arming the panel, consuming a stroke — would make it the thing that
         // swallowed the key, which is the one result this feature must never report.
         if state.isTestingShortcut { return }
+
+        // A panel left behind on another Space is still `.active` and still swallowing keys.
+        // Heal it before this press is routed, so the trigger opens a fresh panel instead of
+        // closing the stale one. This is independent of whether any workspace notification
+        // arrived, which is the whole point of the owner check.
+        healStalePanelOwner()
 
         switch event.kind {
         case .interruption:
@@ -936,7 +1061,7 @@ final class ShortcutEngine: ObservableObject {
         // deeper levels) apply and nothing waits for a modifier to be released.
         if let rowID = shiftHintRowID(for: event) {
             noteGestureUse(.none, event: event)
-            panel.performPanelRow(rowID: rowID, action: .execute)
+            runAddressedPanelRow(rowID)
             return
         }
 
@@ -958,6 +1083,14 @@ final class ShortcutEngine: ObservableObject {
             state.prefix = .empty
             rebuildPanel()
             updateKeyCapture()
+            // The queue may now spell a whole chord — ⌥ ⌘ h is ⌥⌘H typed one key at a
+            // time. The tap swallowed that final `h`, so the front app will never perform
+            // the shortcut. Run the row on this key-down, but only when the rebuild above
+            // narrowed the panel to that one row: while other rows are still on screen the
+            // letter is a query and the user keeps the choice of what to run.
+            if let rowID = completedFilterChordRowID() {
+                runAddressedPanelRow(rowID)
+            }
             return
         case .popToken:
             noteGestureUse(.none, event: event)
@@ -1020,6 +1153,30 @@ final class ShortcutEngine: ObservableObject {
                   pageRowCount: state.panel.flatRowIDs.count
               ) else { return nil }
         return state.panel.flatRowIDs[index]
+    }
+
+    /// One execution door for a row the keyboard addressed — a Shift-hint glyph, or a filter
+    /// queue that just spelled a whole chord. Both take the click / run-key contract, so
+    /// disabled rows, restricted actions and deeper levels answer the same way on both.
+    private func runAddressedPanelRow(_ rowID: String) {
+        panel.performPanelRow(rowID: rowID, action: .execute)
+    }
+
+    /// The row a completed filter chord should run, if any.
+    ///
+    /// This reads the panel snapshot *after* the rebuild the append just triggered, so both
+    /// answers describe the same query: `totalCount` is every surviving row across sources
+    /// and pages, and `flatRowIDs` is what that narrowed panel actually drew. Requiring both
+    /// to be one keeps a long result list from being read as an unambiguous address, and
+    /// keeps a row hidden behind a folded card from being run unseen. With one row left the
+    /// panel's selection is that row, so no second selection lookup can disagree with it.
+    private func completedFilterChordRowID() -> String? {
+        return FilterChordCompletion.rowID(
+            filter: state.panel.filter,
+            items: state.chordItems,
+            remainingRowIDs: state.panel.flatRowIDs,
+            remainingRowCount: state.panel.totalCount
+        )
     }
 
     /// Two gestures watch the keys that pass through here.
@@ -1293,6 +1450,11 @@ final class ShortcutEngine: ObservableObject {
         state.prefix = .empty
         state.panel.isVisible = true
         state.panel.isPinned = true
+        // The rows belong to this app's menu bar. `frontmostProcessIdentifier` comes from
+        // `AppContextService`, which deliberately ignores Kaname's own search/settings
+        // windows, so it is stable even while a focus hand-off is still in flight.
+        let owner = frontmostProcessIdentifier
+        panelOwnerPID = owner > 0 ? owner : nil
         state.panel.beginNewSession()
         // The cursor belongs to the session too: a panel opened again must not start on the
         // row where the previous one happened to leave it.
@@ -1320,6 +1482,9 @@ final class ShortcutEngine: ObservableObject {
     func dismissPanel() {
         state.completionTask?.cancel()
         state.completionTask = nil
+        // No session, no owner: a late focus notification can no longer be attributed to
+        // this panel, so it cannot close whichever panel is opened next.
+        panelOwnerPID = nil
         cancelArm()
         state.phase = .idle
         state.prefix = .empty
@@ -1699,6 +1864,10 @@ final class ShortcutEngine: ObservableObject {
     // MARK: - Commands from the UI
 
     func togglePinnedPanel(waitingForTriggerRelease: Bool = false) {
+        // The menu bar item and the global hotkey do not pass through `handle(_:)`, so the
+        // same stale-owner check has to live here too. When it fires, this press opens the
+        // panel for the app now in front instead of closing one from the old Space.
+        healStalePanelOwner()
         if state.panel.isVisible, state.phase == .active {
             dismissPanel()
             return

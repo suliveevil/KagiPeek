@@ -106,6 +106,9 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case panelHintEnter, panelHintActive, panelHintActiveCompact
     case auditReasonClaimedByFilter, auditReasonCapturedByPanelKey
     case auditReasonUnresolvedByRouter, auditReasonUnmappableKey
+    case auditReasonNoChord, auditReasonDisabledItem, auditReasonRefusedByPolicy
+    case auditReasonNoExecutionTarget
+    case auditStatusExecutable, auditStatusShortcutBlocked, auditStatusUnreachable
     case settingsAutoAuditUnreachable, settingsAutoAuditHint
 
     // Overlay
@@ -632,8 +635,8 @@ nonisolated enum L10n {
             "0–9 / a–z 执行 · ⇧ 或 Esc 退出标记"
         ),
         .panelHintActiveCompact: ("⇧ / Esc leave hints", "⇧ / Esc 退出标记"),
-        // Why a row the panel shows cannot be triggered by its own shortcut. These name
-        // Kaname's routing, never the shortcut's definition.
+        // Why one of the two execution paths is closed. The leading dot shows the combined
+        // verdict; these name Kaname's routing and row policy, never the shortcut's definition.
         .auditReasonClaimedByFilter: (
             "Its key becomes a filter token instead of a shortcut",
             "这一键被当成筛选字符，快捷键不会执行"
@@ -650,13 +653,41 @@ nonisolated enum L10n {
             "This key has no virtual key code to replay",
             "这个键没有可回放的虚拟键码"
         ),
+        .auditReasonNoChord: (
+            "This command has no shortcut",
+            "这条菜单项没有快捷键"
+        ),
+        .auditReasonDisabledItem: (
+            "The menu item is disabled",
+            "菜单项当前是禁用的"
+        ),
+        .auditReasonRefusedByPolicy: (
+            "A protected or config row never runs",
+            "受保护或配置行不会执行"
+        ),
+        .auditReasonNoExecutionTarget: (
+            "No menu element to press and no chord to replay",
+            "既没有可按下的菜单项，也没有可回放的快捷键"
+        ),
+        .auditStatusExecutable: (
+            "This row can be executed",
+            "这行可以执行"
+        ),
+        .auditStatusShortcutBlocked: (
+            "The shortcut cannot reach the app; a click still runs it",
+            "快捷键不可达，点击仍可执行"
+        ),
+        .auditStatusUnreachable: (
+            "Neither the shortcut nor a click runs this command",
+            "快捷键和点击都无法执行"
+        ),
         .settingsAutoAuditUnreachable: (
-            "Warn about shortcuts that cannot be triggered",
-            "标记无法被触发的快捷键"
+            "Show each row's execution status",
+            "显示每行的可执行状态"
         ),
         .settingsAutoAuditHint: (
-            "Checks every shortcut the panel lists against the current key routing, and marks rows whose key press cannot reach the app.",
-            "对面板列出的每条快捷键按当前按键路由做一次检查，标出按下去无法触发的行。"
+            "A dot before each row shows the self-check: green when the shortcut and a click both work, amber when only a click works, red when neither works. It is separate from the conflict badge at the row's end.",
+            "在每行前用圆点显示自检结果：绿色＝快捷键和点击都能执行，黄色＝只有点击能执行，红色＝两条路都走不通。与行尾的冲突标记互不干扰。"
         ),
 
         .frontmostApp: ("Frontmost app", "前台 App"),

@@ -67,6 +67,18 @@ enum Theme {
     static let favoriteStar = Color.yellow
     static let warning = Color.orange
 
+    /// The leading execution-status dot. Three semantic colours, deliberately kept apart
+    /// from the trailing conflict badge: the dot answers "can this row run at all", the
+    /// badge answers "do two shortcuts collide". A healthy row can still have a conflict.
+    /// System colours so both palettes keep the same contrast; orange stands in for the
+    /// amber step because pure yellow washes out on the paper palette.
+    static let statusReady = Color(nsColor: .systemGreen)
+    static let statusDegraded = Color(nsColor: .systemOrange)
+    static let statusBlocked = Color(nsColor: .systemRed)
+    /// Diameter of the leading status dot. Its slot is always reserved, even when the
+    /// self-check is off, so switching the setting never reflows the command name.
+    static let statusDotSize: CGFloat = 6
+
     /// Accent-emphasis ladder for state the accent color already carries: the completed
     /// flash is strongest, a pressed row sits under it, the selection gutter is quietest.
     static let completedRowEmphasis: Double = 0.38

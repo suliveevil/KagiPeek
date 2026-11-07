@@ -95,8 +95,15 @@ update this file before relying on it again.
   the four paging pairs are unaffected, and the `PanelTriggerNarrow` rule that the trigger key does
   not narrow is unchanged. Added `PanelFilterTests`, `PanelFilterPlanTests`; `swift test`
   726 → 741. A later fix narrowed the letter rule: only a *bare* letter becomes a token, so
-  ⌥⌘M / ⌥⌘F stay chords while their modifiers narrow the list, and `PanelTriggerAudit` marks
-  listed rows whose key press cannot reach the app.
+  ⌥⌘M / ⌥⌘F stay chords while their modifiers narrow the list, and a leading three-state
+  dot from `PanelTriggerAudit` shows each row's execution status — red only when both paths fail.
+- **Focus-loss dismissal and trigger self-heal** (working tree, uncommitted): `activatePanel()`
+  records the owner pid; `NSWorkspace.didDeactivateApplicationNotification` closes the panel
+  when that app is no longer in front. `Core/Pure/FocusChangeGate.swift` holds both
+  `FocusDismissPolicy` (live menu-bar owner, ignores self hand-offs and previews) and
+  `FocusRescanGate` (one dismiss and one merged rescan per episode). `healStalePanelOwner()`
+  on the trigger path covers switches that delivered no notification, so the first press
+  opens a fresh panel. Added `FocusChangeGateTests`; `swift test` 900 → 913.
 - **Panel geometry invalidation and Space rescan (G1–G4)**: `containedFrame` now clamps the size to
   the visible area first, then decides per direction whether the 8 pt `screenMargin` still fits —
   taking 0 for that direction when it does not, so a screen-sized frame is no longer pushed off

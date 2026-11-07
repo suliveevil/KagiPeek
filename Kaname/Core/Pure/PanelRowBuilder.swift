@@ -27,9 +27,9 @@ nonisolated enum PanelRowBuilder {
         var source: BindingSource = .menu
         var restriction: RestrictedAction?
         var hasChord = true
-        /// Non-nil when the audit found this row's chord unreachable through the key
-        /// pipeline. Kept as the reason, not a Bool, so the view can explain itself.
-        var unreachableReason: PanelTriggerAudit.Reason?
+        /// The audit's per-row verdict for the leading status dot. Nil when the setting is
+        /// off; kept as the whole verdict so the view can explain both paths on hover.
+        var executionVerdict: PanelTriggerAudit.Verdict?
     }
 
     static func build(_ specs: [Spec]) -> (groups: [PanelGroup], flatRowIDs: [String]) {
@@ -54,7 +54,7 @@ nonisolated enum PanelRowBuilder {
                 source: spec.source,
                 restriction: spec.restriction,
                 hasChord: spec.hasChord,
-                unreachableReason: spec.unreachableReason
+                executionVerdict: spec.executionVerdict
             )
             flatRowIDs.append(spec.id)
 

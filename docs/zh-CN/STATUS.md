@@ -77,7 +77,13 @@ as of **2026-11-06**（Asia/Shanghai）。
   之外（如搜索面板）字母留在输入框；方向键与四对翻页键不受影响，触发键不 narrow 的
   `PanelTriggerNarrow` 规则不变。新增 `PanelFilterTests`、`PanelFilterPlanTests`；
   `swift test` 726 → 741。后续修正收窄了字母规则：只有**裸**字母才入队，⌥⌘M / ⌥⌘F 在修饰键
-  收窄列表时仍是组合键；`PanelTriggerAudit` 会标出面板里按下去无法触发的行。
+  收窄列表时仍是组合键；`PanelTriggerAudit` 给出行首三态圆点，只有快捷键与点击两条路都断才标红。
+- **失焦关闭与触发键自愈**（工作区，未提交）：`activatePanel()` 记录面板所属 App 的 pid；
+  `NSWorkspace.didDeactivateApplicationNotification` 在该 App 不再是前台时关闭面板。
+  `Core/Pure/FocusChangeGate.swift` 同时放 `FocusDismissPolicy`（读实时菜单栏属主、忽略 Kaname
+  自己的焦点交还与截图预览）与 `FocusRescanGate`（一次切换只关一次、只合并重扫一次）。
+  触发键路径的 `healStalePanelOwner()` 兜住「通知没送达」的切换，第一次按键即打开新面板。
+  新增 `FocusChangeGateTests`；`swift test` 900 → 913。
 - **面板几何失效与 Space 重扫（G1–G4）**：`containedFrame` 先把尺寸夹到可见区，再按方向判断
   8pt `screenMargin` 是否放得下，放不下该方向取 0，整屏大小的帧不再被边距推出去（`80d5810`）。
   新增纯类型 `PanelAnchorCache`（`invalidate` / `beginRead(pid:)` / `apply`，陈旧 pid 的结果被
