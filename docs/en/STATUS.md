@@ -43,8 +43,9 @@ update this file before relying on it again.
   owns only the variable name, the payload and the "panel visible and switch on" decision;
   `Core/Services/KarabinerBridge` is the transport layer: private serial queue, coalescing debounce,
   `lastWritten` dedupe, `Process` calling `karabiner_cli --set-variables` (stdout/stderr to
-  `nullDevice`), a single `[settings]` warning on failure, and `clearAndWait()` blocking on a 0
-  write on the exit path. `ShortcutEngine` calls `signalKarabiner()` from `start()` /
+  `nullDevice`), a single `[settings]` warning on failure, and `clearAndWait()` writing 0
+  synchronously on the exit path (each child wait capped at `writeTimeout` = 0.8 s, then
+  terminated and logged). `ShortcutEngine` calls `signalKarabiner()` from `start()` /
   `activatePanel()` / `dismissPanel()` / `stop()` and on a switch flip. The settings page gained the
   "Trigger → Tell Karabiner when the panel is open" switch plus a not-installed notice, and three
   L10n strings in each language. On the user's side their own rule still needs

@@ -38,7 +38,8 @@ as of **2026-11-06**（Asia/Shanghai）。
   `Core/Pure/KarabinerPanelSignal` 只管变量名、payload 与「面板可见且开关开启」的决策；
   `Core/Services/KarabinerBridge` 是传输层：私有串行队列、合并去抖、`lastWritten` 去重、
   `Process` 调 `karabiner_cli --set-variables`（stdout/stderr 都进 `nullDevice`）、失败只记
-  一条 `[settings]` 警告、`clearAndWait()` 在退出路径阻塞写 0。`ShortcutEngine` 在
+  一条 `[settings]` 警告、`clearAndWait()` 在退出路径同步写 0（每次子进程等待上限
+  `writeTimeout`=0.8s，超时 `terminate` 并记警告）。`ShortcutEngine` 在
   `start()` / `activatePanel()` / `dismissPanel()` / `stop()` / 开关变化时调
   `signalKarabiner()`。设置页新增「触发 → 面板打开时通知 Karabiner」开关与未安装提示，L10n 三条
   中英文案。用户侧还需给自己的规则加

@@ -15,7 +15,26 @@ import Foundation
 nonisolated final class KarabinerBridge: @unchecked Sendable {
     /// Where the Karabiner-Elements installer puts its CLI. There is no PATH entry for it and
     /// no preference carries a path, so this is the only address Kaname can know.
-    static let defaultCLIPath = "/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli"
+    ///
+    /// `KANAME_KARABINER_CLI` overrides it. That exists so a fake CLI — one that sleeps
+    /// instead of exiting — can prove the bound in `write` on a machine without Karabiner
+    /// installed; it is not a user-facing preference.
+    static var defaultCLIPath: String {
+        let override = ProcessInfo.processInfo.environment["KANAME_KARABINER_CLI"]
+        if let override, !override.isEmpty { return override }
+        return "/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli"
+    }
+
+    /// A `karabiner_cli` run that has not exited by then is terminated and reported as a
+    /// failure.
+    ///
+    /// The CLI talks to Karabiner's daemon over a Unix socket, and a wedged daemon leaves the
+    /// child hanging forever. That used to be unbounded on the termination path, where it is
+    /// not a hang but a quit the user can only finish by forcing the app — and the two store
+    /// flushes queued behind it never ran, taking the last settings edit with them.
+    /// `DiagnosticsExporter.runDitto` (20 s) and `FileLogStore.flushNow` (0.5 s) bound their
+    /// waits the same way.
+    static let writeTimeout: TimeInterval = 0.8
 
     private let cliPath: String
     private let fileManager: FileManager
@@ -65,8 +84,14 @@ nonisolated final class KarabinerBridge: @unchecked Sendable {
     /// Brings the variable to 0 and waits for it. Called on the way out: the process is about
     /// to end, an async write would be cut in half by the exit, and leaving a 1 behind would
     /// suppress the user's rule until the next launch.
+    ///
+    /// Deliberately not `publish` plus a synchronous drain: that schedules a second drain
+    /// behind this one, and a CLI that times out is then paid for twice. Setting the request
+    /// and draining once means a wedged `karabiner_cli` costs one `writeTimeout` here.
     func clearAndWait() {
-        publish(panelIsVisible: false, isEnabled: true)
+        lock.lock()
+        desired = false
+        lock.unlock()
         queue.sync { [self] in drain() }
     }
 
@@ -99,20 +124,36 @@ nonisolated final class KarabinerBridge: @unchecked Sendable {
     /// Runs the CLI once. Returns whether it exited cleanly.
     ///
     /// Output goes to /dev/null rather than a pipe: nothing reads it, and an unread pipe fills
-    /// up and blocks the child until the timeout that does not exist here.
+    /// up and blocks the child until the timeout. The wait is bounded by `writeTimeout`: on
+    /// timeout the child is asked to terminate and the write is reported as failed, because a
+    /// quit must not be held hostage by another process.
     private func write(_ value: Bool) -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: cliPath)
         process.arguments = ["--set-variables", KarabinerPanelSignal.payload(panelIsVisible: value)]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
+        // Signalled from the process's own termination queue, so the wait ends the moment the
+        // child exits instead of after a fixed sleep.
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
         do {
             try process.run()
         } catch {
             reportFailureOnce("could not start karabiner_cli: \(error.localizedDescription)")
             return false
         }
-        process.waitUntilExit()
+        guard finished.wait(timeout: .now() + Self.writeTimeout) == .success else {
+            process.terminate()
+            // Deliberately not waited on again: `terminate` is a request (SIGTERM) that a
+            // wedged child may ignore, and waiting for it here would put the unbounded wait
+            // straight back.
+            reportFailureOnce(
+                "karabiner_cli did not exit within \(Self.writeTimeout)s on "
+                    + KarabinerPanelSignal.payload(panelIsVisible: value)
+            )
+            return false
+        }
         guard process.terminationStatus == 0 else {
             reportFailureOnce(
                 "karabiner_cli exited \(process.terminationStatus) on "

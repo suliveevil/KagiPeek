@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here, in the order the work happened.
 
+## [Unreleased]
+
+### Fixed
+
+- **Quitting no longer hangs on a stuck `karabiner_cli`, and the last edit still reaches disk.** The bridge waited for the child process with no timeout, and both store flushes were queued *behind* it: a Karabiner daemon that stopped answering held the quit open and dropped the settings and usage edits still inside their debounce window. Each `karabiner_cli` run is now capped at 0.8 s and terminated on timeout, `usage.json`'s flush at 0.5 s, and the two flushes moved ahead of the engine shutdown. The self-test path also stopped running the shutdown sequence twice.
+
 ## Kaname 2.3.2 (2026-11-07)
 
 ### Added

@@ -142,9 +142,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Diagnostic mode: reports what the installed app can actually see, then quits.
     ///
-    /// The exit is unconditional and always flushes. It used to bail out early when the
-    /// report could not be built — quitting without a word, and without flushing, which
-    /// made a failed self-test look like a clean run.
+    /// The exit is unconditional: the report is written whether or not it could be built, and
+    /// the quit runs `performShutdown` like every other exit. It used to bail out early when
+    /// the report could not be built — quitting without a word, and without flushing, which
+    /// made a failed self-test look like a clean run — and it used to run the shutdown
+    /// sequence itself *before* `terminate`, so the sequence ran twice.
     private func writeSelfTestAndExit() {
         do {
             let data = try engine.diagnosticsReport()
@@ -155,28 +157,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             Diag.error(.ui, "selftest failed: \(error.localizedDescription)")
         }
-        engine.stop()
-        settingsStore.flush()
-        usageStore.flush()
         NSApp.terminate(nil)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // First: the sentinel goes before anything that could block. A delete cannot hang, a
-        // flush can, and a sentinel left behind turns every normal quit into a false
-        // "unexpected exit" in the next session's log.
+        performShutdown()
+    }
+
+    /// The one exit sequence. ⌘Q, `NSApp.terminate` from either diagnostics path, and the
+    /// self-test all end here.
+    ///
+    /// The order is the design: it is sorted by what cannot be recovered.
+    ///
+    /// 1. The sentinel goes first. Deleting it cannot block, and one left behind turns this
+    ///    quit into a false "unexpected exit" in the next session's log.
+    /// 2. Both stores flush before anything that talks to another process. A debounced edit
+    ///    that never reached disk is the only loss here the user cannot undo. These two used
+    ///    to sit *after* `engine.stop()`, directly behind an unbounded `karabiner_cli` wait:
+    ///    one wedged child and the app hung with the last settings and usage edit still in
+    ///    memory, the sentinel already deleted so the forced quit would not even be reported.
+    /// 3. The status item goes, then the engine stops. Resetting the Karabiner variable is the
+    ///    engine's last act, and that wait is bounded inside `KarabinerBridge`.
+    /// 4. A preview session restores the real settings last, and flushes what it restored.
+    ///    Restoring them earlier would only hand values to an engine already shutting down.
+    ///
+    /// Every wait on this path is bounded: `FileLogStore.flushNow` through `markCleanExit`, the
+    /// usage write, and each `karabiner_cli` run. None of them may outlast the app.
+    private func performShutdown() {
         CrashReporter.markCleanExit()
         if let backgroundActivity {
             ProcessInfo.processInfo.endActivity(backgroundActivity)
             self.backgroundActivity = nil
         }
-        statusItemController?.uninstall()
-        engine.stop()
-        // A screenshot session edits settings in memory only; this puts the real ones back.
-        settingsStore.endPreviewSession()
-        // Both stores write on a debounce; a quit would otherwise drop the last edit.
+        // In a preview session this is a no-op by design (`writeNow` returns early), so the
+        // screenshot overrides never reach disk; the real values are written by
+        // `endPreviewSession` below.
         settingsStore.flush()
         usageStore.flush()
+        statusItemController?.uninstall()
+        engine.stop()
+        settingsStore.endPreviewSession()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

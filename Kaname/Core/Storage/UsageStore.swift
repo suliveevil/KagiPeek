@@ -86,11 +86,23 @@ final class UsageStore: ObservableObject {
     }
 
     /// Writes any pending change now. Called on termination.
-    func flush() {
+    ///
+    /// Bounded the way `FileLogStore.flushNow` is: the write queue can be waiting on a volume
+    /// that never answers, and a quit must not hang on it. The timeout is reported rather
+    /// than swallowed — the edit is lost either way, but that log line is what explains a
+    /// later "my statistics reset" report.
+    func flush(timeout: TimeInterval = 0.5) {
         pendingWrite?.cancel()
         pendingWrite = nil
         let item = Self.makeWriteItem(store: fileStore, payload: makePayload())
-        writeQueue.sync(execute: item)
+        let group = DispatchGroup()
+        writeQueue.async(group: group, execute: item)
+        guard group.wait(timeout: .now() + timeout) == .success else {
+            Diag.error(.settings, """
+                usage.json write did not finish within \(timeout)s; the last edit may be lost
+                """)
+            return
+        }
     }
 
     private func schedulePersist() {

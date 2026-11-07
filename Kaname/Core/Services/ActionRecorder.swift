@@ -59,7 +59,13 @@ nonisolated final class ActionRecorder: @unchecked Sendable {
     /// Called on a clean exit: nothing from this session is worth keeping.
     func clear() {
         buffer.removeAll()
-        queue.async { [mirrorURL] in
+        queue.async { [self] in
+            // A mirror scheduled a second ago writes on this same queue, after this block, and
+            // would recreate the file — as `[]`, since the buffer is already empty — for the
+            // next launch to attach to a crash as if it belonged to that session. Cancelling
+            // from inside the queue is the only safe place: `pendingMirror` is owned by it.
+            pendingMirror?.cancel()
+            pendingMirror = nil
             do {
                 try FileManager.default.removeItem(at: mirrorURL)
             } catch CocoaError.fileNoSuchFile {

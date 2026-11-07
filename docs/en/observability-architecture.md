@@ -235,10 +235,22 @@ day's log) → write the complete `.json` report → delete the `.partial` → l
 
 - At launch `CrashReporter.beginSession()` writes `logs/session.active`, containing pid and start
   time.
-- In `applicationWillTerminate`, **delete the sentinel first**, then flush (deleting is idempotent
-  and cannot fail, so it takes precedence over any flush that might block); the same step also
-  deletes this session's `.partial` and the on-disk `last-actions.json` — a clean exit should not
-  leave the next launch anything that looks like a crash.
+- `applicationWillTerminate` runs a single exit sequence (`AppDelegate.performShutdown`), ordered by
+  what cannot be recovered:
+  1. **Delete the sentinel first** — deleting is idempotent and cannot fail, so it takes precedence
+     over anything that might block; the same step also deletes this session's `.partial` and the
+     on-disk `last-actions.json`, because a clean exit should not leave the next launch anything
+     that looks like a crash;
+  2. **Flush both stores** (settings, usage) — the last edit inside a debounce window is the only
+     loss on this path the user cannot undo, so it goes before any step that waits on another
+     process;
+  3. Take the status item down and stop the engine; resetting the Karabiner variable is the
+     engine's last act;
+  4. A preview session restores the real settings last and flushes them itself — restoring earlier
+     only hands values to an engine that is already shutting down.
+  Every wait on this path is bounded: `FileLogStore.flushNow` 500 ms, `UsageStore.flush` 500 ms,
+  and each `karabiner_cli` run 800 ms (terminated with a single warning on timeout) — a quit never
+  hangs on another process.
 - The next launch follows a fixed order, and the four steps cannot be reordered:
   1. `completePartialReports()`: complete last time's `-signal.partial` into a full report (see
      3.2). It must run before this launch's fragment paths are prepared, or an empty file gets

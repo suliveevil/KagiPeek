@@ -190,7 +190,12 @@ raise(sig);
 ### 3.3 意外退出哨兵
 
 - 启动时 `CrashReporter.beginSession()` 写 `logs/session.active`，内容：pid、启动时间。
-- `applicationWillTerminate` 中**先删哨兵**再 flush（删除是幂等且不可失败的，顺序上优先于任何可能阻塞的 flush）；同一步还会删掉本次会话的 `.partial` 和磁盘上的 `last-actions.json`——正常退出不该给下次启动留下"像是崩过"的痕迹。
+- `applicationWillTerminate` 只有一条退出序列（`AppDelegate.performShutdown`），按「丢了就找不回来」排序：
+  1. **先删哨兵**——删除幂等且不可失败，优先于任何可能阻塞的步骤；同一步还会删掉本次会话的 `.partial` 和磁盘上的 `last-actions.json`，正常退出不该给下次启动留下"像是崩过"的痕迹；
+  2. **两个 store 先 flush**（settings、usage）——去抖窗口里最后一次编辑是这条链上唯一无法恢复的损失，所以它排在任何会等外部进程的步骤之前；
+  3. 菜单栏项下线、引擎 `stop()`；把 Karabiner 变量复位是引擎的最后一个动作；
+  4. 预览会话最后恢复真实设置并自行落盘（提前恢复只是把值交给一个已在关闭的引擎）。
+  这条链上每一步的等待都有上界：`FileLogStore.flushNow` 500ms、`UsageStore.flush` 500ms、每次 `karabiner_cli` 800ms（超时即 `terminate` 并记一条警告）——退出不会挂在任何外部进程上。
 - 下次启动的顺序是固定的，四步不能换位：
   1. `completePartialReports()`：把上次的 `-signal.partial` 补全成完整报告（见 3.2）。必须排在本次的片段路径准备好之前，否则会把一个空文件当成损坏的片段删掉；
   2. `reportPreviousSessionIfNeeded()`：哨兵还在 → 上次不是正常退出。带时间窗内崩溃报告的一条是 `W [exit] previous session ended unexpectedly (crash report: …)`，没有的则是 `(no crash report: killed, force quit or power loss)`。然后**直接删除**残留哨兵，不归档、不改名；
