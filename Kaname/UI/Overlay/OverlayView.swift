@@ -674,33 +674,7 @@ private struct OverlayPanelContentView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if !group.title.isEmpty {
-                HStack(spacing: 8) {
-                    if group.isCollapsible {
-                        Image(systemName: group.isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: TypeScale.micro, weight: .semibold))
-                            .foregroundStyle(palette.secondaryText)
-                    }
-                    Text(group.title)
-                        .font(.system(size: TypeScale.callout, weight: .medium))
-                        .lineLimit(1)
-                        .foregroundStyle(palette.secondaryText)
-                    Text(localization.format(.overlayCountFormat, group.totalCount ?? group.rows.count))
-                        .font(.system(size: TypeScale.caption, weight: .medium, design: .rounded))
-                        .foregroundStyle(palette.secondaryText)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 12)
-                .frame(height: Theme.groupHeaderHeight, alignment: .center)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(palette.selection)
-                // The tool card's header is the toggle: the rows are hidden, the count and the
-                // source stay visible so the user can see what there is to open.
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if let tool = group.tool {
-                        engine.toggleToolSection(tool)
-                    }
-                }
+                groupHeader(group)
                 Rectangle()
                     .fill(palette.rule)
                     .frame(height: 1)
@@ -734,6 +708,57 @@ private struct OverlayPanelContentView: View {
                 .decorative()
         )
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusCard, style: .continuous))
+    }
+
+    /// The card's title strip. A collapsible tool card reads as one button whose value is the
+    /// fold state, so VoiceOver can open it and hears whether it is open; a plain source
+    /// heading reads as a heading. The chevron is decorative — the value already says which
+    /// way the card opens, and a glyph spoken as "chevron down" only adds noise.
+    @ViewBuilder
+    private func groupHeader(_ group: PanelGroup) -> some View {
+        let strip = HStack(spacing: 8) {
+            if group.isCollapsible {
+                Image(systemName: group.isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: TypeScale.micro, weight: .semibold))
+                    .foregroundStyle(palette.secondaryText)
+                    .accessibilityHidden(true)
+            }
+            Text(group.title)
+                .font(.system(size: TypeScale.callout, weight: .medium))
+                .lineLimit(1)
+                .foregroundStyle(palette.secondaryText)
+            Text(localization.format(.overlayCountFormat, group.totalCount ?? group.rows.count))
+                .font(.system(size: TypeScale.caption, weight: .medium, design: .rounded))
+                .foregroundStyle(palette.secondaryText)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: Theme.groupHeaderHeight, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(palette.selection)
+        // The tool card's header is the toggle: the rows are hidden, the count and the
+        // source stay visible so the user can see what there is to open.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let tool = group.tool {
+                engine.toggleToolSection(tool)
+            }
+        }
+        if group.isCollapsible {
+            strip
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityValue(Text(localization.text(group.isExpanded ? .overlaySectionExpanded : .overlaySectionCollapsed)))
+                .accessibilityAction {
+                    if let tool = group.tool {
+                        engine.toggleToolSection(tool)
+                    }
+                }
+        } else {
+            strip
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 
     /// One hairline per internal column boundary.

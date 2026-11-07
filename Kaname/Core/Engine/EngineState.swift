@@ -180,21 +180,32 @@ final class EngineState {
     /// The hand-off that replays a chord after a surface closed. An unstructured task does
     /// not inherit anyone's cancellation, so without this handle there is no way to stop it
     /// between its activation wait and the key it would post.
-    var injectionTask: Task<Void, Never>?
+    var injectionTask: Task<InjectionOutcome, Never>?
 
     /// Queues a replay, replacing whatever was queued before.
     ///
-    /// Two call sites reach this: a system-hotkey row and a composed chord from the panel.
-    /// They used to spell the whole hand-off out twice — cancel, start, post — and the delay
-    /// and the cancellation rule would have had to be kept in step by hand. One of them
-    /// silently not matching is exactly the kind of difference nobody notices until a chord
-    /// lands in the wrong app.
-    func enqueueInjection(_ chord: KeyChord, delay: TimeInterval = 0.12) {
+    /// Every replay goes through here — a system-hotkey row, a panel row's fallback, the
+    /// palette's fallback — so "one pending replay at a time" and the cancellation rule
+    /// live in one place. The returned task carries the verdict for the callers that
+    /// report a failure; the registration is what lets `stop()` cancel the post.
+    @discardableResult
+    func enqueueInjection(
+        _ chord: KeyChord,
+        to target: InjectionTarget? = nil,
+        delay: TimeInterval = 0.12
+    ) -> Task<InjectionOutcome, Never> {
         injectionTask?.cancel()
-        injectionTask = Task { @MainActor in
-            await ShortcutInjector.post(chord, delay: delay)
+        let task = Task { @MainActor in
+            await ShortcutInjector.post(chord, to: target, delay: delay)
         }
+        injectionTask = task
+        return task
     }
+
+    /// The palette's activation hand-off: a scoped run waits for its app to come forward,
+    /// then resolves and presses the row. Held for the same reason as `injectionTask` —
+    /// closing the palette or stopping the engine has to be able to cancel the wait.
+    var searchRunTask: Task<Void, Never>?
     var crossAppRefreshTask: Task<Void, Never>?
     var configScanTask: Task<Void, Never>?
     var configScanGeneration = 0

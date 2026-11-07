@@ -114,6 +114,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
 
     // Overlay
     case overlayNoCandidates, overlayNoCandidatesHint, overlayScanning, overlayPageFormat, overlayUnavailableBadge
+    case overlaySectionExpanded, overlaySectionCollapsed
     case panelDisabledReason
     case triggerTip
     case overlayBuiltInBadge, overlayRunning
@@ -602,6 +603,8 @@ nonisolated enum L10n {
         .overlayScanning: ("Scanning menu bar…", "正在读取菜单栏…"),
         .overlayPageFormat: ("%d/%d", "%d/%d"),
         .overlayUnavailableBadge: ("Unavailable", "不可用"),
+        .overlaySectionExpanded: ("Expanded", "已展开"),
+        .overlaySectionCollapsed: ("Collapsed", "已折叠"),
         .panelDisabledReason: (
             "This menu item is unavailable right now",
             "该菜单项当前不可用"

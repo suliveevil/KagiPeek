@@ -622,7 +622,7 @@ struct SettingsView: View {
             HStack(spacing: 8) {
                 if state.recordingTarget == target {
                     Text(localization.text(.triggerRecordingHint))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Theme.warning)
                 } else if let spec {
                     KeycapView(text: KeyFormatter.render(spec.chord, style: settings.keyStyle), compact: true)
                 } else {
@@ -913,7 +913,7 @@ struct SettingsView: View {
                             Text("·").font(.caption).foregroundStyle(.secondary)
                             Text(issue)
                                 .font(.caption)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Theme.warning)
                         }
                     }
                     Spacer()
@@ -1092,7 +1092,7 @@ struct SettingsView: View {
             Section {
                 LabeledContent(localization.text(.statusLabel)) {
                     Text(state.isListening ? localization.text(.statusReady) : localization.text(.statusNoPermission))
-                        .foregroundStyle(state.isListening ? .green : .orange)
+                        .foregroundStyle(state.isListening ? .green : Theme.warning)
                 }
                 LabeledContent(localization.text(.appName)) {
                     Text(state.appName.isEmpty ? "—" : state.appName).foregroundStyle(.secondary)
@@ -1120,8 +1120,8 @@ struct SettingsView: View {
                     .font(.system(size: TypeScale.caption, weight: .semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(granted ? Color.green.opacity(0.18) : Color.orange.opacity(0.18)))
-                    .foregroundStyle(granted ? .green : .orange)
+                    .background(Capsule().fill(granted ? Color.green.opacity(0.18) : Theme.warning.opacity(0.18)))
+                    .foregroundStyle(granted ? .green : Theme.warning)
                 Spacer()
                 if !granted {
                     Button(localization.text(.permissionRequest), action: request)
@@ -1395,7 +1395,7 @@ private struct UpdateCheckRow: View {
             .buttonStyle(.link)
         case .failed:
             Text(localization.text(.updateFailed))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.warning)
         }
     }
 }

@@ -665,6 +665,8 @@ P1-3 用与引擎切分同样的方式把它拆开：
   检查更新与跨 App 冲突扫描同样是可以取消的 `Task`，结果发布回主 actor。
 - `PanelState` 与搜索快照只在主线程上变更，且 `PanelState` 仍是整体替换的不可变快照——引擎从不原地改它。
 - 让行高亮在完成的快捷键之后继续保持可见的那个 `completionTask` 会在关闭时取消，所以高亮不会活得比展示它的那个面板更久。
+- 关闭界面后的组合键回放走同一个可取消句柄：`EngineState.enqueueInjection` 登记 `injectionTask`（系统热键行、面板行与搜索面的回放回退都经它），`stop()` 与下一次回放都会取消它。搜索面那次「等目标 App 到前台、再解析并按压」的交接另持有 `searchRunTask`，在搜索面关闭、为权限窗或设置关界面（`dismissEverything`）以及 `stop()` 时取消。注入器把取消当作「什么都没发」，所以停掉的交接既不报失败也不弹成功提示。
+- `KeyboardMonitor` 的共享状态（`tap`/`source`/`isRunning` 等）只在 `withLock` 内读写，`start()` 的发布也在锁内，与 tap 线程和看门狗队列的锁内读取一致——这是该类 `@unchecked Sendable` 契约赖以成立的前提。
 
 ## 面板内容与高亮
 

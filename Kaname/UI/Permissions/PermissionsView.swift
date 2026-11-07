@@ -99,8 +99,8 @@ private struct PermissionCardView: View {
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(Capsule().fill(permission.policy.isRequired ? Color.orange.opacity(0.16) : Color.secondary.opacity(0.12)))
-                        .foregroundStyle(permission.policy.isRequired ? .orange : .secondary)
+                        .background(Capsule().fill(permission.policy.isRequired ? Theme.warning.opacity(0.16) : Color.secondary.opacity(0.12)))
+                        .foregroundStyle(permission.policy.isRequired ? Theme.warning : .secondary)
                 }
                 Text(details)
                     .font(.caption)

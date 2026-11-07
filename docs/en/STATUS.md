@@ -410,22 +410,27 @@ in `/Users/suliveevil/.trae-cn/assistant/2026-11-04/kaname-code-review-2/outputs
 - **The settings page's live preview of the panel (the "press and try" test area) is not
   implemented**: reusing `OverlayView` would require decoupling the engine first, which is high
   risk; downgraded this round, and the docs do not claim it exists.
-- Concurrency report: M1 (an injection task may still post a key after cancellation), M2 (two
-  delayed Tasks with no owner), M3 (`ShortcutTester`'s taps not split out), M5 (cache and crash
-  reports with no eviction), M6 (logs containing menu titles), M7 (the exit path writing to disk on
-  the main thread), M8 (the preview loading state never reset), L1–L5.
+- Concurrency report: M3 (`ShortcutTester`'s taps not split out), M5 (cache and crash reports with
+  no eviction), M6 (logs containing menu titles), M7 (the exit path writing to disk on the main
+  thread), M8 (the preview loading state never reset), L1–L5. M1 (an injection task may still post a
+  key after cancellation) and M2 (two delayed Tasks with no owner) are fixed this round (Unreleased):
+  every replay registers `injectionTask`, the palette hand-off holds `searchRunTask`, and both are
+  cancelled on close and on `stop()`.
 - Architecture report: H1 (the god object) has been split into seven collaboration modules by R-3,
   with the engine still owning InputRouter and lifecycle; H2 (two implementations of menu item
   execution) has a single entry point in `RowRunner`, though the search surface's difference
   remains; H3 (the settings field list written twice), H4 (business decisions left in the engine),
   M1–M10 and L2–L9 are untouched. Only L1 (13 dead L10n keys deleted) had been done before.
-- HIG report: H2 (VoiceOver), H3 (menu bar extras), H4's "ask for the save path before doing the
-  work" (this round fixed only the success feedback and the failure notice), M3's yellow star and
-  permission status colours, M4, M5 (accessible names on Slider/Stepper), M6's keyboard deletion
-  (only the copy that contradicted the implementation was changed), M7's Continue-disable
-  explanation / Esc / detail truncation, M8's orange failure-text contrast, M9–M11, L1 (the doubled
-  `v` in the version), L2 (bare ✓/— with no alternative text), L5/L6 (hard-coded English), L7 (this
-  round changed only the prompt copy).
+- HIG report: H2 (VoiceOver; the config-tool fold header now has a button role, an expanded value
+  and a toggle action), H3 (menu bar extras), H4's "ask for the save path before doing the work"
+  (this round fixed only the success feedback and the failure notice), M3's permission status colours
+  (the green "granted" branch is still a bare `.green`), M4, M5 (accessible names on Slider/Stepper),
+  M6's keyboard deletion (only the copy that contradicted the implementation was changed), M7's
+  Continue-disable explanation / Esc / detail truncation, M9–M11, L1 (the doubled `v` in the version),
+  L2 (bare ✓/— with no alternative text), L5/L6 (hard-coded English), L7 (this round changed only the
+  prompt copy). M3's yellow star and M8's orange failure-text contrast are fixed this round
+  (Unreleased): `Theme.favoriteStar`/`Theme.warning` use a darker measured variant in light mode, and
+  the bare `.orange` text and badges now route through the token.
 
 ## Waiting on your decision
 

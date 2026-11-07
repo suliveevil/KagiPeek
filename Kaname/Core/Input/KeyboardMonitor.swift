@@ -216,7 +216,7 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
     var onOutsideMousePress: (@Sendable () -> Void)?
 
     func start() throws {
-        guard tap == nil else { return }
+        guard withLock({ tap == nil }) else { return }
         guard PermissionCenter.hasAccessibility else { throw KeyboardMonitorError.accessibilityDenied }
 
         withLock {
@@ -267,15 +267,17 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
             CFMachPortInvalidate(created)
             throw KeyboardMonitorError.tapCreationFailed
         }
-        tap = created
-        self.source = source
-        enableTap(created)
-        isRunning = true
-
+        // Published under the lock the tap thread and the watchdog queue read through:
+        // bare writes here raced those locked reads. `enableTap` takes the lock itself,
+        // so it stays outside; no callback can run before the thread starts below anyway.
         withLock {
+            tap = created
+            self.source = source
+            isRunning = true
             watchdog.reset()
             tapDetachedByWatchdog = false
         }
+        enableTap(created)
         startWatchdog()
 
         // The tap's run loop is this thread's own — the point of the whole refactor. The
@@ -283,7 +285,7 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         // requires; nothing about the tap depends on the main thread after this.
         let thread = Thread { [weak self] in self?.tapThreadMain() }
         thread.name = "Kaname event tap"
-        tapThread = thread
+        withLock { tapThread = thread }
         thread.start()
     }
 
@@ -336,7 +338,7 @@ nonisolated final class KeyboardMonitor: @unchecked Sendable {
         }
     }
 
-    var isActive: Bool { isRunning }
+    var isActive: Bool { withLock { isRunning } }
 
     // MARK: - Recovery
 

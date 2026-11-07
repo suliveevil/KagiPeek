@@ -542,6 +542,8 @@ and appearance are unchanged, and the Debug app build plus `swift test` pass.
 - AX menu scanning runs off the main thread on a background queue with concurrency two (a slow scan for the previous app can finish after a fast one for the current app); a generation counter lets only the newest request publish. The update check and the cross-app conflict scan are likewise cancellable `Task`s publishing back onto the main actor.
 - `PanelState` and the search snapshot are mutated only on the main thread, and `PanelState` remains a wholesale-replaced immutable snapshot — the engine never mutates one in place.
 - The `completionTask` that keeps the row highlight visible after a completed shortcut is cancelled on dismissal, so the highlight cannot outlive the panel that showed it.
+- The chord replay after a surface closes goes through one cancellable handle: `EngineState.enqueueInjection` registers `injectionTask` (the system-hotkey row and both the panel's and the palette's replay fallbacks use it), cancelled by `stop()` and by the next replay. The palette's "wait for the target app to come forward, then resolve and press" hand-off holds its own `searchRunTask`, cancelled when the palette closes, when surfaces are dismissed for the permissions window or Settings (`dismissEverything`), and on `stop()`. The injector treats cancellation as "nothing posted", so a stopped hand-off reports no failure and shows no success toast.
+- `KeyboardMonitor`'s shared state (`tap`/`source`/`isRunning` and the rest) is read and written only inside `withLock`; `start()` publishes under the lock too, matching the locked reads on the tap thread and the watchdog queue — the invariant the class's `@unchecked Sendable` contract rests on.
 
 ## Panel content and highlighting
 

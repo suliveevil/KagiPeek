@@ -403,9 +403,12 @@ final class ShortcutEngine: ObservableObject {
         state.configScanTask?.cancel()
         state.crossAppRefreshTask?.cancel()
         // First, before the monitor goes: a replay still waiting out its activation delay
-        // would otherwise post its chord after the app has stopped listening.
+        // would otherwise post its chord after the app has stopped listening. The palette's
+        // activation hand-off is the same hazard one step earlier.
         state.injectionTask?.cancel()
         state.injectionTask = nil
+        state.searchRunTask?.cancel()
+        state.searchRunTask = nil
         monitorRetry?.cancel()
         monitorRetry = nil
         // A debounced focus rescan must not start after the engine has stopped listening.
@@ -1574,6 +1577,11 @@ final class ShortcutEngine: ObservableObject {
 
     private func dismissEverything() {
         dismissPanel()
+        // This closes the palette without going through `hideSearch()`, so the pending
+        // activation hand-off has to be cancelled here too — the permissions window, an
+        // interruption and Settings all close surfaces through this path.
+        state.searchRunTask?.cancel()
+        state.searchRunTask = nil
         state.search.isVisible = false
         presenters.panel.close()
     }

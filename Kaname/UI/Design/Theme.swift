@@ -60,12 +60,29 @@ enum Theme {
         NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     }
 
-    /// Semantic accents drawn on top of a palette. System colors so they track the
-    /// system appearance; each use site keeps its own opacity, tuned to its context.
-    /// (Previously these were bare `.yellow`/`.orange` literals scattered across views,
-    /// which a palette change could never reach.)
-    static let favoriteStar = Color.yellow
-    static let warning = Color.orange
+    /// Semantic accents drawn on top of a palette. Each use site keeps its own opacity,
+    /// tuned to its context. (Previously these were bare `.yellow`/`.orange` literals
+    /// scattered across views, which a palette change could never reach.)
+    ///
+    /// The stock light variants wash out on paper — system yellow measures ~1.5:1 and
+    /// system orange ~2.4:1 on white — so light mode gets a darker variant while dark mode
+    /// keeps the system color. The star is a glyph, so its light variant only needs the 3:1
+    /// non-text minimum (~3.4:1 on paper); warning marks text and badge fills, so its light
+    /// variant clears 4.5:1 both on white (~6:1) and on its own 0.18 tint (~4.6:1).
+    static let favoriteStar = adaptiveColor(
+        light: NSColor(srgbRed: 0.69, green: 0.50, blue: 0.0, alpha: 1),
+        dark: .systemYellow
+    )
+    static let warning = adaptiveColor(
+        light: NSColor(srgbRed: 0.61, green: 0.31, blue: 0.0, alpha: 1),
+        dark: .systemOrange
+    )
+
+    private static func adaptiveColor(light: NSColor, dark: NSColor) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+        })
+    }
 
     /// The leading execution-status dot. Three semantic colours, deliberately kept apart
     /// from the trailing conflict badge: the dot answers "can this row run at all", the

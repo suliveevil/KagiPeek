@@ -87,6 +87,8 @@ final class SearchSession {
     }
 
     func hideSearch() {
+        state.searchRunTask?.cancel()
+        state.searchRunTask = nil
         state.search.isVisible = false
         presenters.panel.closeSearch()
     }
@@ -131,24 +133,29 @@ final class SearchSession {
             // Bring it forward first, then trigger: a menu press into a background app and a
             // chord replayed to the wrong window are both ways to do nothing visible.
             scoped.activate()
-            Task { @MainActor [weak self] in
+            state.searchRunTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: 200_000_000)
+                guard !Task.isCancelled else { return }
                 await self?.triggerSearchItem(item, target: scoped)
             }
             return
         }
-        Task { @MainActor [weak self] in
+        state.searchRunTask = Task { @MainActor [weak self] in
             await self?.triggerSearchItem(item, target: target)
         }
     }
 
     /// The trigger itself, split out so the scoped path can activate first and still share it.
     private func triggerSearchItem(_ item: BindingItem, target: NSRunningApplication?) async {
+        guard !Task.isCancelled else { return }
         guard RowEligibility.canActivate(isEnabled: item.isEnabled) else { return }
         guard canRunFromSearch(item) else { return }
         // Pressing the menu item is the primary trigger; `RowRunner` keeps the search path's
         // differences (no HUD, record after success) inside the same implementation.
         let element = await rowRunner.resolveElement(forRowID: item.id)
+        // The element walk can outlive the session: a cancelled hand-off must not press
+        // the row it was looking up when the palette closed mid-walk.
+        guard !Task.isCancelled else { return }
         await rowRunner.run(
             item,
             rowID: item.id,

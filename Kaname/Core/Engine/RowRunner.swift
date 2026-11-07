@@ -270,7 +270,7 @@ final class RowRunner {
             // The toast is the confirmation of a run, so it waits for the replay to actually
             // post: a chord withheld because the app never came back is a failure, not a run.
             let target = injectionTargetForFrontmost()
-            let outcome = await ShortcutInjector.post(item.chord, to: target, delay: 0.12)
+            let outcome = await state.enqueueInjection(item.chord, to: target, delay: 0.12).value
             if outcome == .sent {
                 showExecutedNotice(chord: rendered, title: item.title)
             } else {
@@ -282,7 +282,7 @@ final class RowRunner {
             // The injector brings the previous app back and verifies it, instead of typing
             // into whatever holds the keyboard once the palette closes.
             let injectionTarget = searchTarget.map { injectionTarget(for: $0) }
-            let outcome = await ShortcutInjector.post(item.chord, to: injectionTarget, delay: 0.18)
+            let outcome = await state.enqueueInjection(item.chord, to: injectionTarget, delay: 0.18).value
             if outcome != .sent {
                 reportInjectionFailure(outcome)
             }
