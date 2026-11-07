@@ -144,6 +144,13 @@ final class SurfacePanelController: PanelPresenting {
             panel.setFrame(frame, display: true)
         }
         panel.orderFrontRegardless()
+        // "The panel did not open" and "the panel opened where the user cannot see it" look
+        // identical from the outside; this line tells them apart.
+        Diag.debug(.ui, """
+            panel ordered front \(Int(size.width))x\(Int(size.height)) at \
+            \(Int(panel.frame.minX)),\(Int(panel.frame.minY)) visible=\(panel.isVisible) \
+            onActiveSpace=\(panel.isOnActiveSpace) level=\(panel.level.rawValue)
+            """)
         installOutsideClickMonitor()
         // Armed every time the panel is drawn, because its frame moves with the list: the
         // tap has to know where the panel is before it can tell a click on the panel from a

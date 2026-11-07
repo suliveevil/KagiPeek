@@ -896,6 +896,7 @@ final class ShortcutEngine: ObservableObject {
            ) {
             // Both clicks of the gesture are triggers. If the second press is still down
             // when the panel opens, suppress narrowing until it is released.
+            Diag.debug(.ui, "trigger: modifier double-tap")
             togglePinnedPanel(waitingForTriggerRelease: pressed)
             return
         }
@@ -1202,7 +1203,9 @@ final class ShortcutEngine: ObservableObject {
         switch action {
         case .hotkey(let choice):
             switch choice {
-            case .panel: togglePinnedPanel()
+            case .panel:
+                Diag.debug(.ui, "trigger: panel hotkey")
+                togglePinnedPanel()
             case .search: toggleSearch()
             case .switcher: toggleShortcutSurface()
             }
@@ -1440,12 +1443,26 @@ final class ShortcutEngine: ObservableObject {
     /// both cases the rows keep their full chord — a ⌘ that is held is lit up in the row,
     /// not removed from it.
     func activatePanel(waitingForTriggerRelease: Bool = false, ignoringOwnMenu: Bool = false) {
-        guard !state.isFrontAppExcluded else { return }
+        guard !state.isFrontAppExcluded else {
+            Diag.debug(.ui, "panel not opened: \(appContext.frontmost?.bundleID ?? "?") is excluded")
+            return
+        }
         // A popup owns the interaction: opening the panel would both cover it and take
         // focus away from what the user is in the middle of choosing. The one exception is
         // Kaname's own status menu, which is still on screen while the item that asked for
         // this panel is being dispatched — the user finished choosing there.
-        guard !PopupGate.present(pid: frontmostProcessIdentifier, ignoringOwnMenu: ignoringOwnMenu) else { return }
+        guard !PopupGate.present(pid: frontmostProcessIdentifier, ignoringOwnMenu: ignoringOwnMenu) else {
+            // A refused trigger used to leave no trace at all, so "the panel did not open"
+            // had no answer in the log. Name which half of the guard voted.
+            let popup = PopupGate.menuPresent(
+                excludingOwner: ignoringOwnMenu ? ProcessInfo.processInfo.processIdentifier : nil
+            )
+            Diag.debug(.ui, """
+                panel not opened: \(popup ? "a popup menu" : "a sheet or dialog") is in front \
+                of \(appContext.frontmost?.bundleID ?? "?") (pid=\(frontmostProcessIdentifier))
+                """)
+            return
+        }
         state.search.isVisible = false
         cursorReturnPoint = Self.cursorPoint()
         state.phase = .active
@@ -1482,9 +1499,13 @@ final class ShortcutEngine: ObservableObject {
         // The panel is up: tell Karabiner, so a rule bound to the trigger key stands down and
         // the key reaches this list as a modifier instead of as the rule's shortcut.
         signalKarabiner()
+        Diag.debug(.ui, "panel opened for \(appContext.frontmost?.bundleID ?? "?") (pid=\(owner))")
     }
 
     func dismissPanel() {
+        if state.panel.isVisible {
+            Diag.debug(.ui, "panel closed by the engine")
+        }
         state.completionTask?.cancel()
         state.completionTask = nil
         // No session, no owner: a late focus notification can no longer be attributed to

@@ -54,11 +54,30 @@ nonisolated enum PopupGate {
         // A busy or wedged app must not stall the caller. The read then falls back to
         // "no dialog", which is the pre-existing behaviour rather than a new failure mode.
         AXUIElementSetMessagingTimeout(app, 0.15)
-        for window in AXValueReader.elements(kAXWindowsAttribute, of: app) {
-            if isDialog(window) { return true }
-            if AXValueReader.children(of: window).contains(where: isDialog) { return true }
-        }
-        return false
+        // Only one window can block: the one the app is actually in. A dialog is key while
+        // it is up (and a sheet is read out of its parent's children below), so the focused
+        // window — or the first window when nothing reports focus — is the only candidate.
+        //
+        // Reading every window was wrong against real apps: Safari keeps its Start Page
+        // window in the background with `subrole=AXDialog`, and a window the user is not
+        // looking at then stopped the panel for the whole app — in a full-screen Space, where
+        // Safari has both windows, every trigger was refused with nothing in the log to say
+        // why.
+        let windows = AXValueReader.elements(kAXWindowsAttribute, of: app)
+        let front = windows.first(where: isFrontWindow) ?? windows.first
+        guard let front else { return false }
+        if isDialog(front) { return true }
+        return AXValueReader.children(of: front).contains(where: isDialog)
+    }
+
+    /// Whether this is the window the app's user is working in.
+    ///
+    /// `AXFocused` is what a key window reports; `AXMain` covers apps that keep the parent
+    /// marked as main while a sheet is attached. Both are absent on background windows, so
+    /// an app that reports neither simply falls back to the first window in the list.
+    private static func isFrontWindow(_ window: AXUIElement) -> Bool {
+        AXValueReader.bool(kAXFocusedAttribute, of: window, fallback: false)
+            || AXValueReader.bool(kAXMainAttribute, of: window, fallback: false)
     }
 
     private static func isDialog(_ element: AXUIElement) -> Bool {
