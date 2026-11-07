@@ -34,6 +34,7 @@ nonisolated enum L10nKey: String, CaseIterable, Sendable {
     case panelNoFavorites
     case panelClose, panelPreviousPage, panelNextPage
     case panelModifierFilterHint
+    case panelShiftChipHint
     case searchResultCount, searchResultCountOne, searchClearHint
     case overlayCountFormat, searchNoResultsScopedFormat, searchNoResultsHint, ownerBuiltIn
     case searchSubtitle
@@ -300,6 +301,12 @@ nonisolated enum L10n {
         .panelModifierFilterHint: (
             "Tick modifiers to keep only the shortcuts that carry them (add several to require all of them)",
             "勾选修饰键后只保留包含它们的快捷键（可多选，需同时满足）"
+        ),
+        // ⇧ is the one chip whose click and whose key press do different things: the key
+        // opens the hint layer and never filters, the chip ticks ⇧. Hence its own tooltip.
+        .panelShiftChipHint: (
+            "Click to add ⇧ to the filter; press ⇧ on the keyboard to open the hint layer",
+            "点击此处把 ⇧ 加入筛选；点击键盘上的 ⇧ 键进入提示层"
         ),
         .panelNoFavorites: (
             "No pinned shortcuts yet. Hover a menu item and click the star.",

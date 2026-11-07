@@ -4,6 +4,10 @@ All notable changes to this project are documented here, in the order the work h
 
 ## [Unreleased]
 
+### Added
+
+- **The ⇧ chip in the title bar names both of its paths.** Clicking the chip ticks ⇧ into the modifier filter; pressing ⇧ on the keyboard flips the hint layer and never adds a filter token, because capital letters arrive with ⇧ down and `ShortcutEngine` keeps it out of the token list. One tooltip on the whole chip row could only describe the case the four keys agree on, so the tooltip moved from the row onto each chip and ⇧ got its own sentence — *click to add ⇧ to the filter; press ⇧ on the keyboard to open the hint layer* — carried both as `help` and as the accessibility hint, since VoiceOver never hovers. ⌃ ⌥ ⌘ keep the previous text.
+
 ### Fixed
 
 - **Launching a second copy no longer erases the running copy's crash sentinel.** The sentinel `logs/session.active` was written in `init`, before the single-instance guard ran, and the clean-exit path deleted it on the strength of the file existing. So a double launch — or `open -a` on the installed build while it was already running, or a diagnostics run — overwrote the live instance's file with its own pid, logged `previous session ended unexpectedly` about a process that was still running, and then deleted the file on its way out. The live instance was left with no sentinel, so a later kill went unreported. The sentinel now records an owner: a launch that finds a live pid reports nothing, claims nothing and deletes nothing, and a clean exit removes only a file this process wrote (`SentinelOwnership`). A sentinel with no pid (an older file) keeps the previous verdict.

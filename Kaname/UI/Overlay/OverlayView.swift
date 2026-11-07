@@ -264,16 +264,36 @@ private struct OverlayHeaderView: View {
     /// a tick plus a key composes a stroke. Several ticks mean "carries all of these".
     /// Either way the chip lights up while that modifier is narrowing the list, in step with
     /// the same glyph inside every row's chord.
+    ///
+    /// The tooltip sits on each chip instead of on this row, because ⇧ is the one key whose
+    /// click and whose key press do different things: a tap of ⇧ on the keyboard flips the
+    /// hint layer and never touches the filter (`ShortcutEngine` keeps it out of the filter
+    /// tokens), while clicking this chip ticks ⇧ into the filter. One tooltip on the row
+    /// could only describe the three keys where both paths agree, so ⇧ carries its own.
     private var modifierChips: some View {
         HStack(spacing: 1) {
             ForEach(ModifierSet.canonicalOrder, id: \.rawValue) { modifier in
                 modifierChip(modifier)
             }
         }
-        .help(localization.text(.panelModifierFilterHint))
     }
 
+    @ViewBuilder
     private func modifierChip(_ modifier: ModifierSet) -> some View {
+        if modifier == .shift {
+            // The same sentence is the tooltip and the accessibility hint: VoiceOver never
+            // hovers, so it has to work read aloud as well as seen. The other three chips
+            // get no hint — an empty string would be the same as none, only wordier.
+            chipButton(modifier)
+                .help(localization.text(.panelShiftChipHint))
+                .accessibilityHint(localization.text(.panelShiftChipHint))
+        } else {
+            chipButton(modifier)
+                .help(localization.text(.panelModifierFilterHint))
+        }
+    }
+
+    private func chipButton(_ modifier: ModifierSet) -> some View {
         // The title bar lights up the same modifiers the rows do, from the same place:
         // `pending.effective` is what narrows the list, whether it got there by a held key
         // or by a clicked tick. Reading held/latched separately here used to leave a held
