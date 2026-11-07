@@ -354,3 +354,24 @@ as of **2026-11-06**（Asia/Shanghai）。
   `Core/Pure` 依赖 `CoreGraphics`、`EngineState` 单一 ObservableObject、两个 HUD 窗口各自建
   `NSWindow`。
 - HIG 报告 §「建议但先别动」1–8（已并入上面的下一步，不单改）。
+
+## 2026-11-07：全屏 Space 的窗口层级（静态提升）
+
+- `SurfacePanelController.swift` 的 `panel.level` 由 `.floating`(3) 改为 `.statusBar`(25)，
+  与 `HUDPanelController` 对齐。原生全屏 App 拥有独立 Space，WindowServer 会把该 Space 的
+  窗口整体排到 `.floating` 之上；`.canJoinAllSpaces` / `.fullScreenAuxiliary` 只决定窗口能加入
+  哪个 Space，`orderFrontRegardless()` 也跨不过层级差。此前面板其实已经弹出，只是被压在
+  全屏窗口下面，表现为「按了没反应」。
+- **层级保持静态，不要改成动态调整**：macOS 没有公开 API 回答「当前 Space 是否为全屏 Space」，
+  且一次切换会连发多条 `activeSpaceDidChangeNotification`（`SpaceRescanGate` 已在去抖）。
+  运行时改 `level` 会触发 WindowServer 重排，与 `dismissEverything()` /
+  `invalidateAnchorGeometry()` 抢时序，等于给同一个窗口加第二条跨 Space 状态机。
+- 约定：**Space 变化只当失效信号**（关面板、清空锚点几何快照、去抖重扫），不作为状态输入。
+  `SurfacePanelController.spaceChangeObserver` 与 `ShortcutEngine` 的 Space 处理均未改动。
+- 不改：`PopupGate`（`.statusBar` 25 远低于 `popUpMenuWindow` 101，既盖不住系统弹出菜单，
+  也不会自匹配）、`HUDPanelController`、`PermissionGuidePanelController`（锚在 System Settings
+  窗口内，仍为 `.floating`）、`SpaceRescanGate`、`OverlayPlacement`。
+- 普通 Space 无可见代价：`visibleFrame` 已排除菜单栏与 Dock，`topInset` / `fillScreenFrame` /
+  `clampedTop` 避开安全区；面板是用户主动唤起、短暂存在、`.nonactivatingPanel` 的覆盖式卡片。
+- 验证：`swift test --disable-sandbox` 867 项全绿。真实全屏 App 下的目视确认需由集成者按
+  AGENTS.md 集成第 ④ 步重装运行版后进行（本分支只提交源码与文档，未构建、未安装）。
